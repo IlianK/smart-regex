@@ -1,0 +1,21 @@
+[package]
+name = "regex-engine"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "regex-engine"
+path = "src/main.rs"
+
+[lib]
+name = "regex_engine"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "matcher_bench"
+harness = false
