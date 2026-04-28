@@ -1,63 +1,64 @@
 //! Brzozowski derivative matcher
 
 use super::regex::Regex;
-use super::common::simplify;
-use super::common::{nullable};
+use super::common::{nullable, simplify};
 use crate::debug_println;
+use crate::posix::debug::{indent_inc, indent_dec};
 
-/// Computes derivative of r based on character x
+
 pub fn deriv(r: &Regex, x: char) -> Regex {
-    debug_println!("[DEBUG]     deriv({:?}, '{}')", r, x);
+    debug_println!("∂({:?}, {})", r, x);
+    indent_inc();
     
     let result = match r {
         Regex::Phi => {
-            debug_println!("[DEBUG]       -> Φ");
+            debug_println!("∅");
             Regex::Phi
-        },
+        }
         Regex::Eps => {
-            debug_println!("[DEBUG]       -> Φ (ε derivative)");
+            debug_println!("∅");
             Regex::Phi
-        },
+        }
         Regex::Lit(c) => {
-            if *c == x { 
-                debug_println!("[DEBUG]       -> ε (literal match)");
-                Regex::Eps 
-            } else { 
-                debug_println!("[DEBUG]       -> Φ (literal mismatch)");
-                Regex::Phi 
-            }
-        },
-        Regex::Alt(r, s) => {
-            debug_println!("[DEBUG]       -> Alt(deriv(left), deriv(right))");
-            Regex::alt(deriv(r, x), deriv(s, x))
-        },
-        Regex::Seq(r, s) => {
-            let dr = Regex::seq(deriv(r, x), *s.clone());
-            debug_println!("[DEBUG]       nullable(r) = {}", nullable(r));
-            if nullable(r) {
-                debug_println!("[DEBUG]       -> Alt(Seq(deriv(r), s), deriv(s))");
-                Regex::alt(dr, deriv(s, x))
+            if *c == x {
+                debug_println!("ε");
+                Regex::Eps
             } else {
-                debug_println!("[DEBUG]       -> Seq(deriv(r), s)");
-                dr
+                debug_println!("∅");
+                Regex::Phi
             }
-        },
-        Regex::Star(r) => {
-            debug_println!("[DEBUG]       -> Seq(deriv(r), r*)");
-            Regex::seq(deriv(r, x), Regex::star(*r.clone()))
-        },
+        }
+        Regex::Alt(r1, r2) => {
+            debug_println!("∂({:?}) + ∂({:?})", r1, r2);
+            Regex::alt(deriv(r1, x), deriv(r2, x))
+        }
+        Regex::Seq(r1, r2) => {
+            if nullable(r1) {
+                debug_println!("∂({:?})·{:?} + ∂({:?})", r1, r2, r2);
+                let dr1 = Regex::seq(deriv(r1, x), *r2.clone());
+                Regex::alt(dr1, deriv(r2, x))
+            } else {
+                debug_println!("∂({:?})·{:?}", r1, r2);
+                Regex::seq(deriv(r1, x), *r2.clone())
+            }
+        }
+        Regex::Star(r1) => {
+            debug_println!("∂({:?})·{:?}*", r1, r1);
+            Regex::seq(deriv(r1, x), Regex::star(*r1.clone()))
+        }
     };
     
-    debug_println!("[DEBUG]       <- deriv result: {:?}", result);
+    indent_dec();
+    debug_println!("= {:?}", result);
     result
 }
 
-/// Derivative with simplification
+
 pub fn deriv_simp(r: &Regex, c: char) -> Regex {
     simplify(deriv(r, c))
 }
 
-/// Match input using Brzozowski derivatives
+
 pub fn match_deriv(input: &str, r: &Regex) -> bool {
     let mut current = r.clone();
     for c in input.chars() {

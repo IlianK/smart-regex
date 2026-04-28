@@ -13,26 +13,34 @@ cargo --version
 ```
 regex-engine/
 ├── benches/
-│   └── matcher_bench.rs              # Unchanged
+│   └── matcher_bench.rs              
 ├── src/
-│   ├── lib.rs                        # Module declarations
-│   ├── basic/                        # Three fundamental approaches
+│   ├── basic/                        # Naive, Deriv, Par-Deriv
 │   │   ├── mod.rs
 │   │   ├── regex.rs                  # Regex enum + constructors
 │   │   ├── naive.rs                  # match_naive
 │   │   ├── brzozowski.rs             # deriv, nullable, match_deriv
 │   │   ├── antimirov.rs              # pderiv, match_pderiv
 │   │   └── common.rs                 # simplify, smart_seq
-│   ├── posix/                        # POSIX parse tree construction
+│   │
+│   ├── posix/                        # POSIX parse tree 
 │   │   ├── mod.rs
 │   │   ├── parse_tree.rs             # ParseTree enum + flatten
 │   │   ├── mk_eps.rs                 # mk_eps function
 │   │   ├── inject.rs                 # inject function
 │   │   └── parser.rs                 # parse_posix, match_posix
-│   └── main.rs                       # Demo application
-├── tests/
-│   ├── basic_tests.rs                # Tests for basic matchers
-│   └── posix_tests.rs                # Tests for POSIX parser
+│   │
+│   ├── lib.rs                        
+│   ├── demo.rs                       
+│   └── main.rs                       
+│   
+├── tests/                            # Tests
+│   ├── basic_tests.rs                
+│   ├── flatten_tests.rs               
+│   ├── mk_eps_tests.rs               
+│   ├── paper_tests.rs               
+│   └── posix_tests.rs  
+│                
 ├── Cargo.toml
 ├── Cargo.lock
 └── README.md
