@@ -2,6 +2,7 @@
 
 pub mod basic;
 pub mod posix;
+pub mod demo; 
 
 pub use basic::{
     Regex, 

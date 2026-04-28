@@ -1,32 +1,25 @@
 //! Demo application for regex-engine
 
-use regex_engine::{ParseTree, basic::Regex, flatten, match_deriv, match_naive, match_pderiv, parse_posix};
+use regex_engine::basic::Regex;
+use regex_engine::demo::{demo_basic_matching, demo_posix_parse};
 
-fn main() {
-    println!("╔═══════════════════════════════════════════╗");
-    println!("║        Regex Engine Demo                  ║");
-    println!("╚═══════════════════════════════════════════╝\n");
-    
+fn main() { 
+    println!("\n----------- REGEX DEMO -----------\n");
 
-    // ========== PART 1: BASIC MATCHING ==========
-    println!("┌─────────── BASIC MATCHING ───────────┐");
-    println!("│ Three algorithms:                    │");
-    println!("│   n = naive (exponential)            │");
-    println!("│   d = Brzozowski derivatives (DFA)   │");
-    println!("│   p = Antimirov partial (NFA)        │");
-    println!("└──────────────────────────────────────┘\n");
+
+    // 1: BASIC MATCHING 
+    println!("BASIC MATCHING");
+    println!("- n = naive (exponential)");
+    println!("- d = Brzozowski derivatives (DFA)");
+    println!("- p = Antimirov partial (NFA)\n");
     
     let r = Regex::star(Regex::lit('a'));
     demo_basic_matching(&r, "a*", &["", "a", "aa", "aaa", "ab"]);
     
 
-
-    // ========== PART 2: POSIX PARSING ==========
-    println!("┌──────────── POSIX PARSING ───────────┐");
-    println!("│ POSIX = longest leftmost match       │");
-    println!("└──────────────────────────────────────┘\n");
+    // 2: POSIX PARSING
+    println!("\nPOSIX PARSING (longest (leftmost) match)\n");
     
-
     // Example 1: Paper example
     println!("▶ Example 1: (a + ab)(b + ε)");
     let r1 = Regex::seq(
@@ -38,7 +31,6 @@ fn main() {
 
     // Example 2: Ambiguous pattern
     println!("▶ Example 2: (a + b + ab)*");
-    println!("  (POSIX prefers [ab] over [a, b])");
     let r2 = Regex::star(Regex::alt(
         Regex::lit('a'),
         Regex::alt(Regex::lit('b'), Regex::seq(Regex::lit('a'), Regex::lit('b')))
@@ -57,46 +49,9 @@ fn main() {
     let r4 = Regex::star(Regex::Eps);
     demo_posix_parse(&r4, "ε*", "");
     
-
+    
     // Example 5: (ε + a)*
     println!("▶ Example 5: (ε + a)*");
     let r5 = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
     demo_posix_parse(&r5, "(ε + a)*", "a");
-}
-
-
-///
-/// HELPER FUNCTIONS
-///
-pub fn demo_basic_matching(r: &Regex, expr_str: &str, inputs: &[&str]) {
-    println!("Expression: {}", expr_str);
-    for input in inputs {
-        let naive = match_naive(input, r);
-        let deriv = match_deriv(input, r);
-        let pderiv = match_pderiv(input, r);
-        println!("  \"{:4}\" → n={} d={} p={}", input, naive, deriv, pderiv);
-    }
-    println!();
-}
-
-pub fn demo_posix_parse(r: &Regex, expr_str: &str, input: &str) -> Option<ParseTree> {
-    println!("  Input: \"{}\"", input);
-    
-    match parse_posix(input, r) {
-        Some(tree) => {
-            println!("  - Parse tree: {}", tree);
-            println!("  - String:     \"{}\"\n", flatten(&tree));
-            Some(tree)
-        }
-        None => {
-            println!("  [X] No match!\n");
-            None
-        }
-    }
-}
-
-pub fn print_parse_tree(tree: &ParseTree) {
-    println!("  - Paper notation: {}", tree);
-    println!("  - Debug:          {:?}", tree);
-    println!("  - Flattened:      \"{}\"", flatten(tree));
 }
