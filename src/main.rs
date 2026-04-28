@@ -1,99 +1,102 @@
-/// regex_engine/src/main.rs
+//! Demo application for regex-engine
 
-/*  
-Demo of three matchers:
-- Step-by-step derivation of example
-- Side-by-side comparison table
-*/
-
-use regex_engine::{Regex, match_deriv, match_naive, match_pderiv, nullable, deriv, simplify};
+use regex_engine::{ParseTree, basic::Regex, flatten, match_deriv, match_naive, match_pderiv, parse_posix};
 
 fn main() {
-    println!("---------------------------------------------");
-    println!(" Regex Engine -- Three Matchers");
-    println!("---------------------------------------------\n");
+    println!("╔═══════════════════════════════════════════╗");
+    println!("║        Regex Engine Demo                  ║");
+    println!("╚═══════════════════════════════════════════╝\n");
+    
 
-    // a*
-    let a_star = Regex::star(Regex::lit('a'));
-    println!("Expression: a*");
-    demo("",    &a_star);
-    demo("a",   &a_star);
-    demo("aaa", &a_star);
-    demo("ab",  &a_star);
-    println!();
+    // ========== PART 1: BASIC MATCHING ==========
+    println!("┌─────────── BASIC MATCHING ───────────┐");
+    println!("│ Three algorithms:                    │");
+    println!("│   n = naive (exponential)            │");
+    println!("│   d = Brzozowski derivatives (DFA)   │");
+    println!("│   p = Antimirov partial (NFA)        │");
+    println!("└──────────────────────────────────────┘\n");
+    
+    let r = Regex::star(Regex::lit('a'));
+    demo_basic_matching(&r, "a*", &["", "a", "aa", "aaa", "ab"]);
+    
 
-    // (a|b)*
-    let ab_star = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
-    println!("Expression: (a|b)*");
-    demo("",     &ab_star);
-    demo("abba", &ab_star);
-    demo("abc",  &ab_star);
-    println!();
 
-    // a·b·c
-    let abc = Regex::seq(
-        Regex::seq(Regex::lit('a'), Regex::lit('b')),
-        Regex::lit('c'),
+    // ========== PART 2: POSIX PARSING ==========
+    println!("┌──────────── POSIX PARSING ───────────┐");
+    println!("│ POSIX = longest leftmost match       │");
+    println!("└──────────────────────────────────────┘\n");
+    
+
+    // Example 1: Paper example
+    println!("▶ Example 1: (a + ab)(b + ε)");
+    let r1 = Regex::seq(
+        Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b'))),
+        Regex::alt(Regex::lit('b'), Regex::Eps),
     );
-    println!("Expression: a·b·c");
-    demo("abc",  &abc);
-    demo("ab",   &abc);
-    demo("abcd", &abc);
-    println!();
-
-    // (a·a)* -> accept strings with even number of a's
-    let even_a = Regex::star(Regex::seq(Regex::lit('a'), Regex::lit('a')));
-    println!("Expression: (a·a)* -- accepts even number of a's");
-    demo("",     &even_a);
-    demo("aa",   &even_a);
-    demo("aaaa", &even_a);
-    demo("a",    &even_a);
-    demo("aaa",  &even_a);
-    println!();
-
-    // Step-by-step derivation of d(a*, "aa")
-    println!("Step-by-step: d(a*, \"aa\")");
-    let r0 = Regex::star(Regex::lit('a'));
-    println!("  r0 = {:?}", r0);
-    let r1 = simplify(deriv(&r0, 'a'));
-    println!("  r1 = deriv(r0, 'a') = {:?}", r1);
-    let r2 = simplify(deriv(&r1, 'a'));
-    println!("  r2 = deriv(r1, 'a') = {:?}", r2);
-    println!("  nullable(r2) = {} --> match: {}", nullable(&r2), nullable(&r2));
-    println!();
-
-    // Comparison table of three matchers
-    println!("Comparison of all three matchers:");
-    let test_cases: Vec<(&str, Regex)> = vec![
-        ("aaa",  Regex::star(Regex::lit('a'))),
-        ("ab",   Regex::seq(Regex::lit('a'), Regex::lit('b'))),
-        ("abba", Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')))),
-        ("xyz",  Regex::star(Regex::lit('a'))),
-    ];
-
-    println!("  {:<12} {:<30} {:>8} {:>12} {:>12}",
-        "Input", "Regex", "Naive", "Deriv", "PDeriv");
+    demo_posix_parse(&r1, "(a + ab)(b + ε)", "ab");
     
-    println!("  {}", "-".repeat(76));
-    for (input, r) in &test_cases {
-        let n = match_naive(input, r);
-        let d = match_deriv(input, r);
-        let p = match_pderiv(input, r);
+
+    // Example 2: Ambiguous pattern
+    println!("▶ Example 2: (a + b + ab)*");
+    println!("  (POSIX prefers [ab] over [a, b])");
+    let r2 = Regex::star(Regex::alt(
+        Regex::lit('a'),
+        Regex::alt(Regex::lit('b'), Regex::seq(Regex::lit('a'), Regex::lit('b')))
+    ));
+    demo_posix_parse(&r2, "(a + b + ab)*", "ab");
     
-        println!("  {:<12} {:<30} {:>8} {:>12} {:>12}",
-            input, format!("{:?}", r), n, d, p);
-    }
+
+    // Example 3: Kleene star
+    println!("▶ Example 3: a*");
+    let r3 = Regex::star(Regex::lit('a'));
+    demo_posix_parse(&r3, "a*", "aaa");
+    
+
+    // Example 4: Empty matches (ε*)
+    println!("▶ Example 4: ε* (empty matches)");
+    let r4 = Regex::star(Regex::Eps);
+    demo_posix_parse(&r4, "ε*", "");
+    
+
+    // Example 5: (ε + a)*
+    println!("▶ Example 5: (ε + a)*");
+    let r5 = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
+    demo_posix_parse(&r5, "(ε + a)*", "a");
 }
 
 
-// Runs three matchers on given input and expression
-fn demo(input: &str, r: &Regex) {
-    let naive  = match_naive(input, r);
-    let deriv  = match_deriv(input, r);
-    let pderiv = match_pderiv(input, r);
+///
+/// HELPER FUNCTIONS
+///
+pub fn demo_basic_matching(r: &Regex, expr_str: &str, inputs: &[&str]) {
+    println!("Expression: {}", expr_str);
+    for input in inputs {
+        let naive = match_naive(input, r);
+        let deriv = match_deriv(input, r);
+        let pderiv = match_pderiv(input, r);
+        println!("  \"{:4}\" → n={} d={} p={}", input, naive, deriv, pderiv);
+    }
+    println!();
+}
 
-    let status = if naive == deriv && deriv == pderiv { "ok" } else { "MISMATCH" };
+pub fn demo_posix_parse(r: &Regex, expr_str: &str, input: &str) -> Option<ParseTree> {
+    println!("  Input: \"{}\"", input);
+    
+    match parse_posix(input, r) {
+        Some(tree) => {
+            println!("  - Parse tree: {}", tree);
+            println!("  - String:     \"{}\"\n", flatten(&tree));
+            Some(tree)
+        }
+        None => {
+            println!("  [X] No match!\n");
+            None
+        }
+    }
+}
 
-    println!("  {:>6}  naive={} deriv={} pderiv={}  {}",
-        format!("{:?}", input), naive, deriv, pderiv, status);
+pub fn print_parse_tree(tree: &ParseTree) {
+    println!("  - Paper notation: {}", tree);
+    println!("  - Debug:          {:?}", tree);
+    println!("  - Flattened:      \"{}\"", flatten(tree));
 }
