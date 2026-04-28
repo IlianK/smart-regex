@@ -9,7 +9,6 @@ rustc --version
 cargo --version  
 ```
 
-
 ## Project Structure
 ```
 regex-engine/
@@ -39,36 +38,42 @@ regex-engine/
 └── README.md
 ```
 
-
-
-## Build and run
+## How to start
+### Build and Run
 ```bash
-# Build everything
 cargo build
-
-# Run the demo
 cargo run
+cargo check
+```
 
-# Run all tests
+### Run Tests
+```bash
+# Run all
 cargo test
 
-# Run specific test modules
-cargo test --test basic_tests
-cargo test --test posix_tests
+# Run Tests Modules
+cargo test --test mk_eps_tests -- --nocapture --test-threads=1
+cargo test --test flatten_tests -- --nocapture --test-threads=1
+cargo test --test paper_tests -- --nocapture --test-threads=1
+cargo test --test posix_tests -- --nocapture --test-threads=1
 
 # Run specific test 
 cargo test test_parse_posix_star
 cargo test test_ab_star
 
-# Run benchmarks
+# Run with debug 
+cargo test --test posix_tests -- --nocapture --test-threads=1
+REGEX_DEBUG=1 cargo test --test posix_tests test_parse_posix_paper_example_verbose -- --nocapture
+```
+
+### Run Benchmarks
+```bash
+# All benchmarks
 cargo bench
 
 # Run specific benchmarks
 cargo bench -- pathological
 cargo bench -- benign
-
-# Check for errors 
-cargo check
 ```
 
 

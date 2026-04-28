@@ -4,6 +4,7 @@ use crate::basic::{Regex, deriv, nullable};
 use super::parse_tree::ParseTree;
 use super::mk_eps::mk_eps;
 use super::inject::inject;
+use crate::debug_println;
 
 /// Parses input string according to POSIX disambiguation policy
 ///
@@ -20,15 +21,23 @@ pub fn parse_posix(input: &str, r: &Regex) -> Option<ParseTree> {
     let chars: Vec<char> = input.chars().collect();
     let n = chars.len();
     
+    debug_println!("\n[DEBUG] ========================================");
+    debug_println!("[DEBUG] parse_posix: input = \"{}\", r = {:?}", input, r);
+    debug_println!("[DEBUG] ========================================");
+    
     // Store expressions (unsimplified for injection)
     let mut expressions = Vec::with_capacity(n + 1);
     expressions.push(r.clone());
     
+    debug_println!("\n[DEBUG] --- Forward pass: computing derivatives ---");
+    debug_println!("[DEBUG] r0 = {:?}", r);
 
     // 1. Forward pass: compute derivatives 
     // deriv(Seq(r1, r2), c) = Seq(deriv(r1, c), r2)
-    for &c in &chars {
-        let next = deriv(&expressions.last().unwrap(), c);
+    for (idx, &c) in chars.iter().enumerate() {
+        let current = expressions.last().unwrap();
+        let next = deriv(current, c);
+        debug_println!("[DEBUG] r{} -{}-> r{} = {:?}", idx, c, idx + 1, next);
         expressions.push(next);
     }
 
@@ -54,7 +63,14 @@ pub fn parse_posix(input: &str, r: &Regex) -> Option<ParseTree> {
     
 
     // Check if final expression is nullable (input in language)
-    if !nullable(expressions.last().unwrap()) {
+    let final_r = expressions.last().unwrap();
+    let final_nullable = nullable(final_r);
+    debug_println!("\n[DEBUG] --- Nullability check ---");
+    debug_println!("[DEBUG] r{} = {:?}", n, final_r);
+    debug_println!("[DEBUG] nullable(r{}) = {}", n, final_nullable);
+    
+    if !final_nullable {
+        debug_println!("[DEBUG] ✗ Input not in language, returning None");
         return None;
     }
     
@@ -64,7 +80,10 @@ pub fn parse_posix(input: &str, r: &Regex) -> Option<ParseTree> {
 
 
     // 2. Backward pass: build parse tree by injecting letters (start with empty)
+    debug_println!("\n[DEBUG] --- Backward pass: building parse tree ---");
+    debug_println!("[DEBUG] mkEps(r{}) = ?", n);
     let mut tree = mk_eps(expressions.last().unwrap());
+    debug_println!("[DEBUG] v{} = {:?}", n, tree);
 
     // mk_eps processes exp[2] = Alt(Seq((φ, b), ε)
     // -> right alternative was chosen (left not nullable)
@@ -74,7 +93,11 @@ pub fn parse_posix(input: &str, r: &Regex) -> Option<ParseTree> {
     for i in (0..n).rev() {
         let r_i = &expressions[i];
         let c = chars[i];
+        debug_println!("\n[DEBUG] inject(r{}, '{}', v{}) = ?", i, c, i + 1);
+        debug_println!("[DEBUG]   r{} = {:?}", i, r_i);
+        debug_println!("[DEBUG]   v{} = {:?}", i + 1, tree);
         tree = inject(r_i, c, tree);
+        debug_println!("[DEBUG]   v{} = {:?}", i, tree);
     }
 
     // Loop i=1: inject(r1, 'b', tree)
@@ -100,6 +123,11 @@ pub fn parse_posix(input: &str, r: &Regex) -> Option<ParseTree> {
     // v2 = Char b
     // v1_inj = inject(Lit('a'), 'a', Empty) -> sub inject for a
     // returns Char a: Pair(Char('a'), Char('b'))
+    
+    debug_println!("\n[DEBUG] === Final parse tree ===");
+    debug_println!("[DEBUG] v0 = {:?}", tree);
+    debug_println!("[DEBUG] Flattened: \"{}\"", super::flatten(&tree));
+    debug_println!("[DEBUG] ========================================\n");
     
     Some(tree)
     // Flattened ab

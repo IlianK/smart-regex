@@ -4,11 +4,8 @@ use regex_engine::basic::Regex;
 use regex_engine::demo::{demo_basic_matching, demo_posix_parse};
 
 fn main() { 
-    println!("\n----------- REGEX DEMO -----------\n");
-
-
     // 1: BASIC MATCHING 
-    println!("BASIC MATCHING");
+    println!("----------- BASIC MATCHING -----------");
     println!("- n = naive (exponential)");
     println!("- d = Brzozowski derivatives (DFA)");
     println!("- p = Antimirov partial (NFA)\n");
@@ -18,7 +15,7 @@ fn main() {
     
 
     // 2: POSIX PARSING
-    println!("\nPOSIX PARSING (longest (leftmost) match)\n");
+    println!("\n----------- POSIX PARSING -----------\n");
     
     // Example 1: Paper example
     println!("▶ Example 1: (a + ab)(b + ε)");
