@@ -1,138 +1,54 @@
-/*
-Benchmarks for POSIX parsers: Recursive vs Loop
+//! Compare recursive and loop implementations - correctness 
 
-Based on crash_demo results (DEBUG mode):
-- Recursive a* crashes at 1250 chars
-- Loop a* crashes at 2150 chars
-- Recursive deep crashes at 1250 depth
-- Loop deep crashes at 2200 depth
-
-Benchmark values kept safely below crash limits.
-*/
-
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex_engine::basic::Regex;
 use regex_engine::posix::{parse_recursive, parse_loop};
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-fn star_a() -> Regex {
-    Regex::star(Regex::lit('a'))
+fn compare(input: &str, r: &Regex, label: &str) {
+    println!("\nTesting: {}", label);
+    println!("  Input: \"{}\"", input);
+    println!("  Regex: {:?}", r);
+    
+    let rec_result = parse_recursive(input, r);
+    let loop_result = parse_loop(input, r);
+    
+    println!("  Recursive: {:?}", rec_result);
+    println!("  Loop:      {:?}", loop_result);
+    
+    assert_eq!(rec_result, loop_result, "Results differ for {}", label);
+    println!("  OK");
 }
 
-fn deep_sequence(n: usize) -> Regex {
-    let mut r = Regex::lit('a');
-    for _ in 1..n {
-        r = Regex::seq(r, Regex::lit('a'));
-    }
-    r
+#[test]
+fn test_correctness_literal() {
+    let r = Regex::lit('a');
+    compare("a", &r, "Literal 'a'");
+    compare("b", &r, "Literal 'a' with 'b' (no match)");
 }
 
-fn repeat_char(c: char, n: usize) -> String {
-    std::iter::repeat(c).take(n).collect()
+#[test]
+fn test_correctness_sequence() {
+    let r = Regex::seq(Regex::lit('a'), Regex::lit('b'));
+    compare("ab", &r, "Sequence a.b");
 }
 
-// ============================================================================
-// 1. Small patterns (baseline overhead)
-// ============================================================================
-
-fn bench_small_patterns(c: &mut Criterion) {
-    let mut group = c.benchmark_group("small_patterns");
-    group.sample_size(100);
-    
-    let test_cases: Vec<(&str, Regex, &str)> = vec![
-        ("literal_a", Regex::lit('a'), "a"),
-        ("star_a_empty", star_a(), ""),
-        ("star_a_one", star_a(), "a"),
-        ("star_a_three", star_a(), "aaa"),
-    ];
-    
-    for (name, regex, input) in test_cases {
-        group.bench_with_input(
-            BenchmarkId::new("recursive", name),
-            &(input, regex.clone()),
-            |b, (input, r)| b.iter(|| parse_recursive(black_box(input), black_box(r))),
-        );
-        
-        group.bench_with_input(
-            BenchmarkId::new("loop", name),
-            &(input, regex),
-            |b, (input, r)| b.iter(|| parse_loop(black_box(input), black_box(r))),
-        );
-    }
-    
-    group.finish();
+#[test]
+fn test_correctness_star() {
+    let r = Regex::star(Regex::lit('a'));
+    compare("", &r, "Star a* (empty)");
+    compare("aaa", &r, "Star a* (three a's)");
 }
 
-// ============================================================================
-// 2. Scaling: a* on "aaa...a" (shallow expression)
-// 
-// Safe limit: 1000 (below recursive crash at 1250)
-// ============================================================================
-
-fn bench_scaling_a_star(c: &mut Criterion) {
-    let mut group = c.benchmark_group("scaling_a_star");
-    let r = star_a();
-    
-    for n in [10, 50, 100, 200, 400, 600, 800, 1000] {
-        let input = repeat_char('a', n);
-        
-        group.bench_with_input(
-            BenchmarkId::new("recursive", n),
-            &(input.clone(), r.clone()),
-            |b, (input, r)| b.iter(|| parse_recursive(black_box(input), black_box(r))),
-        );
-        
-        group.bench_with_input(
-            BenchmarkId::new("loop", n),
-            &(input, r.clone()),
-            |b, (input, r)| b.iter(|| parse_loop(black_box(input), black_box(r))),
-        );
-    }
-    
-    group.finish();
+#[test]
+fn test_correctness_alternation() {
+    let r = Regex::alt(
+        Regex::lit('a'),
+        Regex::seq(Regex::lit('a'), Regex::lit('b'))
+    );
+    compare("ab", &r, "Alternation (a + ab)");
 }
 
-// ============================================================================
-// 3. Scaling: deep expression (a·a·a...·a)
-// 
-// Safe limit: 1000 depth (below recursive crash at 1250)
-// ============================================================================
-
-fn bench_deep_expression(c: &mut Criterion) {
-    let mut group = c.benchmark_group("deep_expression");
-    
-    for depth in [50, 100, 200, 400, 600, 800, 1000] {
-        let r = deep_sequence(depth);
-        let input = repeat_char('a', depth);
-        
-        group.bench_with_input(
-            BenchmarkId::new("recursive", depth),
-            &(input.clone(), r.clone()),
-            |b, (input, r)| b.iter(|| parse_recursive(black_box(input), black_box(r))),
-        );
-        
-        group.bench_with_input(
-            BenchmarkId::new("loop", depth),
-            &(input, r.clone()),
-            |b, (input, r)| b.iter(|| parse_loop(black_box(input), black_box(r))),
-        );
-    }
-    
-    group.finish();
+#[test]
+fn test_correctness_epsilon_alt_star() {
+    let r = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
+    compare("a", &r, "(epsilon + a)*");
 }
-
-// ============================================================================
-// Register all benchmark groups
-// ============================================================================
-
-criterion_group!(
-    benches,
-    bench_small_patterns,
-    bench_scaling_a_star,
-    bench_deep_expression,
-);
-
-criterion_main!(benches);
