@@ -38,7 +38,8 @@ regex-engine/
 │   ├── basic_tests.rs                
 │   ├── flatten_tests.rs               
 │   ├── mk_eps_tests.rs               
-│   ├── paper_tests.rs               
+│   ├── paper_tests.rs    
+│   ├── compare_test.rs               # loop vs recursive parse              
 │   └── posix_tests.rs  
 │                
 ├── Cargo.toml
@@ -64,24 +65,35 @@ cargo test --test mk_eps_tests -- --nocapture --test-threads=1
 cargo test --test flatten_tests -- --nocapture --test-threads=1
 cargo test --test paper_tests -- --nocapture --test-threads=1
 cargo test --test posix_tests -- --nocapture --test-threads=1
+cargo test --test compare_tests -- --nocapture --test-threads=1
 
 # Run specific test 
-cargo test test_parse_posix_star
-cargo test test_ab_star
+cargo test --test paper_tests test_paper_example_epsilon_alt_star -- --nocapture
+```
 
-# Run with debug 
-cargo test --test posix_tests -- --nocapture --test-threads=1
-REGEX_DEBUG=1 cargo test --test posix_tests test_parse_posix_paper_example_verbose -- --nocapture
+Run with `REGEX_DEBUG=1` for detailled derivation and injection steps.
+
+Run with `REGEX_USE_LOOP=1` to use loops in forward and backwards pass instead of recursion (recursion is default).
+
+```bash
+REGEX_USE_LOOP=1 REGEX_DEBUG=1 cargo test --test paper_tests test_paper_example_epsilon_alt_star -- --nocapture
 ```
 
 ### Run Benchmarks
 ```bash
-# All benchmarks
+# Run benchmarks
 cargo bench
 
-# Run specific benchmarks
-cargo bench -- pathological
-cargo bench -- benign
-```
+# Run only matcher_bench (naive, deriv, pderiv)
+cargo bench --bench basic_bench
 
+# Run only posix_bench (recursive vs loop)
+cargo bench --bench posix_bench
+
+# Run specific benchmark group within posix_bench
+cargo bench --bench posix_bench -- scaling_a_star
+
+# Generate HTML report (in target/criterion/reports)
+cargo bench -- --verbose
+```
 

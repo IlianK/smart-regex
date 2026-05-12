@@ -4,6 +4,14 @@ use regex_engine::basic::Regex;
 use regex_engine::demo::{demo_basic_matching, demo_posix_parse};
 
 fn main() { 
+    // Parser Approach
+    let use_loop = std::env::var("REGEX_USE_LOOP").is_ok();
+    if use_loop {
+        println!("[Using LOOP parser (iterative with vector storage)]\n");
+    } else {
+        println!("[Using RECURSIVE parser (default, matches Haskell paper)]\n");
+    }
+
     // 1: BASIC MATCHING 
     println!("----------- BASIC MATCHING -----------");
     println!("- n = naive (exponential)");

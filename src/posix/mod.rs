@@ -13,8 +13,8 @@ pub mod debug;
 pub use parse_tree::{ParseTree, flatten};
 pub use mk_eps::mk_eps;
 pub use inject::inject;
-pub use parser::{parse_posix, match_posix};
-pub use debug::debug_enabled;  
+pub use parser::{parse_posix, match_posix, parse_recursive, parse_loop};  
+pub use debug::debug_enabled;
 
 
 pub mod tests {
