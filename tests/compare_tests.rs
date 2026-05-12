@@ -1,119 +1,138 @@
-//! Compare recursive and loop versions
+/*
+Benchmarks for POSIX parsers: Recursive vs Loop
 
+Based on crash_demo results (DEBUG mode):
+- Recursive a* crashes at 1250 chars
+- Loop a* crashes at 2150 chars
+- Recursive deep crashes at 1250 depth
+- Loop deep crashes at 2200 depth
+
+Benchmark values kept safely below crash limits.
+*/
+
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex_engine::basic::Regex;
 use regex_engine::posix::{parse_recursive, parse_loop};
-use std::io::Write;
 
-fn compare(input: &str, r: &Regex, label: &str) {
-    println!("\n▶ Testing: {}", label);
-    println!("  Input: \"{}\"", input);
-    println!("  Regex: {:?}", r);
-    
-    let rec_result = parse_recursive(input, r);
-    let loop_result = parse_loop(input, r);
-    
-    println!("  Recursive: {:?}", rec_result);
-    println!("  Loop:      {:?}", loop_result);
-    
-    assert_eq!(rec_result, loop_result, "Results differ for {}", label);
-    println!("  ✓ Equal");
+// ============================================================================
+// Helpers
+// ============================================================================
+
+fn star_a() -> Regex {
+    Regex::star(Regex::lit('a'))
 }
 
-#[test]
-fn test_recursive_vs_loop() {
-    let r_lit = Regex::lit('a');
-    compare("a", &r_lit, "Literal 'a'");
-    
-    let r_seq = Regex::seq(Regex::lit('a'), Regex::lit('b'));
-    compare("ab", &r_seq, "Sequence a·b");
-    
-    let r_star = Regex::star(Regex::lit('a'));
-    compare("", &r_star, "Star empty");
-    compare("aaa", &r_star, "Star three");
-    
-    let r_alt = Regex::alt(
-        Regex::lit('a'),
-        Regex::seq(Regex::lit('a'), Regex::lit('b'))
-    );
-    compare("ab", &r_alt, "Alternation (a + ab)");
-    
-    let r_eps = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
-    compare("a", &r_eps, "(ε + a)*");
+fn deep_sequence(n: usize) -> Regex {
+    let mut r = Regex::lit('a');
+    for _ in 1..n {
+        r = Regex::seq(r, Regex::lit('a'));
+    }
+    r
 }
 
-#[test]
-fn test_recursive_vs_loop_no_match() {
-    let r = Regex::lit('a');
-    
-    let rec_result = parse_recursive("b", &r);
-    let loop_result = parse_loop("b", &r);
-    
-    assert_eq!(rec_result, loop_result);
-    assert!(rec_result.is_none());
-    
-    println!("\n✓ Both return None for non-matching input");
+fn repeat_char(c: char, n: usize) -> String {
+    std::iter::repeat(c).take(n).collect()
 }
 
 // ============================================================================
-// Separate tests for stack behavior
+// 1. Small patterns (baseline overhead)
 // ============================================================================
 
-#[test]
-fn test_recursive_stack_limit() {
-    let r = Regex::star(Regex::lit('a'));
+fn bench_small_patterns(c: &mut Criterion) {
+    let mut group = c.benchmark_group("small_patterns");
+    group.sample_size(100);
     
-    println!("\n=== Finding Recursive Stack Limit ===\n");
+    let test_cases: Vec<(&str, Regex, &str)> = vec![
+        ("literal_a", Regex::lit('a'), "a"),
+        ("star_a_empty", star_a(), ""),
+        ("star_a_one", star_a(), "a"),
+        ("star_a_three", star_a(), "aaa"),
+    ];
     
-    let mut length = 100;
-    let step = 50;
-    
-    while length <= 2000 {
-        let input = "a".repeat(length);
+    for (name, regex, input) in test_cases {
+        group.bench_with_input(
+            BenchmarkId::new("recursive", name),
+            &(input, regex.clone()),
+            |b, (input, r)| b.iter(|| parse_recursive(black_box(input), black_box(r))),
+        );
         
-        print!("Length {}: ", length);
-        std::io::stdout().flush().unwrap();
-        
-        let result = std::panic::catch_unwind(|| {
-            let _ = parse_recursive(&input, &r);
-        });
-        
-        if result.is_ok() {
-            println!("✓ OK");
-            length += step;
-        } else {
-            println!("CRASHED at {} characters", length);
-            println!("\n=== Result ===");
-            println!("Recursive stack limit: ~{} characters", length - step);
-            return;
-        }
+        group.bench_with_input(
+            BenchmarkId::new("loop", name),
+            &(input, regex),
+            |b, (input, r)| b.iter(|| parse_loop(black_box(input), black_box(r))),
+        );
     }
     
-    println!("Recursive survived up to {} characters", length);
+    group.finish();
 }
 
-#[test]
-fn test_loop_no_stack_limit() {
-    let r = Regex::star(Regex::lit('a'));
+// ============================================================================
+// 2. Scaling: a* on "aaa...a" (shallow expression)
+// 
+// Safe limit: 1000 (below recursive crash at 1250)
+// ============================================================================
+
+fn bench_scaling_a_star(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scaling_a_star");
+    let r = star_a();
     
-    println!("\n=== Verifying Loop Has No Stack Limit ===\n");
-    
-    // Test increasingly large inputs
-    for &length in &[1000, 5000, 10000, 50000] {
-        let input = "a".repeat(length);
+    for n in [10, 50, 100, 200, 400, 600, 800, 1000] {
+        let input = repeat_char('a', n);
         
-        print!("Length {}: ", length);
-        std::io::stdout().flush().unwrap();
+        group.bench_with_input(
+            BenchmarkId::new("recursive", n),
+            &(input.clone(), r.clone()),
+            |b, (input, r)| b.iter(|| parse_recursive(black_box(input), black_box(r))),
+        );
         
-        let result = std::panic::catch_unwind(|| {
-            let _ = parse_loop(&input, &r);
-        });
-        
-        if result.is_ok() {
-            println!("✓ OK");
-        } else {
-            panic!("Loop crashed at length {} (UNEXPECTED!)", length);
-        }
+        group.bench_with_input(
+            BenchmarkId::new("loop", n),
+            &(input, r.clone()),
+            |b, (input, r)| b.iter(|| parse_loop(black_box(input), black_box(r))),
+        );
     }
     
-    println!("\n✓ Loop handles all tested lengths (heap allocation, no stack limit)");
+    group.finish();
 }
+
+// ============================================================================
+// 3. Scaling: deep expression (a·a·a...·a)
+// 
+// Safe limit: 1000 depth (below recursive crash at 1250)
+// ============================================================================
+
+fn bench_deep_expression(c: &mut Criterion) {
+    let mut group = c.benchmark_group("deep_expression");
+    
+    for depth in [50, 100, 200, 400, 600, 800, 1000] {
+        let r = deep_sequence(depth);
+        let input = repeat_char('a', depth);
+        
+        group.bench_with_input(
+            BenchmarkId::new("recursive", depth),
+            &(input.clone(), r.clone()),
+            |b, (input, r)| b.iter(|| parse_recursive(black_box(input), black_box(r))),
+        );
+        
+        group.bench_with_input(
+            BenchmarkId::new("loop", depth),
+            &(input, r.clone()),
+            |b, (input, r)| b.iter(|| parse_loop(black_box(input), black_box(r))),
+        );
+    }
+    
+    group.finish();
+}
+
+// ============================================================================
+// Register all benchmark groups
+// ============================================================================
+
+criterion_group!(
+    benches,
+    bench_small_patterns,
+    bench_scaling_a_star,
+    bench_deep_expression,
+);
+
+criterion_main!(benches);

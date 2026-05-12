@@ -79,6 +79,7 @@ Run with `REGEX_USE_LOOP=1` to use loops in forward and backwards pass instead o
 REGEX_USE_LOOP=1 REGEX_DEBUG=1 cargo test --test paper_tests test_paper_example_epsilon_alt_star -- --nocapture
 ```
 
+
 ### Run Benchmarks
 ```bash
 # Run benchmarks
@@ -97,3 +98,17 @@ cargo bench --bench posix_bench -- scaling_a_star
 cargo bench -- --verbose
 ```
 
+### Run Crash Test
+```bash
+# Build worker first
+cargo build --bin crash_demo_worker
+cargo build --bin crash_demo_worker --release
+
+# DEBUG mode
+cargo build --bin crash_demo
+cargo run --bin crash_demo
+
+# RELEASE mode
+cargo build --bin crash_demo --release
+cargo run --bin crash_demo --release
+```
