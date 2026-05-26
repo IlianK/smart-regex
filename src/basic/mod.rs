@@ -1,19 +1,13 @@
-//! Basic matching algorithms
-//!
-//! This module contains the three fundamental approaches:
-//! 1. Naive recursive matcher
-//! 2. Brzozowski derivatives (DFA)
-//! 3. Antimirov partial derivatives (NFA)
+//! Basic matching algorithms (boolean match only, no parse tree)
 
-mod regex;
-mod naive;
-mod brzozowski;
-mod antimirov;
-mod common;
+mod match_naive;
+mod match_deriv;
+mod match_pderiv;
 
-// Re-exports
-pub use regex::Regex;
-pub use naive::match_naive;
-pub use brzozowski::{match_deriv, deriv, deriv_simp};
-pub use antimirov::match_pderiv;
-pub use common::{simplify, smart_seq, nullable};
+pub use match_naive::match_naive;
+pub use match_deriv::match_deriv;
+pub use match_pderiv::match_pderiv;
+
+// Re-export for convenience
+pub use crate::derivatives::standard::*;
+pub use crate::types::Regex;

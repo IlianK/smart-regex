@@ -1,10 +1,9 @@
 //! mkEps_r: Constructs the POSIX parse tree for the empty word
 
-use crate::basic::{Regex, nullable};
-use super::parse_tree::ParseTree;
+use crate::types::{Regex, ParseTree};
+use crate::derivatives::standard::nullable;
 use crate::debug_println;
 use crate::posix::debug::{indent_inc, indent_dec};
-
 
 pub fn mk_eps(r: &Regex) -> ParseTree {
     debug_println!("mkEps({:?})", r);

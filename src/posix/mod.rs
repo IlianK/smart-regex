@@ -1,24 +1,20 @@
 //! POSIX disambiguation policy for regular expression parsing
-//!
-//! Based on: Sulzmann & Lu, "POSIX Regular Expression Parsing with Derivatives"
-//! FLOPS 2014
 
-mod parse_tree;
 mod mk_eps;
 mod inject;
 mod parser;
-pub mod debug;  
+pub mod debug;
+pub mod bitcoded;
 
-// Re-exports
-pub use parse_tree::{ParseTree, flatten};
+pub use crate::types::{ParseTree, flatten};
 pub use mk_eps::mk_eps;
 pub use inject::inject;
-pub use parser::{parse_posix, match_posix, parse_recursive, parse_loop};  
+pub use parser::{parse_posix, match_posix, parse_recursive, parse_loop};
+pub use bitcoded::parse_bitcoded;
 pub use debug::debug_enabled;
 
-
 pub mod tests {
-    use crate::basic::Regex;
+    use crate::types::Regex;
     
     pub fn fmt_regex(r: &Regex) -> String {
         match r {

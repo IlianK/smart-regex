@@ -1,8 +1,7 @@
-//! Common helper functions shared between matchers
+//! Simplification for standard Regex
 
-use super::regex::Regex;
+use crate::types::Regex;
 
-/// Simplify regular expression using algebraic laws
 pub fn simplify(r: Regex) -> Regex {
     match r {
         Regex::Seq(r, s) => {
@@ -38,22 +37,9 @@ pub fn simplify(r: Regex) -> Regex {
     }
 }
 
-/// Smart constructor: normalizes Eps . r to r
 pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
     match r {
         Regex::Eps => s.clone(),
         r => Regex::seq(r, s.clone()),
-    }
-}
-
-/// Decides whether epsilon is in L(r)
-pub fn nullable(r: &Regex) -> bool {
-    match r {
-        Regex::Phi => false,
-        Regex::Eps => true,
-        Regex::Lit(_) => false,
-        Regex::Alt(r, s) => nullable(r) || nullable(s),
-        Regex::Seq(r, s) => nullable(r) && nullable(s),
-        Regex::Star(_) => true,
     }
 }

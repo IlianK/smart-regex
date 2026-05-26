@@ -1,11 +1,10 @@
 //! inj_{r\l}: Injects a letter back into a parse tree of the derivative
 
-use crate::basic::{Regex, nullable};
-use super::parse_tree::ParseTree;
-use super::mk_eps::mk_eps;
+use crate::types::{Regex, ParseTree};
+use crate::derivatives::standard::nullable;
+use crate::posix::mk_eps;
 use crate::debug_println;
 use crate::posix::debug::{indent_inc, indent_dec};
-
 
 pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
     debug_println!("inject({:?}, '{}', {:?})", r, l, v);

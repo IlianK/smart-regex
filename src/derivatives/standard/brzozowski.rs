@@ -1,10 +1,9 @@
-//! Brzozowski derivative matcher
+//! Brzozowski derivatives for standard Regex
 
-use super::regex::Regex;
-use super::common::{nullable, simplify};
+use crate::types::Regex;
+use super::nullable::nullable;
 use crate::debug_println;
 use crate::posix::debug::{indent_inc, indent_dec};
-
 
 pub fn deriv(r: &Regex, x: char) -> Regex {
     debug_println!("∂({:?}, {})", r, x);
@@ -53,16 +52,6 @@ pub fn deriv(r: &Regex, x: char) -> Regex {
     result
 }
 
-
 pub fn deriv_simp(r: &Regex, c: char) -> Regex {
-    simplify(deriv(r, c))
-}
-
-
-pub fn match_deriv(input: &str, r: &Regex) -> bool {
-    let mut current = r.clone();
-    for c in input.chars() {
-        current = simplify(deriv(&current, c));
-    }
-    nullable(&current)
+    super::simplify::simplify(deriv(r, c))
 }

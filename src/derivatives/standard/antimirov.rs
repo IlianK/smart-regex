@@ -1,10 +1,10 @@
-//! Antimirov partial derivative matcher (NFA)
+//! Antimirov partial derivatives for standard Regex
 
 use std::collections::HashSet;
-use super::regex::Regex;
-use super::common::{nullable, smart_seq};
+use crate::types::Regex;
+use super::nullable::nullable;
+use super::simplify::smart_seq;
 
-/// Computes set of partial derivatives
 pub fn pderiv(r: &Regex, x: char) -> HashSet<Regex> {
     match r {
         Regex::Phi => HashSet::new(),
@@ -36,23 +36,4 @@ pub fn pderiv(r: &Regex, x: char) -> HashSet<Regex> {
                 .collect()
         }
     }
-}
-
-/// Match input using partial derivatives
-pub fn match_pderiv(input: &str, r: &Regex) -> bool {
-    let mut states: HashSet<Regex> = HashSet::new();
-    states.insert(r.clone());
-
-    for c in input.chars() {
-        let mut next_states: HashSet<Regex> = HashSet::new();
-        for state in &states {
-            next_states.extend(pderiv(state, c));
-        }
-        states = next_states;
-        if states.is_empty() {
-            return false;
-        }
-    }
-
-    states.iter().any(|r| nullable(r))
 }
