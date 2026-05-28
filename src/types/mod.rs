@@ -1,8 +1,8 @@
-//! Shared data types 
+//! Core data types for regular expressions and parse trees
 
-mod regex;
-mod aregex;
-mod parse_tree;
+pub mod regex;
+pub mod aregex;
+pub mod parse_tree;
 
 pub use regex::Regex;
 pub use aregex::ARegex;

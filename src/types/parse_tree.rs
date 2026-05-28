@@ -4,11 +4,22 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseTree {
+    /// Empty parse tree (for epsilon)
     Empty,
+
+    /// Literal character
     Char(char),
+
+    /// Pair for concatenation (v1, v2)
     Pair(Box<ParseTree>, Box<ParseTree>),
+
+    /// Left injection for alternative (Left v)
     Left(Box<ParseTree>),
+
+    /// Right injection for alternative (Right v)
     Right(Box<ParseTree>),
+
+    /// List for Kleene star iterations [v1, v2, ..., vn]
     Star(Vec<ParseTree>),
 }
 
@@ -28,6 +39,7 @@ impl fmt::Display for ParseTree {
     }
 }
 
+/// Flattens a parse tree to the underlying word (string)
 pub fn flatten(v: &ParseTree) -> String {
     match v {
         ParseTree::Empty => String::new(),

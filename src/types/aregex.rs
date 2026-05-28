@@ -1,17 +1,20 @@
 //! Annotated regular expressions (bit-code annotated)
 //!
-//! Based on Figure 5 of:
-//!   Sulzmann & Lu, "POSIX Regular Expression Parsing with Derivatives", FLOPS 2014
-//!
 //! Bit convention: false = 0 (Left / start-of-star), true = 1 (Right / end-of-star)
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ARegex {
+    /// Empty language 
     Phi,
+    /// bs @ ε
     Eps(Vec<bool>),
+    /// bs @ l
     Lit(Vec<bool>, char),
+    /// bs @ (ri₁ ⊕ ri₂)
     Alt(Vec<bool>, Box<ARegex>, Box<ARegex>),
+    /// bs @ (ri₁ ri₂)
     Seq(Vec<bool>, Box<ARegex>, Box<ARegex>),
+    /// bs @ ri*
     Star(Vec<bool>, Box<ARegex>),
 }
 

@@ -1,16 +1,16 @@
 //! Bit-coded incremental POSIX parsing
 
-mod internalize;
-mod mk_eps_bc;
-mod simp;
-mod decode;
-mod parse_bc;
+pub mod internalize;
+pub mod mk_eps_bc;
+pub mod decode;
+pub mod parse;
 
 pub use internalize::{internalize, fuse};
 pub use mk_eps_bc::mk_eps_bc;
-pub use simp::simp;
 pub use decode::decode;
-pub use parse_bc::parse_bitcoded;
+pub use parse::parse_bitcoded;
 
-// Re-export from derivatives::bitcoded
-pub use crate::derivatives::bitcoded::{nullable_bc, is_phi, deriv_bc};
+// Re-export from regex modules for convenience
+pub use crate::regex::nullable::annotated::{nullable_bc, is_phi};
+pub use crate::regex::brzozowski::annotated::deriv_bc;
+pub use crate::regex::simplify::annotated::simp;

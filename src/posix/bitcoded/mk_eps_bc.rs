@@ -1,7 +1,7 @@
 //! Bit-coded mkEps (ARegex → bits)
 
 use crate::types::ARegex;
-use crate::derivatives::bitcoded::nullable_bc;
+use crate::regex::nullable::annotated::nullable_bc;
 
 pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
     match ri {

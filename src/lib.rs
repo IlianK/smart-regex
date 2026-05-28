@@ -1,13 +1,14 @@
 //! regex_engine
 
+// Modules 
 pub mod types;
-pub mod derivatives;
-pub mod basic;
+pub mod regex;
+pub mod matchers;
 pub mod posix;
-pub mod demo;
 
-// Re-export commonly used types and functions
-pub use types::{Regex, ParseTree};
-pub use basic::{match_naive, match_deriv, match_pderiv};
-pub use derivatives::standard::{nullable, deriv, deriv_simp, pderiv};
-pub use posix::{parse_posix, match_posix, flatten, mk_eps, inject};
+// pub mod diagnostics;
+
+// Re-export 
+pub use types::{Regex, ARegex, ParseTree, flatten};
+pub use matchers::{match_naive, match_deriv, match_pderiv};
+pub use posix::{parse_posix, match_posix, mk_eps, inject};

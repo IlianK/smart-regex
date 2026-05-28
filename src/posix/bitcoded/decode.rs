@@ -1,7 +1,6 @@
 //! Decoder: bit-code → ParseTree
 //!
-//! Based on Figure 4 of:
-//!   Sulzmann & Lu, "POSIX Regular Expression Parsing with Derivatives", FLOPS 2014
+//! Based on Figure 4 of the paper
 
 use crate::types::{Regex, ParseTree};
 
