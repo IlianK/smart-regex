@@ -23,7 +23,7 @@ regex-engine/
 │
 ├── examples/
 │   ├── demo_match.rs           # Basic matching demo
-│   └── demo_posix.rs           # POSIX parsing demo (all parsers)
+│   └── demo_posix.rs           # POSIX parsing demo 
 │
 ├── src/
 │   ├── lib.rs                  # Library exports
@@ -56,17 +56,18 @@ regex-engine/
 │   │   └── antimirov/          # Antimirov partial derivatives
 │   │       ├── mod.rs
 │   │       ├── standard.rs     # pderiv (Regex → HashSet<Regex>)
-│   │       └── annotated.rs    # pderiv_bc (future)
+│   │       └── annotated.rs    # pderiv_bc 
 │   │
 │   ├── matchers/               # Boolean matchers
 │   │   ├── mod.rs
+│   │   ├── selection.rs        # Matcher selection
 │   │   ├── match_naive.rs
 │   │   ├── match_deriv.rs
 │   │   └── match_pderiv.rs
 │   │
 │   ├── posix/                  # POSIX parsers
 │   │   ├── mod.rs
-│   │   ├── parser.rs           # Dispatch (REGEX_PARSER selection)
+│   │   ├── parser.rs           # Parser selection
 │   │   ├── selection.rs
 │   │   │
 │   │   ├── standard/           # Standard POSIX (Regex → ParseTree)
@@ -88,16 +89,7 @@ regex-engine/
 │       ├── parser.rs
 │       └── mod.rs
 │
-├── tests/                      # Integration tests
-│   ├── common/                 # Shared test utilities
-│   │   └── mod.rs
-│   ├── paper_tests.rs          # Paper examples (flops14-extended.pdf)
-│   ├── posix_tests.rs          # Core POSIX parser tests
-│   ├── mk_eps_tests.rs         # mk_eps function tests
-│   ├── flatten_tests.rs        # ParseTree flatten tests
-│   └── basic_tests.rs          # Basic matchers tests
-│
-└── target/                     # Build output (ignored)
+├── tests/                      
 ```
 
 ## How to start
@@ -198,28 +190,11 @@ cargo bench --bench bench_posix -- scaling_a_star
 
 
 
-### Run Tests (TO BE MODIFIED)
+### Run Tests 
 ```bash
 # Run all
 cargo test
 
-# Run Tests Modules
-cargo test --test mk_eps_tests -- --nocapture --test-threads=1
-cargo test --test flatten_tests -- --nocapture --test-threads=1
-cargo test --test paper_tests -- --nocapture --test-threads=1
-cargo test --test posix_tests -- --nocapture --test-threads=1
-cargo test --test compare_tests -- --nocapture --test-threads=1
-
-# Run specific test 
-cargo test --test paper_tests test_paper_example_epsilon_alt_star -- --nocapture
-```
-
-Run with `REGEX_DEBUG=1` for detailled derivation and injection steps.
-
-Run with `REGEX_USE_LOOP=1` to use loops in forward and backwards pass instead of recursion (recursion is default).
-
-```bash
-REGEX_USE_LOOP=1 REGEX_DEBUG=1 cargo test --test paper_tests test_paper_example_epsilon_alt_star -- --nocapture
 ```
 
 
