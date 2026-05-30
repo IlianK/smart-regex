@@ -27,3 +27,44 @@ pub fn mk_eps(r: &Regex) -> ParseTree {
         Regex::Phi => panic!("mk_eps called on Phi"),
     }
 }
+
+// ============================================================================
+// Tests for mk_eps
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{Regex, ParseTree};
+ 
+    #[test]
+    fn eps_gives_empty() {
+        assert_eq!(mk_eps(&Regex::Eps), ParseTree::Empty);
+    }
+    #[test]
+    fn star_gives_empty_list() {
+        let t = mk_eps(&Regex::star(Regex::lit('a')));
+        assert!(matches!(t, ParseTree::Star(ref v) if v.is_empty()));
+    }
+    #[test]
+    fn alt_left_nullable_gives_left() {
+        let r = Regex::alt(Regex::Eps, Regex::lit('a'));
+        assert!(matches!(mk_eps(&r), ParseTree::Left(_)));
+    }
+    #[test]
+    fn alt_right_nullable_gives_right() {
+        let r = Regex::alt(Regex::lit('a'), Regex::Eps);
+        assert!(matches!(mk_eps(&r), ParseTree::Right(_)));
+    }
+    #[test]
+    fn seq_gives_pair() {
+        let r = Regex::seq(Regex::Eps, Regex::Eps);
+        assert!(matches!(mk_eps(&r), ParseTree::Pair(_, _)));
+    }
+    #[test]
+    #[should_panic(expected = "mk_eps called on Lit")]
+    fn lit_panics() { mk_eps(&Regex::lit('a')); }
+    #[test]
+    #[should_panic(expected = "mk_eps called on Phi")]
+    fn phi_panics() { mk_eps(&Regex::Phi); }
+}

@@ -38,3 +38,46 @@ impl Regex {
         Regex::Lit(c)
     }
 }
+
+// ============================================================================
+// Tests for Regex
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lit_constructor() {
+        assert_eq!(Regex::lit('a'), Regex::Lit('a'));
+    }
+
+    #[test]
+    fn seq_constructor() {
+        let r = Regex::seq(Regex::lit('a'), Regex::lit('b'));
+        assert_eq!(r, Regex::Seq(Box::new(Regex::Lit('a')), Box::new(Regex::Lit('b'))));
+    }
+
+    #[test]
+    fn alt_constructor() {
+        let r = Regex::alt(Regex::lit('a'), Regex::Eps);
+        assert_eq!(r, Regex::Alt(Box::new(Regex::Lit('a')), Box::new(Regex::Eps)));
+    }
+
+    #[test]
+    fn star_constructor() {
+        let r = Regex::star(Regex::lit('a'));
+        assert_eq!(r, Regex::Star(Box::new(Regex::Lit('a'))));
+    }
+
+    #[test]
+    fn clone_and_eq() {
+        let r = Regex::seq(Regex::star(Regex::lit('a')), Regex::lit('b'));
+        assert_eq!(r.clone(), r);
+    }
+
+    #[test]
+    fn phi_and_eps_are_distinct() {
+        assert_ne!(Regex::Phi, Regex::Eps);
+    }
+}

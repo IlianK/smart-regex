@@ -45,3 +45,57 @@ pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
         r => Regex::seq(r, s.clone()),
     }
 }
+
+// ============================================================================
+// Tests for simplify and smart_seq
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::Regex;
+ 
+    // ── simplify laws ────────────────────────────────────────────────────────
+ 
+    #[test] fn phi_seq_r_is_phi() {
+        assert_eq!(simplify(Regex::seq(Regex::Phi, Regex::lit('a'))), Regex::Phi);
+    }
+    #[test] fn r_seq_phi_is_phi() {
+        assert_eq!(simplify(Regex::seq(Regex::lit('a'), Regex::Phi)), Regex::Phi);
+    }
+    #[test] fn eps_seq_r_is_r() {
+        assert_eq!(simplify(Regex::seq(Regex::Eps, Regex::lit('a'))), Regex::lit('a'));
+    }
+    #[test] fn r_seq_eps_is_r() {
+        assert_eq!(simplify(Regex::seq(Regex::lit('a'), Regex::Eps)), Regex::lit('a'));
+    }
+    #[test] fn phi_alt_r_is_r() {
+        assert_eq!(simplify(Regex::alt(Regex::Phi, Regex::lit('b'))), Regex::lit('b'));
+    }
+    #[test] fn r_alt_phi_is_r() {
+        assert_eq!(simplify(Regex::alt(Regex::lit('b'), Regex::Phi)), Regex::lit('b'));
+    }
+    #[test] fn r_alt_r_is_r() {
+        assert_eq!(simplify(Regex::alt(Regex::lit('a'), Regex::lit('a'))), Regex::lit('a'));
+    }
+    #[test] fn star_eps_is_eps() {
+        assert_eq!(simplify(Regex::star(Regex::Eps)), Regex::Eps);
+    }
+    #[test] fn star_phi_is_eps() {
+        assert_eq!(simplify(Regex::star(Regex::Phi)), Regex::Eps);
+    }
+    #[test] fn lit_unchanged() {
+        assert_eq!(simplify(Regex::lit('x')), Regex::lit('x'));
+    }
+ 
+    // ── smart_seq ────────────────────────────────────────────────────────────
+ 
+    #[test] fn smart_seq_eps_left_is_identity() {
+        let r = Regex::lit('a');
+        assert_eq!(smart_seq(Regex::Eps, &r), r);
+    }
+    #[test] fn smart_seq_non_eps_wraps() {
+        let result = smart_seq(Regex::lit('a'), &Regex::lit('b'));
+        assert_eq!(result, Regex::seq(Regex::lit('a'), Regex::lit('b')));
+    }
+}

@@ -43,3 +43,79 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
         }
     }
 }
+
+// ============================================================================
+// Tests for deriv_bc
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::ARegex;
+
+    // deriv_bc(Phi, _) = Phi
+    #[test]
+    fn deriv_bc_phi_is_phi() {
+        assert_eq!(deriv_bc(ARegex::Phi, 'a'), ARegex::Phi);
+    }
+
+    // deriv_bc(Eps(bs), _) = Phi  (Eps has no derivative)
+    #[test]
+    fn deriv_bc_eps_is_phi() {
+        assert_eq!(deriv_bc(ARegex::Eps(vec![]), 'a'), ARegex::Phi);
+    }
+
+    // deriv_bc(Lit(bs, c), c) = Eps(bs)  — bits are preserved
+    #[test]
+    fn deriv_bc_lit_match_preserves_bits() {
+        let ri = ARegex::Lit(vec![false, true], 'a');
+        let d = deriv_bc(ri, 'a');
+        assert_eq!(d, ARegex::Eps(vec![false, true]));
+    }
+
+    // deriv_bc(Lit(bs, c), d≠c) = Phi
+    #[test]
+    fn deriv_bc_lit_no_match_is_phi() {
+        let ri = ARegex::Lit(vec![false], 'a');
+        let d = deriv_bc(ri, 'b');
+        assert_eq!(d, ARegex::Phi);
+    }
+
+    // deriv_bc(Alt(bs, r1, r2), c) = Alt(bs, deriv_bc(r1,c), deriv_bc(r2,c))
+    #[test]
+    fn deriv_bc_alt_preserves_outer_bits() {
+        let ri = ARegex::Alt(
+            vec![true],
+            Box::new(ARegex::Lit(vec![false], 'a')),
+            Box::new(ARegex::Lit(vec![true], 'b')),
+        );
+        let d = deriv_bc(ri, 'a');
+        // Outer bits [true] should be preserved on the Alt wrapper
+        match d {
+            ARegex::Alt(ref bs, _, _) => assert_eq!(bs, &[true]),
+            other => panic!("expected Alt, got {:?}", other),
+        }
+    }
+
+    // deriv_bc(Star(bs, r), c) = Seq(bs, fuse([false], deriv_bc(r,c)), Star([],r))
+    #[test]
+    fn deriv_bc_star_gives_seq() {
+        let ri = ARegex::Star(vec![], Box::new(ARegex::Lit(vec![], 'a')));
+        let d = deriv_bc(ri, 'a');
+        assert!(matches!(d, ARegex::Seq(_, _, _)),
+            "Star derivative should produce Seq, got {:?}", d);
+    }
+
+    // Bit carry-through: fused [false] appears in the left branch of the Star derivative
+    #[test]
+    fn deriv_bc_star_left_branch_has_false_bit() {
+        let ri = ARegex::Star(vec![], Box::new(ARegex::Lit(vec![], 'a')));
+        let d = deriv_bc(ri, 'a');
+        if let ARegex::Seq(_, left, _) = d {
+            // fuse([false], Eps([])) = Eps([false])
+            assert_eq!(*left, ARegex::Eps(vec![false]));
+        } else {
+            panic!("expected Seq");
+        }
+    }
+}

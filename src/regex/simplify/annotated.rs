@@ -117,3 +117,113 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
         i += 1;
     }
 }
+
+// ============================================================================
+// Tests for simp
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::ARegex;
+
+    // simp(Phi) = Phi
+    #[test]
+    fn simp_phi_is_phi() {
+        assert_eq!(simp(ARegex::Phi), ARegex::Phi);
+    }
+
+    // simp(Eps) = Eps  (unchanged)
+    #[test]
+    fn simp_eps_unchanged() {
+        let ri = ARegex::Eps(vec![false]);
+        assert_eq!(simp(ri.clone()), ri);
+    }
+
+    // simp(Lit) = Lit  (unchanged)
+    #[test]
+    fn simp_lit_unchanged() {
+        let ri = ARegex::Lit(vec![], 'a');
+        assert_eq!(simp(ri.clone()), ri);
+    }
+
+    // Seq where left is Phi → Phi
+    #[test]
+    fn simp_seq_phi_left_gives_phi() {
+        let ri = ARegex::Seq(vec![], Box::new(ARegex::Phi), Box::new(ARegex::lit('a')));
+        assert_eq!(simp(ri), ARegex::Phi);
+    }
+
+    // Seq where right is Phi → Phi
+    #[test]
+    fn simp_seq_phi_right_gives_phi() {
+        let ri = ARegex::Seq(vec![], Box::new(ARegex::lit('a')), Box::new(ARegex::Phi));
+        assert_eq!(simp(ri), ARegex::Phi);
+    }
+
+    // Seq(bs, Eps(bs2), r) → fuse(bs++bs2, r)  — ε·r = r with bit merge
+    #[test]
+    fn simp_seq_eps_left_fuses_bits() {
+        // Seq([], Eps([false]), Lit([], 'a'))  →  Lit([false], 'a')
+        let ri = ARegex::Seq(
+            vec![],
+            Box::new(ARegex::Eps(vec![false])),
+            Box::new(ARegex::Lit(vec![], 'a')),
+        );
+        assert_eq!(simp(ri), ARegex::Lit(vec![false], 'a'));
+    }
+
+    // Alt where all branches are Phi → Phi
+    #[test]
+    fn simp_alt_all_phi_gives_phi() {
+        let ri = ARegex::Alt(vec![], Box::new(ARegex::Phi), Box::new(ARegex::Phi));
+        assert_eq!(simp(ri), ARegex::Phi);
+    }
+
+    // Alt where one branch is Phi → the other branch is kept (with outer bits fused)
+    #[test]
+    fn simp_alt_one_phi_drops_phi() {
+        // Alt([], Phi, Lit([], 'a'))  →  Lit([], 'a')   (outer bits are [] so no change)
+        let ri = ARegex::Alt(
+            vec![],
+            Box::new(ARegex::Phi),
+            Box::new(ARegex::Lit(vec![], 'a')),
+        );
+        assert_eq!(simp(ri), ARegex::Lit(vec![], 'a'));
+    }
+
+    // Alt with a single non-Phi branch after filtering → fuse outer bits onto that branch
+    #[test]
+    fn simp_alt_single_branch_fuses_outer_bits() {
+        // Alt([true], Phi, Eps([]))  →  fuse([true], Eps([])) = Eps([true])
+        let ri = ARegex::Alt(
+            vec![true],
+            Box::new(ARegex::Phi),
+            Box::new(ARegex::Eps(vec![])),
+        );
+        assert_eq!(simp(ri), ARegex::Eps(vec![true]));
+    }
+
+    // Duplicate branches are deduplicated (keep first occurrence)
+    #[test]
+    fn simp_alt_deduplicates_branches() {
+        let branch = ARegex::Lit(vec![], 'a');
+        let ri = ARegex::Alt(
+            vec![],
+            Box::new(branch.clone()),
+            Box::new(branch.clone()),
+        );
+        // After dedup only one branch remains, so result is fuse([], branch) = branch
+        assert_eq!(simp(ri), branch);
+    }
+
+    // Star is simplified recursively on its inner expression
+    #[test]
+    fn simp_star_simplifies_inner() {
+        // Star([], Seq([], Phi, Lit([], 'a')))  →  Star([], Phi)
+        let inner = ARegex::Seq(vec![], Box::new(ARegex::Phi), Box::new(ARegex::lit('a')));
+        let ri = ARegex::Star(vec![], Box::new(inner));
+        let result = simp(ri);
+        assert!(matches!(result, ARegex::Star(_, ref inner) if matches!(inner.as_ref(), ARegex::Phi)));
+    }
+}

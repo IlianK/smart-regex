@@ -57,3 +57,73 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
         Regex::Phi => panic!("decode: called on Phi"),
     }
 }
+
+// ============================================================================
+// Tests for decode
+// ============================================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{Regex, ParseTree};
+
+    #[test]
+    fn decode_eps_no_bits() {
+        assert_eq!(decode(&Regex::Eps, &[]), ParseTree::Empty);
+    }
+
+    #[test]
+    fn decode_lit_no_bits() {
+        assert_eq!(decode(&Regex::lit('a'), &[]), ParseTree::Char('a'));
+    }
+
+    #[test]
+    fn decode_alt_false_left() {
+        let r = Regex::alt(Regex::lit('a'), Regex::lit('b'));
+        assert_eq!(decode(&r, &[false]), ParseTree::Left(Box::new(ParseTree::Char('a'))));
+    }
+
+    #[test]
+    fn decode_alt_true_right() {
+        let r = Regex::alt(Regex::lit('a'), Regex::lit('b'));
+        assert_eq!(decode(&r, &[true]), ParseTree::Right(Box::new(ParseTree::Char('b'))));
+    }
+
+    #[test]
+    fn decode_star_empty() {
+        let r = Regex::star(Regex::lit('a'));
+        assert_eq!(decode(&r, &[true]), ParseTree::Star(vec![]));
+    }
+
+    #[test]
+    fn decode_star_one_iter() {
+        let r = Regex::star(Regex::lit('a'));
+        assert_eq!(
+            decode(&r, &[false, true]),
+            ParseTree::Star(vec![ParseTree::Char('a')])
+        );
+    }
+
+    #[test]
+    fn decode_star_three_iterations() {
+        // [false, false, false, true] = three iterations then end-of-star
+        let r = Regex::star(Regex::lit('a'));
+        let tree = decode(&r, &[false, false, false, true]);
+        assert_eq!(tree, ParseTree::Star(vec![
+            ParseTree::Char('a'),
+            ParseTree::Char('a'),
+            ParseTree::Char('a'),
+        ]));
+    }
+
+    #[test]
+    #[should_panic(expected = "decode: called on Phi")]
+    fn decode_phi_panics() {
+        decode(&Regex::Phi, &[]);
+    }
+
+    #[test]
+    #[should_panic(expected = "decode: unexpected end of bits at Alt")]
+    fn decode_alt_empty_bits_panics() {
+        decode(&Regex::alt(Regex::lit('a'), Regex::lit('b')), &[]);
+    }
+}

@@ -74,3 +74,43 @@ pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
         Regex::Phi => panic!("inject called on Phi"),
     }
 }
+
+// ============================================================================
+// Tests for inject
+// ============================================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{Regex, ParseTree};
+ 
+    #[test]
+    fn inject_lit_produces_char() {
+        let t = inject(&Regex::lit('a'), 'a', ParseTree::Empty);
+        assert_eq!(t, ParseTree::Char('a'));
+    }
+    #[test]
+    fn inject_alt_left_case() {
+        let r = Regex::alt(Regex::lit('a'), Regex::lit('b'));
+        let t = inject(&r, 'a', ParseTree::Left(Box::new(ParseTree::Empty)));
+        assert_eq!(t, ParseTree::Left(Box::new(ParseTree::Char('a'))));
+    }
+    #[test]
+    fn inject_alt_right_case() {
+        let r = Regex::alt(Regex::lit('a'), Regex::lit('b'));
+        let t = inject(&r, 'b', ParseTree::Right(Box::new(ParseTree::Empty)));
+        assert_eq!(t, ParseTree::Right(Box::new(ParseTree::Char('b'))));
+    }
+    #[test]
+    fn inject_star_one_step() {
+        let r = Regex::star(Regex::lit('a'));
+        let v = ParseTree::Pair(Box::new(ParseTree::Empty), Box::new(ParseTree::Star(vec![])));
+        let t = inject(&r, 'a', v);
+        assert_eq!(t, ParseTree::Star(vec![ParseTree::Char('a')]));
+    }
+    #[test]
+    #[should_panic(expected = "inject called on Eps")]
+    fn inject_eps_panics() { inject(&Regex::Eps, 'a', ParseTree::Empty); }
+    #[test]
+    #[should_panic(expected = "inject called on Phi")]
+    fn inject_phi_panics() { inject(&Regex::Phi, 'a', ParseTree::Empty); }
+}

@@ -50,3 +50,54 @@ pub fn flatten(v: &ParseTree) -> String {
         ParseTree::Star(vs) => vs.iter().map(flatten).collect(),
     }
 }
+
+
+// ============================================================================
+// Tests for ParseTree and flatten
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+ 
+    // flatten: private recursive logic
+    #[test]
+    fn flatten_char_unit() {
+        assert_eq!(flatten(&ParseTree::Char('z')), "z");
+    }
+ 
+    #[test]
+    fn flatten_pair_unit() {
+        let t = ParseTree::Pair(
+            Box::new(ParseTree::Char('a')),
+            Box::new(ParseTree::Char('b')),
+        );
+        assert_eq!(flatten(&t), "ab");
+    }
+ 
+    #[test]
+    fn flatten_left_unit() {
+        assert_eq!(flatten(&ParseTree::Left(Box::new(ParseTree::Char('x')))), "x");
+    }
+ 
+    #[test]
+    fn flatten_right_unit() {
+        assert_eq!(flatten(&ParseTree::Right(Box::new(ParseTree::Char('y')))), "y");
+    }
+ 
+    #[test]
+    fn flatten_star_unit() {
+        let t = ParseTree::Star(vec![ParseTree::Char('a'), ParseTree::Char('b')]);
+        assert_eq!(flatten(&t), "ab");
+    }
+ 
+    // Display
+    #[test]
+    fn display_pair_unit() {
+        let t = ParseTree::Pair(
+            Box::new(ParseTree::Char('a')),
+            Box::new(ParseTree::Char('b')),
+        );
+        assert_eq!(format!("{}", t), "(a, b)");
+    }
+}

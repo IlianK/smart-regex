@@ -9,3 +9,7 @@ use crate::types::ARegex;
 pub fn pderiv_bc(_ri: ARegex, _l: char) -> HashSet<ARegex> {
     unimplemented!("Bit-coded partial derivatives - future work")
 }
+
+// ============================================================================
+// Tests for pderiv_bc
+// ============================================================================

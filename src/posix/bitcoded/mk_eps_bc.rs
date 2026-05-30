@@ -30,3 +30,97 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
         }
     }
 }
+
+// ============================================================================
+// Tests for mk_eps_bc
+// ============================================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::ARegex;
+
+    #[test]
+    fn mk_eps_bc_eps_returns_its_bits() {
+        assert_eq!(mk_eps_bc(&ARegex::Eps(vec![])), vec![]);
+        assert_eq!(mk_eps_bc(&ARegex::Eps(vec![false, true])), vec![false, true]);
+    }
+
+    #[test]
+    fn mk_eps_bc_star_appends_true() {
+        let ri = ARegex::Star(vec![], Box::new(ARegex::lit('a')));
+        assert_eq!(mk_eps_bc(&ri), vec![true]);
+    }
+
+    #[test]
+    fn mk_eps_bc_star_with_prefix_bits() {
+        let ri = ARegex::Star(vec![false, false], Box::new(ARegex::lit('a')));
+        assert_eq!(mk_eps_bc(&ri), vec![false, false, true]);
+    }
+
+    #[test]
+    fn mk_eps_bc_seq_concatenates() {
+        // Seq([], Eps([false]), Eps([true])) → [] ++ [false] ++ [true] = [false, true]
+        let ri = ARegex::Seq(
+            vec![],
+            Box::new(ARegex::Eps(vec![false])),
+            Box::new(ARegex::Eps(vec![true])),
+        );
+        assert_eq!(mk_eps_bc(&ri), vec![false, true]);
+    }
+
+    #[test]
+    fn mk_eps_bc_seq_with_outer_bits() {
+        // Seq([true], Eps([]), Star([], _)) → [true] ++ [] ++ [true] = [true, true]
+        let ri = ARegex::Seq(
+            vec![true],
+            Box::new(ARegex::Eps(vec![])),
+            Box::new(ARegex::Star(vec![], Box::new(ARegex::lit('x')))),
+        );
+        assert_eq!(mk_eps_bc(&ri), vec![true, true]);
+    }
+
+    #[test]
+    fn mk_eps_bc_alt_prefers_left_when_nullable() {
+        // Alt([], Eps([false]), Lit([true],'a')) → [] ++ [false] = [false]
+        let ri = ARegex::Alt(
+            vec![],
+            Box::new(ARegex::Eps(vec![false])),
+            Box::new(ARegex::Lit(vec![true], 'a')),
+        );
+        assert_eq!(mk_eps_bc(&ri), vec![false]);
+    }
+
+    #[test]
+    fn mk_eps_bc_alt_uses_right_when_left_not_nullable() {
+        // Alt([], Lit([false],'a'), Eps([true])) → [] ++ [true] = [true]
+        let ri = ARegex::Alt(
+            vec![],
+            Box::new(ARegex::Lit(vec![false], 'a')),
+            Box::new(ARegex::Eps(vec![true])),
+        );
+        assert_eq!(mk_eps_bc(&ri), vec![true]);
+    }
+
+    #[test]
+    fn mk_eps_bc_alt_with_outer_bits() {
+        // Alt([false], Eps([]), Star([],_)) → [false] ++ [] = [false]
+        let ri = ARegex::Alt(
+            vec![false],
+            Box::new(ARegex::Eps(vec![])),
+            Box::new(ARegex::Star(vec![], Box::new(ARegex::lit('a')))),
+        );
+        assert_eq!(mk_eps_bc(&ri), vec![false]);
+    }
+
+    #[test]
+    #[should_panic(expected = "mk_eps_bc called on Phi")]
+    fn mk_eps_bc_phi_panics() {
+        mk_eps_bc(&ARegex::Phi);
+    }
+
+    #[test]
+    #[should_panic(expected = "mk_eps_bc called on Lit")]
+    fn mk_eps_bc_lit_panics() {
+        mk_eps_bc(&ARegex::Lit(vec![], 'a'));
+    }
+}

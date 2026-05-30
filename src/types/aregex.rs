@@ -44,3 +44,60 @@ impl std::fmt::Display for ARegex {
         }
     }
 }
+
+// ============================================================================
+// Tests for ARegex
+// ============================================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eps_has_empty_bits() {
+        assert_eq!(ARegex::eps(), ARegex::Eps(vec![]));
+    }
+
+    #[test]
+    fn lit_has_empty_bits() {
+        assert_eq!(ARegex::lit('x'), ARegex::Lit(vec![], 'x'));
+    }
+
+    #[test]
+    fn alt_constructor_has_empty_outer_bits() {
+        let ri = ARegex::alt(ARegex::eps(), ARegex::lit('a'));
+        assert!(matches!(ri, ARegex::Alt(ref bs, _, _) if bs.is_empty()));
+    }
+
+    #[test]
+    fn seq_constructor_has_empty_outer_bits() {
+        let ri = ARegex::seq(ARegex::lit('a'), ARegex::lit('b'));
+        assert!(matches!(ri, ARegex::Seq(ref bs, _, _) if bs.is_empty()));
+    }
+
+    #[test]
+    fn star_constructor_has_empty_outer_bits() {
+        let ri = ARegex::star(ARegex::lit('a'));
+        assert!(matches!(ri, ARegex::Star(ref bs, _) if bs.is_empty()));
+    }
+
+    #[test]
+    fn display_phi() {
+        assert_eq!(format!("{}", ARegex::Phi), "φ");
+    }
+
+    #[test]
+    fn display_eps() {
+        assert_eq!(format!("{}", ARegex::Eps(vec![])), "[]@ε");
+    }
+
+    #[test]
+    fn display_lit() {
+        assert_eq!(format!("{}", ARegex::Lit(vec![], 'a')), "[]@'a'");
+    }
+
+    #[test]
+    fn clone_and_eq() {
+        let ri = ARegex::seq(ARegex::star(ARegex::lit('a')), ARegex::lit('b'));
+        assert_eq!(ri.clone(), ri);
+    }
+}
