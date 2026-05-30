@@ -1,13 +1,13 @@
 //! Level 3 — Debug diagnostics. Full structural derivation trace.
 //!
 //! Output goes to REGEX_DIAG_REPORT file if set, otherwise stdout.
-//! Standard mode forces parse_loop internally regardless of REGEX_PARSER.
+//! Standard mode uses the parser selected by REGEX_PARSER (recursive or loop).
 
 use std::time::Instant;
 
-use crate::types::{Regex, ARegex, ParseTree, flatten};
+use crate::types::{Regex, ARegex, flatten};
 use crate::posix::selection::ParserType;
-use crate::posix::standard::parse_loop_traced;
+use crate::posix::standard::{parse_loop_traced, parse_recursive_traced};
 use crate::posix::bitcoded::parse_bitcoded_traced;
 use crate::regex::nullable::standard::nullable;
 use crate::regex::nullable::annotated::nullable_bc;
@@ -44,16 +44,22 @@ fn render_standard(
 ) {
     let chars: Vec<char> = input.chars().collect();
     let start = Instant::now();
-    let (result, trace) = parse_loop_traced(input, r);
+
+    // Respect REGEX_PARSER — use the traced variant matching the selected parser
+    let (result, trace) = match config.parser_type {
+        ParserType::Recursive => parse_recursive_traced(input, r),
+        _                     => parse_loop_traced(input, r),
+    };
+
     let elapsed = start.elapsed();
 
     let parser_label = match config.parser_type {
-        ParserType::Recursive => "POSIX Standard (loop parser — forced at debug level)",
+        ParserType::Recursive => "POSIX Standard (recursive parser)",
         ParserType::Loop      => "POSIX Standard (loop parser)",
         ParserType::Bitcoded  => unreachable!(),
     };
 
-    let result_label = if result.is_some() { "SUCCESS" } else { "FAIL" };
+    let result_label = if result.is_some() { "MATCH" } else { "NO MATCH" };
 
     // ── Header ───────────────────────────────────────────────────────────────
     w.separator();
@@ -69,7 +75,7 @@ fn render_standard(
     w.separator();
     w.line("TIMING");
     w.separator();
-    w.kv("Parse time", &format!("{:.3}ms", elapsed.as_secs_f64() * 1000.0));
+    w.kv("Parse time",         &format!("{:.3}ms", elapsed.as_secs_f64() * 1000.0));
     w.kv("Expressions stored", &format!(
         "{} ({})",
         trace.expression_count(),
@@ -80,7 +86,7 @@ fn render_standard(
     w.separator();
     w.line("FORWARD PASS (Derivatives)");
     w.separator();
-    w.line(&format!("r0 = {}", trace.expressions[0]));
+    w.line(&format!("r0 = {:?}", trace.expressions[0]));
     w.blank();
 
     for step in &trace.deriv_steps {
@@ -88,9 +94,8 @@ fn render_standard(
             "Step {}: ∂(r{}, '{}')",
             step.position, step.position - 1, step.character
         ));
-        // Structural expansion of the derivative step
         render_deriv_expansion(&step.before, step.character, w);
-        w.line(&format!("r{} = {}", step.position, step.after));
+        w.line(&format!("r{} = {:?}", step.position, step.after));
         if step.nullable {
             w.line(&format!(
                 "  nullable(r{}) = true  ✓ position {} matched",
@@ -132,7 +137,7 @@ fn render_standard(
         }
 
         if let Some(ref steps) = trace.inject_steps {
-            // steps are in forward order (position 1 first); display in reverse
+            // Steps stored in forward order (pos 1 first); display backward (pos n first)
             for step in steps.iter().rev() {
                 let expr_idx = step.position - 1;
                 w.line(&format!(
@@ -140,7 +145,7 @@ fn render_standard(
                     expr_idx, step.character, expr_idx + 1
                 ));
                 w.line(&format!(
-                    "  inject({}, '{}', {})",
+                    "  inject({:?}, '{}', {})",
                     trace.expressions[expr_idx], step.character, step.before
                 ));
                 w.line(&format!("  → {}", step.after));
@@ -168,7 +173,7 @@ fn render_standard(
             let flat = flatten(&partial);
             let last_idx = trace.last_nullable_idx.unwrap_or(0);
             w.line(&format!(
-                "Last nullable derivative: r{} = {}  (after position {})",
+                "Last nullable derivative: r{} = {:?}  (after position {})",
                 last_idx, trace.expressions[last_idx], last_idx
             ));
             w.line(&format!("mkEps(r{}) → {}", last_idx, partial));
@@ -176,7 +181,6 @@ fn render_standard(
 
             if last_idx > 0 {
                 w.line(&format!("Partial backward pass (positions 1–{} only):", last_idx));
-                // Show inject steps for the matched prefix
                 if let Some(ref steps) = trace.inject_steps {
                     for step in steps.iter().rev().take(last_idx) {
                         w.line(&format!(
@@ -206,8 +210,8 @@ fn render_standard(
             w.kv("Found",    &format!("'{}'", info.found));
         }
         w.kv("Expected", &info.expected);
-        w.line(&format!("Input:    {}", input));
-        w.line(&caret_lines(input, info.position).replace("  ", "          "));
+        // caret_lines already produces "  input\n    ^" — no extra wrapping needed
+        w.line(&caret_lines(input, info.position));
     }
 
     w.separator();
@@ -220,21 +224,20 @@ fn render_standard(
 // ============================================================================
 
 fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter) {
-    let chars: Vec<char> = input.chars().collect();
     let start = Instant::now();
     let (result, trace) = parse_bitcoded_traced(input, r);
     let elapsed = start.elapsed();
 
-    let result_label = if result.is_some() { "SUCCESS" } else { "FAIL" };
+    let result_label = if result.is_some() { "MATCH" } else { "NO MATCH" };
 
     w.separator();
     w.line("REGEX ENGINE DEBUG REPORT");
     w.separator();
-    w.kv("Timestamp", &timestamp());
-    w.kv("Mode",      "POSIX Bitcoded");
-    w.kv("Regex",     regex_str);
-    w.kv("Input",     &format!("{:?}", input));
-    w.kv("Result",    result_label);
+    w.kv("Timestamp",        &timestamp());
+    w.kv("Mode",             "POSIX Bitcoded");
+    w.kv("Regex",            regex_str);
+    w.kv("Input",            &format!("{:?}", input));
+    w.kv("Result",           result_label);
 
     w.separator();
     w.line("TIMING");
@@ -287,9 +290,10 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
         w.line("MKEEPSBC + DECODE");
         w.separator();
         if let Some(ref bits) = trace.final_bits {
-            let bits_str: String = bits.iter()
-                .map(|b| if *b { '1' } else { '0' })
-                .collect();
+            let bits_str = bits.iter()
+                .map(|b| if *b { "1" } else { "0" })
+                .collect::<Vec<_>>()
+                .join(",");
             w.line(&format!("mkEpsBC(ri{}) = [{}]", final_step, bits_str));
             w.blank();
             w.line(&format!("decode({}, [{}]):", regex_str, bits_str));
@@ -300,9 +304,10 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
         w.line("RESULT");
         w.separator();
         if let Some(ref bits) = trace.final_bits {
-            let bits_str: String = bits.iter()
-                .map(|b| if *b { '1' } else { '0' })
-                .collect();
+            let bits_str = bits.iter()
+                .map(|b| if *b { "1" } else { "0" })
+                .collect::<Vec<_>>()
+                .join(",");
             w.kv("Bits",       &format!("[{}]", bits_str));
         }
         w.kv("Parse tree", &format!("{}", tree));
@@ -314,9 +319,10 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
         w.separator();
 
         if let Some(ref bits) = trace.bits_at_last_nullable {
-            let bits_str: String = bits.iter()
-                .map(|b| if *b { '1' } else { '0' })
-                .collect();
+            let bits_str = bits.iter()
+                .map(|b| if *b { "1" } else { "0" })
+                .collect::<Vec<_>>()
+                .join(",");
             let last_idx = trace.last_nullable_idx.unwrap_or(0);
             let partial_str: String = input.chars().take(last_idx).collect();
 
@@ -348,8 +354,8 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
             w.kv("Found",    &format!("'{}'", info.found));
         }
         w.kv("Expected", &info.expected);
-        w.line(&format!("Input:    {}", input));
-        w.line(&caret_lines(input, info.position).replace("  ", "          "));
+        // caret_lines already produces "  input\n    ^" — no extra wrapping needed
+        w.line(&caret_lines(input, info.position));
     }
 
     w.separator();
@@ -361,61 +367,46 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
 // Structural expansion helpers
 // ============================================================================
 
-/// Print a one-level structural expansion of ∂(r, c) with sub-rules labelled.
 fn render_deriv_expansion(r: &Regex, c: char, w: &mut ReportWriter) {
     use Regex::*;
     match r {
-        Phi => {
-            w.line("  rule: ∂(∅, c) = ∅");
-        }
-        Eps => {
-            w.line("  rule: ∂(ε, c) = ∅");
-        }
+        Phi => w.line("  rule: ∂(∅, c) = ∅"),
+        Eps => w.line("  rule: ∂(ε, c) = ∅"),
         Lit(ch) => {
             if *ch == c {
                 w.line(&format!("  rule: ∂('{0}', '{0}') = ε  [literal match]", c));
             } else {
-                w.line(&format!(
-                    "  rule: ∂('{}', '{}') = ∅  [literal mismatch]", ch, c
-                ));
+                w.line(&format!("  rule: ∂('{}', '{}') = ∅  [literal mismatch]", ch, c));
             }
         }
         Alt(r1, r2) => {
             w.line(&format!(
                 "  rule: ∂(r1 + r2, '{}') = ∂(r1, '{}') + ∂(r2, '{}')", c, c, c
             ));
-            w.line(&format!("  ∂({}, '{}') — see left branch", r1, c));
-            w.line(&format!("  ∂({}, '{}') — see right branch", r2, c));
+            w.line(&format!("  ∂({:?}, '{}') — see left branch", r1, c));
+            w.line(&format!("  ∂({:?}, '{}') — see right branch", r2, c));
         }
-        Seq(r1, r2) => {
-            let n = nullable(r1);
-            if n {
-                w.line(&format!(
-                    "  rule: ∂(r1·r2, '{}')  [nullable(r1)=true]", c
-                ));
+        Seq(r1, _r2) => {
+            if nullable(r1) {
+                w.line(&format!("  rule: ∂(r1·r2, '{}')  [nullable(r1)=true]", c));
                 w.line("       = ∂(r1, c)·r2  +  ∂(r2, c)");
             } else {
-                w.line(&format!(
-                    "  rule: ∂(r1·r2, '{}')  [nullable(r1)=false]", c
-                ));
+                w.line(&format!("  rule: ∂(r1·r2, '{}')  [nullable(r1)=false]", c));
                 w.line("       = ∂(r1, c)·r2");
             }
         }
         Star(r1) => {
-            w.line(&format!(
-                "  rule: ∂(r*, '{}') = ∂(r, '{}') · r*", c, c
-            ));
-            w.line(&format!("  ∂({}, '{}'):", r1, c));
+            w.line(&format!("  rule: ∂(r*, '{}') = ∂(r, '{}') · r*", c, c));
+            w.line(&format!("  ∂({:?}, '{}'):", r1, c));
         }
     }
 }
 
-/// Print a structural expansion of mkEps(r).
 fn render_mk_eps_expansion(r: &Regex, w: &mut ReportWriter) {
     use Regex::*;
     match r {
-        Eps      => w.line("  mkEps(ε) → ()"),
-        Star(_)  => w.line("  mkEps(r*) → []  [zero iterations]"),
+        Eps        => w.line("  mkEps(ε) → ()"),
+        Star(_)    => w.line("  mkEps(r*) → []  [zero iterations]"),
         Alt(r1, _) => {
             if nullable(r1) {
                 w.line("  mkEps(r1 + r2): nullable(r1)=true → Left(mkEps(r1))");
@@ -423,24 +414,17 @@ fn render_mk_eps_expansion(r: &Regex, w: &mut ReportWriter) {
                 w.line("  mkEps(r1 + r2): nullable(r1)=false → Right(mkEps(r2))");
             }
         }
-        Seq(_, _) => {
-            w.line("  mkEps(r1 · r2) → Pair(mkEps(r1), mkEps(r2))");
-        }
-        Lit(c) => w.line(&format!("  mkEps('{}') → panic (non-nullable)", c)),
-        Phi    => w.line("  mkEps(∅) → panic (non-nullable)"),
+        Seq(_, _)  => w.line("  mkEps(r1 · r2) → Pair(mkEps(r1), mkEps(r2))"),
+        Lit(c)     => w.line(&format!("  mkEps('{}') → panic (non-nullable)", c)),
+        Phi        => w.line("  mkEps(∅) → panic (non-nullable)"),
     }
 }
 
-/// Print a structural expansion of deriv_bc(ri, c).
 fn render_deriv_bc_expansion(ri: &ARegex, c: char, w: &mut ReportWriter) {
     use ARegex::*;
     match ri {
-        Phi => {
-            w.line("    rule: Phi \\ c = Phi");
-        }
-        Eps(_) => {
-            w.line("    rule: (bs@ε) \\ c = Phi  [Eps has no derivative]");
-        }
+        Phi    => w.line("    rule: Phi \\ c = Phi"),
+        Eps(_) => w.line("    rule: (bs@ε) \\ c = Phi  [Eps has no derivative]"),
         Lit(_, ch) => {
             if *ch == c {
                 w.line(&format!(
@@ -454,53 +438,46 @@ fn render_deriv_bc_expansion(ri: &ARegex, c: char, w: &mut ReportWriter) {
                 ));
             }
         }
-        Alt(_, r1, r2) => {
+        Alt(_, _r1, _r2) => {
             w.line(&format!(
                 "    rule: (bs@(ri1 ⊕ ri2)) \\ '{}' = bs@(ri1\\{0} ⊕ ri2\\{0})", c
             ));
         }
-        Seq(_, r1, r2) => {
+        Seq(_, r1, _r2) => {
             if nullable_bc(r1) {
-                w.line(&format!(
-                    "    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=true]", c
-                ));
+                w.line(&format!("    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=true]", c));
                 w.line("         = bs@(ri1\\'c'·ri2  ⊕  fuse(mkEpsBC(ri1), ri2\\'c'))");
             } else {
-                w.line(&format!(
-                    "    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=false]", c
-                ));
+                w.line(&format!("    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=false]", c));
                 w.line("         = bs@(ri1\\'c'·ri2)");
             }
         }
-        Star(_, r1) => {
+        Star(_, _r1) => {
             w.line(&format!(
-                "    rule: (bs@ri*) \\ '{}' = bs@(fuse [0] (ri\\'{}') · ([]@ri*))",
-                c, c
+                "    rule: (bs@ri*) \\ '{}' = bs@(fuse [0] (ri\\'{}') · ([]@ri*))", c, c
             ));
         }
     }
 }
 
-/// Print the internalize expansion (top level only — recursive expansion would
-/// become very long for nested expressions; one level is enough for the report).
 fn render_internalize_expansion(r: &Regex, w: &mut ReportWriter) {
     use Regex::*;
     match r {
-        Phi      => w.line("  rule: internalize(∅) = ∅"),
-        Eps      => w.line("  rule: internalize(ε) = []@ε"),
-        Lit(c)   => w.line(&format!("  rule: internalize('{}') = []@'{}'", c, c)),
+        Phi         => w.line("  rule: internalize(∅) = ∅"),
+        Eps         => w.line("  rule: internalize(ε) = []@ε"),
+        Lit(c)      => w.line(&format!("  rule: internalize('{}') = []@'{}'", c, c)),
         Alt(r1, r2) => {
             w.line("  rule: internalize(r1 + r2)");
             w.line("       = []@(fuse [0] (internalize r1) ⊕ fuse [1] (internalize r2))");
-            w.line(&format!("  left:  fuse [0] (internalize {}) → [false]@...", r1));
-            w.line(&format!("  right: fuse [1] (internalize {}) → [true]@...", r2));
+            w.line(&format!("  left:  fuse [0] (internalize {:?}) → [false]@...", r1));
+            w.line(&format!("  right: fuse [1] (internalize {:?}) → [true]@...", r2));
         }
-        Seq(r1, r2) => {
+        Seq(_r1, _r2) => {
             w.line("  rule: internalize(r1 · r2) = []@(internalize r1)(internalize r2)");
         }
         Star(r1) => {
             w.line("  rule: internalize(r*) = []@(internalize r)*");
-            w.line(&format!("  inner: internalize({}) → []@...", r1));
+            w.line(&format!("  inner: internalize({:?}) → []@...", r1));
         }
     }
 }
@@ -510,9 +487,7 @@ fn render_internalize_expansion(r: &Regex, w: &mut ReportWriter) {
 // ============================================================================
 
 fn timestamp() -> String {
-    // std does not include a time formatter; produce a placeholder.
-    // In a real deployment, use the `chrono` crate.
-    "see system clock".to_string()
+    chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 fn expression_range_label(count: usize) -> String {

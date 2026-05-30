@@ -6,8 +6,8 @@
 //!   0 = Off     — true / false only
 //!   1 = Basic   — regex, input, result, parse tree, error caret
 //!   2 = Verbose — Basic + time, expression count, construction steps
-//!   3 = Debug   — Verbose + full structural derivation trace (written to
-//!                 REGEX_DIAG_REPORT if set, otherwise stdout)
+//!   3 = Debug   — full structural derivation trace
+//!                 (written to REGEX_DIAG_REPORT if set, otherwise stdout)
 //!
 //! Usage:
 //!   REGEX_DIAG=1 cargo run -- parse "a*" "aaa"
@@ -17,9 +17,9 @@
 
 pub mod trace;
 pub mod replay;
-pub mod level_1;
-pub mod level_2;
-pub mod level_3;
+pub mod level1;
+pub mod level2;
+pub mod level3;
 pub mod report;
 
 use crate::types::Regex;
@@ -70,7 +70,18 @@ impl DiagConfig {
     pub fn read_from_env() -> Self {
         let level       = DiagLevel::from_env();
         let parser_type = ParserType::single_from_env();
-        let report_path = std::env::var("REGEX_DIAG_REPORT").ok();
+
+        // Default report path: reports/report.txt
+        // Can be overridden with REGEX_DIAG_REPORT=path/to/file.txt
+        let report_path = if level == DiagLevel::Debug {
+            Some(
+                std::env::var("REGEX_DIAG_REPORT")
+                    .unwrap_or_else(|_| "reports/report.txt".to_string())
+            )
+        } else {
+            std::env::var("REGEX_DIAG_REPORT").ok()
+        };
+
         Self { level, parser_type, report_path }
     }
 
@@ -92,24 +103,24 @@ impl DiagConfig {
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     match config.level {
         DiagLevel::Off     => level0_parser(r, input, config),
-        DiagLevel::Basic   => level_1::run_parser(regex_str, r, input, config),
-        DiagLevel::Verbose => level_2::run_parser(regex_str, r, input, config),
-        DiagLevel::Debug   => level_3::run_parser(regex_str, r, input, config),
+        DiagLevel::Basic   => level1::run_parser(regex_str, r, input, config),
+        DiagLevel::Verbose => level2::run_parser(regex_str, r, input, config),
+        DiagLevel::Debug   => level3::run_parser(regex_str, r, input, config),
     }
 }
 
 /// Run a matcher and emit diagnostics output at the configured level.
+/// Matcher diagnostics only differ at Level 1+ (Basic shows the error caret).
+/// Levels 2 and 3 fall back to Level 1 — matchers produce no construction steps.
 pub fn run_matcher(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     match config.level {
-        DiagLevel::Off     => level0_matcher(r, input),
-        DiagLevel::Basic   => level_1::run_matcher(regex_str, r, input),
-        DiagLevel::Verbose => level_1::run_matcher(regex_str, r, input), // matchers have no construction steps
-        DiagLevel::Debug   => level_1::run_matcher(regex_str, r, input),
+        DiagLevel::Off => level0_matcher(r, input),
+        _              => level1::run_matcher(regex_str, r, input),
     }
 }
 
 // ============================================================================
-// Level 0 helpers (inline — no sub-module needed)
+// Level 0 helpers
 // ============================================================================
 
 fn level0_parser(r: &Regex, input: &str, config: &DiagConfig) {
@@ -125,10 +136,16 @@ fn level0_parser(r: &Regex, input: &str, config: &DiagConfig) {
 }
 
 fn level0_matcher(r: &Regex, input: &str) {
-    use crate::matchers::{match_naive, match_deriv, match_pderiv};
     use crate::matchers::MatcherType;
+    // MatcherType::from_env() returns Vec<MatcherType>; take the first element.
+    // Default is Deriv when REGEX_MATCHER is unset.
+    let matcher_type = MatcherType::from_env()
+        .into_iter()
+        .next()
+        .unwrap_or(MatcherType::Deriv);
 
-    let matched = match MatcherType::single_from_env() {
+    use crate::matchers::{match_naive, match_deriv, match_pderiv};
+    let matched = match matcher_type {
         MatcherType::Naive  => match_naive(input, r),
         MatcherType::Deriv  => match_deriv(input, r),
         MatcherType::PDeriv => match_pderiv(input, r),

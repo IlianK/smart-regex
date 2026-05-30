@@ -2,8 +2,6 @@
 //!
 //! Used exclusively by Level 3. Levels 0–2 print directly to stdout.
 
-use std::io::Write;
-
 const SEPARATOR: &str = "================================================================================";
 
 pub struct ReportWriter {
@@ -35,9 +33,11 @@ impl ReportWriter {
         self.lines.push(SEPARATOR.to_string());
     }
 
-    /// Append a key-value line, left-padded so values align.
+    /// Append a key-value line.
+    /// Key is left-padded to 20 chars so values align cleanly.
     pub fn kv(&mut self, key: &str, value: &str) {
-        self.lines.push(format!("{:<12}{}", format!("{}:", key), value));
+        // "Failure at position:" is 20 chars — the longest key we use
+        self.lines.push(format!("{:<22}{}", format!("{}:", key), value));
     }
 
     /// Write everything to the configured destination.

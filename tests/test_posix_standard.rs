@@ -206,3 +206,30 @@ fn posix_star_is_greedy_not_lazy() {
         panic!("expected Star([a,a,a]), got {:?}", tree);
     }
 }
+
+// ============================================================================
+// Tests for traced variants of parse_loop and parse_recursive
+// ============================================================================
+
+#[test]
+fn recursive_traced_and_loop_traced_agree_on_all_paper_examples() {
+    use regex_engine::posix::{parse_recursive_traced, parse_loop_traced};
+
+    let cases: Vec<(&str, Regex)> = vec![
+        ("aaa",  Regex::star(Regex::lit('a'))),
+        ("aab",  Regex::star(Regex::lit('a'))),
+        ("ab",   paper_r1()),
+        ("a",    paper_r1()),
+        ("ab",   paper_r2()),
+        ("",     Regex::star(Regex::lit('a'))),
+    ];
+
+    for (input, r) in &cases {
+        let (rec_tree, _)  = parse_recursive_traced(input, r);
+        let (loop_tree, _) = parse_loop_traced(input, r);
+        assert_eq!(
+            rec_tree, loop_tree,
+            "recursive_traced and loop_traced disagree on {:?}", input
+        );
+    }
+}

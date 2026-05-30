@@ -1,14 +1,31 @@
 //! regex_engine
 
-// Modules 
+// Core data types
 pub mod types;
+
+// Trace structs — declared before posix and diagnostics to break the cycle.
+pub mod trace;
+
+// Algorithms
 pub mod regex;
 pub mod matchers;
 pub mod posix;
+pub mod diagnostics;
 
-// pub mod diagnostics;
-
-// Re-export 
+// Re-export core types
 pub use types::{Regex, ARegex, ParseTree, flatten};
+
+// Re-export matchers
 pub use matchers::{match_naive, match_deriv, match_pderiv};
+
+// Re-export parsers
 pub use posix::{parse_posix, match_posix, mk_eps, inject};
+pub use posix::{parse_recursive, parse_loop, parse_bitcoded};
+
+// Re-export traced variants
+pub use posix::parse_loop_traced;
+pub use posix::parse_recursive_traced;
+pub use posix::parse_bitcoded_traced;
+
+// Re-export diagnostics entry points
+pub use diagnostics::{DiagLevel, DiagConfig, run_parser, run_matcher};

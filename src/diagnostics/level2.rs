@@ -1,26 +1,30 @@
 //! Level 2 — Verbose diagnostics output.
 //!
 //! Standard success:
-//!   Regex:  a*  |  Input:  "aa"  |  Match:  true  |  Tree:   [a, a]
-//!   Time:   0.08ms  |  Steps:  3 derivative expressions computed
-//!   Construction steps:
-//!     mkEps(a*) → []
-//!     inject(a*, 'a', []) → [a]
-//!     inject(a*, 'a', [a]) → [a, a]
+//!   Regex:  a*
+//!   Input:  "aaa"
+//!   Match:  true
+//!   Tree:   [a, a, a]
+//!   Time:   0.08ms
+//!   Steps:  4 derivative expressions computed
 //!
-//! Standard failure:
-//!   + partial match, bits-so-far (bitcoded)
+//!   Construction steps:
+//!     mkEps(r3) → []
+//!     inject(a*, 'a', []) → [a]           (position 1)
+//!     inject(a*, 'a', [a]) → [a, a]       (position 2)
+//!     inject(a*, 'a', [a, a]) → [a, a, a] (position 3)
 
 use std::time::Instant;
 
 use crate::types::{Regex, flatten};
+use crate::posix::selection::ParserType;
+use crate::posix::standard::{parse_loop_traced, parse_recursive_traced};
 use crate::posix::bitcoded::parse_bitcoded_traced;
-use crate::posix::standard::parse_loop_traced;
 use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{find_failure, caret_lines, partial_tree_standard};
 
 // ============================================================================
-// Parser — Level 2
+// Entry point
 // ============================================================================
 
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
@@ -34,12 +38,15 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
 // ── Standard path ────────────────────────────────────────────────────────────
 
 fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
-    // Use parse_loop_traced regardless of recursive/loop setting at Level 2
-    // (parse_recursive does not store the expression sequence)
     let start = Instant::now();
-    let (result, trace) = parse_loop_traced(input, r);
-    let elapsed = start.elapsed();
 
+    // Respect REGEX_PARSER — use the traced variant matching the selected parser
+    let (result, trace) = match config.parser_type {
+        ParserType::Recursive => parse_recursive_traced(input, r),
+        _                     => parse_loop_traced(input, r),
+    };
+
+    let elapsed = start.elapsed();
     let chars: Vec<char> = input.chars().collect();
 
     println!("Regex:  {}", regex_str);
@@ -54,14 +61,19 @@ fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagCon
             println!();
             println!("Construction steps:");
 
-            // mkEps line
+            // mkEps line — label with rN (the final derivative index), not the original regex string
             if let Some(ref mke) = trace.mk_eps_result {
-                println!("  mkEps({}) → {}", regex_str, mke.tree);
+                let final_idx = trace.expression_count() - 1;
+                println!("  mkEps(r{}) → {}", final_idx, mke.tree);
             }
 
-            // inject lines (forward order: position 1 first)
+            // inject lines — forward order: position 1, 2, ... n
+            // Steps are stored in forward order in ParseTrace; display them as-is
             if let Some(ref steps) = trace.inject_steps {
-                for step in steps {
+                // Display in backward-pass order: highest position first (matches paper and Level 3)
+                let mut display_steps: Vec<_> = steps.iter().collect();
+                display_steps.sort_by_key(|s| std::cmp::Reverse(s.position));
+                for step in display_steps {
                     println!(
                         "  inject({}, '{}', {}) → {}",
                         regex_str, step.character, step.before, step.after
@@ -94,7 +106,6 @@ fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagCon
             }
             println!("{}", caret_lines(input, info.position));
 
-            // Partial match recovery
             if let Some(partial) = partial_tree_standard(
                 &trace.expressions, &chars, trace.last_nullable_idx
             ) {
@@ -140,9 +151,11 @@ fn run_parser_bitcoded(regex_str: &str, r: &Regex, input: &str) {
             }
 
             if let Some(ref bits) = trace.final_bits {
-                let bits_str: String = bits.iter()
-                    .map(|b| if *b { '1' } else { '0' })
-                    .collect();
+                // Use comma-separated bits for readability: 0,0,0,1 not 0001
+                let bits_str = bits.iter()
+                    .map(|b| if *b { "1" } else { "0" })
+                    .collect::<Vec<_>>()
+                    .join(",");
                 println!("  mkEpsBC → bits: [{}]", bits_str);
                 println!("  decode  → {}", tree);
             }
@@ -170,11 +183,11 @@ fn run_parser_bitcoded(regex_str: &str, r: &Regex, input: &str) {
             }
             println!("{}", caret_lines(input, info.position));
 
-            // Partial info from last nullable step
             if let Some(ref bits) = trace.bits_at_last_nullable {
-                let bits_str: String = bits.iter()
-                    .map(|b| if *b { '1' } else { '0' })
-                    .collect();
+                let bits_str = bits.iter()
+                    .map(|b| if *b { "1" } else { "0" })
+                    .collect::<Vec<_>>()
+                    .join(",");
                 let partial_input: String = input.chars()
                     .take(trace.last_nullable_idx.unwrap_or(0))
                     .collect();
@@ -186,7 +199,6 @@ fn run_parser_bitcoded(regex_str: &str, r: &Regex, input: &str) {
                 );
                 println!("Bits so far:   [{}]", bits_str);
 
-                // Decode what we can from the last nullable expression
                 if let Some(idx) = trace.last_nullable_idx {
                     if idx > 0 {
                         let last_ri = &trace.bit_steps[idx - 1].after;

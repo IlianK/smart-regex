@@ -14,7 +14,7 @@
 //!     aab
 //!       ^
 
-use crate::types::{Regex};
+use crate::types::Regex;
 use crate::posix::selection::ParserType;
 use crate::posix::standard::{parse_recursive, parse_loop};
 use crate::posix::bitcoded::parse_bitcoded;
@@ -64,10 +64,16 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
 // ============================================================================
 
 pub fn run_matcher(regex_str: &str, r: &Regex, input: &str) {
-    use crate::matchers::{match_naive, match_deriv, match_pderiv};
     use crate::matchers::MatcherType;
+    use crate::matchers::{match_naive, match_deriv, match_pderiv};
 
-    let matched = match MatcherType::single_from_env() {
+    // MatcherType::from_env() returns Vec — take the first (default: Deriv)
+    let matcher_type = MatcherType::from_env()
+        .into_iter()
+        .next()
+        .unwrap_or(MatcherType::Deriv);
+
+    let matched = match matcher_type {
         MatcherType::Naive  => match_naive(input, r),
         MatcherType::Deriv  => match_deriv(input, r),
         MatcherType::PDeriv => match_pderiv(input, r),
