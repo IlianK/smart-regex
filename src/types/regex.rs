@@ -1,3 +1,5 @@
+//! regex-engine/src/types/regex.rs
+//! 
 //! Regular expression data type definition
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

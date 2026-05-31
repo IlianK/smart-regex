@@ -1,8 +1,11 @@
+//! regex-engine/src/diagnostics/replay.rs
+//! 
 //! Replay utilities for failure diagnostics.
+//!     Level 1 (error position only) 
+//!     Level 2/3 (partial tree).
 //!
-//! Used by Level 1 (error position only) and Level 2/3 (partial tree).
-//! These functions replay the derivative forward pass independently of the
-//! parsers, so Level 1 works without needing the traced parser variants.
+//! These functions replay the derivative forward pass independently of parsers, 
+//! so Level 1 works without needing the traced parser variants
 
 use crate::types::{Regex, ParseTree};
 use crate::regex::brzozowski::standard::deriv;
@@ -10,11 +13,12 @@ use crate::regex::nullable::standard::nullable;
 use crate::posix::standard::mk_eps;
 use crate::posix::standard::inject;
 
+
 // ============================================================================
 // Error position (used by Level 1 for both standard and bitcoded)
 // ============================================================================
 
-/// Result of replaying the forward pass on a failing input.
+/// Result of replaying the forward pass on a failing input
 #[derive(Debug, Clone)]
 pub struct FailureInfo {
     /// 1-indexed position where the match failed
@@ -27,8 +31,8 @@ pub struct FailureInfo {
     pub matched_prefix_len: usize,
 }
 
-/// Replay the derivative forward pass and locate the first failure position.
-/// Called for both standard and bitcoded paths at Level 1 (caret error).
+/// Replay the derivative forward pass and locate the first failure position
+/// Called for both standard and bitcoded paths at Level 1 (caret error)
 pub fn find_failure(input: &str, r: &Regex) -> FailureInfo {
     let chars: Vec<char> = input.chars().collect();
     let mut current = r.clone();
@@ -60,9 +64,7 @@ pub fn find_failure(input: &str, r: &Regex) -> FailureInfo {
     }
 }
 
-/// Returns true if r is semantically equivalent to Phi (matches nothing).
-/// We check this structurally rather than by running the full simplifier,
-/// so it works correctly for unsimplified derivative expressions.
+/// Returns true if r is semantically equivalent to Phi (matches nothing)
 fn is_dead(r: &Regex) -> bool {
     use Regex::*;
     match r {
@@ -76,7 +78,7 @@ fn is_dead(r: &Regex) -> bool {
 }
 
 /// Produce a human-readable description of what characters the expression
-/// could still accept at this point, for the error message.
+/// could still accept at this point, for the error message
 fn expected_description(r: &Regex) -> String {
     let mut chars = collect_expected_chars(r);
     chars.sort();
@@ -99,7 +101,7 @@ fn expected_description(r: &Regex) -> String {
     }
 }
 
-/// Collect the set of characters that r can currently accept (shallow scan).
+/// Collect the set of characters that r can currently accept
 fn collect_expected_chars(r: &Regex) -> Vec<char> {
     use Regex::*;
     match r {
@@ -122,6 +124,7 @@ fn collect_expected_chars(r: &Regex) -> Vec<char> {
     }
 }
 
+
 // ============================================================================
 // Partial tree recovery (used by Level 2 and Level 3 on failure)
 // ============================================================================
@@ -129,8 +132,7 @@ fn collect_expected_chars(r: &Regex) -> Vec<char> {
 /// Recover a partial parse tree from the last nullable derivative expression
 /// in the forward pass. Returns None if no prefix matched at all.
 ///
-/// Takes the stored expression sequence from ParseTrace so there is no need
-/// to re-run the forward pass.
+/// Takes stored expression sequence from ParseTrace so there is no need rerun forward pass
 pub fn partial_tree_standard(
     expressions: &[Regex],
     chars: &[char],
@@ -138,7 +140,7 @@ pub fn partial_tree_standard(
 ) -> Option<ParseTree> {
     let idx = last_nullable_idx?;
     if idx == 0 {
-        // Only r0 was nullable (empty input prefix) — tree is mk_eps(r0)
+        // Only r0 was nullable (empty input prefix) - tree is mk_eps(r0)
         return Some(mk_eps(&expressions[0]));
     }
 
@@ -152,6 +154,7 @@ pub fn partial_tree_standard(
 
     Some(tree)
 }
+
 
 // ============================================================================
 // Caret line builder (shared across all levels)
@@ -168,6 +171,7 @@ pub fn caret_lines(input: &str, position: usize) -> String {
     let caret_line   = format!("{}^", " ".repeat(caret_offset));
     format!("{}\n{}", display_input, caret_line)
 }
+
 
 // ============================================================================
 // Unit tests

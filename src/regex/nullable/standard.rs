@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/nullable/standard.rs
+//! 
 //! Nullability for standard Regex
 
 use crate::types::Regex;
@@ -13,6 +15,7 @@ pub fn nullable(r: &Regex) -> bool {
         Regex::Star(_) => true,
     }
 }
+
 
 // ============================================================================
 // Tests for nullable

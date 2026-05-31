@@ -1,20 +1,20 @@
+//! regex-engine/src/trace.rs
+//! 
 //! Trace data structures shared between posix/ parsers and diagnostics/.
 //!
-//! Lives at the crate root (src/trace.rs) so both posix/ and diagnostics/
-//! can import from it without creating a circular dependency.
-//!
-//! posix/standard/parse.rs  → uses ParseTrace, DerivStep, InjectStep, MkEpsResult
-//! posix/bitcoded/parse.rs  → uses BitTrace, BitStep
-//! diagnostics/level2.rs    → reads both trace types
-//! diagnostics/level3.rs    → reads both trace types
-
+//! posix/standard/parse.rs  -> uses ParseTrace, DerivStep, InjectStep, MkEpsResult
+//! posix/bitcoded/parse.rs  -> uses BitTrace, BitStep
+//! diagnostics/level2.rs    -> reads both trace types
+//! diagnostics/level3.rs    -> reads both trace types
+//! 
 use crate::types::{Regex, ARegex, ParseTree};
 
+
 // ============================================================================
-// Standard parser trace  (populated by parse_loop_traced)
+// Standard parser trace  (populated by parse_loop_traced and parse_recursive_traced)
 // ============================================================================
 
-/// One step in the forward derivative pass.
+// One step in the forward derivative pass
 #[derive(Debug, Clone)]
 pub struct DerivStep {
     /// 1-indexed position in the input
@@ -29,7 +29,7 @@ pub struct DerivStep {
     pub nullable: bool,
 }
 
-/// One step in the backward inject pass.
+// One step in the backward inject pass
 #[derive(Debug, Clone)]
 pub struct InjectStep {
     /// 1-indexed position
@@ -42,7 +42,7 @@ pub struct InjectStep {
     pub after: ParseTree,
 }
 
-/// mkEps result recorded during the backward pass.
+// mkEps result recorded during the backward pass
 #[derive(Debug, Clone)]
 pub struct MkEpsResult {
     /// The nullable expression mkEps was called on (rₙ)
@@ -51,7 +51,7 @@ pub struct MkEpsResult {
     pub tree: ParseTree,
 }
 
-/// Full trace from parse_loop_traced.
+// Full trace from parse_loop_traced or parse_recursive_traced
 #[derive(Debug, Clone)]
 pub struct ParseTrace {
     /// All expressions r0..rn stored during the forward pass
@@ -66,6 +66,7 @@ pub struct ParseTrace {
     pub last_nullable_idx: Option<usize>,
 }
 
+
 impl ParseTrace {
     /// Total derivative expressions computed (= input length + 1)
     pub fn expression_count(&self) -> usize {
@@ -78,11 +79,12 @@ impl ParseTrace {
     }
 }
 
+
 // ============================================================================
 // Bitcoded parser trace  (populated by parse_bitcoded_traced)
 // ============================================================================
 
-/// One step in the bitcoded forward pass.
+// One step in the bitcoded forward pass
 #[derive(Debug, Clone)]
 pub struct BitStep {
     /// 1-indexed position
@@ -97,7 +99,7 @@ pub struct BitStep {
     pub nullable: bool,
 }
 
-/// Full trace from parse_bitcoded_traced.
+// Full trace from parse_bitcoded_traced
 #[derive(Debug, Clone)]
 pub struct BitTrace {
     /// Internalized expression (ri₀)

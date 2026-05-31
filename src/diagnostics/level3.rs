@@ -1,7 +1,8 @@
-//! Level 3 — Debug diagnostics. Full structural derivation trace.
+//! regex-engine/src/diagnostics/level3.rs
+//! 
+//! Level 3 - Debug diagnostics. Full trace: derivation, nullability, mkEps, inject
 //!
-//! Output goes to REGEX_DIAG_REPORT file if set, otherwise stdout.
-//! Standard mode uses the parser selected by REGEX_PARSER (recursive or loop).
+//! Output goes to REGEX_DIAG_REPORT file if set, otherwise stdout
 
 use std::time::Instant;
 
@@ -14,6 +15,7 @@ use crate::regex::nullable::annotated::nullable_bc;
 use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{find_failure, caret_lines, partial_tree_standard};
 use crate::diagnostics::report::ReportWriter;
+
 
 // ============================================================================
 // Entry point
@@ -31,6 +33,7 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
     w.flush();
 }
 
+
 // ============================================================================
 // Standard trace render
 // ============================================================================
@@ -45,7 +48,7 @@ fn render_standard(
     let chars: Vec<char> = input.chars().collect();
     let start = Instant::now();
 
-    // Respect REGEX_PARSER — use the traced variant matching the selected parser
+    // REGEX_PARSER - use the traced variant matching the selected parser
     let (result, trace) = match config.parser_type {
         ParserType::Recursive => parse_recursive_traced(input, r),
         _                     => parse_loop_traced(input, r),
@@ -61,7 +64,7 @@ fn render_standard(
 
     let result_label = if result.is_some() { "MATCH" } else { "NO MATCH" };
 
-    // ── Header ───────────────────────────────────────────────────────────────
+    // Header
     w.separator();
     w.line("REGEX ENGINE DEBUG REPORT");
     w.separator();
@@ -71,7 +74,7 @@ fn render_standard(
     w.kv("Input",     &format!("{:?}", input));
     w.kv("Result",    result_label);
 
-    // ── Timing ───────────────────────────────────────────────────────────────
+    // Timing
     w.separator();
     w.line("TIMING");
     w.separator();
@@ -82,7 +85,7 @@ fn render_standard(
         expression_range_label(trace.expression_count())
     ));
 
-    // ── Forward pass ─────────────────────────────────────────────────────────
+    // Forward pass
     w.separator();
     w.line("FORWARD PASS (Derivatives)");
     w.separator();
@@ -110,7 +113,7 @@ fn render_standard(
         w.blank();
     }
 
-    // ── Nullability check ────────────────────────────────────────────────────
+    // Nullability check
     w.separator();
     w.line("NULLABILITY CHECK");
     w.separator();
@@ -124,7 +127,7 @@ fn render_standard(
     ));
 
     if let Some(ref tree) = result {
-        // ── Backward pass ────────────────────────────────────────────────────
+        // Backward pass
         w.separator();
         w.line("BACKWARD PASS (mkEps + inject)");
         w.separator();
@@ -154,7 +157,7 @@ fn render_standard(
             }
         }
 
-        // ── Result ───────────────────────────────────────────────────────────
+        // Result 
         w.separator();
         w.line("RESULT");
         w.separator();
@@ -162,7 +165,7 @@ fn render_standard(
         w.kv("Flattened",  &format!("{:?}", flatten(tree)));
 
     } else {
-        // ── Partial recovery ─────────────────────────────────────────────────
+        // Partial recovery
         w.separator();
         w.line("PARTIAL RECOVERY");
         w.separator();
@@ -198,7 +201,7 @@ fn render_standard(
             w.line("No prefix matched.");
         }
 
-        // ── Error summary ────────────────────────────────────────────────────
+        // Error summary
         w.separator();
         w.line("ERROR SUMMARY");
         w.separator();
@@ -210,7 +213,6 @@ fn render_standard(
             w.kv("Found",    &format!("'{}'", info.found));
         }
         w.kv("Expected", &info.expected);
-        // caret_lines already produces "  input\n    ^" — no extra wrapping needed
         w.line(&caret_lines(input, info.position));
     }
 
@@ -218,6 +220,7 @@ fn render_standard(
     w.line("END OF REPORT");
     w.separator();
 }
+
 
 // ============================================================================
 // Bitcoded trace render
@@ -230,6 +233,7 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
 
     let result_label = if result.is_some() { "MATCH" } else { "NO MATCH" };
 
+    // Header
     w.separator();
     w.line("REGEX ENGINE DEBUG REPORT");
     w.separator();
@@ -239,12 +243,14 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
     w.kv("Input",            &format!("{:?}", input));
     w.kv("Result",           result_label);
 
+    // Timing
     w.separator();
     w.line("TIMING");
     w.separator();
     w.kv("Parse time",       &format!("{:.3}ms", elapsed.as_secs_f64() * 1000.0));
     w.kv("Derivative steps", &format!("{}", trace.bit_steps.len()));
 
+    // Internalize
     w.separator();
     w.line("INTERNALIZE");
     w.separator();
@@ -252,6 +258,7 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
     render_internalize_expansion(r, w);
     w.line(&format!("ri0 = {}", trace.internalized));
 
+    // Forward pass
     w.separator();
     w.line("FORWARD PASS (deriv_bc + simp)");
     w.separator();
@@ -274,6 +281,7 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
         w.blank();
     }
 
+    // Nullability check
     w.separator();
     w.line("NULLABILITY CHECK");
     w.separator();
@@ -285,6 +293,7 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
         if result.is_some() { "proceed to mkEpsBC + decode" } else { "no full parse tree exists" }
     ));
 
+    // MkEpsBC + decode
     if let Some(ref tree) = result {
         w.separator();
         w.line("MKEEPSBC + DECODE");
@@ -314,6 +323,7 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
         w.kv("Flattened",  &format!("{:?}", flatten(tree)));
 
     } else {
+        // Partial recovery
         w.separator();
         w.line("PARTIAL RECOVERY");
         w.separator();
@@ -335,7 +345,9 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
                 w.line(&format!("Accumulated bits: [{}]", bits_str));
                 w.blank();
                 w.line(&format!("mkEpsBC(ri{}) would give: [{}]", last_idx, bits_str));
-                w.line(&format!("This would decode to: ... (partial match {:?})", partial_str));
+                // Cannot decode partial bits - final expression is not nullable,
+                // so no valid complete parse tree exists for the accumulated bits.
+                w.line("Decoding not possible: final expression is not nullable.");
             }
             w.blank();
             w.kv("Partial match", &format!("{:?}  (positions 1–{})", partial_str, last_idx));
@@ -343,6 +355,7 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
             w.line("No prefix matched.");
         }
 
+        // Error summary
         w.separator();
         w.line("ERROR SUMMARY");
         w.separator();
@@ -354,7 +367,7 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
             w.kv("Found",    &format!("'{}'", info.found));
         }
         w.kv("Expected", &info.expected);
-        // caret_lines already produces "  input\n    ^" — no extra wrapping needed
+        // caret_lines already produces "  input\n    ^" - no extra wrapping needed
         w.line(&caret_lines(input, info.position));
     }
 
@@ -363,8 +376,9 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
     w.separator();
 }
 
+
 // ============================================================================
-// Structural expansion helpers
+// Structural helpers
 // ============================================================================
 
 fn render_deriv_expansion(r: &Regex, c: char, w: &mut ReportWriter) {
@@ -383,8 +397,8 @@ fn render_deriv_expansion(r: &Regex, c: char, w: &mut ReportWriter) {
             w.line(&format!(
                 "  rule: ∂(r1 + r2, '{}') = ∂(r1, '{}') + ∂(r2, '{}')", c, c, c
             ));
-            w.line(&format!("  ∂({:?}, '{}') — see left branch", r1, c));
-            w.line(&format!("  ∂({:?}, '{}') — see right branch", r2, c));
+            w.line(&format!("  ∂({:?}, '{}') - see left branch", r1, c));
+            w.line(&format!("  ∂({:?}, '{}') - see right branch", r2, c));
         }
         Seq(r1, _r2) => {
             if nullable(r1) {
@@ -397,7 +411,9 @@ fn render_deriv_expansion(r: &Regex, c: char, w: &mut ReportWriter) {
         }
         Star(r1) => {
             w.line(&format!("  rule: ∂(r*, '{}') = ∂(r, '{}') · r*", c, c));
+            // Inline the inner derivative so the user can see what ∂(r, c) evaluates to
             w.line(&format!("  ∂({:?}, '{}'):", r1, c));
+            render_deriv_expansion(r1, c, w);
         }
     }
 }
@@ -446,7 +462,8 @@ fn render_deriv_bc_expansion(ri: &ARegex, c: char, w: &mut ReportWriter) {
         Seq(_, r1, _r2) => {
             if nullable_bc(r1) {
                 w.line(&format!("    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=true]", c));
-                w.line("         = bs@(ri1\\'c'·ri2  ⊕  fuse(mkEpsBC(ri1), ri2\\'c'))");
+                // fuse mkEpsBC(ri1) prepends the empty-parse bits of ri1 onto ri2\'c'
+                w.line("         = bs@((ri1\\'c'·ri2) ⊕ (fuse (mkEpsBC ri1) (ri2\\'c')))");
             } else {
                 w.line(&format!("    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=false]", c));
                 w.line("         = bs@(ri1\\'c'·ri2)");
@@ -481,6 +498,7 @@ fn render_internalize_expansion(r: &Regex, w: &mut ReportWriter) {
         }
     }
 }
+
 
 // ============================================================================
 // Utility

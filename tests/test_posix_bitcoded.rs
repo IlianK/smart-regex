@@ -14,8 +14,9 @@ use common::{assert_round_trip, assert_parsers_agree, paper_r1, paper_r2};
 use regex_engine::Regex;
 use regex_engine::posix::{parse_recursive, parse_bitcoded};
 
+
 // ============================================================================
-// parse_bitcoded — correctness (must equal parse_recursive)
+// parse_bitcoded 
 // ============================================================================
 
 fn bitcoded_agrees_with_recursive(input: &str, r: &Regex) {
@@ -78,4 +79,38 @@ fn bitcoded_round_trip_flatten() {
             assert_round_trip(&tree, w);
         }
     }
+}
+
+// ============================================================================
+// POSIX ordering rules 
+// ============================================================================
+
+#[test]
+fn bitcoded_agrees_on_a1_longer_right_wins() {
+    // A1: (a+aa)* on "aa" - POSIX picks Star([Right(aa)]) not Star([Left(a), Left(a)])
+    let r = Regex::star(Regex::alt(
+        Regex::lit('a'),
+        Regex::seq(Regex::lit('a'), Regex::lit('a')),
+    ));
+    bitcoded_agrees_with_recursive("aa", &r);
+}
+
+#[test]
+fn bitcoded_agrees_on_a2_left_tiebreaker() {
+    // A2: (a+a) on "a" - equal length, left wins → Left(Char('a'))
+    let r = Regex::alt(Regex::lit('a'), Regex::lit('a'));
+    bitcoded_agrees_with_recursive("a", &r);
+}
+
+#[test]
+fn bitcoded_agrees_on_k1_empty_star() {
+    // K1: ε* on "" - zero iterations, Star([])
+    bitcoded_agrees_with_recursive("", &Regex::star(Regex::Eps));
+}
+
+#[test]
+fn bitcoded_agrees_on_k2_nonempty_preferred() {
+    // K2: (ε+a)* on "a" - non-empty iteration preferred, Star([Right(a)])
+    let r = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
+    bitcoded_agrees_with_recursive("a", &r);
 }

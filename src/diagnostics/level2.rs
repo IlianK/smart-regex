@@ -1,4 +1,6 @@
-//! Level 2 — Verbose diagnostics output.
+//! regex-engine/src/diagnostics/level2.rs
+//!
+//! Level 2 - Verbose diagnostics output.
 //!
 //! Standard success:
 //!   Regex:  a*
@@ -9,10 +11,10 @@
 //!   Steps:  4 derivative expressions computed
 //!
 //!   Construction steps:
-//!     mkEps(r3) → []
-//!     inject(a*, 'a', []) → [a]           (position 1)
-//!     inject(a*, 'a', [a]) → [a, a]       (position 2)
-//!     inject(a*, 'a', [a, a]) → [a, a, a] (position 3)
+//!     mkEps(r3) → Right Right ((), [])
+//!     inject(a*, 'a', Right Right ((), [])) → Right ((), [a])    ← position 3 (backward start)
+//!     inject(a*, 'a', Right ((), [a])) → ((), [a, a])            ← position 2
+//!     inject(a*, 'a', ((), [a, a])) → [a, a, a]                  ← position 1 (backward end)
 
 use std::time::Instant;
 
@@ -22,6 +24,7 @@ use crate::posix::standard::{parse_loop_traced, parse_recursive_traced};
 use crate::posix::bitcoded::parse_bitcoded_traced;
 use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{find_failure, caret_lines, partial_tree_standard};
+
 
 // ============================================================================
 // Entry point
@@ -35,12 +38,15 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
     }
 }
 
-// ── Standard path ────────────────────────────────────────────────────────────
+
+// ============================================================================
+// Standard Path
+// ============================================================================
 
 fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     let start = Instant::now();
 
-    // Respect REGEX_PARSER — use the traced variant matching the selected parser
+    // Respect REGEX_PARSER - use the traced variant matching the selected parser
     let (result, trace) = match config.parser_type {
         ParserType::Recursive => parse_recursive_traced(input, r),
         _                     => parse_loop_traced(input, r),
@@ -61,16 +67,14 @@ fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagCon
             println!();
             println!("Construction steps:");
 
-            // mkEps line — label with rN (the final derivative index), not the original regex string
+            // mkEps applied to the final derivative expression rN
             if let Some(ref mke) = trace.mk_eps_result {
                 let final_idx = trace.expression_count() - 1;
                 println!("  mkEps(r{}) → {}", final_idx, mke.tree);
             }
 
-            // inject lines — forward order: position 1, 2, ... n
-            // Steps are stored in forward order in ParseTrace; display them as-is
+            // inject lines - backward-pass order: highest position first (n → 1)
             if let Some(ref steps) = trace.inject_steps {
-                // Display in backward-pass order: highest position first (matches paper and Level 3)
                 let mut display_steps: Vec<_> = steps.iter().collect();
                 display_steps.sort_by_key(|s| std::cmp::Reverse(s.position));
                 for step in display_steps {
@@ -123,7 +127,10 @@ fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagCon
     }
 }
 
-// ── Bitcoded path ────────────────────────────────────────────────────────────
+
+// ============================================================================
+// Bitcoded Path
+// ============================================================================
 
 fn run_parser_bitcoded(regex_str: &str, r: &Regex, input: &str) {
     let start = Instant::now();
@@ -151,7 +158,6 @@ fn run_parser_bitcoded(regex_str: &str, r: &Regex, input: &str) {
             }
 
             if let Some(ref bits) = trace.final_bits {
-                // Use comma-separated bits for readability: 0,0,0,1 not 0001
                 let bits_str = bits.iter()
                     .map(|b| if *b { "1" } else { "0" })
                     .collect::<Vec<_>>()

@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/brzozowski/annotated.rs
+//! 
 //! Bit-coded Brzozowski derivative for annotated ARegex
 
 use crate::types::ARegex;
@@ -5,7 +7,7 @@ use crate::regex::nullable::annotated::nullable_bc;
 use crate::posix::bitcoded::internalize::fuse;
 use crate::posix::bitcoded::mk_eps_bc::mk_eps_bc;
 
-/// Bit-coded derivative following paper Figure 5
+/// Bit-coded derivative (paper Figure 5)
 pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
     match ri {
         ARegex::Phi => ARegex::Phi,
@@ -44,6 +46,7 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
     }
 }
 
+
 // ============================================================================
 // Tests for deriv_bc
 // ============================================================================
@@ -65,7 +68,7 @@ mod tests {
         assert_eq!(deriv_bc(ARegex::Eps(vec![]), 'a'), ARegex::Phi);
     }
 
-    // deriv_bc(Lit(bs, c), c) = Eps(bs)  — bits are preserved
+    // deriv_bc(Lit(bs, c), c) = Eps(bs) - bits are preserved
     #[test]
     fn deriv_bc_lit_match_preserves_bits() {
         let ri = ARegex::Lit(vec![false, true], 'a');

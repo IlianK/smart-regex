@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/simplify/mod.rs
+//! 
 //! Simplification rules for regular expressions
 
 pub mod standard;

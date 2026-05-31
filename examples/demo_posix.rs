@@ -8,26 +8,24 @@
 //!
 //! Examples:
 //!   cargo run --example demo_posix
-//!   REGEX_PARSER=loop       cargo run --example demo_posix
-//!   REGEX_PARSER=all        cargo run --example demo_posix
-//!   REGEX_DIAG=1            cargo run --example demo_posix
-//!   REGEX_DIAG=2 REGEX_PARSER=bitcoded cargo run --example demo_posix
-//!   REGEX_DIAG=3            cargo run --example demo_posix
-//!   REGEX_DIAG=3 REGEX_DIAG_REPORT=reports/all.txt cargo run --example demo_posix
+//!   REGEX_PARSER=loop                     cargo run --example demo_posix
+//!   REGEX_PARSER=all                      cargo run --example demo_posix
+//!   REGEX_DIAG=1                          cargo run --example demo_posix
+//!   REGEX_DIAG=2 REGEX_PARSER=bitcoded    cargo run --example demo_posix
+//!   REGEX_DIAG=3                          cargo run --example demo_posix
 
 use regex_engine::types::Regex;
 use regex_engine::posix::{flatten, ParseTree};
 use regex_engine::posix::{parse_recursive, parse_loop, parse_bitcoded};
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 
+
 // ============================================================================
-// Test Case
+// Test Case Structure
 // ============================================================================
 
 struct TestCase {
-    /// Human-readable label shown in the demo terminal header (▶ ...)
     name:     &'static str,
-    /// Actual regex pattern string shown in the Regex: field of diagnostic output
     pattern:  &'static str,
     regex:    Regex,
     input:    String,
@@ -54,51 +52,10 @@ impl TestCase {
         Self { name, pattern, regex, input: input.to_string(), expected: None }
     }
 
-    // ── Comparison mode (REGEX_PARSER=all) ───────────────────────────────────
-
-    fn run_parser_direct(
-        &self,
-        parser: fn(&str, &Regex) -> Option<ParseTree>,
-        label: &str,
-    ) -> Option<ParseTree> {
-        let result = parser(&self.input, &self.regex);
-        match &result {
-            Some(tree) => println!("  {:12} | {} → {:?}", label, tree, flatten(tree)),
-            None       => println!("  {:12} | ✗ No match", label),
-        }
-        result
-    }
-
-    fn run_comparison(&self) {
-        println!("\n▶ {}", self.name);
-        println!("  Regex: {}   Input: {:?}", self.pattern, self.input);
-        println!();
-        println!("  {:12} | {}", "Parser", "Result");
-        println!("  {:-<12}-+-{:-<40}", "", "");
-
-        let r1 = self.run_parser_direct(parse_recursive, "RECURSIVE");
-        let r2 = self.run_parser_direct(parse_loop,      "LOOP");
-        let r3 = self.run_parser_direct(parse_bitcoded,  "BITCODED");
-
-        let all_equal = r1 == r2 && r2 == r3;
-        if all_equal { println!("\n  ✓ All parsers agree"); }
-        else         { println!("\n  ✗ PARSERS DISAGREE!"); }
-
-        if let Some(ref expected) = self.expected {
-            if r1.as_ref() == Some(expected) { println!("  ✓ Matches expected tree"); }
-            else                             { println!("  ✗ Expected: {}", expected); }
-        }
-    }
-
-    // ── Single parser mode ────────────────────────────────────────────────────
-
-    fn run_single(&self, config: &DiagConfig, index: usize) {
+    // Run single parser with diagnostics (REGEX_PARSER=recursive|loop|bitcoded)
+    fn run_parser_with_diagnostics(&self, config: &DiagConfig, index: usize) {
         println!("\n▶ {}", self.name);
 
-        // At Level 3 each test case gets its own report file so they do not
-        // overwrite each other. Priority:
-        //   1. REGEX_DIAG_REPORT env var (user override — single shared file)
-        //   2. reports/demo_NN.txt       (default per-test file)
         let effective_config = if config.level == DiagLevel::Debug {
             let path = std::env::var("REGEX_DIAG_REPORT")
                 .unwrap_or_else(|_| format!("reports/demo_{:02}.txt", index));
@@ -111,19 +68,63 @@ impl TestCase {
             config.clone()
         };
 
-        // Pass self.pattern (the actual regex string) not self.name (the label)
         run_parser(self.pattern, &self.regex, &self.input, &effective_config);
     }
 
+    // Run single parser without diagnostics(REGEX_PARSER=recursive|loop|bitcoded) 
+    fn run_parser_without_diag(
+        &self,
+        parser: fn(&str, &Regex) -> Option<ParseTree>,
+        label: &str,
+    ) -> Option<ParseTree> {
+        let result = parser(&self.input, &self.regex);
+        match &result {
+            Some(tree) => println!("  {:12} | {} -> {:?}", label, tree, flatten(tree)),
+            None       => println!("  {:12} | ✗ No match", label),
+        }
+        result
+    }
+
+    // Run all parsers for comparison (REGEX_PARSER=all) 
+    fn run_all_parsers(&self) {
+        println!("\n▶ {}", self.name);
+        println!("  Regex: {}   Input: {:?}", self.pattern, self.input);
+        println!();
+        println!("  {:12} | {}", "Parser", "Result");
+        println!("  {:-<12}-+-{:-<40}", "", "");
+
+        let r1 = self.run_parser_without_diag(parse_recursive, "RECURSIVE");
+        let r2 = self.run_parser_without_diag(parse_loop,      "LOOP");
+        let r3 = self.run_parser_without_diag(parse_bitcoded,  "BITCODED");
+
+        let all_equal = r1 == r2 && r2 == r3;
+        if all_equal { println!("\n  ✓ All parsers agree"); }
+        else         { println!("\n  ✗ PARSERS DISAGREE!"); }
+
+        // Check no-match expectation
+        if self.expected.is_none() && r1.is_some() {
+            println!("  ✗ Expected no match but got: {}", r1.as_ref().unwrap());
+        }
+
+        // Check match expectation
+        if let Some(ref expected) = self.expected {
+            if r1.as_ref() == Some(expected) { println!("  ✓ Matches expected tree"); }
+            else                             { println!("  ✗ Expected: {}", expected); }
+        }
+    }
+
+    // Run either all parsers or single parser with diagnostics 
     fn run(&self, config: &DiagConfig, index: usize) {
         let parser_env = std::env::var("REGEX_PARSER").unwrap_or_default();
         if parser_env == "all" {
-            self.run_comparison();
+            self.run_all_parsers
+    ();
         } else {
-            self.run_single(config, index);
+            self.run_parser_with_diagnostics(config, index);
         }
     }
 }
+
 
 // ============================================================================
 // Paper Examples (Matching)
@@ -178,34 +179,62 @@ fn test_paper_page_3_4() -> TestCase {
     )
 }
 
-/// POSIX A1 left preference: Alt(Eps, Lit) — left branch nullable → Left wins
-fn test_ordering_left() -> TestCase {
-    let r = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
+// ============================================================================
+// Ordering Rules: A1, A2, K1, K2
+// ============================================================================
+
+/// A1: when right alternative matches a strictly
+/// longer string than the left, right is preferred over left
+///
+/// (a + aa)* on "aa" has two valid parses:
+///   Greedy (left-first):  Star([Left(a), Left(a)])  - takes 'a' twice
+///   POSIX  (A1):          Star([Right(aa)])         - takes 'aa' in one iteration
+fn test_ordering_a1_longer_right_wins() -> TestCase {
+    let r = Regex::star(Regex::alt(
+        Regex::lit('a'),
+        Regex::seq(Regex::lit('a'), Regex::lit('a')),
+    ));
     TestCase::new_match(
-        "POSIX left preference: (ε+a)* on \"\"",
-        "(ε+a)*",
+        "POSIX A1: (a+aa)* on \"aa\" - right wins, matches longer (greedy picks [a,a])",
+        "(a+aa)*",
         r,
-        "",
-        ParseTree::Star(vec![]),
+        "aa",
+        ParseTree::Star(vec![
+            ParseTree::Right(Box::new(
+                ParseTree::Pair(Box::new(ParseTree::Char('a')), Box::new(ParseTree::Char('a')))
+            ))
+        ]),
     )
 }
 
-/// POSIX A2 right fallback: Alt(Lit, Eps) — left not nullable → Right used
-fn test_ordering_right() -> TestCase {
-    let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::Eps));
+/// A2: when both alternatives match strings of equal
+/// length, the left alternative is preferred
+///
+/// (a+a) on "a": both Left and Right match "a" (length 1).
+///     POSIX A2 (tiebreaker): left wins -> Left(Char('a'))
+///     Greedy also picks left here (but doesn't know it's a tie, just picks left first)
+fn test_ordering_a2_left_tiebreaker() -> TestCase {
+    let r = Regex::alt(Regex::lit('a'), Regex::lit('a'));
     TestCase::new_match(
-        "POSIX right fallback: (a+ε)* on \"\"",
-        "(a+ε)*",
+        "POSIX A2: (a+a) on \"a\" - equal length, left wins (tiebreaker)",
+        "(a+a)",
         r,
-        "",
-        ParseTree::Star(vec![]),
+        "a",
+        ParseTree::Left(Box::new(ParseTree::Char('a'))),
     )
 }
 
-/// Problematic expression: ε* — Star of empty word
-fn test_problematic_epsilon_star() -> TestCase {
+/// K1: a Kleene star always accepts zero iterations.
+/// ε* on "" - the only valid parse is the empty star
+///
+/// This is "problematic" for naive greedy implementations because
+/// Star(Eps) could loop infinitely taking ε at each iteration
+/// 
+/// K1 resolves this: [] >_{r*} v:vs (empty list beats any non-empty list
+/// when the inner expression matches only ε). Result is always Star([])
+fn test_ordering_k1_empty_star() -> TestCase {
     TestCase::new_match(
-        "Problematic: ε* on \"\"",
+        "POSIX K1: ε* on \"\" - zero iterations (naive greedy loops forever)",
         "ε*",
         Regex::star(Regex::Eps),
         "",
@@ -213,19 +242,35 @@ fn test_problematic_epsilon_star() -> TestCase {
     )
 }
 
-/// Problematic expression: (ε+a)* — infinite empty chain risk
-fn test_problematic_epsilon_alt_star() -> TestCase {
+/// K2: when the inner expression is nullable, prefer non-empty star iterations over empty ones.
+///     (ε+a)* on "a" - the inner Alt(ε, a) is nullable.
+///     This is the "problematic expression" case discussed in greedy.pdf 1.3 and flops14 2.
+///
+/// Regex: (ε+a)*   Input: "a"
+///     Naive greedy (left-first)       non-termination     - loops on ε forever
+///     Xi [Xi01] no-progress fix       no full match       - cuts loop, "a" unconsumed
+///     Harper/Kearns [Har99,Kea91]     depends on rewrite  - (ε+a)* -> a*, then match a* Star([a]) 
+///     Greedy axiomatised (F&C)        full match          - Star([Left(()), Right(a)])
+///         - reactive: runs left-first, detects empty loop, patches it (two iterations)
+///     POSIX (flops14 Prop.1)          full match          - Star([Right(a)])
+///         - proactive: evaluates all branches globally, never enters the loop (one iteration)
+fn test_ordering_k2_nonempty_preferred() -> TestCase {
     let r = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
     TestCase::new_match(
-        "Problematic: (ε+a)* on \"a\"",
+        "Problematic (ε+a)* on \"a\": POSIX->[Right(a)]  greedy->[Left(),Right(a)]  Xi->no match",
         "(ε+a)*",
         r,
         "a",
-        ParseTree::Star(vec![ParseTree::Right(Box::new(ParseTree::Char('a')))]),
+        ParseTree::Star(vec![
+            ParseTree::Right(Box::new(ParseTree::Char('a')))
+        ]),
     )
 }
 
-/// Injection preservation: verify inject correctly rebuilds a* → [a, a, a]
+// ============================================================================
+// Injection preservation: verify inject correctly rebuilds a* -> [a, a, a]
+// ============================================================================
+
 fn test_injection_preservation() -> TestCase {
     TestCase::new_match(
         "Injection: a* on \"aaa\"",
@@ -347,11 +392,16 @@ fn main() {
         // Paper examples (matching)
         test_paper_page_9_10(),
         test_paper_page_3_4(),
-        test_ordering_left(),
-        test_ordering_right(),
-        test_problematic_epsilon_star(),
-        test_problematic_epsilon_alt_star(),
+
+        // Ordering rules A1, A2, K1, K2
+        test_ordering_a1_longer_right_wins(),
+        test_ordering_a2_left_tiebreaker(),
+        test_ordering_k1_empty_star(),
+        test_ordering_k2_nonempty_preferred(),  
+        
+        // Injection preservation
         test_injection_preservation(),
+        
         // No match examples
         test_no_match_literal(),
         test_no_match_sequence_incomplete(),

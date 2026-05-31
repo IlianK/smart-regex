@@ -14,7 +14,9 @@ use common::{paper_r1, paper_r2};
 
 use regex_engine::{Regex, match_naive, match_deriv, match_pderiv};
 
-// ── convenience ─────────────────────────────────────────────────────────────
+// ============================================================================
+// Helpers
+// ============================================================================
 
 fn all_agree(w: &str, r: &Regex) {
     let n = match_naive(w, r);
@@ -36,8 +38,9 @@ fn expect_no_match(w: &str, r: &Regex) {
     assert!(!match_pderiv(w, r), "pderiv: {:?} should NOT match", w);
 }
 
+
 // ============================================================================
-// Phi — empty language, matches nothing
+// Phi: empty language, matches nothing
 // ============================================================================
 
 #[test]
@@ -46,8 +49,9 @@ fn phi_matches_nothing() {
     expect_no_match("a", &Regex::Phi);
 }
 
+
 // ============================================================================
-// Eps — matches only the empty word
+// Eps: matches only the empty word
 // ============================================================================
 
 #[test]
@@ -61,8 +65,9 @@ fn eps_does_not_match_nonempty() {
     expect_no_match("ab", &Regex::Eps);
 }
 
+
 // ============================================================================
-// Lit — matches exactly one character
+// Lit: matches exactly one character
 // ============================================================================
 
 #[test]
@@ -85,8 +90,9 @@ fn lit_does_not_match_two_chars() {
     expect_no_match("aa", &Regex::lit('a'));
 }
 
+
 // ============================================================================
-// Alt — union of two languages
+// Alt: union of two languages
 // ============================================================================
 
 #[test]
@@ -116,8 +122,9 @@ fn alt_with_eps_makes_nullable() {
     expect_no_match("b", &r);
 }
 
+
 // ============================================================================
-// Seq — concatenation
+// Seq: concatenation
 // ============================================================================
 
 #[test]
@@ -141,8 +148,9 @@ fn seq_with_eps_is_identity() {
     expect_no_match("", &r);
 }
 
+
 // ============================================================================
-// Star — Kleene closure
+// Star: Kleene closure
 // ============================================================================
 
 #[test]
@@ -186,6 +194,7 @@ fn star_of_eps_matches_only_empty() {
     assert!(n && d && p, "Star(Eps) must match empty");
 }
 
+
 // ============================================================================
 // Paper examples (flops14-extended)
 // ============================================================================
@@ -208,8 +217,9 @@ fn paper_r2_matches_ab()    { expect_match("ab", &paper_r2()); }
 #[test]
 fn paper_r2_matches_empty() { expect_match("",   &paper_r2()); }
 
+
 // ============================================================================
-// Three-way agreement on a broad input matrix
+// Agreement of all matchers
 // ============================================================================
 
 #[test]
@@ -276,7 +286,7 @@ fn long_word_on_star() {
 
 #[test]
 fn nested_star_all_agree() {
-    // (a*)* — problematic for naive (exponential) but correct for all
+    // (a*)* - problematic for naive (exponential) but correct for all
     let r = Regex::star(Regex::star(Regex::lit('a')));
     let d = match_deriv("aaa", &r);
     let p = match_pderiv("aaa", &r);

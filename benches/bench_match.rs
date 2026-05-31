@@ -1,4 +1,6 @@
-//! Benchmarks for basic matchers (naive, deriv, pderiv)
+/*
+Benchmarks for basic matchers (naive, deriv, pderiv)
+*/
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex_engine::types::Regex;
@@ -37,7 +39,7 @@ fn repeat_char(c: char, n: usize) -> String {
 }
 
 // ============================================================================
-// Benchmarks
+// 1. Pathological patterns: (a*)* on "aaa...a"
 // ============================================================================
 
 fn bench_pathological(c: &mut Criterion) {
@@ -82,6 +84,11 @@ fn bench_pathological(c: &mut Criterion) {
     group.finish();
 }
 
+
+// ============================================================================
+// 2. Benign patterns: (a|b)* on "ababab..."
+// ============================================================================
+
 fn bench_benign(c: &mut Criterion) {
     let mut group = c.benchmark_group("benign_(a|b)star");
 
@@ -119,6 +126,11 @@ fn bench_benign(c: &mut Criterion) {
 
     group.finish();
 }
+
+
+// ============================================================================
+// 3. Nesting depth
+// ============================================================================
 
 fn bench_nesting(c: &mut Criterion) {
     let mut group = c.benchmark_group("nesting_depth");
@@ -158,6 +170,11 @@ fn bench_nesting(c: &mut Criterion) {
     group.finish();
 }
 
+
+// ============================================================================
+// 4. Sequence of 'a' repeated n times: a·a·a...·a
+// ============================================================================
+
 fn bench_sequence(c: &mut Criterion) {
     let mut group = c.benchmark_group("sequence_a_repeated");
 
@@ -195,6 +212,11 @@ fn bench_sequence(c: &mut Criterion) {
 
     group.finish();
 }
+
+
+// ============================================================================
+// Register all benchmark groups
+// ============================================================================
 
 criterion_group!(
     benches,

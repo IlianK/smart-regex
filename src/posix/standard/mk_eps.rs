@@ -1,3 +1,5 @@
+//! regex-engine/src/posix/standard/mk_eps.rs
+//! 
 //! mkEps_r: Constructs the POSIX parse tree for the empty word
 
 use crate::types::{Regex, ParseTree};
@@ -27,6 +29,7 @@ pub fn mk_eps(r: &Regex) -> ParseTree {
         Regex::Phi => panic!("mk_eps called on Phi"),
     }
 }
+
 
 // ============================================================================
 // Tests for mk_eps

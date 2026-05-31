@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/antimirov/mod.rs
+//! 
 //! Antimirov partial derivatives (non-deterministic, set-based)
 
 pub mod standard;

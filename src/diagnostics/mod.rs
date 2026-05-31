@@ -3,10 +3,10 @@
 //! Controls output verbosity for matching and parsing via REGEX_DIAG env var.
 //!
 //! Levels:
-//!   0 = Off     — true / false only
-//!   1 = Basic   — regex, input, result, parse tree, error caret
-//!   2 = Verbose — Basic + time, expression count, construction steps
-//!   3 = Debug   — full structural derivation trace
+//!   0 = Off     - true / false only
+//!   1 = Basic   - regex, input, result, parse tree, error caret
+//!   2 = Verbose - Basic + time, expression count, construction steps
+//!   3 = Debug   - full structural derivation trace
 //!                 (written to REGEX_DIAG_REPORT if set, otherwise stdout)
 //!
 //! Usage:
@@ -24,6 +24,7 @@ pub mod report;
 
 use crate::types::Regex;
 use crate::posix::selection::ParserType;
+
 
 // ============================================================================
 // DiagLevel
@@ -52,15 +53,16 @@ impl DiagLevel {
     }
 }
 
+
 // ============================================================================
 // DiagConfig
 // ============================================================================
 
-/// Holds the active diagnostics configuration for a single parse/match call.
+/// Holds  diagnostics configfor a single parse/match call
 #[derive(Debug, Clone)]
 pub struct DiagConfig {
     pub level:       DiagLevel,
-    /// Which parser is active (determines standard vs. bitcoded output paths)
+    /// Which parser is active (standard vs. bitcoded output paths)
     pub parser_type: ParserType,
     /// Optional file path for Level 3 report output (REGEX_DIAG_REPORT)
     pub report_path: Option<String>,
@@ -94,12 +96,12 @@ impl DiagConfig {
     }
 }
 
+
 // ============================================================================
-// Public convenience entry points
+// Entry points
 // ============================================================================
 
-/// Run a parser and emit diagnostics output at the configured level.
-/// This is the single call site used by both the CLI and demos.
+/// Run a parser and show diagnostics output at configured level (by CLI and demo)
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     match config.level {
         DiagLevel::Off     => level0_parser(r, input, config),
@@ -109,15 +111,15 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
     }
 }
 
-/// Run a matcher and emit diagnostics output at the configured level.
-/// Matcher diagnostics only differ at Level 1+ (Basic shows the error caret).
-/// Levels 2 and 3 fall back to Level 1 — matchers produce no construction steps.
+/// Run a matcher and show diagnostics output at configured level (by CLI and demo)
+/// (Levels 2 and 3 fall back to Level 1 => matchers produce no construction steps)
 pub fn run_matcher(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     match config.level {
         DiagLevel::Off => level0_matcher(r, input),
         _              => level1::run_matcher(regex_str, r, input),
     }
 }
+
 
 // ============================================================================
 // Level 0 helpers
@@ -138,7 +140,7 @@ fn level0_parser(r: &Regex, input: &str, config: &DiagConfig) {
 fn level0_matcher(r: &Regex, input: &str) {
     use crate::matchers::MatcherType;
     // MatcherType::from_env() returns Vec<MatcherType>; take the first element.
-    // Default is Deriv when REGEX_MATCHER is unset.
+    // Default is Deriv when REGEX_MATCHER is unset
     let matcher_type = MatcherType::from_env()
         .into_iter()
         .next()

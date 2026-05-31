@@ -1,3 +1,5 @@
+//! regex-engine/src/cli/parser.rs
+//! 
 //! Parser command logic
 //!
 //! Reads DiagConfig and delegates to diagnostics::run_parser,

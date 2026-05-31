@@ -1,4 +1,6 @@
-//! Antimirov partial derivative matcher (boolean match only)
+//! regex-engine/src/matchers/match_pderiv.rs
+//! 
+//! Antimirov partial derivative matcher (boolean)
 
 use std::collections::HashSet;
 use crate::types::Regex;
@@ -27,7 +29,6 @@ pub fn match_pderiv(input: &str, r: &Regex) -> bool {
 // Tests for match_pderiv
 // ============================================================================
 
-// ── match_pderiv.rs ─────────────────────────────────────────────────────────
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -49,7 +50,7 @@ mod tests {
     // Extra: empty state set terminates early and returns false
     #[test]
     fn empty_state_set_on_phi() {
-        // After consuming 'a' from Phi the state set is empty → false
+        // After consuming 'a' from Phi the state set is empty -> false
         assert!(!match_pderiv("a", &Regex::Phi));
     }
 }

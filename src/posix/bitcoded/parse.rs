@@ -1,3 +1,5 @@
+//! regex-engine/src/posix/bitcoded/parse.rs
+//! 
 //! Bit-coded POSIX parsers
 
 use crate::types::{Regex, ParseTree, ARegex};
@@ -7,6 +9,8 @@ use crate::regex::simplify::annotated::simp;
 use super::internalize::internalize;
 use super::mk_eps_bc::mk_eps_bc;
 use super::decode::decode;
+use crate::trace::{BitStep, BitTrace};
+
 
 // ============================================================================
 // RECURSIVE BITCODED PARSER
@@ -35,6 +39,7 @@ pub fn parse_bitcoded_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
     Some(decode(r, &bits))
 }
 
+
 // ============================================================================
 // LOOP BITCODED PARSER
 // ============================================================================
@@ -51,6 +56,7 @@ pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
     Some(decode(r, &bits))
 }
 
+
 // ============================================================================
 // DEFAULT
 // ============================================================================
@@ -59,15 +65,12 @@ pub fn parse_bitcoded(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_bitcoded_recursive(input, r)
 }
 
-// ============================================================================
-// LOOP BITCODED — TRACED VARIANT (used by diagnostics only)
-// ============================================================================
 
-// Import from crate::trace (crate root), NOT from crate::diagnostics::trace
-use crate::trace::{BitStep, BitTrace};
+// ============================================================================
+// LOOP BITCODED - TRACED VARIANT (used by REGEX_DIAG=2/3)
+// ============================================================================
 
 /// Identical in behaviour to parse_bitcoded_loop but also returns a BitTrace
-/// for use by the Level 2 and Level 3 diagnostic formatters.
 pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitTrace) {
     let chars: Vec<char> = input.chars().collect();
     let ri0 = internalize(r);
@@ -77,7 +80,7 @@ pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitT
     let mut last_nullable_idx: Option<usize> = if nullable_bc(&ri) { Some(0) } else { None };
     let mut bits_at_last_nullable: Option<Vec<bool>> = None;
 
-    // ── Forward pass ─────────────────────────────────────────────────────────
+    // Forward pass 
     for (idx, &c) in chars.iter().enumerate() {
         let before = ri.clone();
         ri = simp(deriv_bc(ri, c));
@@ -97,7 +100,7 @@ pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitT
         }
     }
 
-    // ── Nullability check ─────────────────────────────────────────────────────
+    // Nullability check 
     if !nullable_bc(&ri) {
         let trace = BitTrace {
             internalized: ri0,
@@ -109,7 +112,7 @@ pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitT
         return (None, trace);
     }
 
-    // ── mkEpsBC + decode ──────────────────────────────────────────────────────
+    // mkEpsBC + decode 
     let bits = mk_eps_bc(&ri);
     let tree = decode(r, &bits);
 
@@ -123,6 +126,7 @@ pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitT
 
     (Some(tree), trace)
 }
+
 
 // ============================================================================
 // Unit tests

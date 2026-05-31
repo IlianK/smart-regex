@@ -151,7 +151,7 @@ REGEX_PARSER=all cargo run -- parse "(a+ab)(b+ε)" "ab"
 
 Diagnostics are controlled by `REGEX_DIAG` (0–3) and work with all parsers.
 
-#### Level 1 — Basic (Regex, Input, Match, Tree / Error caret)
+#### Level 1 - Basic (Regex, Input, Match, Tree / Error caret)
 
 ```bash
 # Success
@@ -165,20 +165,20 @@ REGEX_DIAG=1 REGEX_PARSER=loop     cargo run -- parse "(a+ab)(b+ε)" "b"
 REGEX_DIAG=1 REGEX_PARSER=bitcoded cargo run -- parse "a*" "aab"
 ```
 
-#### Level 2 — Verbose (+ time, step count, construction steps / bit trace)
+#### Level 2 - Verbose (+ time, step count, construction steps / bit trace)
 
 ```bash
-# Standard success — shows mkEps(rN) and inject steps
+# Standard success - shows mkEps(rN) and inject steps
 REGEX_DIAG=2 cargo run -- parse "a*" "aaa"
 REGEX_DIAG=2 REGEX_PARSER=loop cargo run -- parse "a*" "aaa"
 
-# Standard failure — shows partial tree recovery
+# Standard failure - shows partial tree recovery
 REGEX_DIAG=2 cargo run -- parse "a*" "aab"
 
-# Bitcoded success — shows internalize, bit steps, mkEpsBC, decode
+# Bitcoded success - shows internalize, bit steps, mkEpsBC, decode
 REGEX_DIAG=2 REGEX_PARSER=bitcoded cargo run -- parse "a*" "aaa"
 
-# Bitcoded failure — shows bits accumulated before failure
+# Bitcoded failure - shows bits accumulated before failure
 REGEX_DIAG=2 REGEX_PARSER=bitcoded cargo run -- parse "a*" "aab"
 
 # Paper examples
@@ -187,20 +187,19 @@ REGEX_DIAG=2 REGEX_PARSER=bitcoded cargo run -- parse "(a+ab)(b+ε)" "ab"
 REGEX_DIAG=2 cargo run -- parse "(a+b+ab)*" "ab"
 ```
 
-#### Level 3 — Debug (full structural derivation trace, written to file or stdout)
+#### Level 3 - Debug (full structural derivation trace, written to file or stdout)
 
 Level 3 writes to `reports/report.txt` by default. Override with `REGEX_DIAG_REPORT`.
 
-
 ```bash
-# Standard success — full forward + backward pass trace
+# Standard success - full forward + backward pass trace
 REGEX_DIAG=3 cargo run -- parse "a*" "aaa"
 REGEX_DIAG=3 REGEX_PARSER=loop cargo run -- parse "a*" "aaa"
 
-# Standard failure — full forward trace + partial recovery + error summary
+# Standard failure - full forward trace + partial recovery + error summary
 REGEX_DIAG=3 cargo run -- parse "a*" "aab"
 
-# Bitcoded success — internalize + all deriv_bc steps + mkEpsBC + decode
+# Bitcoded success - internalize + all deriv_bc steps + mkEpsBC + decode
 REGEX_DIAG=3 REGEX_PARSER=bitcoded cargo run -- parse "a*" "aaa"
 
 # Bitcoded failure
@@ -226,7 +225,7 @@ cat report.txt
 ### Matching demo
 
 ```bash
-# All three matchers side by side — no diagnostics (table format)
+# All three matchers side by side - no diagnostics (table format)
 cargo run --example demo_match
 ```
 
@@ -244,7 +243,7 @@ REGEX_PARSER=bitcoded   cargo run --example demo_posix
 # All parsers side by side (comparison table, ignores REGEX_DIAG)
 REGEX_PARSER=all cargo run --example demo_posix
 
-# With diagnostics — same env vars as CLI, same output format
+# With diagnostics - same env vars as CLI, same output format
 REGEX_DIAG=1 cargo run --example demo_posix
 REGEX_DIAG=1 REGEX_PARSER=loop     cargo run --example demo_posix
 REGEX_DIAG=1 REGEX_PARSER=bitcoded cargo run --example demo_posix
@@ -291,8 +290,8 @@ cargo bench --bench bench_posix -- scaling_a_star
 
 Two-tier layout per Rust Book ch. 11-03:
 
-- **Unit tests** — `#[cfg(test)] mod tests` inside each `src/` file, test private functions
-- **Integration tests** — `tests/` directory, public API only
+- **Unit tests** - `#[cfg(test)] mod tests` inside each `src/` file, test private functions
+- **Integration tests** - `tests/` directory, public API only
 
 | Integration test file | What it verifies |
 |---|---|
@@ -317,6 +316,7 @@ cargo test --test test_posix_bitcoded
 
 # One test by name (substring match)
 cargo test parse_recursive_paper_r1_on_ab
+cargo test parse_recursive_paper_r2_on_ab
 cargo test bitcoded_agrees_on_paper_r2_ab
 cargo test loop_traced_inject_steps_are_in_forward_order
 cargo test recursive_traced_agrees_with_loop_traced

@@ -1,3 +1,5 @@
+//! regex-engine/src/cli/mod.rs
+//! 
 //! CLI module for regex matching and parsing
 //!
 //! Usage:
@@ -65,7 +67,7 @@ enum Commands {
 pub fn run() {
     let cli = Cli::parse();
     
-    // Set environment for diagnostics (parse_posix will read this)
+    // Set environment for diagnostics (parse_posix reads this)
     let diag = std::env::var("REGEX_DIAG").unwrap_or_default();
     std::env::set_var("REGEX_DIAG", &diag);
     

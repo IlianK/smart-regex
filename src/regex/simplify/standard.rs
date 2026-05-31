@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/simplify/standard.rs
+//! 
 //! Simplification for standard Regex
 
 use crate::types::Regex;
@@ -46,6 +48,7 @@ pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
     }
 }
 
+
 // ============================================================================
 // Tests for simplify and smart_seq
 // ============================================================================
@@ -55,8 +58,7 @@ mod tests {
     use super::*;
     use crate::types::Regex;
  
-    // ── simplify laws ────────────────────────────────────────────────────────
- 
+    // simplify
     #[test] fn phi_seq_r_is_phi() {
         assert_eq!(simplify(Regex::seq(Regex::Phi, Regex::lit('a'))), Regex::Phi);
     }
@@ -88,8 +90,7 @@ mod tests {
         assert_eq!(simplify(Regex::lit('x')), Regex::lit('x'));
     }
  
-    // ── smart_seq ────────────────────────────────────────────────────────────
- 
+    // smart_seq
     #[test] fn smart_seq_eps_left_is_identity() {
         let r = Regex::lit('a');
         assert_eq!(smart_seq(Regex::Eps, &r), r);

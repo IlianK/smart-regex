@@ -1,3 +1,5 @@
+//! regex-engine/src/posix/standard/mod.rs
+//! 
 //! Standard POSIX parsers (non-bitcoded)
 
 pub mod mk_eps;

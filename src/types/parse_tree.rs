@@ -1,3 +1,5 @@
+//! regex-engine/src/types/parse_tree.rs
+//! 
 //! Parse tree representation (values v)
 
 use std::fmt;

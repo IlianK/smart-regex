@@ -1,4 +1,6 @@
-//! Brzozowski derivative matcher (boolean match only)
+//! regex-engine/src/matchers/match_deriv.rs
+//! 
+//! Brzozowski derivative matcher (boolean)
 
 use crate::types::Regex;
 use crate::regex::brzozowski::standard::deriv;
@@ -17,7 +19,6 @@ pub fn match_deriv(input: &str, r: &Regex) -> bool {
 // Tests for match_deriv
 // ============================================================================
 
-// ── match_deriv.rs ──────────────────────────────────────────────────────────
 #[cfg(test)]
 mod tests {
     use super::*;

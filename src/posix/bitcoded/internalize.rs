@@ -1,4 +1,6 @@
-//! internalize: Regex → ARegex
+//! regex-engine/src/posix/bitcoded/internalize.rs
+//! 
+//! internalize: Regex -> ARegex
 //! fuse: prepend bit-code prefix
 
 use crate::types::{Regex, ARegex};
@@ -39,6 +41,7 @@ pub fn internalize(r: &Regex) -> ARegex {
         }
     }
 }
+
 
 // ============================================================================
 // Tests for internalize and fuse

@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/brzozowski/mod.rs
+//! 
 //! Brzozowski derivatives (deterministic)
 
 pub mod standard;

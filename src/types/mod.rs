@@ -1,3 +1,5 @@
+//! regex-engine/src/types/mod.rs
+//! 
 //! Core data types for regular expressions and parse trees
 
 pub mod regex;

@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/nullable/annotated.rs
+//! 
 //! Nullability for annotated ARegex
 
 use crate::types::ARegex;
@@ -14,7 +16,7 @@ pub fn nullable_bc(ri: &ARegex) -> bool {
     }
 }
 
-/// Does the expression denote the empty language?
+/// Does expression denote empty language?
 pub fn is_phi(ri: &ARegex) -> bool {
     match ri {
         ARegex::Phi => true,
@@ -25,6 +27,7 @@ pub fn is_phi(ri: &ARegex) -> bool {
         ARegex::Star(_, _) => false,
     }
 }
+
 
 // ============================================================================
 // Tests for nullable_bc and is_phi

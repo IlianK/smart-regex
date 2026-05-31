@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/mod.rs
+//! 
 //! Derivative algorithms for regular expressions
 
 pub mod nullable;

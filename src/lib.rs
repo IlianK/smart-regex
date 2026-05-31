@@ -1,9 +1,11 @@
-//! regex_engine
-
+//! regex-engine/src/lib.rs
+//! 
+//! Main lib
+ 
 // Core data types
 pub mod types;
 
-// Trace structs — declared before posix and diagnostics to break the cycle.
+// Trace structs 
 pub mod trace;
 
 // Algorithms

@@ -1,3 +1,5 @@
+//! regex-engine/src/posix/parser.rs
+//! 
 //! POSIX parser dispatch - selects which parser implementation to use
 //!
 //! Parser selection via REGEX_PARSER environment variable:

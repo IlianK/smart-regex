@@ -1,4 +1,6 @@
-//! Naive recursive matcher (exponential time)
+//! regex-engine/src/matchers/match_naive.rs
+//! 
+//! Naive recursive matcher (boolean)
 
 use crate::types::Regex;
 
@@ -35,7 +37,6 @@ pub fn match_naive(input: &str, r: &Regex) -> bool {
 // Tests for match_naive
 // ============================================================================
 
-// ── match_naive.rs ──────────────────────────────────────────────────────────
 #[cfg(test)]
 mod tests {
     use super::*;

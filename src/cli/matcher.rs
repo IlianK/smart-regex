@@ -1,7 +1,9 @@
+//! regex-engine/src/cli/matcher.rs
+//! 
 //! Matcher command logic
 //!
 //! Reads DiagConfig and delegates to diagnostics::run_matcher,
-//! or runs the all-matchers comparison table when --matcher all is used.
+//! or runs the all-matchers comparison table when --matcher all is used
 
 use regex_engine::matchers::MatcherType;
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_matcher};

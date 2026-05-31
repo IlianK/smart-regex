@@ -1,4 +1,6 @@
-//! Level 1 — Basic diagnostics output.
+//! regex-engine/src/diagnostics/level1.rs
+//! 
+//! Level 1 - Basic diagnostics output.
 //!
 //! On success:
 //!   Regex:  a*
@@ -21,8 +23,9 @@ use crate::posix::bitcoded::parse_bitcoded;
 use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{find_failure, caret_lines};
 
+
 // ============================================================================
-// Parser — Level 1
+// Parser - Level 1
 // ============================================================================
 
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
@@ -59,15 +62,16 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
     }
 }
 
+
 // ============================================================================
-// Matcher — Level 1
+// Matcher - Level 1
 // ============================================================================
 
 pub fn run_matcher(regex_str: &str, r: &Regex, input: &str) {
     use crate::matchers::MatcherType;
     use crate::matchers::{match_naive, match_deriv, match_pderiv};
 
-    // MatcherType::from_env() returns Vec — take the first (default: Deriv)
+    // MatcherType::from_env() returns Vec - take the first (default: Deriv)
     let matcher_type = MatcherType::from_env()
         .into_iter()
         .next()

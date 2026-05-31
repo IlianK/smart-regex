@@ -1,13 +1,5 @@
 /*
 Benchmarks for POSIX parsers: Recursive vs Loop
-
-Based on crash_demo results (DEBUG mode):
-- Recursive a* crashes at 1250 chars
-- Loop a* crashes at 2150 chars
-- Recursive deep crashes at 1250 depth
-- Loop deep crashes at 2200 depth
-
-Benchmark values kept safely below crash limits.
 */
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
@@ -34,8 +26,9 @@ fn repeat_char(c: char, n: usize) -> String {
     std::iter::repeat(c).take(n).collect()
 }
 
+
 // ============================================================================
-// 1. Small patterns (baseline overhead)
+// 1. Small patterns
 // ============================================================================
 
 fn bench_small_patterns(c: &mut Criterion) {
@@ -66,10 +59,9 @@ fn bench_small_patterns(c: &mut Criterion) {
     group.finish();
 }
 
+
 // ============================================================================
 // 2. Scaling: a* on "aaa...a" (shallow expression)
-// 
-// Safe limit: 1000 (below recursive crash at 1250)
 // ============================================================================
 
 fn bench_scaling_a_star(c: &mut Criterion) {
@@ -95,10 +87,9 @@ fn bench_scaling_a_star(c: &mut Criterion) {
     group.finish();
 }
 
+
 // ============================================================================
 // 3. Scaling: deep expression (a·a·a...·a)
-// 
-// Safe limit: 1000 depth (below recursive crash at 1250)
 // ============================================================================
 
 fn bench_deep_expression(c: &mut Criterion) {
@@ -123,6 +114,7 @@ fn bench_deep_expression(c: &mut Criterion) {
     
     group.finish();
 }
+
 
 // ============================================================================
 // Register all benchmark groups

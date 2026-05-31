@@ -1,3 +1,5 @@
+//! regex-engine/src/matchers/selection.rs
+//! 
 //! Matcher selection logic shared between library and CLI
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

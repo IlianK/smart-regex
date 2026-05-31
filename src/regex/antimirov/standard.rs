@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/antimirov/standard.rs
+//! 
 //! Antimirov partial derivatives for standard Regex
 
 use std::collections::HashSet;
@@ -38,6 +40,7 @@ pub fn pderiv(r: &Regex, x: char) -> HashSet<Regex> {
         }
     }
 }
+
 
 // ============================================================================
 // Tests for pderiv
@@ -87,7 +90,7 @@ mod tests {
 
     #[test]
     fn pderiv_alt_both_branches_contribute() {
-        // Alt(Lit('a'), Lit('a')) — both branches give Eps, but it's a set so still {Eps}
+        // Alt(Lit('a'), Lit('a')) - both branches give Eps, but it's a set so still {Eps}
         let r = Regex::alt(Regex::lit('a'), Regex::lit('a'));
         let d = pderiv(&r, 'a');
         assert_eq!(d, set(vec![Regex::Eps]));
@@ -105,7 +108,7 @@ mod tests {
     // pderiv(Seq(r1,r2), c) when r1 nullable adds pderiv(r2,c) as well
     #[test]
     fn pderiv_seq_nullable_left_adds_right_derivs() {
-        // Seq(Star(Lit('b')), Lit('b'))  — on 'b'
+        // Seq(Star(Lit('b')), Lit('b'))  - on 'b'
         // pderiv(Star(b), b) = {smart_seq(Eps, Star(b))} = {Star(b)}
         // r1 is nullable so also add pderiv(Lit('b'), 'b') = {Eps}
         let r = Regex::seq(Regex::star(Regex::lit('b')), Regex::lit('b'));

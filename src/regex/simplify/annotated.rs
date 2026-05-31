@@ -1,11 +1,13 @@
+//! regex-engine/src/regex/simplify/annotated.rs
+//! 
 //! Simplification for annotated ARegex (simp from Figure 6)
-//!
-//! Based on paper Figure 6:
-//!   • Seq where one side is Phi → Phi
-//!   • Seq(bs, Eps(bs'), ri) → fuse(bs++bs', ri)   (ε·r = r)
-//!   • Alt with empty operand list → Phi
-//!   • Nested Alt flattened into a list → flat list
-//!   • Alt([ri]) → fuse(bs, simp(ri))
+//! 
+//! Simplification rules:
+//!   • Seq where one side is Phi -> Phi
+//!   • Seq(bs, Eps(bs'), ri) -> fuse(bs++bs', ri)   (ε·r = r)
+//!   • Alt with empty operand list -> Phi
+//!   • Nested Alt flattened into a list -> flat list
+//!   • Alt([ri]) -> fuse(bs, simp(ri))
 //!   • Alt list: remove Phi, remove duplicates (keep first occurrence)
 
 use crate::types::ARegex;
@@ -118,6 +120,7 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
     }
 }
 
+
 // ============================================================================
 // Tests for simp
 // ============================================================================
@@ -161,7 +164,7 @@ mod tests {
         assert_eq!(simp(ri), ARegex::Phi);
     }
 
-    // Seq(bs, Eps(bs2), r) → fuse(bs++bs2, r)  — ε·r = r with bit merge
+    // Seq(bs, Eps(bs2), r) → fuse(bs++bs2, r) - ε·r = r with bit merge
     #[test]
     fn simp_seq_eps_left_fuses_bits() {
         // Seq([], Eps([false]), Lit([], 'a'))  →  Lit([false], 'a')

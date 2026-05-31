@@ -1,3 +1,5 @@
+//! regex-engine/src/regex/brzozowski/standard.rs
+//! 
 //! Brzozowski derivative for standard Regex
 
 use crate::types::Regex;
@@ -27,6 +29,7 @@ pub fn deriv(r: &Regex, x: char) -> Regex {
         }
     }
 }
+
 
 // ============================================================================
 // Tests for deriv
@@ -66,7 +69,7 @@ mod tests {
     fn deriv_alt_distributes() {
         let r = Regex::alt(Regex::lit('a'), Regex::lit('b'));
         let d = deriv(&r, 'a');
-        // Alt(Eps, Phi) — left matched, right didn't
+        // Alt(Eps, Phi) - left matched, right didn't
         assert_eq!(d, Regex::alt(Regex::Eps, Regex::Phi));
     }
 
@@ -105,7 +108,7 @@ mod tests {
     fn deriv_star_wrong_char_gives_phi_seq() {
         let r = Regex::star(Regex::lit('a'));
         let d = deriv(&r, 'b');
-        // Seq(Phi, Star(Lit('a'))) — not nullable
+        // Seq(Phi, Star(Lit('a'))) - not nullable
         use crate::regex::nullable::standard::nullable;
         assert!(!nullable(&d));
     }

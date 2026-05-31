@@ -9,6 +9,8 @@ use regex_engine::posix::{parse_recursive, parse_loop};
 use std::env;
 use std::process;
 
+
+// Worker runs single test for isolated crash detection (demo_crash.rs)
 fn main() {
     let args: Vec<String> = env::args().collect();
     

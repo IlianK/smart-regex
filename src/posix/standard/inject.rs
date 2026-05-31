@@ -1,3 +1,5 @@
+//! regex-engine/src/posix/standard/inject.rs
+//! 
 //! inj_{r\l}: Injects a letter back into a parse tree of the derivative
 
 use crate::types::{Regex, ParseTree};
@@ -75,9 +77,11 @@ pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
     }
 }
 
+
 // ============================================================================
 // Tests for inject
 // ============================================================================
+
 #[cfg(test)]
 mod tests {
     use super::*;

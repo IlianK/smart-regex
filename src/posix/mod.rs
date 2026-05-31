@@ -1,3 +1,5 @@
+//! regex-engine/src/posix/mod.rs
+//! 
 //! POSIX disambiguation policy for regular expression parsing
 
 pub mod standard;

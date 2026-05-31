@@ -1,3 +1,5 @@
+//! regex-engine/src/matchers/mod.rs
+//! 
 //! Boolean matchers (match only, no parse tree)
 
 mod match_naive;

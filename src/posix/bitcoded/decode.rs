@@ -1,4 +1,6 @@
-//! Decoder: bit-code → ParseTree
+//! regex-engine/src/posix/bitcoded/decode.rs
+//! 
+//! Decoder: bit-code -> ParseTree
 //!
 //! Based on Figure 4 of the paper
 

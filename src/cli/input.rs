@@ -1,3 +1,5 @@
+//! regex-engine/src/cli/input.rs
+//! 
 //! Convert user-provided regex string into internal Regex enum
 
 use regex_engine::types::Regex;

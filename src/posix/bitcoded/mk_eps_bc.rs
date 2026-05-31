@@ -1,4 +1,6 @@
-//! Bit-coded mkEps (ARegex → bits)
+//! regex-engine/src/posix/bitcoded/mk_eps_bc.rs
+//! 
+//! Bit-coded mkEps (ARegex -> bits)
 
 use crate::types::ARegex;
 use crate::regex::nullable::annotated::nullable_bc;
@@ -30,6 +32,7 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
         }
     }
 }
+
 
 // ============================================================================
 // Tests for mk_eps_bc

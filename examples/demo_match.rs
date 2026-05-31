@@ -6,7 +6,7 @@ use regex_engine::types::Regex;
 use regex_engine::matchers::{match_naive, match_deriv, match_pderiv};
 
 // ============================================================================
-// Test Case Definition
+// Test Case Structure
 // ============================================================================
 
 struct TestCase {
@@ -39,18 +39,11 @@ impl TestCase {
 // Test Case Definitions
 // ============================================================================
 
-/// Kleene star: a*
-fn test_case_star() -> TestCase {
-    let r = Regex::star(Regex::lit('a'));
-    let inputs = vec!["", "a", "aa", "aaa", "ab"];
-    TestCase::new("a*", r, inputs)
-}
-
-/// Alternation star: (a|b)*
-fn test_case_alt_star() -> TestCase {
-    let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
-    let inputs = vec!["", "a", "b", "ab", "ba", "abc"];
-    TestCase::new("(a|b)*", r, inputs)
+// Literal: a
+fn test_case_literal() -> TestCase {
+    let r = Regex::lit('a');
+    let inputs = vec!["a", "b", "", "aa"];
+    TestCase::new("a", r, inputs)
 }
 
 /// Sequence: a·b
@@ -59,6 +52,28 @@ fn test_case_sequence() -> TestCase {
     let inputs = vec!["ab", "a", "b", "abc"];
     TestCase::new("a·b", r, inputs)
 }
+
+// Alternation: a|b
+fn test_case_alt() -> TestCase {
+    let r = Regex::alt(Regex::lit('a'), Regex::lit('b'));
+    let inputs = vec!["a", "b", "c", "ab"];
+    TestCase::new("a|b", r, inputs)
+}
+
+// Kleene star: a*
+fn test_case_star() -> TestCase {
+    let r = Regex::star(Regex::lit('a'));
+    let inputs = vec!["", "a", "aa", "aaa", "ab"];
+    TestCase::new("a*", r, inputs)
+}
+
+// Alternation star: (a|b)*
+fn test_case_alt_star() -> TestCase {
+    let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
+    let inputs = vec!["", "a", "b", "ab", "ba", "abc"];
+    TestCase::new("(a|b)*", r, inputs)
+}
+
 
 // ============================================================================
 // Main
@@ -72,9 +87,11 @@ fn main() {
     println!("  p = Antimirov partial (NFA)");
     println!("=========================================");
     
+    test_case_literal().run();
+    test_case_sequence().run();
+    test_case_alt().run();
     test_case_star().run();
     test_case_alt_star().run();
-    test_case_sequence().run();
     
     println!();
 }

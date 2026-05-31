@@ -1,9 +1,12 @@
+//! regex-engine/src/posix/standard/parse.rs
+//! 
 //! Standard POSIX parsers (recursive and loop)
 
 use crate::types::{Regex, ParseTree};
 use crate::regex::brzozowski::standard::deriv;
 use crate::regex::nullable::standard::nullable;
 use crate::posix::standard::{mk_eps, inject};
+
 
 // ============================================================================
 // RECURSIVE PARSER
@@ -28,128 +31,12 @@ pub fn parse_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_recursive_helper(r, input)
 }
 
-// ============================================================================
-// LOOP PARSER
-// ============================================================================
-
-pub fn parse_loop(input: &str, r: &Regex) -> Option<ParseTree> {
-    let chars: Vec<char> = input.chars().collect();
-    let n = chars.len();
-
-    let mut expressions = Vec::with_capacity(n + 1);
-    expressions.push(r.clone());
-
-    for &c in chars.iter() {
-        let current = expressions.last().unwrap();
-        let next = deriv(current, c);
-        expressions.push(next);
-    }
-
-    let final_r = expressions.last().unwrap();
-    if !nullable(final_r) {
-        return None;
-    }
-
-    let mut tree = mk_eps(expressions.last().unwrap());
-    for i in (0..n).rev() {
-        tree = inject(&expressions[i], chars[i], tree);
-    }
-
-    Some(tree)
-}
 
 // ============================================================================
-// LOOP PARSER — TRACED VARIANT (used by diagnostics Level 2/3 with REGEX_PARSER=loop)
-// ============================================================================
-
-use crate::trace::{DerivStep, InjectStep, MkEpsResult, ParseTrace};
-
-/// Identical in behaviour to parse_loop but also returns a ParseTrace.
-pub fn parse_loop_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTrace) {
-    let chars: Vec<char> = input.chars().collect();
-    let n = chars.len();
-
-    let mut expressions: Vec<Regex> = Vec::with_capacity(n + 1);
-    expressions.push(r.clone());
-
-    let mut deriv_steps: Vec<DerivStep> = Vec::with_capacity(n);
-    let mut last_nullable_idx: Option<usize> = if nullable(r) { Some(0) } else { None };
-
-    // ── Forward pass ─────────────────────────────────────────────────────────
-    for (idx, &c) in chars.iter().enumerate() {
-        let before = expressions.last().unwrap().clone();
-        let after  = deriv(&before, c);
-        let is_nullable = nullable(&after);
-
-        deriv_steps.push(DerivStep {
-            position:  idx + 1,
-            character: c,
-            before,
-            after: after.clone(),
-            nullable:  is_nullable,
-        });
-
-        if is_nullable {
-            last_nullable_idx = Some(idx + 1);
-        }
-
-        expressions.push(after);
-    }
-
-    // ── Nullability check ─────────────────────────────────────────────────────
-    let final_r = expressions.last().unwrap();
-    if !nullable(final_r) {
-        let trace = ParseTrace {
-            expressions,
-            deriv_steps,
-            mk_eps_result:     None,
-            inject_steps:      None,
-            last_nullable_idx,
-        };
-        return (None, trace);
-    }
-
-    // ── Backward pass ─────────────────────────────────────────────────────────
-    let mk_eps_tree = mk_eps(final_r);
-    let mk_eps_result = Some(MkEpsResult {
-        regex: final_r.clone(),
-        tree:  mk_eps_tree.clone(),
-    });
-
-    let mut tree = mk_eps_tree;
-    let mut inject_steps: Vec<InjectStep> = Vec::with_capacity(n);
-
-    for i in (0..n).rev() {
-        let before = tree.clone();
-        tree = inject(&expressions[i], chars[i], tree);
-        inject_steps.push(InjectStep {
-            position:  i + 1,
-            character: chars[i],
-            before,
-            after: tree.clone(),
-        });
-    }
-
-    // Steps recorded n-1..0; reverse so index 0 = position 1 (forward order)
-    inject_steps.reverse();
-
-    let trace = ParseTrace {
-        expressions,
-        deriv_steps,
-        mk_eps_result,
-        inject_steps: Some(inject_steps),
-        last_nullable_idx,
-    };
-
-    (Some(tree), trace)
-}
-
-// ============================================================================
-// RECURSIVE PARSER — TRACED VARIANT (used by diagnostics Level 2/3 with REGEX_PARSER=recursive)
+// RECURSIVE PARSER - TRACED VARIANT (used by REGEX_DIAG=2/3 REGEX_PARSER=recursive)
 // ============================================================================
 
 /// Identical in behaviour to parse_recursive but also returns a ParseTrace.
-/// The trace is built by threading mutable accumulators through the recursion.
 pub fn parse_recursive_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTrace) {
     let chars: Vec<char> = input.chars().collect();
 
@@ -251,6 +138,125 @@ fn parse_recursive_traced_helper(
     Some((injected, inject_steps, mke))
 }
 
+
+// ============================================================================
+// LOOP PARSER
+// ============================================================================
+
+pub fn parse_loop(input: &str, r: &Regex) -> Option<ParseTree> {
+    let chars: Vec<char> = input.chars().collect();
+    let n = chars.len();
+
+    let mut expressions = Vec::with_capacity(n + 1);
+    expressions.push(r.clone());
+
+    for &c in chars.iter() {
+        let current = expressions.last().unwrap();
+        let next = deriv(current, c);
+        expressions.push(next);
+    }
+
+    let final_r = expressions.last().unwrap();
+    if !nullable(final_r) {
+        return None;
+    }
+
+    let mut tree = mk_eps(expressions.last().unwrap());
+    for i in (0..n).rev() {
+        tree = inject(&expressions[i], chars[i], tree);
+    }
+
+    Some(tree)
+}
+
+
+// ============================================================================
+// LOOP PARSER - TRACED VARIANT (used by REGEX_DIAG=2/3 REGEX_PARSER=loop)
+// ============================================================================
+
+use crate::trace::{DerivStep, InjectStep, MkEpsResult, ParseTrace};
+
+/// Identical in behaviour to parse_loop but also returns a ParseTrace.
+pub fn parse_loop_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTrace) {
+    let chars: Vec<char> = input.chars().collect();
+    let n = chars.len();
+
+    let mut expressions: Vec<Regex> = Vec::with_capacity(n + 1);
+    expressions.push(r.clone());
+
+    let mut deriv_steps: Vec<DerivStep> = Vec::with_capacity(n);
+    let mut last_nullable_idx: Option<usize> = if nullable(r) { Some(0) } else { None };
+
+    // Forward pass 
+    for (idx, &c) in chars.iter().enumerate() {
+        let before = expressions.last().unwrap().clone();
+        let after  = deriv(&before, c);
+        let is_nullable = nullable(&after);
+
+        deriv_steps.push(DerivStep {
+            position:  idx + 1,
+            character: c,
+            before,
+            after: after.clone(),
+            nullable:  is_nullable,
+        });
+
+        if is_nullable {
+            last_nullable_idx = Some(idx + 1);
+        }
+
+        expressions.push(after);
+    }
+
+    // Nullability check 
+    let final_r = expressions.last().unwrap();
+    if !nullable(final_r) {
+        let trace = ParseTrace {
+            expressions,
+            deriv_steps,
+            mk_eps_result:     None,
+            inject_steps:      None,
+            last_nullable_idx,
+        };
+        return (None, trace);
+    }
+
+    // Backward pass 
+    let mk_eps_tree = mk_eps(final_r);
+    let mk_eps_result = Some(MkEpsResult {
+        regex: final_r.clone(),
+        tree:  mk_eps_tree.clone(),
+    });
+
+    let mut tree = mk_eps_tree;
+    let mut inject_steps: Vec<InjectStep> = Vec::with_capacity(n);
+
+    for i in (0..n).rev() {
+        let before = tree.clone();
+        tree = inject(&expressions[i], chars[i], tree);
+        inject_steps.push(InjectStep {
+            position:  i + 1,
+            character: chars[i],
+            before,
+            after: tree.clone(),
+        });
+    }
+
+    // Steps recorded n-1..0; reverse so index 0 = position 1 (forward order)
+    inject_steps.reverse();
+
+    let trace = ParseTrace {
+        expressions,
+        deriv_steps,
+        mk_eps_result,
+        inject_steps: Some(inject_steps),
+        last_nullable_idx,
+    };
+
+    (Some(tree), trace)
+}
+
+
 // ============================================================================
 // Unit tests
 // ============================================================================
@@ -259,8 +265,7 @@ fn parse_recursive_traced_helper(
 mod tests {
     use super::*;
 
-    // ── parse_loop_traced ────────────────────────────────────────────────────
-
+    // parse_loop_traced
     #[test]
     fn loop_traced_matches_untraced_on_success() {
         let r = Regex::star(Regex::lit('a'));
@@ -283,8 +288,16 @@ mod tests {
         assert_eq!(trace.last_nullable_idx, Some(2));
     }
 
-    // ── parse_recursive_traced ───────────────────────────────────────────────
+    #[test]
+    fn loop_traced_inject_steps_are_in_forward_order() {
+        let r = Regex::star(Regex::lit('a'));
+        let (_, trace) = parse_loop_traced("aaa", &r);
+        let steps = trace.inject_steps.unwrap();
+        let positions: Vec<usize> = steps.iter().map(|s| s.position).collect();
+        assert_eq!(positions, vec![1, 2, 3]);
+    }
 
+    // parse_recursive_traced
     #[test]
     fn recursive_traced_matches_untraced_on_success() {
         let r = Regex::star(Regex::lit('a'));
@@ -317,18 +330,9 @@ mod tests {
 
     #[test]
     fn recursive_traced_inject_steps_are_in_forward_order() {
-        // Steps should be position 1, 2, 3 — not 3, 2, 1
+        // Steps should be position 1, 2, 3 - not 3, 2, 1
         let r = Regex::star(Regex::lit('a'));
         let (_, trace) = parse_recursive_traced("aaa", &r);
-        let steps = trace.inject_steps.unwrap();
-        let positions: Vec<usize> = steps.iter().map(|s| s.position).collect();
-        assert_eq!(positions, vec![1, 2, 3]);
-    }
-
-    #[test]
-    fn loop_traced_inject_steps_are_in_forward_order() {
-        let r = Regex::star(Regex::lit('a'));
-        let (_, trace) = parse_loop_traced("aaa", &r);
         let steps = trace.inject_steps.unwrap();
         let positions: Vec<usize> = steps.iter().map(|s| s.position).collect();
         assert_eq!(positions, vec![1, 2, 3]);

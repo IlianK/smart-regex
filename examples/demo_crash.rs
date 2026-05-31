@@ -10,13 +10,16 @@ use std::process::Command;
 use std::env;
 use std::time::Instant;
 
+const WORKER_NAME: &str = "demo_crash_worker";
+
+// Path to worker executable
 fn get_worker_path() -> std::path::PathBuf {
     let exe = env::current_exe().unwrap();
     let exe_dir = exe.parent().unwrap();
-    let worker_name = if cfg!(windows) { "demo_crash_worker.exe" } else { "demo_crash_worker" };
-    exe_dir.join(worker_name)
+    exe_dir.join(WORKER_NAME)
 }
 
+// Run only one test with one worker, to allow isolated crash detection
 fn test_single(value: usize, use_loop: bool) -> bool {
     let worker_path = get_worker_path();
     
@@ -34,7 +37,7 @@ fn test_single(value: usize, use_loop: bool) -> bool {
     status.success()
 }
 
-/// Binary search to find crash threshold
+// Binary search to find crash threshold
 fn find_threshold(
     name: &str,
     use_loop: bool,
@@ -50,6 +53,7 @@ fn find_threshold(
     let mut iterations = 0;
     const MAX_ITERATIONS: usize = 30;
     
+    // Binary search loop
     while low <= high && iterations < MAX_ITERATIONS {
         let mid = low + (high - low) / 2;
         iterations += 1;
@@ -61,6 +65,7 @@ fn find_threshold(
         let success = test_single(mid, use_loop);
         let duration = start.elapsed().as_millis();
         
+        // Adjust search range based on result
         if success {
             println!("✓ OK ({:.2}ms)", duration);
             last_successful = mid;
@@ -75,6 +80,8 @@ fn find_threshold(
     last_successful
 }
 
+
+// Run all tests and summarize results
 fn main() {
     let mode = if cfg!(debug_assertions) { "DEBUG" } else { "RELEASE" };
     

@@ -1,5 +1,6 @@
+//! regex-engine/src/types/aregex.rs
+//! 
 //! Annotated regular expressions (bit-code annotated)
-//!
 //! Bit convention: false = 0 (Left / start-of-star), true = 1 (Right / end-of-star)
 
 #[derive(Debug, Clone, PartialEq, Eq)]

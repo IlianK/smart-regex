@@ -1,4 +1,6 @@
-//! Parser selection logic shared between library and CLI
+//! regex-engine/src/posix/selection.rs
+//! 
+//!  Parser selection logic shared between library and CLI
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParserType {
