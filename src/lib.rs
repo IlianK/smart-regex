@@ -21,7 +21,7 @@ pub use types::{Regex, ARegex, ParseTree, flatten};
 pub use matchers::{match_naive, match_deriv, match_pderiv};
 
 // Re-export parsers
-pub use posix::{parse_posix, match_posix, mk_eps, inject};
+pub use posix::{parse_posix, mk_eps, inject};
 pub use posix::{parse_recursive, parse_loop, parse_bitcoded};
 
 // Re-export traced variants

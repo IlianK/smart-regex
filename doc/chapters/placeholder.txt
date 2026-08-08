@@ -1,0 +1,294 @@
+\chapter{Introduction}
+
+Regular expressions are a fundamental formalism for describing regular
+languages and are among the most widely used abstractions in computer
+science. They underpin lexical analysis in compilers and interpreters,
+input validation, intrusion detection, log processing, and many other
+text-processing tasks. Across all of these applications, matching relies on
+one core question: given a regular expression and an input string, does the
+string belong to the language the expression denotes? This
+\emph{membership problem} lies at the heart of regular expression matching.
+
+For example, consider the regular expression 
+\texttt{(ab|a)*} and the input string \texttt{"aba"}. 
+The membership question asks whether \texttt{"aba"} is one of the strings 
+described by the expression. Since it can be decomposed as 
+\texttt{"ab"} followed by \texttt{"a"}, the answer is yes. 
+In contrast, the input string \texttt{"abb"} would not belong to the 
+language described by this expression, and the answer would be no.
+
+Efficiently answering this question has been studied for decades, and
+remains an active area of research, because the choice of matching
+algorithm affects correctness, performance, and security.
+
+Although the membership problem is simple to state, efficiently solving it has 
+been studied extensively. Different matching approaches provide different 
+trade-offs between implementation complexity, memory consumption, and 
+performance guarantees. 
+
+Common approaches include backtracking-based matching, 
+simulation of nondeterministic finite automata (NFAs), and deterministic finite 
+automata (DFAs) obtained through determinization. Backtracking approaches 
+directly explore the structure of the regular expression and are widely used 
+due to their flexibility, but may exhibit poor worst-case behaviour. Automata-
+based approaches provide stronger guarantees but may require additional 
+construction time and memory.
+
+An alternative approach is based on regular expression derivatives. Instead of 
+constructing an explicit automaton, derivative-based algorithms repeatedly 
+transform the regular expression as input symbols are consumed. Brzozowski 
+introduced derivatives as an algebraic characterization of regular expression 
+matching~\citep{brzozowski1964}. Antimirov later introduced partial derivatives, 
+which represent sets of residual expressions and provide a construction closely 
+related to nondeterministic automata~\citep{antimirov1996}.
+
+
+For many applications, a Boolean answer to the membership question is all
+that is needed -- an input validator, for instance, may only need to accept or
+reject a password, URL, or configuration value. 
+Other applications require more: a lexer must determine how
+an input decomposes into tokens, and capturing groups, schema validation,
+and information extraction all require identifying which part of the input
+matched which part of the expression. In these settings a matcher must
+recover the \emph{structure} of a match, not just decide whether one
+exists -- the problem shifts from recognition to parsing.
+
+
+
+\section{Motivation}
+\label{sec:motivation}
+
+
+Classical approaches include backtracking over the structure of the regular 
+expression, simulation of nondeterministic finite automata (NFAs), and 
+deterministic finite automata (DFAs) obtained through determinization. Each 
+approach provides different trade-offs between implementation complexity, 
+memory consumption, and worst-case performance. Backtracking engines are 
+flexible and widely adopted, but may exhibit exponential running time on 
+carefully constructed inputs, leading to regular expression denial-of-service 
+(ReDoS) vulnerabilities. Automata-based approaches provide stronger worst-case 
+guarantees but may require costly preprocessing and can suffer from 
+state-space explosion.
+
+An alternative approach is offered by regular expression derivatives. Rather 
+than constructing an explicit automaton, derivative-based algorithms solve the 
+membership problem by repeatedly transforming the regular expression itself as 
+input symbols are consumed. Introduced by Brzozowski~\citep{brzozowski1964}, 
+derivatives provide an elegant algebraic characterization of matching that 
+operates directly on the syntax of regular expressions. Antimirov's partial 
+derivatives~\citep{antimirov1996} refine this idea by representing sets of 
+residual expressions, yielding a construction closely related to 
+nondeterministic automata while avoiding much of the redundancy inherent in 
+ordinary derivatives.
+
+The direct relationship between the expression and its successive residuals 
+makes derivative-based approaches an interesting foundation for investigating 
+more structured forms of regular expression matching.
+
+
+\section{Problem Statement}
+\label{sec:problem-statement}
+
+For many applications, determining whether a string belongs to the language
+is sufficient. An input validator, for instance, may only need to accept or
+reject a password, URL, or configuration value; regular expressions here
+serve purely as recognizers. 
+
+Other applications, however, require more than
+a Boolean answer. A lexer must determine how an input string decomposes
+into a sequence of tokens. Likewise, capturing groups in programming
+language libraries, schema validation, and information extraction require
+identifying the portions of the input matched by individual subexpressions.
+In these settings, a matcher must not only decide whether a match exists,
+but also recover its structure -- the problem shifts from recognition to
+parsing.
+
+Recovering that structure is nontrivial because, in general, regular
+expressions are ambiguous: a given string may admit multiple valid parse
+trees against the same expression, each inducing different submatch
+boundaries and captures. Consider the pattern $(a + b + ab)^*$ against the
+input \texttt{"ab"}: one valid parse consumes the input in two steps,
+producing $[a, b]$, while another consumes it in a single step, producing
+$[ab]$. Both are legitimate parses of the same string against the same
+pattern; they differ only in how the ambiguity is resolved.
+
+
+---
+
+The challenge then becomes explaining why no match exists, or, 
+when a match does exist, recovering the parse structure witnessing 
+a successful match. This is a nontrivial task because, in general, 
+regular expressions are ambiguous: 
+a given string may admit multiple valid parse trees, 
+each inducing different submatch boundaries and captures.
+
+Consider the pattern $(a + b + ab)^*$ against the input \texttt{"ab"}: 
+a possible parse tree would be two steps producing $[a, b]$ or one step $[ab]$. 
+Both are legitimate parses of the same string against the same pattern.
+
+A regular expression parser must therefore 
+apply a disambiguation policy to select one parse from the set of possible 
+parses.
+
+In practice, two disambiguation strategies dominate. Backtracking-based 
+engines commonly use greedy leftmost-first semantics, where the selected parse 
+is determined operationally by the order in which alternatives are explored. 
+The POSIX standard instead specifies leftmost-longest semantics: among all 
+matches beginning at the earliest possible position, the longest match is 
+selected, with submatches maximized according to a fixed recursive ordering 
+rule. POSIX semantics are widely used by standard text-processing tools such as 
+\texttt{grep}, \texttt{sed}, and \texttt{awk}, as well as by POSIX-compatible 
+regular expression implementations.
+
+Although POSIX semantics provide a precise declarative solution to the 
+ambiguity problem, they are considerably harder to implement efficiently than 
+ordinary membership testing. A matcher cannot simply stop after reaching an 
+accepting state; it must continue considering possible matches while retaining 
+enough information to reconstruct the uniquely prescribed parse.
+
+
+
+ Although this problem has been studied for decades, it continues to motivate 
+both theoretical research and practical engineering because the choice of 
+matching algorithm directly affects correctness, performance, and security. 
+
+The compositional nature of derivatives makes them attractive not only as a 
+method for deciding membership, but also as a potential foundation for 
+reasoning about the evolution of a match. Since each derivative represents the 
+remaining expression after consuming part of the input, derivative-based 
+approaches preserve a direct connection between the matching process and the 
+structure of the expression being matched.
+ 
+While these implementations correctly produce the prescribed parse, 
+the reasoning that leads to a particular match---or to a 
+failure to match---typically remains internal to the implementation and 
+is not exposed to the user.
+
+Existing engines that implement POSIX semantics -- RE2, TDFA, the C library's
+POSIX regex functions -- resolve this ambiguity correctly, but as a fixed
+internal behavior of their automaton construction. None of them expose the
+derivation that produced a given parse, and, more importantly for this
+thesis, none of them explain a \emph{failure}. If a pattern does not match an
+input, the developer learns only that it did not match, not the position, the
+character, or the subexpression responsible.
+
+CyrilEx and https://regex101.com/ do offer step-by-step debuggers with "detailed explanations" — but these are built around simulating a backtracking (regex-directed) engine's exploration order. That's explicitly the tutorial framing at regular-expressions.info too: the whole "follow the engine's steps in your mind" pedagogy is a backtracking-engine phenomenon, because a regex-directed engine's execution is a sequence of discrete, narratable decisions (try this alternative, fail, backtrack, try that one). regex101 does list POSIX ERE/BRE among the flavors you can select, but the debugger/explain feature is fundamentally built for the backtracking model
+
+This leaves a concrete, two-part problem:
+
+\begin{enumerate}
+  \item Implement a POSIX-correct, submatching-capable regular expression
+        parser whose behavior is grounded in a formally justified algorithm
+        rather than ad hoc heuristics, translated from its original Haskell
+        presentation into a systems language where performance and memory
+        behavior can be measured and controlled directly.
+  \item Expose that algorithm's own internal reasoning -- the sequence of
+        derivatives and injections it computes -- as a diagnostic tool, so
+        that both matches and mismatches can be explained step by step
+        rather than reported as an opaque boolean.
+\end{enumerate}
+
+The goal of this thesis is therefore twofold. First, to realize
+Sulzmann and Lu's POSIX-correct, derivative-based parsing algorithm as a
+practical Rust implementation, and to extend it with Antimirov's partial
+derivatives in order to address the redundancy and state-space growth that
+plain Brzozowski derivatives are prone to, yielding an implementation whose
+efficiency can be measured and compared against existing regular expression
+engines. Second, to use the transparency of the derivative-based approach to
+turn the algorithm's own reasoning into a diagnostic tool, making
+derivative-based regular expression parsing not only efficient but also
+easier to understand.
+
+
+Building on this perspective, 
+this thesis investigates efficient regular expression matching based on 
+partial derivatives, with a particular focus on implementing 
+the POSIX matching algorithm in Rust. 
+The work explores how derivative-based techniques can be engineered 
+to satisfy the deterministic leftmost-longest semantics required by POSIX 
+while remaining efficient and amenable to practical use.
+
+
+
+This thesis builds directly on Martin Sulzmann and Kenny Zhuo Ming Lu's 
+derivative-based algorithm for POSIX-correct 
+regular expression parsing~\citep{sulzmannlu2014}. 
+The algorithm is accompanied by a Haskell reference implementation used in 
+the coursework on which this thesis is based, 
+and the accompanying material identifies an efficient Rust implementation 
+as a direction for future work alongside broader questions concerning disambiguation. 
+The primary objective of this thesis is therefore to 
+realise this algorithm as a practical Rust implementation. 
+Rust dispenses with a garbage collector in favour of a compile-time ownership model, 
+so that memory allocation, stack usage, 
+and execution time are direct consequences of the code that is written 
+rather than effects mediated by a runtime. 
+This makes the resource usage of a derivative-based parser directly
+measurable and amenable to empirical evaluation, 
+in a way that is harder to obtain from the lazily-evaluated, 
+garbage-collected reference implementation.
+
+Making the algorithm's derivative-by-derivative reasoning explicit in Rust 
+also creates an opportunity beyond what the reference implementation exposes 
+to a user. Rather than treating the sequence of derivatives solely as an 
+internal mechanism for computing a parse, this implementation exposes 
+that reasoning as a diagnostic tool. 
+Instead of returning only a successful match or failure, it can explain, 
+step by step, how successive derivatives transform the original expression 
+and ultimately justify the resulting parse or demonstrate why no valid parse exists. 
+In doing so, the implementation serves not only as an efficient parser 
+but also as a means of making derivative-based regular expression parsing 
+more transparent and easier to understand.
+
+
+\section{Contributions}
+\label{sec:contributions}
+
+This thesis makes the following contributions:
+
+\begin{itemize}
+  \item \textbf{A Rust translation of Sulzmann and Lu's derivative-based
+        POSIX parser}, implemented in two forms: a direct, two-pass
+        construction following the algorithm's original presentation
+        (Chapter~\ref{chap:algorithm}, Figure 3), and a bit-coded,
+        single-pass optimization that avoids allocating an explicit parse
+        tree until the very end (Figure 5).
+  \item \textbf{A stack-safe iterative variant} alongside the natural
+        recursive one, motivated by the concrete observation that the
+        recursive construction overflows the stack on inputs an order of
+        magnitude smaller than the iterative construction does, for
+        otherwise identical inputs.
+  \item \textbf{A derivative-based mismatch diagnostics system}, which
+        replays or records the same forward-derivative computation the
+        parser already performs and renders it at multiple levels of
+        detail -- from a single error caret to a full structural
+        derivation trace -- with no equivalent in any of the existing
+        engines surveyed in this thesis.
+  \item \textbf{An empirical evaluation} of correctness (agreement between
+        independently implemented matchers and parsers, and against the
+        paper's own worked examples) and performance (stack depth, heap
+        allocation, and running time) against RE2, TDFA, and Rust's
+        \texttt{regex} crate.
+\end{itemize}
+
+\section{Thesis Outline}
+\label{sec:thesis-outline}
+
+Chapter~\ref{chap:background} surveys the theoretical background: regular
+expressions and the three classical matching algorithms this thesis builds
+on, the disambiguation problem, and the existing POSIX engines this work is
+later compared against. Chapter~\ref{chap:algorithm} presents the algorithm
+adopted as this thesis's basis, Sulzmann and Lu's derivative-based POSIX
+parser, together with its correctness properties and its bit-coded
+optimization. Chapter~\ref{chap:haskell-reference} summarizes the Haskell
+reference this thesis translates from, isolating the language features that
+shape that translation so that Chapter~\ref{chap:implementation} does not
+need to re-derive them. Chapter~\ref{chap:implementation} is the core of
+this thesis's engineering contribution: the Rust design and implementation,
+organized to mirror the algorithm's own structure. Chapter~\ref{chap:diagnostics}
+presents the mismatch diagnostics system built on top of that implementation.
+Chapter~\ref{chap:evaluation} evaluates correctness and performance, and
+compares this work against existing engines. Chapter~\ref{chap:discussion}
+reflects on lessons learned translating the algorithm from Haskell to Rust,
+and Chapter~\ref{chap:conclusion} summarizes the contributions and discusses
+future work suggested by the original paper but not implemented here.

@@ -3,20 +3,17 @@
 //! Replay utilities for failure diagnostics.
 //!     Level 1 (error position only) 
 //!     Level 2/3 (partial tree).
-//!
-//! These functions replay the derivative forward pass independently of parsers, 
-//! so Level 1 works without needing the traced parser variants
 
 use crate::types::{Regex, ParseTree};
-use crate::regex::brzozowski::standard::deriv;
+use crate::regex::deriv::standard::deriv;
 use crate::regex::nullable::standard::nullable;
 use crate::posix::standard::mk_eps;
 use crate::posix::standard::inject;
 
 
-// ============================================================================
+// -------------------------------
 // Error position (used by Level 1 for both standard and bitcoded)
-// ============================================================================
+// -------------------------------
 
 /// Result of replaying the forward pass on a failing input
 #[derive(Debug, Clone)]
@@ -31,7 +28,7 @@ pub struct FailureInfo {
     pub matched_prefix_len: usize,
 }
 
-/// Replay the derivative forward pass and locate the first failure position
+/// Replay derivative forward pass and locate the first failure position
 /// Called for both standard and bitcoded paths at Level 1 (caret error)
 pub fn find_failure(input: &str, r: &Regex) -> FailureInfo {
     let chars: Vec<char> = input.chars().collect();
@@ -125,11 +122,11 @@ fn collect_expected_chars(r: &Regex) -> Vec<char> {
 }
 
 
-// ============================================================================
+// -------------------------------
 // Partial tree recovery (used by Level 2 and Level 3 on failure)
-// ============================================================================
+// -------------------------------
 
-/// Recover a partial parse tree from the last nullable derivative expression
+/// Recover partial parse tree from the last nullable derivative expression
 /// in the forward pass. Returns None if no prefix matched at all.
 ///
 /// Takes stored expression sequence from ParseTrace so there is no need rerun forward pass
@@ -156,9 +153,9 @@ pub fn partial_tree_standard(
 }
 
 
-// ============================================================================
+// -------------------------------
 // Caret line builder (shared across all levels)
-// ============================================================================
+// -------------------------------
 
 /// Build the two-line caret display:
 ///   "  aab"
@@ -173,9 +170,9 @@ pub fn caret_lines(input: &str, position: usize) -> String {
 }
 
 
-// ============================================================================
+
 // Unit tests
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

@@ -1,0 +1,90 @@
+\chapter{Evaluation}
+\label{sec:evaluation}
+
+
+
+\section{Compared Engines}
+\label{sec:compared-engines}
+% TODO: brief introduction of each engine used below 
+% matching algorithm and semantics (only enough to interpret results)
+% Deeper discussion/positioning in section~\ref{sec:related-work}.
+
+\subsection{Rust's \texttt{regex} Crate}
+\label{sec:rust-regex-crate-eval}
+% TODO: Thompson NFA based, leftmost-first only, no POSIX mode
+
+\subsection{RE2}
+\label{sec:re2-eval}
+% TODO: Thompson NFA/DFA based, Perl-mode by default
+% POSIX leftmost-longest available as an explicit option state which mode is used below
+
+
+
+\section{Testing Strategy}
+\label{sec:testing-strategy}
+% TODO: unit vs. integration split; how agreement/equivalence is
+% checked automatically (test harness overview only & results below)
+
+
+
+\section{Correctness Verification}
+\label{sec:correctness-verification}
+
+\subsection{Paper Examples Reproduced}
+\label{sec:paper-examples-reproduced}
+% TODO: worked examples from \citep{sulzmannlu2014} reproduced
+
+\subsection{Cross-Implementation Equivalence}
+\label{sec:cross-implementation-equivalence}
+% TODO: all four parser combinations must agree on every test case: 
+% - (derivative, standard), 
+% - (derivative, bit-coded),
+% - (partial-derivative, standard), 
+% - (partial-derivative, bit-coded) 
+% plus matcher-level agreement (match_naive = match_deriv = match_pderiv)
+% and recursive vs. loop output equivalence within the standard derivative parser
+
+
+
+\section{Performance Analysis}
+\label{sec:performance-analysis}
+
+\subsection{Stack Depth: Recursive vs. Iterative Construction}
+\label{sec:stack-depth}
+% TODO: crash-demo results with  overflow limits, debug vs.release 
+% brief framing on what Rust's compiler does/doesn't (explanation difference symbols,etc.)
+% Guarantee? (no guaranteed TCO, stack canaries, overflow checks)
+
+\subsection{Heap Allocation: Standard vs. Bit-Coded}
+\label{sec:heap-allocation}
+% TODO: boxed ParseTree construction vs. bit-coded's deferred decode 
+% what "no Vec<Regex> of intermediates" buys 
+
+\subsection{Derivative-Based vs. Partial-Derivative-Based}
+\label{sec:deriv-vs-pderiv-performance}
+% TODO: the four-way comparison's other axis 
+% cost of maintaining a set of residuals (Antimirov) vs. a single residual (Brzozowski) with and without bit-coding
+
+\subsection{Pathological Inputs}
+\label{sec:pathological-inputs}
+% TODO: adversarial/problematic inputs for each engine (ReDoS-style) and how each engine handles them
+% does derivative-based POSIX parsing avoid backtracking blowup class (ReDoS-style inputs)
+% does unsimplified derivative growth show up as a distinct failure mode
+
+\subsection{Benchmark Results}
+\label{sec:benchmark-results}
+% TODO: bench_match / bench_posix (Criterion) results across all four combinations on the pathological and benign inputs above
+
+
+
+\section{Comparison with Existing Engines}
+\label{sec:comparison-existing-engines}
+
+\subsection{Performance}
+\label{sec:performance-comparison}
+% TODO: this implementation vs. rust-regex and RE2 on the same
+% workloads used in Section~\ref{sec:benchmark-results}
+
+\subsection{Standardized Benchmarking via rebar}
+\label{sec:rebar-comparison}
+% TODO: 

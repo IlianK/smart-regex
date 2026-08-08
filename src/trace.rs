@@ -10,9 +10,9 @@
 use crate::types::{Regex, ARegex, ParseTree};
 
 
-// ============================================================================
+// -------------------------------
 // Standard parser trace  (populated by parse_loop_traced and parse_recursive_traced)
-// ============================================================================
+// -------------------------------
 
 // One step in the forward derivative pass
 #[derive(Debug, Clone)]
@@ -80,9 +80,9 @@ impl ParseTrace {
 }
 
 
-// ============================================================================
+// -------------------------------
 // Bitcoded parser trace  (populated by parse_bitcoded_traced)
-// ============================================================================
+// -------------------------------
 
 // One step in the bitcoded forward pass
 #[derive(Debug, Clone)]

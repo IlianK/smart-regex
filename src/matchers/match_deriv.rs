@@ -3,7 +3,7 @@
 //! Brzozowski derivative matcher (boolean)
 
 use crate::types::Regex;
-use crate::regex::brzozowski::standard::deriv;
+use crate::regex::deriv::standard::deriv;
 use crate::regex::simplify::standard::simplify;
 use crate::regex::nullable::standard::nullable;
 
@@ -15,9 +15,9 @@ pub fn match_deriv(input: &str, r: &Regex) -> bool {
     nullable(&current)
 }
 
-// ============================================================================
+// -------------------------------
 // Tests for match_deriv
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

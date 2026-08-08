@@ -3,6 +3,7 @@
 //! Decoder: bit-code -> ParseTree
 //!
 //! Based on Figure 4 of the paper
+//! Turns bit sequence back into parse tree, given the original Regex
 
 use crate::types::{Regex, ParseTree};
 
@@ -37,6 +38,8 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
             let (v2, after_r2) = decode_inner(r2, after_r1);
             (ParseTree::Pair(Box::new(v1), Box::new(v2)), after_r2)
         }
+
+        // decode(Star(Lit('a')), [false, false, false, true])
         Regex::Star(r1) => {
             let mut iterations = Vec::new();
             let mut remaining = bs;
@@ -46,6 +49,8 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
                         remaining = rest;
                         break;
                     }
+
+                    // false -> one iteration, decode Lit('a') -> Char('a')
                     [false, rest @ ..] => {
                         let (v, after) = decode_inner(r1, rest);
                         iterations.push(v);
@@ -60,9 +65,9 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
     }
 }
 
-// ============================================================================
+// -------------------------------
 // Tests for decode
-// ============================================================================
+// -------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -26,30 +26,34 @@ use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{find_failure, caret_lines, partial_tree_standard};
 
 
-// ============================================================================
+// -------------------------------
 // Entry point
-// ============================================================================
+// -------------------------------
 
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
-    if config.is_bitcoded() {
-        run_parser_bitcoded(regex_str, r, input);
-    } else {
-        run_parser_standard(regex_str, r, input, config);
+    match config.parser_type {
+        ParserType::DerivBC => run_parser_bitcoded(regex_str, r, input),
+        ParserType::DerivRec | ParserType::DerivLoop => run_parser_standard(regex_str, r, input, config),
+        ParserType::PDeriv | ParserType::PDerivBC => {
+            unimplemented!("Level 2 diagnostics for pderiv-based parsing - not yet implemented")
+        }
     }
 }
 
 
-// ============================================================================
+// -------------------------------
 // Standard Path
-// ============================================================================
+// -------------------------------
 
 fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     let start = Instant::now();
 
     // Respect REGEX_PARSER - use the traced variant matching the selected parser
+    // (only DerivRec/DerivLoop reach here - caller in run_parser() already routed
+    // DerivBC/PDeriv/PDerivBC elsewhere)
     let (result, trace) = match config.parser_type {
-        ParserType::Recursive => parse_recursive_traced(input, r),
-        _                     => parse_loop_traced(input, r),
+        ParserType::DerivRec => parse_recursive_traced(input, r),
+        _                    => parse_loop_traced(input, r),
     };
 
     let elapsed = start.elapsed();
@@ -128,9 +132,9 @@ fn run_parser_standard(regex_str: &str, r: &Regex, input: &str, config: &DiagCon
 }
 
 
-// ============================================================================
+// -------------------------------
 // Bitcoded Path
-// ============================================================================
+// -------------------------------
 
 fn run_parser_bitcoded(regex_str: &str, r: &Regex, input: &str) {
     let start = Instant::now();

@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 use crate::types::Regex;
-use crate::regex::antimirov::standard::pderiv;
+use crate::regex::pderiv::standard::pderiv;
 use crate::regex::nullable::standard::nullable;
 
 pub fn match_pderiv(input: &str, r: &Regex) -> bool {
@@ -25,9 +25,9 @@ pub fn match_pderiv(input: &str, r: &Regex) -> bool {
     states.iter().any(|r| nullable(r))
 }
 
-// ============================================================================
+// -------------------------------
 // Tests for match_pderiv
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

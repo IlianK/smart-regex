@@ -26,9 +26,9 @@ use regex_engine::matchers::MatcherType;
 use matcher::{run_match_single, run_match_all};
 use parser::{run_parse_single, run_parse_all};
 
-// ============================================================================
+// -------------------------------
 // CLI Parser
-// ============================================================================
+// -------------------------------
 
 #[derive(Parser)]
 #[command(name = "regex-engine")]
@@ -60,14 +60,14 @@ enum Commands {
     },
 }
 
-// ============================================================================
+// -------------------------------
 // Main
-// ============================================================================
+// -------------------------------
 
 pub fn run() {
     let cli = Cli::parse();
     
-    // Set environment for diagnostics (parse_posix reads this)
+    // Set environment for diagnostics (parse_posix)
     let diag = std::env::var("REGEX_DIAG").unwrap_or_default();
     std::env::set_var("REGEX_DIAG", &diag);
     

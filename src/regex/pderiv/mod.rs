@@ -1,4 +1,4 @@
-//! regex-engine/src/regex/antimirov/mod.rs
+//! regex-engine/src/regex/pderiv/mod.rs
 //! 
 //! Antimirov partial derivatives (non-deterministic, set-based)
 

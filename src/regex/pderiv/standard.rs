@@ -1,4 +1,4 @@
-//! regex-engine/src/regex/antimirov/standard.rs
+//! regex-engine/src/regex/pderiv/standard.rs
 //! 
 //! Antimirov partial derivatives for standard Regex
 
@@ -42,9 +42,9 @@ pub fn pderiv(r: &Regex, x: char) -> HashSet<Regex> {
 }
 
 
-// ============================================================================
+// -------------------------------
 // Tests for pderiv
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

@@ -1,0 +1,119 @@
+\chapter{Regular Expressions}
+\label{sec:regular-expressions}
+
+
+
+\section{Syntax}
+\label{sec:regex-syntax}
+
+A regular expression is built from a small set of primitive constructs,
+combined by three operators. Over an alphabet $\Sigma$ of symbols, the
+syntax is given by the following grammar:
+
+\[
+r, s \;::=\; x \mid \varepsilon \mid \emptyset \mid r + s \mid r \cdot s \mid r^{*}
+\qquad (x \in \Sigma)
+\]
+
+Here $x$ denotes a literal symbol, $\varepsilon$ the expression matching
+only the empty word, and $\emptyset$ the expression matching no word at
+all. The operators $+$, $\cdot$, and $^{*}$ denote alternation,
+concatenation, and repetition (Kleene star) respectively; concatenation is
+frequently left implicit, writing $rs$ for $r \cdot s$.
+
+As a running example, consider the problem of recognizing binary strings
+that end in \texttt{"01"} -- a small but non-trivial pattern that touches
+every construct in the grammar above. Over $\Sigma = \{0, 1\}$, this
+pattern is expressed as
+\[
+r_{01} \;=\; (0 + 1)^{*} \cdot 0 \cdot 1.
+\]
+Reading this expression against the grammar: $(0+1)$ is an alternation of
+two literals, $(0+1)^{*}$ applies Kleene star to that alternation, and the
+result is concatenated with the literals $0$ and $1$ in sequence. This
+example is used throughout the remainder of this section.
+
+
+
+\section{Semantics}
+\label{sec:regex-semantics}
+
+The syntax above describes the \emph{shape} of an expression; the
+semantics assigns each expression the \emph{language} it denotes. For a
+regular expression $r$, write $L(r)$ for the set of words it matches. The
+semantics is defined by structural recursion on $r$:
+
+\begin{align*}
+L(x) &= \{x\} \\
+L(\varepsilon) &= \{\varepsilon\} \\
+L(\emptyset) &= \{\} \\
+L(r + s) &= L(r) \cup L(s) \\
+L(r \cdot s) &= \{v w \mid v \in L(r),\ w \in L(s)\} \\
+L(r^{*}) &= \{\varepsilon\} \cup \{w_1 \cdots w_n \mid w_1, \ldots, w_n \in L(r),\ n \geq 1\}
+\end{align*}
+
+A word $w$ \emph{matches} $r$ exactly when $w \in L(r)$ -- this is the
+membership problem introduced in Section~\ref{sec:motivation}, now stated
+precisely.
+
+Unwinding the semantics for the running example, $L(0+1) = \{0, 1\}$, so
+$L((0+1)^{*})$ is the set of all finite binary strings, including the
+empty string. Concatenating with $L(0) = \{0\}$ and then $L(1) = \{1\}$
+restricts this to
+\[
+L(r_{01}) = \{\, w \cdot 0 \cdot 1 \mid w \in \{0,1\}^{*} \,\},
+\]
+i.e.\ exactly the binary strings ending in \texttt{"01"} -- \texttt{"01"},
+\texttt{"001"}, \texttt{"1101"}, and so on, but not \texttt{"010"} or the
+empty string. This last point is worth making explicit: $r_{01}$ is
+\emph{not} nullable -- $\varepsilon \notin L(r_{01})$, since every word in
+$L(r_{01})$ must end in the literal $1$. Nullability, i.e.\ whether
+$\varepsilon \in L(r)$, is a property later chapters compute directly on
+the syntax of $r$ rather than by reasoning about $L(r)$; the two are
+guaranteed to agree by the semantics defined here.
+
+
+
+\section{Rust Implementation}
+\label{sec:regex-rust-implementation}
+
+The grammar above is represented directly as a Rust enum, mirroring each
+syntactic construct one to one:
+
+\begin{verbatim}
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Regex {
+    Phi,
+    Eps,
+    Lit(char),
+    Seq(Box<Regex>, Box<Regex>),
+    Alt(Box<Regex>, Box<Regex>),
+    Star(Box<Regex>),
+}
+\end{verbatim}
+
+This one-to-one correspondence is not incidental. Rust's enums are
+algebraic data types: each variant corresponds to exactly one production
+of the grammar, and Rust's \texttt{match} requires every variant to be
+handled, rejecting the program at compile time otherwise. This gives the
+same guarantee an inductive definition of $r$ in
+Section~\ref{sec:regex-syntax} carries on paper -- that a function defined
+by cases on $r$ is defined for every possible $r$ -- as a property the
+compiler checks, rather than one that must be checked by inspection. This
+is a structural fit shared with other languages that support algebraic
+data types, including Haskell itself; Rust's specific contribution is not
+this correspondence but what it costs to maintain, which is not always
+nothing. \texttt{Phi} and \texttt{Eps} carry no data, matching
+$L(\emptyset) = \{\}$ and $L(\varepsilon) = \{\varepsilon\}$ directly, and
+\texttt{Lit} carries the literal symbol $x$ -- these three variants
+transcribe directly with no adjustment. The recursive constructs --
+\texttt{Seq}, \texttt{Alt}, \texttt{Star} -- do not: unlike Haskell's
+\texttt{data R = ... | Seq R R | ...}, whose recursive constructors are
+represented indirectly by the runtime with no annotation required, Rust
+must know the exact size of a type at compile time, and a \texttt{Regex}
+containing a \texttt{Regex} directly would have unbounded size.
+\texttt{Box<Regex>} breaks the recursion by storing the subexpression on
+the heap and holding only a pointer inline -- the first of several places
+in this thesis where a construct free in the Haskell reference requires an
+explicit, visible workaround in Rust, revisited more generally in
+Section~\ref{sec:rust-vs-haskell}.

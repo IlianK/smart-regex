@@ -8,7 +8,7 @@ pub mod parser;
 pub mod selection;
 
 // Re-export parsers
-pub use parser::{parse_posix, match_posix};
+pub use parser::{parse_posix};
 pub use standard::{mk_eps, inject, parse_recursive, parse_loop, parse_loop_traced, parse_recursive_traced};
 pub use bitcoded::{parse_bitcoded, parse_bitcoded_traced};
 

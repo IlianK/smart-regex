@@ -1,15 +1,12 @@
-/*
-Benchmarks for POSIX parsers: Recursive vs Loop
-*/
+//! regex-engine/benches/bench_posix.rs
+//! 
+//! Benchmarks for POSIX parsers: Recursive vs Loop
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex_engine::types::Regex;
 use regex_engine::posix::{parse_recursive, parse_loop};
 
-// ============================================================================
 // Helpers
-// ============================================================================
-
 fn star_a() -> Regex {
     Regex::star(Regex::lit('a'))
 }
@@ -27,10 +24,7 @@ fn repeat_char(c: char, n: usize) -> String {
 }
 
 
-// ============================================================================
 // 1. Small patterns
-// ============================================================================
-
 fn bench_small_patterns(c: &mut Criterion) {
     let mut group = c.benchmark_group("small_patterns");
     group.sample_size(100);
@@ -60,10 +54,7 @@ fn bench_small_patterns(c: &mut Criterion) {
 }
 
 
-// ============================================================================
 // 2. Scaling: a* on "aaa...a" (shallow expression)
-// ============================================================================
-
 fn bench_scaling_a_star(c: &mut Criterion) {
     let mut group = c.benchmark_group("scaling_a_star");
     let r = star_a();
@@ -88,10 +79,7 @@ fn bench_scaling_a_star(c: &mut Criterion) {
 }
 
 
-// ============================================================================
 // 3. Scaling: deep expression (a·a·a...·a)
-// ============================================================================
-
 fn bench_deep_expression(c: &mut Criterion) {
     let mut group = c.benchmark_group("deep_expression");
     
@@ -116,10 +104,7 @@ fn bench_deep_expression(c: &mut Criterion) {
 }
 
 
-// ============================================================================
 // Register all benchmark groups
-// ============================================================================
-
 criterion_group!(
     benches,
     bench_small_patterns,

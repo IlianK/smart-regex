@@ -1,0 +1,87 @@
+
+% ----------------------------------------------------------------------
+% chapters/05_derivative_parser.tex
+% ----------------------------------------------------------------------
+\chapter{Derivative-Based Parser}
+\label{sec:derivative-parser}
+% Sulzmann and Lu's construction \citep{sulzmannlu2014} 
+% theory then both Rust realizations.
+
+
+
+\section{Core Algorithm}
+\label{sec:core-algorithm}
+% TODO: mkEps, inject, parse (paper Fig. 3)
+
+
+
+\section{Correctness Properties}
+\label{sec:correctness-properties}
+% OPTIONAL: Lemma 1, Lemma 2, Theorem 1 (stated, not re-proved)
+
+
+
+\section{Bit-Coded Optimization (Theory)}
+\label{sec:bitcoded-optimization-theory}
+% TODO: annotated regex type, internalize/fuse, incremental forward
+% construction (paper Fig. 5)
+
+
+
+\section{Simplification Rules}
+\label{sec:simplification-rules-theory}
+% TODO: keeping derivatives finite (paper Fig. 6)
+
+
+
+\section{Rust Implementation: The \texttt{inj} Version}
+\label{sec:derivative-parser-inj-rust}
+% src/posix/standard/, src/types/parse_tree.rs
+
+\subsection{\texttt{ParseTree} and \texttt{flatten}}
+\label{sec:parsetree-and-flatten}
+% TODO
+
+\subsection{\texttt{mk\_eps}}
+\label{sec:mk-eps-impl}
+% TODO
+
+\subsection{\texttt{inject}}
+\label{sec:inject-impl}
+% TODO
+
+\subsection{\texttt{parse\_recursive} vs. \texttt{parse\_loop}}
+\label{sec:recursive-vs-loop}
+% OPTIONAL: the stack-safety motivation, made concrete (results deferred
+% to Chapter~\ref{sec:evaluation})
+
+
+
+\section{Rust Implementation: The Bit-Coded Version}
+\label{sec:derivative-parser-bitcoded-rust}
+% src/posix/bitcoded/, src/types/aregex.rs
+
+\subsection{\texttt{ARegex} - Bit-Annotated Regex}
+\label{sec:aregex-type}
+% TODO
+
+\subsection{\texttt{internalize}/\texttt{fuse}}
+\label{sec:internalize-fuse}
+% TODO
+
+\subsection{\texttt{deriv\_bc}}
+\label{sec:deriv-bc}
+% TODO
+
+\subsection{\texttt{mk\_eps\_bc}}
+\label{sec:mk-eps-bc}
+% TODO
+
+\subsection{\texttt{decode}}
+\label{sec:decode}
+% TODO
+
+\subsection{Heap-Free Parsing}
+\label{sec:heap-free-parsing}
+% OPTIONAL
+

@@ -26,9 +26,9 @@ use crate::types::Regex;
 use crate::posix::selection::ParserType;
 
 
-// ============================================================================
+// -------------------------------
 // DiagLevel
-// ============================================================================
+// -------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DiagLevel {
@@ -54,9 +54,9 @@ impl DiagLevel {
 }
 
 
-// ============================================================================
+// -------------------------------
 // DiagConfig
-// ============================================================================
+// -------------------------------
 
 /// Holds  diagnostics configfor a single parse/match call
 #[derive(Debug, Clone)]
@@ -87,19 +87,15 @@ impl DiagConfig {
         Self { level, parser_type, report_path }
     }
 
-    pub fn is_bitcoded(&self) -> bool {
-        self.parser_type == ParserType::Bitcoded
-    }
-
     pub fn is_off(&self) -> bool {
         self.level == DiagLevel::Off
     }
 }
 
 
-// ============================================================================
+// -------------------------------
 // Entry points
-// ============================================================================
+// -------------------------------
 
 /// Run a parser and show diagnostics output at configured level (by CLI and demo)
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
@@ -121,19 +117,12 @@ pub fn run_matcher(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig)
 }
 
 
-// ============================================================================
+// -------------------------------
 // Level 0 helpers
-// ============================================================================
+// -------------------------------
 
 fn level0_parser(r: &Regex, input: &str, config: &DiagConfig) {
-    use crate::posix::standard::{parse_recursive, parse_loop};
-    use crate::posix::bitcoded::parse_bitcoded;
-
-    let matched = match config.parser_type {
-        ParserType::Recursive => parse_recursive(input, r).is_some(),
-        ParserType::Loop      => parse_loop(input, r).is_some(),
-        ParserType::Bitcoded  => parse_bitcoded(input, r).is_some(),
-    };
+    let matched = config.parser_type.parser()(input, r).is_some();
     println!("{}", matched);
 }
 

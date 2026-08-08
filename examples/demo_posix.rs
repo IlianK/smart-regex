@@ -1,6 +1,8 @@
+//! regex-engine/examples/demo_posix.rs
+//! 
 //! Demo: POSIX parsing with all three parsers
 //!
-//! Environment Variables:
+//! ENVs:
 //!   REGEX_PARSER       recursive (default), loop, bitcoded, all
 //!   REGEX_DIAG         0=off (default), 1=basic, 2=verbose, 3=debug
 //!   REGEX_DIAG_REPORT  (optional) override output file for Level 3
@@ -8,21 +10,20 @@
 //!
 //! Examples:
 //!   cargo run --example demo_posix
-//!   REGEX_PARSER=loop                     cargo run --example demo_posix
-//!   REGEX_PARSER=all                      cargo run --example demo_posix
-//!   REGEX_DIAG=1                          cargo run --example demo_posix
-//!   REGEX_DIAG=2 REGEX_PARSER=bitcoded    cargo run --example demo_posix
-//!   REGEX_DIAG=3                          cargo run --example demo_posix
+//!   REGEX_PARSER=loop                    
+//!   REGEX_PARSER=all                      
+//!   REGEX_DIAG=1                          
+//!   REGEX_DIAG=2 REGEX_PARSER=bitcoded    
+//!   REGEX_DIAG=3                         
 
 use regex_engine::types::Regex;
 use regex_engine::posix::{flatten, ParseTree};
 use regex_engine::posix::{parse_recursive, parse_loop, parse_bitcoded};
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 
-
-// ============================================================================
+// -------------------------------
 // Test Case Structure
-// ============================================================================
+// -------------------------------
 
 struct TestCase {
     name:     &'static str,
@@ -126,9 +127,9 @@ impl TestCase {
 }
 
 
-// ============================================================================
+// ---------------------------
 // Paper Examples (Matching)
-// ============================================================================
+// ---------------------------
 
 /// flops14 p.9-10: (a+ab)(b+ε) on "ab"
 /// POSIX result: (Right (a, b), Right ())
@@ -179,9 +180,9 @@ fn test_paper_page_3_4() -> TestCase {
     )
 }
 
-// ============================================================================
+// -------------------------------
 // Ordering Rules: A1, A2, K1, K2
-// ============================================================================
+// -------------------------------
 
 /// A1: when right alternative matches a strictly
 /// longer string than the left, right is preferred over left
@@ -267,9 +268,9 @@ fn test_ordering_k2_nonempty_preferred() -> TestCase {
     )
 }
 
-// ============================================================================
+// -------------------------------
 // Injection preservation: verify inject correctly rebuilds a* -> [a, a, a]
-// ============================================================================
+// -------------------------------
 
 fn test_injection_preservation() -> TestCase {
     TestCase::new_match(
@@ -285,9 +286,9 @@ fn test_injection_preservation() -> TestCase {
     )
 }
 
-// ============================================================================
+// -------------------------------
 // No Match Examples
-// ============================================================================
+// -------------------------------
 
 fn test_no_match_literal() -> TestCase {
     TestCase::new_no_match(
@@ -361,15 +362,15 @@ fn test_no_match_deep_sequence() -> TestCase {
     )
 }
 
-// ============================================================================
+// -------------------------------
 // Main
-// ============================================================================
+// -------------------------------
 
 fn main() {
     let config     = DiagConfig::read_from_env();
     let parser_env = std::env::var("REGEX_PARSER").unwrap_or_default();
 
-    println!("=========================================");
+    println!("---------------------------------------------------");
     println!("POSIX Parsing Demo");
     match parser_env.as_str() {
         "all"      => println!("Mode:        All Parsers (Comparison)"),
@@ -386,7 +387,7 @@ fn main() {
             .unwrap_or_else(|_| "reports/demo_NN.txt (per test case)".into());
         println!("Report:      {}", dest);
     }
-    println!("=========================================");
+    println!("---------------------------------------------------");
 
     let tests: Vec<TestCase> = vec![
         // Paper examples (matching)

@@ -1,3 +1,5 @@
+//! regex-engine/examples/demo_match.rs
+//! 
 //! Demo: Basic matching with all three matchers (naive, deriv, pderiv)
 //!
 //! Run: cargo run --example demo_match
@@ -5,9 +7,9 @@
 use regex_engine::types::Regex;
 use regex_engine::matchers::{match_naive, match_deriv, match_pderiv};
 
-// ============================================================================
+// -------------------------------
 // Test Case Structure
-// ============================================================================
+// -------------------------------
 
 struct TestCase {
     pattern: &'static str,
@@ -35,9 +37,9 @@ impl TestCase {
     }
 }
 
-// ============================================================================
+// -------------------------------
 // Test Case Definitions
-// ============================================================================
+// -------------------------------
 
 // Literal: a
 fn test_case_literal() -> TestCase {
@@ -74,18 +76,17 @@ fn test_case_alt_star() -> TestCase {
     TestCase::new("(a|b)*", r, inputs)
 }
 
-
-// ============================================================================
+// -------------------------------
 // Main
-// ============================================================================
+// -------------------------------
 
 fn main() {
-    println!("=========================================");
+    println!("---------------------------------------------------");
     println!("Basic Matching Demo");
     println!("  n = naive (exponential)");
     println!("  d = Brzozowski derivatives (DFA)");
     println!("  p = Antimirov partial (NFA)");
-    println!("=========================================");
+    println!("---------------------------------------------------");
     
     test_case_literal().run();
     test_case_sequence().run();

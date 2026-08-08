@@ -4,5 +4,5 @@
 
 pub mod nullable;
 pub mod simplify;
-pub mod brzozowski;
-pub mod antimirov;
+pub mod deriv;
+pub mod pderiv;

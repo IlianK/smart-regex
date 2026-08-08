@@ -1,4 +1,4 @@
-//! regex-engine/src/regex/brzozowski/mod.rs
+//! regex-engine/src/regex/deriv/mod.rs
 //! 
 //! Brzozowski derivatives (deterministic)
 

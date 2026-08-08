@@ -1,8 +1,8 @@
+//! regex-engine/examples/demo_crash_worker.rs
+//! 
 //! Worker for isolated test execution
 //!
-//! Build with:
-//!   cargo build --example demo_crash_worker
-//!   cargo build --example demo_crash_worker --release
+//! cargo build --example demo_crash_worker
 
 use regex_engine::types::Regex;
 use regex_engine::posix::{parse_recursive, parse_loop};

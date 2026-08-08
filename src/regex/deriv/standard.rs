@@ -1,4 +1,4 @@
-//! regex-engine/src/regex/brzozowski/standard.rs
+//! regex-engine/src/regex/deriv/standard.rs
 //! 
 //! Brzozowski derivative for standard Regex
 
@@ -31,9 +31,9 @@ pub fn deriv(r: &Regex, x: char) -> Regex {
 }
 
 
-// ============================================================================
+// -------------------------------
 // Tests for deriv
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

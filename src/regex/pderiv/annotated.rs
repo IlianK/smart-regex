@@ -1,4 +1,4 @@
-//! regex-engine/src/regex/antimirov/annotated.rs
+//! regex-engine/src/regex/pderiv/annotated.rs
 //!
 //! Bit-coded Antimirov partial derivatives 
 
@@ -10,6 +10,6 @@ pub fn pderiv_bc(_ri: ARegex, _l: char) -> HashSet<ARegex> {
     unimplemented!("Bit-coded partial derivatives - future work")
 }
 
-// ============================================================================
+// -------------------------------
 // Tests for pderiv_bc
-// ============================================================================
+// -------------------------------

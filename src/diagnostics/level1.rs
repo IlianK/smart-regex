@@ -17,23 +17,16 @@
 //!       ^
 
 use crate::types::Regex;
-use crate::posix::selection::ParserType;
-use crate::posix::standard::{parse_recursive, parse_loop};
-use crate::posix::bitcoded::parse_bitcoded;
 use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{find_failure, caret_lines};
 
 
-// ============================================================================
+// -------------------------------
 // Parser - Level 1
-// ============================================================================
+// -------------------------------
 
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
-    let result = match config.parser_type {
-        ParserType::Recursive => parse_recursive(input, r),
-        ParserType::Loop      => parse_loop(input, r),
-        ParserType::Bitcoded  => parse_bitcoded(input, r),
-    };
+    let result = config.parser_type.parser()(input, r);
 
     println!("Regex:  {}", regex_str);
     println!("Input:  {:?}", input);
@@ -63,9 +56,9 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
 }
 
 
-// ============================================================================
+// -------------------------------
 // Matcher - Level 1
-// ============================================================================
+// -------------------------------
 
 pub fn run_matcher(regex_str: &str, r: &Regex, input: &str) {
     use crate::matchers::MatcherType;

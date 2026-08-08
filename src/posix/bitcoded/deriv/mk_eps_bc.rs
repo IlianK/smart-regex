@@ -1,6 +1,7 @@
 //! regex-engine/src/posix/bitcoded/mk_eps_bc.rs
 //! 
 //! Bit-coded mkEps (ARegex -> bits)
+//! Extracts bit sequence from nullable ARegex
 
 use crate::types::ARegex;
 use crate::regex::nullable::annotated::nullable_bc;
@@ -26,17 +27,17 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
             result
         }
         ARegex::Star(bs, _) => {
-            let mut result = bs.clone();
-            result.push(true);
-            result
+            let mut result = bs.clone(); // [false, false, false]
+            result.push(true);                      // [true] = end of star iterations
+            result                                  // [false, false, false, true] 
         }
     }
 }
 
 
-// ============================================================================
+// -------------------------------
 // Tests for mk_eps_bc
-// ============================================================================
+// -------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -9,6 +9,7 @@ use regex_engine::matchers::MatcherType;
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_matcher};
 use super::input::parse_regex_string;
 
+// Runs with chosen matcher
 pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType) {
     let r = match parse_regex_string(regex_str) {
         Ok(r)  => r,
@@ -30,6 +31,7 @@ pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType) {
     }
 }
 
+// Runs with all matchers
 pub fn run_match_all(regex_str: &str, input: &str) {
     let r = match parse_regex_string(regex_str) {
         Ok(r)  => r,

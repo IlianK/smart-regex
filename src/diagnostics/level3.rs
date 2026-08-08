@@ -17,26 +17,28 @@ use crate::diagnostics::replay::{find_failure, caret_lines, partial_tree_standar
 use crate::diagnostics::report::ReportWriter;
 
 
-// ============================================================================
+// -------------------------------
 // Entry point
-// ============================================================================
+// -------------------------------
 
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     let mut w = ReportWriter::new(config.report_path.as_deref());
 
-    if config.is_bitcoded() {
-        render_bitcoded(regex_str, r, input, &mut w);
-    } else {
-        render_standard(regex_str, r, input, config, &mut w);
+    match config.parser_type {
+        ParserType::DerivBC => render_bitcoded(regex_str, r, input, &mut w),
+        ParserType::DerivRec | ParserType::DerivLoop => render_standard(regex_str, r, input, config, &mut w),
+        ParserType::PDeriv | ParserType::PDerivBC => {
+            unimplemented!("Level 3 diagnostics for pderiv-based parsing - not yet implemented")
+        }
     }
 
     w.flush();
 }
 
 
-// ============================================================================
+// -------------------------------
 // Standard trace render
-// ============================================================================
+// -------------------------------
 
 fn render_standard(
     regex_str: &str,
@@ -48,18 +50,17 @@ fn render_standard(
     let chars: Vec<char> = input.chars().collect();
     let start = Instant::now();
 
-    // REGEX_PARSER - use the traced variant matching the selected parser
     let (result, trace) = match config.parser_type {
-        ParserType::Recursive => parse_recursive_traced(input, r),
-        _                     => parse_loop_traced(input, r),
+        ParserType::DerivRec => parse_recursive_traced(input, r),
+        _                    => parse_loop_traced(input, r),
     };
 
     let elapsed = start.elapsed();
 
     let parser_label = match config.parser_type {
-        ParserType::Recursive => "POSIX Standard (recursive parser)",
-        ParserType::Loop      => "POSIX Standard (loop parser)",
-        ParserType::Bitcoded  => unreachable!(),
+        ParserType::DerivRec  => "POSIX Standard (recursive parser)",
+        ParserType::DerivLoop => "POSIX Standard (loop parser)",
+        _                     => unreachable!(),
     };
 
     let result_label = if result.is_some() { "MATCH" } else { "NO MATCH" };
@@ -222,9 +223,9 @@ fn render_standard(
 }
 
 
-// ============================================================================
+// -------------------------------
 // Bitcoded trace render
-// ============================================================================
+// -------------------------------
 
 fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter) {
     let start = Instant::now();
@@ -377,9 +378,9 @@ fn render_bitcoded(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter
 }
 
 
-// ============================================================================
+// -------------------------------
 // Structural helpers
-// ============================================================================
+// -------------------------------
 
 fn render_deriv_expansion(r: &Regex, c: char, w: &mut ReportWriter) {
     use Regex::*;
@@ -402,16 +403,25 @@ fn render_deriv_expansion(r: &Regex, c: char, w: &mut ReportWriter) {
         }
         Seq(r1, _r2) => {
             if nullable(r1) {
-                w.line(&format!("  rule: ∂(r1·r2, '{}')  [nullable(r1)=true]", c));
-                w.line("       = ∂(r1, c)·r2  +  ∂(r2, c)");
+                w.line(&format!(
+                    "  rule: ∂(r1·r2, '{}')  [nullable(r1)=true]", c
+                ));
+                w.line(&format!(
+                    "       = ∂(r1, '{}')·r2  +  ∂(r2, '{}')", c, c
+                ));
             } else {
-                w.line(&format!("  rule: ∂(r1·r2, '{}')  [nullable(r1)=false]", c));
-                w.line("       = ∂(r1, c)·r2");
+                w.line(&format!(
+                    "  rule: ∂(r1·r2, '{}')  [nullable(r1)=false]", c
+                ));
+                w.line(&format!(
+                    "       = ∂(r1, '{}')·r2", c
+                ));
             }
         }
         Star(r1) => {
-            w.line(&format!("  rule: ∂(r*, '{}') = ∂(r, '{}') · r*", c, c));
-            // Inline the inner derivative so the user can see what ∂(r, c) evaluates to
+            w.line(&format!(
+                "  rule: ∂(r*, '{}') = ∂(r, '{}') · r*", c, c
+            ));
             w.line(&format!("  ∂({:?}, '{}'):", r1, c));
             render_deriv_expansion(r1, c, w);
         }
@@ -461,12 +471,20 @@ fn render_deriv_bc_expansion(ri: &ARegex, c: char, w: &mut ReportWriter) {
         }
         Seq(_, r1, _r2) => {
             if nullable_bc(r1) {
-                w.line(&format!("    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=true]", c));
-                // fuse mkEpsBC(ri1) prepends the empty-parse bits of ri1 onto ri2\'c'
-                w.line("         = bs@((ri1\\'c'·ri2) ⊕ (fuse (mkEpsBC ri1) (ri2\\'c')))");
+                w.line(&format!(
+                    "    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=true]", c
+                ));
+                w.line(&format!(
+                    "         = bs@((ri1\\'{}'·ri2) ⊕ (fuse (mkEpsBC ri1) (ri2\\'{}')))",
+                    c, c
+                ));
             } else {
-                w.line(&format!("    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=false]", c));
-                w.line("         = bs@(ri1\\'c'·ri2)");
+                w.line(&format!(
+                    "    rule: (bs@ri1·ri2) \\ '{}'  [nullable_bc(ri1)=false]", c
+                ));
+                w.line(&format!(
+                    "         = bs@(ri1\\'{}'·ri2)", c
+                ));
             }
         }
         Star(_, _r1) => {
@@ -500,9 +518,9 @@ fn render_internalize_expansion(r: &Regex, w: &mut ReportWriter) {
 }
 
 
-// ============================================================================
+// -------------------------------
 // Utility
-// ============================================================================
+// -------------------------------
 
 fn timestamp() -> String {
     chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()

@@ -1,4 +1,6 @@
-//! Find stack overflow limits for recursive and loop parsers
+//! regex-engine/examples/demo_crash.rs
+//! 
+//! To find stack overflow limits for recursive and loop parsers
 //!
 //! Build and run:
 //!   cargo build --example demo_crash_worker
@@ -86,9 +88,9 @@ fn main() {
     let mode = if cfg!(debug_assertions) { "DEBUG" } else { "RELEASE" };
     
     println!("\n");
-    println!("================================================================================");
+    println!("-------------------------------====");
     println!("STACK OVERFLOW LIMITS: Recursive vs Loop Parser ({})", mode);
-    println!("================================================================================");
+    println!("-------------------------------====");
     println!();
     
     let (rec_limit, loop_limit);
@@ -104,9 +106,9 @@ fn main() {
     }
     
     println!();
-    println!("================================================================================");
+    println!("-------------------------------====");
     println!("SUMMARY - {} MODE", mode);
-    println!("================================================================================");
+    println!("-------------------------------====");
     println!();
     println!("  {:<25} | {:>12} | {:>12}", "Test", "Recursive", "Loop");
     println!("  {:<25} | {:>12} | {:>12}", "-----------------------", "------------", "------------");
@@ -117,5 +119,5 @@ fn main() {
         let ratio = loop_limit as f64 / rec_limit as f64;
         println!("  Loop survives {:.2}x longer for a*", ratio);
     }
-    println!("================================================================================");
+    println!("-------------------------------====");
 }

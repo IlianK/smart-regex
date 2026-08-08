@@ -4,7 +4,7 @@
 //!
 //! Used exclusively by Level 3. Levels 0–2 print directly to stdout.
 
-const SEPARATOR: &str = "================================================================================";
+const SEPARATOR: &str = "-------------------------------====";
 
 pub struct ReportWriter {
     lines:       Vec<String>,

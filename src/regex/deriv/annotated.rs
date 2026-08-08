@@ -1,6 +1,7 @@
-//! regex-engine/src/regex/brzozowski/annotated.rs
+//! regex-engine/src/regex/deriv/annotated.rs
 //! 
 //! Bit-coded Brzozowski derivative for annotated ARegex
+//! Propagates and inserts parse tree information as bits during forward pass
 
 use crate::types::ARegex;
 use crate::regex::nullable::annotated::nullable_bc;
@@ -37,19 +38,21 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
                 ARegex::Seq(bs, Box::new(d1), r2)
             }
         }
+        // Empty star prefix: bs = []; Inner exp: r = Box<Lit([], 'a')>
         ARegex::Star(bs, r) => {
-            let d = deriv_bc(*r.clone(), l);
-            let fused = fuse(&[false], d);
-            let new_star = ARegex::Star(vec![], r);
+            let d = deriv_bc(*r.clone(), l);     // ri\'a' = Lit([],'a')\'a' = Eps([])
+            let fused = fuse(&[false], d);   // fuse [0] Eps([]) = Eps([false])
+            let new_star = ARegex::Star(vec![], r); // []@ri* = []@([]@'a')*
             ARegex::Seq(bs, Box::new(fused), Box::new(new_star))
+            // = []@(Eps([false]) · []@([]@'a')*)
         }
     }
 }
 
 
-// ============================================================================
+// -------------------------------
 // Tests for deriv_bc
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

@@ -5,6 +5,7 @@
 
 use crate::types::{Regex, ARegex};
 
+
 pub fn fuse(bs: &[bool], ri: ARegex) -> ARegex {
     if bs.is_empty() { return ri; }
     match ri {
@@ -23,11 +24,16 @@ fn combine(bs: &[bool], p: Vec<bool>) -> Vec<bool> {
     new
 }
 
+// a* = Star(Lit('a'))
 pub fn internalize(r: &Regex) -> ARegex {
     match r {
         Regex::Phi => ARegex::Phi,
         Regex::Eps => ARegex::Eps(vec![]),
+
+        // internalize(Lit('a')) = Lit([], 'a') = []@'a'
         Regex::Lit(c) => ARegex::Lit(vec![], *c),
+
+        // Fusing [False] to the left branch and [True] to the right branch of an Alt
         Regex::Alt(r1, r2) => {
             let ri1 = fuse(&[false], internalize(r1));
             let ri2 = fuse(&[true], internalize(r2));
@@ -36,6 +42,7 @@ pub fn internalize(r: &Regex) -> ARegex {
         Regex::Seq(r1, r2) => {
             ARegex::Seq(vec![], Box::new(internalize(r1)), Box::new(internalize(r2)))
         }
+        // internalize(Star(...)) = Star([], Lit([], 'a')) = []@(__)*
         Regex::Star(r1) => {
             ARegex::Star(vec![], Box::new(internalize(r1)))
         }
@@ -43,9 +50,9 @@ pub fn internalize(r: &Regex) -> ARegex {
 }
 
 
-// ============================================================================
+// -------------------------------
 // Tests for internalize and fuse
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

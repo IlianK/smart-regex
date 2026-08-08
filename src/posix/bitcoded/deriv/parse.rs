@@ -4,7 +4,7 @@
 
 use crate::types::{Regex, ParseTree, ARegex};
 use crate::regex::nullable::annotated::nullable_bc;
-use crate::regex::brzozowski::annotated::deriv_bc;
+use crate::regex::deriv::annotated::deriv_bc;
 use crate::regex::simplify::annotated::simp;
 use super::internalize::internalize;
 use super::mk_eps_bc::mk_eps_bc;
@@ -12,9 +12,9 @@ use super::decode::decode;
 use crate::trace::{BitStep, BitTrace};
 
 
-// ============================================================================
+// -------------------------------
 // RECURSIVE BITCODED PARSER
-// ============================================================================
+// -------------------------------
 
 fn parse_bitcoded_recursive_helper(ri: ARegex, input: &str) -> Option<ARegex> {
     let mut chars = input.chars();
@@ -23,6 +23,10 @@ fn parse_bitcoded_recursive_helper(ri: ARegex, input: &str) -> Option<ARegex> {
         Some(l) => {
             let rest: String = chars.collect();
             let ri_deriv = deriv_bc(ri, l);
+
+            // Seq([], Eps([false]), Star([], Lit([], 'a'))) 
+            // =                Star([false], Lit([], 'a'))
+            // [false] recorded first iteration -> absorbed into Star prefix
             let ri_simp = simp(ri_deriv);
             parse_bitcoded_recursive_helper(ri_simp, &rest)
         }
@@ -40,9 +44,9 @@ pub fn parse_bitcoded_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
 }
 
 
-// ============================================================================
+// -------------------------------
 // LOOP BITCODED PARSER
-// ============================================================================
+// -------------------------------
 
 pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
     let mut ri = internalize(r);
@@ -57,18 +61,18 @@ pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
 }
 
 
-// ============================================================================
+// -------------------------------
 // DEFAULT
-// ============================================================================
+// -------------------------------
 
 pub fn parse_bitcoded(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_bitcoded_recursive(input, r)
 }
 
 
-// ============================================================================
+// -------------------------------
 // LOOP BITCODED - TRACED VARIANT (used by REGEX_DIAG=2/3)
-// ============================================================================
+// -------------------------------
 
 /// Identical in behaviour to parse_bitcoded_loop but also returns a BitTrace
 pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitTrace) {
@@ -128,9 +132,9 @@ pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitT
 }
 
 
-// ============================================================================
+// -------------------------------
 // Unit tests
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

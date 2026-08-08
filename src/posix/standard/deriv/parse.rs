@@ -3,14 +3,14 @@
 //! Standard POSIX parsers (recursive and loop)
 
 use crate::types::{Regex, ParseTree};
-use crate::regex::brzozowski::standard::deriv;
+use crate::regex::deriv::standard::deriv;
 use crate::regex::nullable::standard::nullable;
 use crate::posix::standard::{mk_eps, inject};
 
 
-// ============================================================================
+// -------------------------------
 // RECURSIVE PARSER
-// ============================================================================
+// -------------------------------
 
 fn parse_recursive_helper(r: &Regex, input: &str) -> Option<ParseTree> {
     let mut chars = input.chars();
@@ -32,9 +32,9 @@ pub fn parse_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
 }
 
 
-// ============================================================================
+// -------------------------------
 // RECURSIVE PARSER - TRACED VARIANT (used by REGEX_DIAG=2/3 REGEX_PARSER=recursive)
-// ============================================================================
+// -------------------------------
 
 /// Identical in behaviour to parse_recursive but also returns a ParseTrace.
 pub fn parse_recursive_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTrace) {
@@ -139,9 +139,9 @@ fn parse_recursive_traced_helper(
 }
 
 
-// ============================================================================
+// -------------------------------
 // LOOP PARSER
-// ============================================================================
+// -------------------------------
 
 pub fn parse_loop(input: &str, r: &Regex) -> Option<ParseTree> {
     let chars: Vec<char> = input.chars().collect();
@@ -170,9 +170,9 @@ pub fn parse_loop(input: &str, r: &Regex) -> Option<ParseTree> {
 }
 
 
-// ============================================================================
+// -------------------------------
 // LOOP PARSER - TRACED VARIANT (used by REGEX_DIAG=2/3 REGEX_PARSER=loop)
-// ============================================================================
+// -------------------------------
 
 use crate::trace::{DerivStep, InjectStep, MkEpsResult, ParseTrace};
 
@@ -257,9 +257,9 @@ pub fn parse_loop_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTra
 }
 
 
-// ============================================================================
+// -------------------------------
 // Unit tests
-// ============================================================================
+// -------------------------------
 
 #[cfg(test)]
 mod tests {

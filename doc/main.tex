@@ -1,0 +1,54 @@
+\documentclass[12pt,a4paper,oneside]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{natbib}
+\usepackage{parskip}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{titlesec}
+\titleformat{\chapter}[hang]{\normalfont\huge\bfseries}{}{0pt}{}
+
+
+\raggedbottom
+
+\lstdefinestyle{code}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+}
+\lstset{style=code}
+
+\title{Smarter Regular Expression Matching\\[0.3em]\Large From Theory to Tools}
+\author{Ilian Kohl}
+\date{% TODO: submission date / university / program
+  \today
+}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\include{chapters/01_introduction}
+\include{chapters/02_regular_expressions}
+\include{chapters/03_derivatives}
+\include{chapters/04_matching_vs_parsing}
+\include{chapters/05_derivative_parser}
+\include{chapters/06_partial_derivative_parser}
+\include{chapters/07_evaluation}
+\include{chapters/08_discussion}
+\include{chapters/09_conclusion}
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\include{chapters/appendices}
+
+\end{document}

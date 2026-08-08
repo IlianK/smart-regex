@@ -10,6 +10,7 @@ use regex_engine::{parse_recursive, parse_loop, parse_bitcoded, flatten};
 use regex_engine::types::ParseTree;
 use super::input::parse_regex_string;
 
+// Runs with chosen parser
 pub fn run_parse_single(regex_str: &str, input: &str) {
     let r = match parse_regex_string(regex_str) {
         Ok(r)  => r,
@@ -20,6 +21,7 @@ pub fn run_parse_single(regex_str: &str, input: &str) {
     run_parser(regex_str, &r, input, &config);
 }
 
+// Runs with all parsers
 pub fn run_parse_all(regex_str: &str, input: &str) {
     let r = match parse_regex_string(regex_str) {
         Ok(r)  => r,

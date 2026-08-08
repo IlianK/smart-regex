@@ -1,11 +1,9 @@
 //! regex-engine/src/posix/standard/mod.rs
-//! 
+//!
 //! Standard POSIX parsers (non-bitcoded)
 
-pub mod mk_eps;
-pub mod inject;
-pub mod parse;
+pub mod deriv;
+pub mod pderiv;
 
-pub use mk_eps::mk_eps;
-pub use inject::inject;
-pub use parse::{parse_recursive, parse_loop, parse_loop_traced, parse_recursive_traced};
+pub use deriv::{mk_eps, inject};
+pub use deriv::{parse_recursive, parse_loop, parse_loop_traced, parse_recursive_traced};
