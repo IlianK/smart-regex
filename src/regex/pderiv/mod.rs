@@ -6,4 +6,4 @@ pub mod standard;
 pub mod annotated;
 
 pub use standard::pderiv;
-// pub use annotated::pderiv_bc;  
+pub use annotated::{pderiv_bc, mk_eps_bits};

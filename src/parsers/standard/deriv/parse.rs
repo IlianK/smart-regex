@@ -5,7 +5,7 @@
 use crate::types::{Regex, ParseTree};
 use crate::regex::deriv::standard::deriv;
 use crate::regex::nullable::standard::nullable;
-use crate::posix::standard::{mk_eps, inject};
+use crate::parsers::standard::{mk_eps, inject};
 
 
 // -------------------------------

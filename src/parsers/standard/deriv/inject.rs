@@ -4,7 +4,7 @@
 
 use crate::types::{Regex, ParseTree};
 use crate::regex::nullable::standard::nullable;
-use crate::posix::standard::mk_eps;
+use crate::parsers::standard::mk_eps;
 
 pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
     match r {

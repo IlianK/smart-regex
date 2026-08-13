@@ -12,7 +12,7 @@
 
 use crate::types::ARegex;
 use crate::regex::nullable::annotated::is_phi;
-use crate::posix::bitcoded::internalize::fuse;
+use crate::parsers::bitcoded::internalize::fuse;
 
 /// Simplify an annotated expression to a fixpoint.
 pub fn simp(ri: ARegex) -> ARegex {

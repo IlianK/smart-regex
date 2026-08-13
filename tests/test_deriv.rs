@@ -1,4 +1,4 @@
-// tests/test_posix_standard.rs
+// tests/test_deriv.rs
 //
 // Integration tests for src/posix/standard/
 //   - parse_recursive  (posix/standard/parse.rs)
@@ -6,13 +6,13 @@
 //
 // All paper examples are taken from Sulzmann & Lu (flops14-extended)
 //
-// Run:  cargo test --test test_posix_standard
+// Run:  cargo test --test test_deriv
 
 mod common;
 use common::{assert_round_trip, assert_parsers_agree, paper_r1, paper_r2};
 
 use regex_engine::{Regex, ParseTree};
-use regex_engine::posix::{parse_recursive, parse_loop};
+use regex_engine::parsers::{parse_recursive, parse_loop};
 
 
 // -------------------------------
@@ -302,7 +302,7 @@ fn posix_k2_nonempty_preferred_over_empty_in_star() {
 
 #[test]
 fn recursive_traced_and_loop_traced_agree_on_all_paper_examples() {
-    use regex_engine::posix::{parse_recursive_traced, parse_loop_traced};
+    use regex_engine::parsers::{parse_recursive_traced, parse_loop_traced};
 
     let cases: Vec<(&str, Regex)> = vec![
         ("aaa", Regex::star(Regex::lit('a'))),

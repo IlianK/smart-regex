@@ -5,8 +5,8 @@
 
 use crate::types::ARegex;
 use crate::regex::nullable::annotated::nullable_bc;
-use crate::posix::bitcoded::internalize::fuse;
-use crate::posix::bitcoded::mk_eps_bc::mk_eps_bc;
+use crate::parsers::bitcoded::internalize::fuse;
+use crate::parsers::bitcoded::mk_eps_bc::mk_eps_bc;
 
 /// Bit-coded derivative (paper Figure 5)
 pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {

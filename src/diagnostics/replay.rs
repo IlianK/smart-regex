@@ -7,8 +7,8 @@
 use crate::types::{Regex, ParseTree};
 use crate::regex::deriv::standard::deriv;
 use crate::regex::nullable::standard::nullable;
-use crate::posix::standard::mk_eps;
-use crate::posix::standard::inject;
+use crate::parsers::standard::mk_eps;
+use crate::parsers::standard::inject;
 
 
 // -------------------------------
@@ -61,7 +61,7 @@ pub fn find_failure(input: &str, r: &Regex) -> FailureInfo {
     }
 }
 
-/// Returns true if r is semantically equivalent to Phi (matches nothing)
+/// Returns true if r is equivalent to Phi (matches nothing)
 fn is_dead(r: &Regex) -> bool {
     use Regex::*;
     match r {
@@ -126,10 +126,10 @@ fn collect_expected_chars(r: &Regex) -> Vec<char> {
 // Partial tree recovery (used by Level 2 and Level 3 on failure)
 // -------------------------------
 
-/// Recover partial parse tree from the last nullable derivative expression
-/// in the forward pass. Returns None if no prefix matched at all.
+/// Recover partial parse tree from the last nullable derivative expression in forward pass
+/// Returns None if no prefix matched at all.
 ///
-/// Takes stored expression sequence from ParseTrace so there is no need rerun forward pass
+/// Takes stored expression sequence from ParseTrace (so no need rerun forward pass)
 pub fn partial_tree_standard(
     expressions: &[Regex],
     chars: &[char],
@@ -169,6 +169,26 @@ pub fn caret_lines(input: &str, position: usize) -> String {
     format!("{}\n{}", display_input, caret_line)
 }
 
+/// Full failure block: "Error: position N: found/expected ..." followed by
+/// the caret lines. Used identically by every parser family at Levels 1-3
+/// (previously duplicated verbatim at each call site); callers print the
+/// result directly (Levels 1-2) or append it via ReportWriter (Level 3).
+pub fn error_report(input: &str, r: &Regex) -> String {
+    let info = find_failure(input, r);
+    let headline = if info.found == '\0' {
+        format!(
+            "Error:  position {}: unexpected end of input, expected {}",
+            info.position, info.expected
+        )
+    } else {
+        format!(
+            "Error:  position {}: found '{}', expected {}",
+            info.position, info.found, info.expected
+        )
+    };
+    format!("{}\n{}", headline, caret_lines(input, info.position))
+}
+
 
 
 // Unit tests
@@ -201,6 +221,23 @@ mod tests {
         let lines: Vec<&str> = result.lines().collect();
         assert_eq!(lines[0], "  aab");
         assert_eq!(lines[1], "    ^");
+    }
+
+    #[test]
+    fn error_report_combines_headline_and_caret() {
+        let r = Regex::star(Regex::lit('a'));
+        let report = error_report("aab", &r);
+        let lines: Vec<&str> = report.lines().collect();
+        assert_eq!(lines[0], "Error:  position 3: found 'b', expected 'a' or end of input");
+        assert_eq!(lines[1], "  aab");
+        assert_eq!(lines[2], "    ^");
+    }
+
+    #[test]
+    fn error_report_end_of_input() {
+        let r = Regex::seq(Regex::lit('a'), Regex::lit('b'));
+        let report = error_report("a", &r);
+        assert!(report.starts_with("Error:  position 2: unexpected end of input"));
     }
 
     #[test]

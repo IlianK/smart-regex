@@ -3,22 +3,22 @@
 //! Demo: POSIX parsing with all three parsers
 //!
 //! ENVs:
-//!   REGEX_PARSER       recursive (default), loop, bitcoded, all
+//!   REGEX_PARSER       deriv_rec (default), deriv_loop, deriv_bc, all
 //!   REGEX_DIAG         0=off (default), 1=basic, 2=verbose, 3=debug
 //!   REGEX_DIAG_REPORT  (optional) override output file for Level 3
 //!                      Default at Level 3: reports/demo_NN.txt per test case
 //!
 //! Examples:
 //!   cargo run --example demo_posix
-//!   REGEX_PARSER=loop                    
-//!   REGEX_PARSER=all                      
-//!   REGEX_DIAG=1                          
-//!   REGEX_DIAG=2 REGEX_PARSER=bitcoded    
-//!   REGEX_DIAG=3                         
+//!   REGEX_PARSER=deriv_loop
+//!   REGEX_PARSER=all
+//!   REGEX_DIAG=1
+//!   REGEX_DIAG=2 REGEX_PARSER=deriv_bc
+//!   REGEX_DIAG=3
 
 use regex_engine::types::Regex;
-use regex_engine::posix::{flatten, ParseTree};
-use regex_engine::posix::{parse_recursive, parse_loop, parse_bitcoded};
+use regex_engine::parsers::{flatten, ParseTree};
+use regex_engine::parsers::{parse_recursive, parse_loop, parse_bitcoded};
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 
 // -------------------------------
@@ -53,18 +53,14 @@ impl TestCase {
         Self { name, pattern, regex, input: input.to_string(), expected: None }
     }
 
-    // Run single parser with diagnostics (REGEX_PARSER=recursive|loop|bitcoded)
+    // Run single parser with diagnostics (REGEX_PARSER=deriv_rec|deriv_loop|deriv_bc)
     fn run_parser_with_diagnostics(&self, config: &DiagConfig, index: usize) {
         println!("\n▶ {}", self.name);
 
         let effective_config = if config.level == DiagLevel::Debug {
             let path = std::env::var("REGEX_DIAG_REPORT")
                 .unwrap_or_else(|_| format!("reports/demo_{:02}.txt", index));
-            DiagConfig {
-                level:       config.level,
-                parser_type: config.parser_type,
-                report_path: Some(path),
-            }
+            DiagConfig::new(config.level, config.parser_type, config.matcher_type, Some(path))
         } else {
             config.clone()
         };
@@ -72,7 +68,7 @@ impl TestCase {
         run_parser(self.pattern, &self.regex, &self.input, &effective_config);
     }
 
-    // Run single parser without diagnostics(REGEX_PARSER=recursive|loop|bitcoded) 
+    // Run single parser without diagnostics(REGEX_PARSER=deriv_rec|deriv_loop|deriv_bc)
     fn run_parser_without_diag(
         &self,
         parser: fn(&str, &Regex) -> Option<ParseTree>,
@@ -373,10 +369,10 @@ fn main() {
     println!("---------------------------------------------------");
     println!("POSIX Parsing Demo");
     match parser_env.as_str() {
-        "all"      => println!("Mode:        All Parsers (Comparison)"),
-        "loop"     => println!("Mode:        Loop Parser"),
-        "bitcoded" => println!("Mode:        Bitcoded Parser"),
-        _          => println!("Mode:        Recursive Parser (default)"),
+        "all"        => println!("Mode:        All Parsers (Comparison)"),
+        "deriv_loop" => println!("Mode:        Loop Parser"),
+        "deriv_bc"   => println!("Mode:        Bitcoded Parser"),
+        _            => println!("Mode:        Recursive Parser (default)"),
     }
     println!(
         "Diagnostics: REGEX_DIAG={}",

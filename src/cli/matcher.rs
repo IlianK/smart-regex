@@ -1,29 +1,30 @@
 //! regex-engine/src/cli/matcher.rs
-//! 
-//! Matcher command logic
 //!
-//! Reads DiagConfig and delegates to diagnostics::run_matcher,
-//! or runs the all-matchers comparison table when --matcher all is used
-
+//! Matcher command logic
+//! 
 use regex_engine::matchers::MatcherType;
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_matcher};
+use regex_engine::parsers::ParserType;
 use super::input::parse_regex_string;
 
 // Runs with chosen matcher
-pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType) {
+pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType, diag: DiagLevel) {
     let r = match parse_regex_string(regex_str) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
 
-    let config = DiagConfig::read_from_env();
-
-    if config.level == DiagLevel::Off {
+    if diag == DiagLevel::Off {
         // Original behaviour: print true/false, exit 1 on no match
         let matched = matcher.matcher()(input, &r);
         println!("{}", matched);
         if !matched { std::process::exit(1); }
     } else {
+        // parser_type is irrelevant for the match command's own
+        // diagnostics (run_matcher never reads it), but DiagConfig needs
+        // a value -- DerivRec is the harmless default used everywhere
+        // else in this situation.
+        let config = DiagConfig::new(diag, ParserType::DerivRec, matcher, None);
         run_matcher(regex_str, &r, input, &config);
         // Still set exit code correctly
         let matched = matcher.matcher()(input, &r);
@@ -38,7 +39,7 @@ pub fn run_match_all(regex_str: &str, input: &str) {
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
 
-    // "all" mode: comparison table always, regardless of REGEX_DIAG
+    // "all" mode: comparison table always, regardless of --diag
     println!("Regex: {}", regex_str);
     println!("Input: {}", input);
     println!();

@@ -11,6 +11,7 @@ pub mod selection;
 pub use parser::{parse_posix};
 pub use standard::{mk_eps, inject, parse_recursive, parse_loop, parse_loop_traced, parse_recursive_traced};
 pub use bitcoded::{parse_bitcoded, parse_bitcoded_traced};
+pub use bitcoded::{parse_pderiv_bc, parse_pderiv_bc_traced};
 
 // Re-export types
 pub use crate::types::{ParseTree, flatten};

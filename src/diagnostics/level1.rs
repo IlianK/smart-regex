@@ -17,6 +17,7 @@
 //!       ^
 
 use crate::types::Regex;
+use crate::matchers::MatcherType;
 use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{find_failure, caret_lines};
 
@@ -60,15 +61,8 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
 // Matcher - Level 1
 // -------------------------------
 
-pub fn run_matcher(regex_str: &str, r: &Regex, input: &str) {
-    use crate::matchers::MatcherType;
+pub fn run_matcher(regex_str: &str, r: &Regex, input: &str, matcher_type: MatcherType) {
     use crate::matchers::{match_naive, match_deriv, match_pderiv};
-
-    // MatcherType::from_env() returns Vec - take the first (default: Deriv)
-    let matcher_type = MatcherType::from_env()
-        .into_iter()
-        .next()
-        .unwrap_or(MatcherType::Deriv);
 
     let matched = match matcher_type {
         MatcherType::Naive  => match_naive(input, r),

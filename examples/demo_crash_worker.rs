@@ -5,7 +5,7 @@
 //! cargo build --example demo_crash_worker
 
 use regex_engine::types::Regex;
-use regex_engine::posix::{parse_recursive, parse_loop};
+use regex_engine::parsers::{parse_recursive, parse_loop};
 use std::env;
 use std::process;
 

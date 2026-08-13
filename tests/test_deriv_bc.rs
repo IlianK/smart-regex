@@ -1,4 +1,4 @@
-// tests/test_posix_bitcoded.rs
+// tests/test_deriv_bc.rs
 //
 // Integration tests for src/posix/bitcoded/
 //   - parse_bitcoded (bitcoded/parse.rs)
@@ -6,13 +6,13 @@
 // Correctness property (Theorem 1 applied to bitcoded path):
 //   parse_bitcoded(w, r) == parse_recursive(w, r)   for all w, r
 //
-// Run:  cargo test --test test_posix_bitcoded
+// Run:  cargo test --test test_deriv_bc
 
 mod common;
 use common::{assert_round_trip, assert_parsers_agree, paper_r1, paper_r2};
 
 use regex_engine::Regex;
-use regex_engine::posix::{parse_recursive, parse_bitcoded};
+use regex_engine::parsers::{parse_recursive, parse_bitcoded};
 
 
 // -------------------------------

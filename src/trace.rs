@@ -119,3 +119,51 @@ impl BitTrace {
         self.last_nullable_idx.unwrap_or(0)
     }
 }
+
+
+// -------------------------------
+// Bit-coded partial-derivative parser trace
+// (populated by parse_pderiv_bc_traced)
+// -------------------------------
+
+// One step in the bit-coded partial-derivative forward pass. Unlike
+// DerivStep/BitStep -- one expression per step -- a partial-derivative
+// step tracks a *frontier*: every (residual, accumulated bits) pair
+// still alive after consuming this character, one per surviving strand
+// of nondeterminism (see regex/pderiv/annotated.rs).
+#[derive(Debug, Clone)]
+pub struct PDerivBitStep {
+    /// 1-indexed position in the input
+    pub position: usize,
+    /// Character consumed at this step
+    pub character: char,
+    /// Frontier before this step
+    pub before: Vec<(Regex, Vec<bool>)>,
+    /// Frontier after this step
+    pub after: Vec<(Regex, Vec<bool>)>,
+    /// Whether any residual in `after` is nullable
+    pub nullable: bool,
+}
+
+// Full trace from parse_pderiv_bc_traced
+#[derive(Debug, Clone)]
+pub struct PDerivBitTrace {
+    /// Initial frontier: [(r0, [])]
+    pub initial: Vec<(Regex, Vec<bool>)>,
+    /// All frontier steps (one per character)
+    pub steps: Vec<PDerivBitStep>,
+    /// Complete bit string of the winning (first nullable, in list/priority
+    /// order) residual -- accumulated bits ++ mkEpsBC(residual) -- or None
+    /// if parsing failed
+    pub final_bits: Option<Vec<bool>>,
+    /// Index of the last step whose frontier contained a nullable residual
+    pub last_nullable_idx: Option<usize>,
+    /// Complete bit string (same construction as `final_bits`) at that step
+    pub bits_at_last_nullable: Option<Vec<bool>>,
+}
+
+impl PDerivBitTrace {
+    pub fn successful_steps(&self) -> usize {
+        self.last_nullable_idx.unwrap_or(0)
+    }
+}
