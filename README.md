@@ -1,6 +1,6 @@
 # Regex-Engine
 
-A derivative-based regular expression engine in Rust. It implements matching and parse-tree construction with Brzozowski derivatives, and Antimirov partial derivatives plus a bit-coded parser optimization, with a shared diagnostics/tracing layer for inspecting each step.
+A derivative-based regular expression engine in Rust. It implements matching and parse-tree construction with Brzozowski derivatives, and Antimirov partial derivatives plus a bit-coded parser optimization based on [this paper by Sulzmann and Lu](https://www.researchgate.net/publication/268173400_POSIX_Regular_Expression_Parsing_with_Derivatives), with a shared diagnostics/tracing layer for inspecting each step.
 
 ## [Rust install](https://rust-lang.org/tools/install/)
 
