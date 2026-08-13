@@ -1,0 +1,62 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-08-08 23:21:50
+Mode:                 POSIX Standard (recursive parser)
+Regex:                (a+b+ab)*
+Input:                "ab"
+Result:               MATCH
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.036ms
+Expressions stored:   3 (r0 → r1 → r2)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Star(Alt(Alt(Lit('a'), Lit('b')), Seq(Lit('a'), Lit('b'))))
+
+Step 1: ∂(r0, 'a')
+  rule: ∂(r*, 'a') = ∂(r, 'a') · r*
+  ∂(Alt(Alt(Lit('a'), Lit('b')), Seq(Lit('a'), Lit('b'))), 'a'):
+  rule: ∂(r1 + r2, 'a') = ∂(r1, 'a') + ∂(r2, 'a')
+  ∂(Alt(Lit('a'), Lit('b')), 'a') - see left branch
+  ∂(Seq(Lit('a'), Lit('b')), 'a') - see right branch
+r1 = Seq(Alt(Alt(Eps, Phi), Seq(Eps, Lit('b'))), Star(Alt(Alt(Lit('a'), Lit('b')), Seq(Lit('a'), Lit('b')))))
+  nullable(r1) = true  ✓ position 1 matched
+
+Step 2: ∂(r1, 'b')
+  rule: ∂(r1·r2, 'b')  [nullable(r1)=true]
+       = ∂(r1, 'b')·r2  +  ∂(r2, 'b')
+r2 = Alt(Seq(Alt(Alt(Phi, Phi), Alt(Seq(Phi, Lit('b')), Eps)), Star(Alt(Alt(Lit('a'), Lit('b')), Seq(Lit('a'), Lit('b'))))), Seq(Alt(Alt(Phi, Eps), Seq(Phi, Lit('b'))), Star(Alt(Alt(Lit('a'), Lit('b')), Seq(Lit('a'), Lit('b'))))))
+  nullable(r2) = true  ✓ position 2 matched
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r2) = true → proceed to backward pass
+-------------------------------====
+BACKWARD PASS (mkEps + inject)
+-------------------------------====
+mkEps(r2):
+  mkEps(r1 + r2): nullable(r1)=true → Left(mkEps(r1))
+v2 = Left (Right Right (), [])
+
+inject(r1, 'b', v2):
+  inject(Seq(Alt(Alt(Eps, Phi), Seq(Eps, Lit('b'))), Star(Alt(Alt(Lit('a'), Lit('b')), Seq(Lit('a'), Lit('b'))))), 'b', Left (Right Right (), []))
+  → (Right ((), b), [])
+v1 = (Right ((), b), [])
+
+inject(r0, 'a', v1):
+  inject(Star(Alt(Alt(Lit('a'), Lit('b')), Seq(Lit('a'), Lit('b')))), 'a', (Right ((), b), []))
+  → [Right (a, b)]
+v0 = [Right (a, b)]
+
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           [Right (a, b)]
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====

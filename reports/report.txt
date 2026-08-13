@@ -1,0 +1,72 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-08-08 23:21:50
+Mode:                 POSIX Bitcoded
+Regex:                a*
+Input:                "aab"
+Result:               NO MATCH
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.029ms
+Derivative steps:     3
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize(a*)
+  rule: internalize(r*) = []@(internalize r)*
+  inner: internalize(Lit('a')) → []@...
+ri0 = []@([]@'a')*
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  ri0 = []@([]@'a')*
+  deriv_bc(ri0, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false]@([]@'a')*
+  ri1 = [false]@([]@'a')*
+  nullable_bc(ri1) = true  ✓  bits accumulating
+
+Step 2 (char: 'a', position 2)
+  ri1 = [false]@([]@'a')*
+  deriv_bc(ri1, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false, false]@([]@'a')*
+  ri2 = [false, false]@([]@'a')*
+  nullable_bc(ri2) = true  ✓  bits accumulating
+
+Step 3 (char: 'b', position 3)
+  ri2 = [false, false]@([]@'a')*
+  deriv_bc(ri2, 'b'):
+    rule: (bs@ri*) \ 'b' = bs@(fuse [0] (ri\'b') · ([]@ri*))
+  simp → φ
+  ri3 = φ
+  nullable_bc(ri3) = false  ✗
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri3) = false → no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+Last nullable expression: ri2 = [false, false]@([]@'a')*  (after position 2)
+Accumulated bits: [0,0,1]
+
+mkEpsBC(ri2) would give: [0,0,1]
+Decoding not possible: final expression is not nullable.
+
+Partial match:        "aa"  (positions 1–2)
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  3 (1-indexed)
+Found:                'b'
+Expected:             'a' or end of input
+  aab
+    ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

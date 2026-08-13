@@ -1,0 +1,59 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-08-08 23:21:50
+Mode:                 POSIX Standard (recursive parser)
+Regex:                (a+ab)(b+ε)
+Input:                "ab"
+Result:               MATCH
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.038ms
+Expressions stored:   3 (r0 → r1 → r2)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+
+Step 1: ∂(r0, 'a')
+  rule: ∂(r1·r2, 'a')  [nullable(r1)=false]
+       = ∂(r1, 'a')·r2
+r1 = Seq(Alt(Eps, Seq(Eps, Lit('b'))), Alt(Lit('b'), Eps))
+  nullable(r1) = true  ✓ position 1 matched
+
+Step 2: ∂(r1, 'b')
+  rule: ∂(r1·r2, 'b')  [nullable(r1)=true]
+       = ∂(r1, 'b')·r2  +  ∂(r2, 'b')
+r2 = Alt(Seq(Alt(Phi, Alt(Seq(Phi, Lit('b')), Eps)), Alt(Lit('b'), Eps)), Alt(Eps, Phi))
+  nullable(r2) = true  ✓ position 2 matched
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r2) = true → proceed to backward pass
+-------------------------------====
+BACKWARD PASS (mkEps + inject)
+-------------------------------====
+mkEps(r2):
+  mkEps(r1 + r2): nullable(r1)=true → Left(mkEps(r1))
+v2 = Left (Right Right (), Right ())
+
+inject(r1, 'b', v2):
+  inject(Seq(Alt(Eps, Seq(Eps, Lit('b'))), Alt(Lit('b'), Eps)), 'b', Left (Right Right (), Right ()))
+  → (Right ((), b), Right ())
+v1 = (Right ((), b), Right ())
+
+inject(r0, 'a', v1):
+  inject(Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps)), 'a', (Right ((), b), Right ()))
+  → (Right (a, b), Right ())
+v0 = (Right (a, b), Right ())
+
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           (Right (a, b), Right ())
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
