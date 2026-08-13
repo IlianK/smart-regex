@@ -125,12 +125,6 @@ impl BitTrace {
 // Bit-coded partial-derivative parser trace
 // (populated by parse_pderiv_bc_traced)
 // -------------------------------
-
-// One step in the bit-coded partial-derivative forward pass. Unlike
-// DerivStep/BitStep -- one expression per step -- a partial-derivative
-// step tracks a *frontier*: every (residual, accumulated bits) pair
-// still alive after consuming this character, one per surviving strand
-// of nondeterminism (see regex/pderiv/annotated.rs).
 #[derive(Debug, Clone)]
 pub struct PDerivBitStep {
     /// 1-indexed position in the input
@@ -152,8 +146,8 @@ pub struct PDerivBitTrace {
     pub initial: Vec<(Regex, Vec<bool>)>,
     /// All frontier steps (one per character)
     pub steps: Vec<PDerivBitStep>,
-    /// Complete bit string of the winning (first nullable, in list/priority
-    /// order) residual -- accumulated bits ++ mkEpsBC(residual) -- or None
+    /// Complete bit string of the winning (first nullable, in list/priority order)
+    /// residual -- accumulated bits ++ mkEpsBC(residual) -- or None
     /// if parsing failed
     pub final_bits: Option<Vec<bool>>,
     /// Index of the last step whose frontier contained a nullable residual

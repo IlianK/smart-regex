@@ -15,12 +15,7 @@
 //!     inject(a*, 'a', Right Right ((), [])) → Right ((), [a])    ← position 3 (backward start)
 //!     inject(a*, 'a', Right ((), [a])) → ((), [a, a])            ← position 2
 //!     inject(a*, 'a', ((), [a, a])) → [a, a, a]                  ← position 1 (backward end)
-//!
-//! One submodule per parser family, mirroring src/posix's own
-//! standard/bitcoded/bitcoded::pderiv split -- each renders its own trace
-//! type (ParseTrace / BitTrace / PDerivBitTrace) independently, since the
-//! three have different shapes (single expression per step vs. a bit-coded
-//! single expression vs. a whole frontier per step).
+
 
 mod standard;
 mod bitcoded;

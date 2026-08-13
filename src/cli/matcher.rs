@@ -15,18 +15,12 @@ pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType, diag
     };
 
     if diag == DiagLevel::Off {
-        // Original behaviour: print true/false, exit 1 on no match
         let matched = matcher.matcher()(input, &r);
         println!("{}", matched);
         if !matched { std::process::exit(1); }
     } else {
-        // parser_type is irrelevant for the match command's own
-        // diagnostics (run_matcher never reads it), but DiagConfig needs
-        // a value -- DerivRec is the harmless default used everywhere
-        // else in this situation.
         let config = DiagConfig::new(diag, ParserType::DerivRec, matcher, None);
         run_matcher(regex_str, &r, input, &config);
-        // Still set exit code correctly
         let matched = matcher.matcher()(input, &r);
         if !matched { std::process::exit(1); }
     }

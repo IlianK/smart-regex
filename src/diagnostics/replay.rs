@@ -169,10 +169,7 @@ pub fn caret_lines(input: &str, position: usize) -> String {
     format!("{}\n{}", display_input, caret_line)
 }
 
-/// Full failure block: "Error: position N: found/expected ..." followed by
-/// the caret lines. Used identically by every parser family at Levels 1-3
-/// (previously duplicated verbatim at each call site); callers print the
-/// result directly (Levels 1-2) or append it via ReportWriter (Level 3).
+/// Full failure block: "Error: position N: found/expected 
 pub fn error_report(input: &str, r: &Regex) -> String {
     let info = find_failure(input, r);
     let headline = if info.found == '\0' {
@@ -191,6 +188,7 @@ pub fn error_report(input: &str, r: &Regex) -> String {
 
 
 
+// -------------------------------
 // Unit tests
 // -------------------------------
 

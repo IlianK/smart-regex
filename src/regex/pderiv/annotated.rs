@@ -1,52 +1,14 @@
 //! regex-engine/src/regex/pderiv/annotated.rs
 //!
-//! Bit-coded Antimirov partial derivatives (pDerivBC), following the
-//! "Bit-coded partial derivative parser" reference at
+//! Bit-coded Antimirov partial derivatives (pDerivBC), 
 //! https://sulzmann.github.io/ProgrammingParadigms/pp-regular-expressions.html#(9)
-//!
-//! Unlike the bit-coded *Brzozowski* derivative (regex/deriv/annotated.rs),
-//! this construction does NOT use the ARegex/internalize/fuse machinery.
-//! The reference operates directly on the plain, un-annotated Regex type
-//! and returns a *list* of (residual, bits) pairs per step -- one entry
-//! per surviving strand of nondeterminism, each carrying its own
-//! self-contained bit-string prefix, rather than a single tree with bits
-//! attached to internal nodes the way deriv_bc's ARegex does.
-//!
-//! IMPORTANT -- disambiguation policy: this is a *faithful transcription*
-//! of the reference exactly as given. Differential testing against the
-//! standard (proven POSIX, Theorem 1) parser shows it does NOT compute
-//! POSIX leftmost-longest results in general -- it computes GREEDY
-//! leftmost results (Section 4.3.1) instead. The reference's own list
-//! order is built purely by syntactic left-to-right traversal of `Alt`
-//! nodes (`Choice`'s left branch always listed before its right branch),
-//! with no notion of eventual match length, so `parsePDerivBC2`'s
-//! "first nullable residual wins" selection always prefers whichever
-//! alternative is reached first in traversal order -- exactly Greedy's
-//! rule, not POSIX rule (A1)'s "longer match wins regardless of side".
-//! Concretely: `(a+(b+ab))*` on `"ab"` -- the flops14 paper's own
-//! motivating example for why Greedy and POSIX differ -- decodes here to
-//! the two-iteration Greedy answer `[Left(a), Right(Left(b))]`, not the
-//! one-iteration POSIX answer `[Right(Right(a,b))]` the standard parser
-//! produces. Unlike the derivative-based construction (Fig. 3, Fig. 5),
-//! whose forward/backward or single-forward-pass structure is
-//! specifically built to resolve length comparisons correctly (Lemma 1,
-//! Lemma 2, Theorem 1), the reference states no correctness claim at all
-//! for `pDerivBC`/`parsePDerivBC`. See `tests/pderiv_bc_greedy_vs_posix.rs`
-//! for the differential evidence.
 
 use std::collections::HashSet;
 use crate::types::Regex;
 use crate::regex::nullable::standard::nullable;
 use crate::regex::simplify::standard::smart_seq;
 
-/// mkEpsBC for plain Regex -- the partial-derivative analogue of
-/// `posix::bitcoded::mk_eps_bc`, which instead walks the bit-annotated
-/// `ARegex` type used by the Brzozowski-derivative construction. This
-/// version walks the plain `Regex` directly, exactly mirroring `mk_eps`
-/// (src/posix/standard/deriv/mk_eps.rs) case for case but producing a
-/// bit-string instead of a `ParseTree`.
-///
-/// Assumes nullable(r) holds.
+/// mkEpsBC for plain Regex the pderiv analogue of `parsers::bitcoded::mk_eps_bc`, 
 pub fn mk_eps_bits(r: &Regex) -> Vec<bool> {
     match r {
         Regex::Phi => panic!("mk_eps_bits called on Phi"),
@@ -78,12 +40,6 @@ pub fn mk_eps_bits(r: &Regex) -> Vec<bool> {
 
 /// `nubBy (\(r,_) (s,_) -> r == s)`: stable dedup keeping the *first*
 /// occurrence of each residual regex and dropping later duplicates.
-/// Since `pderiv_bc` always emits the higher-priority (leftmost) strand
-/// before lower-priority ones at every choice point -- exactly mirroring
-/// how `internalize` marks left branches `[0]` before right branches
-/// `[1]` on the Brzozowski-derivative side -- keeping the first
-/// occurrence keeps the higher-priority strand's bits and discards the
-/// lower-priority duplicate's.
 fn nub2(pairs: Vec<(Regex, Vec<bool>)>) -> Vec<(Regex, Vec<bool>)> {
     let mut seen: HashSet<Regex> = HashSet::with_capacity(pairs.len());
     let mut out = Vec::with_capacity(pairs.len());
@@ -97,11 +53,8 @@ fn nub2(pairs: Vec<(Regex, Vec<bool>)>) -> Vec<(Regex, Vec<bool>)> {
 
 /// Bit-coded partial derivative: `pDerivBC x r`.
 ///
-/// Returns one `(residual, bits)` pair per surviving strand of
-/// nondeterminism. `bits` records, for that strand alone, every choice
-/// (which `Alt` branch, which `Star` iteration boundary) taken to reach
-/// it -- self-contained, unlike `deriv_bc`'s annotations, which live on
-/// the shared tree rather than per-strand.
+/// Returns one `(residual, bits)` pair per surviving strand of nondeterminism. 
+/// `bits` records, for that strand alone, every choice (which `Alt` branch, which `Star` iteration boundary) taken to reach
 pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
     match r {
         Regex::Eps => Vec::new(),
@@ -139,22 +92,15 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
         Regex::Seq(r1, r2) => {
             if nullable(r1) {
                 // Strand 1: continue r1, r2 untouched -- NOT smart-constructed
-                // (matches the reference literally: the nullable-r1 branch of
-                // pDerivBC builds `Cat r' s` directly, unlike the non-nullable
-                // branch below and unlike deriv_bc's Seq case, both of which
-                // smart-construct. This can leave a non-canonical `Eps · s`
-                // residual on this strand -- harmless for correctness (mkEpsBC
-                // and decode both handle it transparently) but means such a
-                // residual won't dedup against an equivalent plain `s` arrived
-                // at via another strand.)
+                // (matches the reference literally
                 let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
                     .into_iter()
                     .map(|(r1_, bs)| (Regex::seq(r1_, *r2.clone()), bs))
                     .collect();
 
                 // Strand 2: r1 already matched empty (mk_eps_bits(r1) supplies
-                // that un-derived prefix), jump straight into r2 -- mirrors
-                // inject's Right case / deriv_bc's fuse(mkEpsBC(r1), ...).
+                // that un-derived prefix), jump straight into r2 
+                // mirrors inject's Right case / deriv_bc's fuse(mkEpsBC(r1), ...).
                 let eps_bits = mk_eps_bits(r1);
                 out.extend(pderiv_bc(r2, x).into_iter().map(|(r2_, bs)| {
                     let mut b = eps_bits.clone();

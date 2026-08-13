@@ -22,32 +22,22 @@ pub fn run_parse_single(
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
 
-    // Default report path only kicks in at Debug level and only when
-    // --diag-report wasn't given -- same rule DiagConfig::read_from_env
-    // used for REGEX_DIAG_REPORT.
     let report_path = match (&diag_report, diag) {
         (Some(path), _)          => Some(path.clone()),
         (None, DiagLevel::Debug) => Some("reports/report.txt".to_string()),
         (None, _)                => None,
     };
 
-    // matcher_type is irrelevant for the parse command's own diagnostics
-    // (run_parser never reads it), Deriv is the harmless default.
     let config = DiagConfig::new(diag, parser, MatcherType::Deriv, report_path);
     run_parser(regex_str, &r, input, &config);
 }
 
-// Runs with all parsers: the three Brzozowski-derivative parsers (proven
-// POSIX-equivalent, checked for full agreement) plus the bit-coded
-// partial-derivative parser (pderiv/pderiv_bc -- both names alias the
-// same construction, shown once) alongside them.
 pub fn run_parse_all(regex_str: &str, input: &str) {
     let r = match parse_regex_string(regex_str) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
 
-    // "all" mode: comparison table always, regardless of --diag
     println!("Regex: {}", regex_str);
     println!("Input: {:?}", input);
     println!();
@@ -55,10 +45,6 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
     println!("{:-<12}-+-{:-<30}", "", "");
 
     type ParserFn = fn(&str, &regex_engine::Regex) -> Option<ParseTree>;
-    // Only the three Brzozowski-derivative parsers here are checked for
-    // mutual agreement -- all three are proven/verified POSIX-equivalent
-    // (Theorem 1; also independently checked in
-    // tests/posix_bruteforce_oracle.rs).
     let posix_parsers: Vec<(&str, ParserFn)> = vec![
         ("DERIV_REC",  parse_recursive),
         ("DERIV_LOOP", parse_loop),
@@ -91,9 +77,6 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
     if posix_agree { println!("\n✓ All POSIX parsers (DERIV_REC/DERIV_LOOP/DERIV_BC) agree"); }
     else            { println!("\n✗ POSIX PARSERS DISAGREE!"); }
 
-    // Membership (match/no-match) is a correctness property that holds
-    // across every parser unconditionally, greedy or POSIX alike --
-    // unlike tree shape, disagreement here would be a real bug.
     let membership_agrees = posix_results.iter().all(|t| t.is_some() == pderiv_result.is_some());
     if membership_agrees {
         println!("✓ PDERIV_BC agrees with the POSIX parsers on membership (match/no-match)");

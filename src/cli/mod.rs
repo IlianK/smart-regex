@@ -73,8 +73,7 @@ enum Commands {
         /// Diagnostic verbosity level
         #[arg(long, value_enum, default_value_t = DiagArg::Off)]
         diag: DiagArg,
-        /// Level-3 report destination (only meaningful with --diag 3;
-        /// defaults to reports/report.txt if omitted)
+        /// Level-3 report destination
         #[arg(long)]
         diag_report: Option<String>,
     },
@@ -93,8 +92,6 @@ enum MatcherArg {
 }
 
 impl MatcherArg {
-    /// The single MatcherType this resolves to, or None for `all` (handled
-    /// separately by run_match_all, which always runs all three).
     fn single(self) -> Option<MatcherType> {
         match self {
             MatcherArg::Naive  => Some(MatcherType::Naive),
@@ -117,9 +114,6 @@ enum ParserArg {
     DerivLoop,
     #[value(name = "deriv_bc")]
     DerivBc,
-    /// Alias of pderiv_bc -- the reference gives only a bit-coded
-    /// partial-derivative construction, no independent non-bitcoded one
-    /// (see regex::pderiv::annotated), so both resolve to the same parser.
     Pderiv,
     #[value(name = "pderiv_bc")]
     PderivBc,
@@ -127,8 +121,6 @@ enum ParserArg {
 }
 
 impl ParserArg {
-    /// The single ParserType this resolves to, or None for `all` (handled
-    /// separately by run_parse_all).
     fn single(self) -> Option<ParserType> {
         match self {
             ParserArg::DerivRec  => Some(ParserType::DerivRec),
