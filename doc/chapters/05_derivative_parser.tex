@@ -4,84 +4,65 @@
 % ----------------------------------------------------------------------
 \chapter{Derivative-Based Parser}
 \label{sec:derivative-parser}
-% Sulzmann and Lu's construction \citep{sulzmannlu2014} 
-% theory then both Rust realizations.
+
+Chapter~\ref{sec:matching-vs-parsing} fixed what is being computed --
+the $\geq_r$-maximal parse tree of Definition~\ref{sec:posix-longest-leftmost}
+-- without saying how. This chapter presents Sulzmann and Lu's answer
+\citep{sulzmannlu2014}: a parser built directly on the Brzozowski
+derivative of Section~\ref{sec:brzozowski-derivatives}, in two forms. The
+first, direct construction computes a derivative sequence and then
+explicitly rebuilds a parse tree from it; the second, bit-coded
+construction fuses parse-tree bookkeeping into the derivative step itself.
+Both are developed here as theory first, then as the two Rust
+implementations that realize them, \texttt{src/posix/standard/} and
+\texttt{src/posix/bitcoded/}. Chapter~\ref{sec:partial-derivative-parser}
+repeats the exercise once more, replacing the Brzozowski derivative
+throughout with Antimirov's partial derivative from
+Section~\ref{sec:antimirov-partial-derivatives}.
 
 
 
 \section{Core Algorithm}
 \label{sec:core-algorithm}
-% TODO: mkEps, inject, parse (paper Fig. 3)
-
-
 
 \section{Correctness Properties}
 \label{sec:correctness-properties}
-% OPTIONAL: Lemma 1, Lemma 2, Theorem 1 (stated, not re-proved)
-
-
 
 \section{Bit-Coded Optimization (Theory)}
 \label{sec:bitcoded-optimization-theory}
-% TODO: annotated regex type, internalize/fuse, incremental forward
-% construction (paper Fig. 5)
-
-
 
 \section{Simplification Rules}
 \label{sec:simplification-rules-theory}
-% TODO: keeping derivatives finite (paper Fig. 6)
-
-
 
 \section{Rust Implementation: The \texttt{inj} Version}
 \label{sec:derivative-parser-inj-rust}
-% src/posix/standard/, src/types/parse_tree.rs
 
 \subsection{\texttt{ParseTree} and \texttt{flatten}}
 \label{sec:parsetree-and-flatten}
-% TODO
 
 \subsection{\texttt{mk\_eps}}
 \label{sec:mk-eps-impl}
-% TODO
 
 \subsection{\texttt{inject}}
 \label{sec:inject-impl}
-% TODO
 
 \subsection{\texttt{parse\_recursive} vs. \texttt{parse\_loop}}
 \label{sec:recursive-vs-loop}
-% OPTIONAL: the stack-safety motivation, made concrete (results deferred
-% to Chapter~\ref{sec:evaluation})
-
-
 
 \section{Rust Implementation: The Bit-Coded Version}
 \label{sec:derivative-parser-bitcoded-rust}
-% src/posix/bitcoded/, src/types/aregex.rs
 
 \subsection{\texttt{ARegex} - Bit-Annotated Regex}
 \label{sec:aregex-type}
-% TODO
 
 \subsection{\texttt{internalize}/\texttt{fuse}}
 \label{sec:internalize-fuse}
-% TODO
 
 \subsection{\texttt{deriv\_bc}}
 \label{sec:deriv-bc}
-% TODO
 
 \subsection{\texttt{mk\_eps\_bc}}
 \label{sec:mk-eps-bc}
-% TODO
 
 \subsection{\texttt{decode}}
 \label{sec:decode}
-% TODO
-
-\subsection{Heap-Free Parsing}
-\label{sec:heap-free-parsing}
-% OPTIONAL
-

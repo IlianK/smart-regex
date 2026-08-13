@@ -43,7 +43,7 @@ expression denial-of-service (ReDoS) vulnerabilities \citep{cox2007}.
 Automata-based approaches provide stronger worst-case guarantees but may 
 require costly preprocessing and can suffer from state-space explosion.
 
-Derivative-based algorithms provide an alternative perspective by
+Derivative-based algorithms provide an alternative by
 transforming the regular expression itself as input symbols are consumed.
 By maintaining a direct correspondence between an expression and its
 successive residuals, they offer an elegant foundation for structured
@@ -75,18 +75,16 @@ memory allocation, stack usage, and execution time to be studied as direct
 properties of the implementation.
 
 This thesis investigates the practical implementation of Sulzmann and Lu's
-POSIX-correct derivative-based parsing algorithm in Rust. In addition to a
-direct implementation of the original algorithm, this work explores
+POSIX-correct derivative-based parsing algorithm in Rust and explores
 implementations based on Antimirov's partial derivatives and the bit-coded
-optimization proposed by the authors. The resulting implementations are
+optimization proposed by the authors. The resulting implementations are then
 evaluated in terms of performance and resource usage and compared against
 established regular expression implementations, including Rust's
 \texttt{regex} crate and Google's RE2.
 
 Furthermore, the derivative-based representation provides an opportunity
-beyond conventional matching engines: the intermediate reasoning of the
-algorithm can be exposed rather than hidden internally. This thesis
-therefore also investigates how derivative computations can be used as a
+to show the reasoning of the algorithm. This thesis
+therefore also shows how derivative computations can be used as a
 basis for diagnostic tooling, allowing matches and mismatches to be
 explained through the transformations performed during the matching
 process.

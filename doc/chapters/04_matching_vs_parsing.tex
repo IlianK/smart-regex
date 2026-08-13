@@ -1,35 +1,313 @@
 
-% ----------------------------------------------------------------
+% ----------------------------------------------------------------------
 % chapters/04_matching_vs_parsing.tex
-% ----------------------------------------------------------------
+% ----------------------------------------------------------------------
 \chapter{Matching versus Parsing}
 \label{sec:matching-vs-parsing}
+
+Chapter~\ref{sec:derivatives} answered the membership question, always with
+a Boolean. This chapter motivates and makes precise the harder question the
+rest of this thesis is about: not just \emph{whether} $r$ matches $w$, but
+\emph{how} -- which parts of $w$ were consumed by which parts of $r$. That
+question turns out not to have a unique answer in general, and this
+chapter's second half develops the disambiguation machinery, in particular
+the POSIX policy, needed to make it one again.
 
 
 
 \section{The Matching Problem}
 \label{sec:matching-problem}
-% TODO: decision (bool) vs. parsing (which submatch) 
+
+The three matchers of Chapter~\ref{sec:derivatives} all decide the same
+question: given $r$ and $w$, is $w \in L(r)$? A Boolean answer is enough
+for some uses of regular expressions -- validating that a password meets a
+policy, or that a configuration value has an acceptable shape, needs
+nothing more. It is not enough for others. A lexer must know not just that
+an input decomposes into valid tokens, but exactly where each token
+begins and ends. Capturing groups, schema validation, and information
+extraction all require identifying which \emph{part} of $w$ corresponds to
+which \emph{part} of $r$, not merely that some correspondence exists. In
+each of these settings the question is no longer recognition but parsing:
+recover a witness that $w \in L(r)$, structured enough to read off
+submatch boundaries from, rather than a single bit reporting that such a
+witness exists.
+
 
 
 \section{Parse Trees as Matching Evidence}
 \label{sec:parse-trees-as-evidence}
-% TODO: what a parse tree witnesses beyond a boolean (examples)
+
+Sulzmann and Lu formalize such a witness by viewing regular expressions as
+types and parse trees as the values inhabiting them
+\citep{sulzmannlu2014}. A parse tree $v$ is built from the same
+constructors used informally in Section~\ref{sec:regex-semantics}'s
+definition of $L(r)$ -- a pair for concatenation, a tagged left or right
+injection for alternation, a list for repetition -- and a judgment
+$\vdash v : r$, defined by structural recursion on both $v$ and $r$
+simultaneously, states that $v$ is a valid parse tree of $r$:
+\[
+\begin{array}{ll}
+\vdash () : \varepsilon &
+\dfrac{l \in \Sigma}{\vdash l : l} \\[1.2em]
+\dfrac{\vdash v_1 : r_1 \quad \vdash v_2 : r_2}{\vdash (v_1,v_2) : r_1 r_2} &
+\dfrac{\vdash v_1 : r_1}{\vdash \mathit{Left}\ v_1 : r_1 + r_2} \quad
+\dfrac{\vdash v_2 : r_2}{\vdash \mathit{Right}\ v_2 : r_1 + r_2} \\[1.2em]
+\dfrac{}{\vdash [\,] : r^{*}} &
+\dfrac{\vdash v : r \quad \vdash vs : r^{*}}{\vdash (v:vs) : r^{*}}
+\end{array}
+\]
+A \emph{flattening} function $|v|$ reads the underlying word back off a
+parse tree by structural recursion -- $|()| = \varepsilon$, $|l| = l$,
+$|(v_1,v_2)| = |v_1||v_2|$, $|\mathit{Left}\ v| = |\mathit{Right}\ v| =
+|v|$, and $|v : vs| = |v||vs|$ -- and the two are related by the property
+that matters: for every derivable $\vdash v : r$, the word $|v|$ is a
+member of $L(r)$. A parse tree is thus not merely evidence that $w \in
+L(r)$; each derivation of $\vdash v : r$ with $|v| = w$ \emph{is} a proof
+of that membership, in the same sense a value of a type is evidence that
+the type is inhabited.
+
+\paragraph{Warm-up example.}
+Before turning to a compound expression, it is worth seeing the rules
+apply to the simplest nontrivial case. For $r = a \cdot b$ against
+$w = \mathtt{ab}$, only one derivation is possible: the \emph{Pair} rule
+requires $\vdash v_1 : a$ and $\vdash v_2 : b$, and the only parse trees
+of a single literal are the literal itself, so $v_1 = a$, $v_2 = b$, and
+\[
+\dfrac{\vdash a : a \quad \vdash b : b}{\vdash (a,b) : ab}
+\]
+is the only possible derivation, giving $v = (a,b)$ with $|v| = |a||b| =
+\mathtt{ab}$. Nothing here is ambiguous yet -- ambiguity, taken up in
+Section~\ref{sec:disambiguation-problem}, requires a choice point such as
+$+$ or $^{*}$ somewhere in $r$.
+
+\paragraph{Compound example.}
+Now take $r_1 = (a + ab)(b + \varepsilon)$ against the word
+$\mathtt{ab}$ (\texttt{paper\_r1} in the test suite,
+\texttt{tests/common/mod.rs}, reproducing the running example of
+\citep{sulzmannlu2014}). One valid derivation picks the second alternative
+of $a + ab$, matching \texttt{ab} in one step, then the empty alternative
+of $b + \varepsilon$:
+\[
+\dfrac{\vdash a : a \quad \vdash b : b}{\vdash (a,b) : ab} \Big/
+\dfrac{\vdash (a,b) : a + ab}{\vdash \mathit{Right}(a,b) : a + ab} \quad
+\dfrac{}{\vdash () : \varepsilon} \Big/
+\dfrac{\vdash () : \varepsilon}{\vdash \mathit{Right}() : b + \varepsilon}
+\]
+yielding $v = (\mathit{Right}(a,b), \mathit{Right}())$ with $|v| =
+|(a,b)||()| = \mathtt{ab} \cdot \varepsilon = \mathtt{ab}$. A second,
+equally valid derivation exists for the same $r_1$ and the same word --
+Section~\ref{sec:disambiguation-problem} constructs it explicitly, since
+it is exactly what makes disambiguation necessary in the first place.
+
+\texttt{src/types/parse\_tree.rs} represents $v$ directly as the
+\texttt{ParseTree} enum -- \texttt{Empty}, \texttt{Char}, \texttt{Pair},
+\texttt{Left}, \texttt{Right}, \texttt{Star} correspond one to one with
+$()$, a literal, $(v_1,v_2)$, $\mathit{Left}\ v$, $\mathit{Right}\ v$, and
+$v{:}vs$ respectively (Section~\ref{sec:parsetree-and-flatten} presents
+the Rust type itself, alongside the rest of the \texttt{inj} parser it
+belongs to), and \texttt{flatten} is $|v|$ by structural recursion,
+matching each \texttt{ParseTree} case to the corresponding clause above.
+One constructor present in the reference's \texttt{U} type has no
+counterpart here: \texttt{Nil}, used there for the (untypeable) "no parse
+tree" case when a match does not exist. The Rust implementation has no
+need for it, representing absence of a parse tree with
+\texttt{Option<ParseTree>::None} at the type level instead -- a first,
+small instance of a translation choice Rust's type system invites that
+the untyped reference does not; Section~\ref{sec:translation-strategy}
+returns to this pattern more generally once the full implementation is on
+the table.
 
 
 
 \section{Ambiguity in Regular Expression Parsing}
 \label{sec:disambiguation-problem}
-% TODO: why more than one parse tree can justify the same match (examples)
+
+The judgment $\vdash v : r$ is not functional: for a fixed $r$ and $w$,
+there can be more than one $v$ with $\vdash v : r$ and $|v| = w$. Return
+to $r_1 = (a + ab)(b + \varepsilon)$ against $\mathtt{ab}$ from
+Section~\ref{sec:parse-trees-as-evidence}: alongside
+$v = (\mathit{Right}(a,b), \mathit{Right}())$, the \emph{first}
+alternative of $a + ab$ also leads to a valid, different derivation --
+match $\mathtt{a}$ against the first alternative, leaving $\mathtt{b}$ for
+$b + \varepsilon$'s own first alternative:
+\[
+\dfrac{}{\vdash a : a} \Big/
+\dfrac{\vdash a : a}{\vdash \mathit{Left}\ a : a + ab} \quad
+\dfrac{}{\vdash b : b} \Big/
+\dfrac{\vdash b : b}{\vdash \mathit{Left}\ b : b + \varepsilon}
+\]
+giving $v' = (\mathit{Left}\ a, \mathit{Left}\ b)$, with $|v'| =
+|a||b| = \mathtt{ab}$ -- the same word, a different parse. A second
+example makes the same point with repetition instead of concatenation:
+$r_2 = (a + b + ab)^{*}$ against $\mathtt{ab}$
+(\texttt{paper\_r2}\footnote{As implemented, \texttt{paper\_r2} nests
+the alternation as $a + (b + ab)$; the associativity of $+$ is immaterial
+to $L(r)$ and to this example.} in the test suite). One iteration of the
+star can consume $\mathtt{ab}$ in a single step via the third alternative,
+giving $v = [\mathit{Right}\ \mathit{Right}(a,b)]$; alternatively, two
+iterations can consume $\mathtt{a}$ and $\mathtt{b}$ separately via the
+first two alternatives, giving $v' = [\mathit{Left}\ a,\ \mathit{Right}\
+\mathit{Left}\ b]$. Nothing in Section~\ref{sec:parse-trees-as-evidence}'s
+typing rules prefers one derivation over the other in either example. A
+parser that must return a single answer therefore needs an explicit
+\emph{disambiguation policy}: a rule that, given $r$ and $w$, picks out
+one $v$ from the (possibly many) parse trees satisfying $\vdash v : r$
+and $|v| = w$.
+
 
 \subsection{Greedy Leftmost Matching}
 \label{sec:greedy-leftmost}
-% TODO: greedy.pdf
+
+The policy implicit in backtracking engines is \emph{greedy}: alternatives
+are tried in left-to-right order and the first one that leads to an
+overall match wins, and inside a Kleene star, one more iteration is always
+attempted before the star is allowed to stop \citep{frischcardelli2004}.
+Operationally this is exactly what a backtracking matcher's exploration
+order already realizes; formalized as an ordering on parse trees, the
+relevant rule states that between two candidates agreeing everywhere else,
+$\mathit{Left}\ v \geq_{r_1+r_2} \mathit{Right}\ v'$ always -- the left
+alternative is preferred outright, independent of how long a match each
+side produces.
+
+Applied to $r_1 = (a + ab)(b + \varepsilon)$ against $\mathtt{ab}$ from
+above, Greedy matching tries the first alternative of $a + ab$ first: $a$
+matches the leading character, so the engine commits to it immediately
+without ever considering whether $ab$ might have matched more. What
+remains, $\mathtt{b}$, is then matched against $b + \varepsilon$, whose
+own first alternative $b$ succeeds directly. The Greedy result is
+therefore $v' = (\mathit{Left}\ a, \mathit{Left}\ b)$ -- the \emph{second}
+of the two derivations found in Section~\ref{sec:disambiguation-problem}.
+Section~\ref{sec:posix-longest-leftmost} revisits this exact pair $(r_1,
+\mathtt{ab})$ once the POSIX ordering has been introduced, and finds the
+opposite answer.
+
 
 \subsection{The Infinite Empty-Match Chain Problem}
 \label{sec:infinite-empty-chain}
-% TODO: epsilon* pathology
+
+Greedy's "always iterate before stopping" rule interacts badly with
+expressions that can match the empty word inside a star.
+Take $\varepsilon^{*}$ against the empty input: since $\varepsilon$ itself
+is nullable, nothing stops the star from iterating arbitrarily many times
+while still matching only $\varepsilon$ overall, and Greedy's preference
+for "one more iteration" ranks every such expansion above the last:
+\[
+v_0 = [\,] \; <_{\varepsilon^{*}} \; v_1 = [()] \; <_{\varepsilon^{*}} \;
+v_2 = [(),()] \; <_{\varepsilon^{*}} \; \cdots
+\]
+This chain has no maximum, so Greedy matching on $\varepsilon^{*}$ is only
+well-defined once such \emph{problematic} expressions are given special
+treatment beyond the ordering rule of
+Section~\ref{sec:greedy-leftmost} alone. The same issue appears in
+slightly less degenerate form for $(\varepsilon + a)^{*}$ against
+$\mathtt{a}$, where $v_0 = [\mathit{Right}\ a]$, $v_1 = [\mathit{Left}\ (),
+\mathit{Right}\ a]$, $v_2 = [\mathit{Left}\ (), \mathit{Left}\ (),
+\mathit{Right}\ a]$, \ldots again form an infinite ascending chain under
+Greedy, this time padding an arbitrary number of empty iterations in front
+of the one iteration that actually consumes $\mathtt{a}$.
+Section~\ref{sec:posix-longest-leftmost} shows exactly how POSIX's rule
+(K1) blocks both chains at $v_0$ directly, with no special case required.
+
 
 \subsection{POSIX Longest-Leftmost Matching}
 \label{sec:posix-longest-leftmost}
-% TODO: definition, ordering rules
+
+The POSIX standard specifies a different policy, \emph{leftmost-longest}
+matching:
+
+\begin{quote}
+``Subpatterns should match the longest possible substrings, where
+subpatterns that start earlier (to the left) in the regular expression
+take priority over ones starting later. Hence, higher-level subpatterns
+take priority over their lower-level component subpatterns. Matching an
+empty string is considered longer than no match at all.''
+\citep{posix_ere}
+\end{quote}
+
+Sulzmann and Lu formalize this as an ordering $\geq_r$ on parse trees of a
+fixed $r$, obtained from the Greedy order of
+Section~\ref{sec:greedy-leftmost} by replacing exactly one rule and
+leaving the rest unchanged \citep{sulzmannlu2014}:
+\[
+\begin{array}{ll}
+\text{(C1)} & \dfrac{v_1 = v_1' \quad v_2 \geq_{r_2} v_2'}{(v_1,v_2) \geq_{r_1 r_2} (v_1',v_2')} \\[1em]
+\text{(C2)} & \dfrac{v_1 \geq_{r_1} v_1'}{(v_1,v_2) \geq_{r_1 r_2} (v_1',v_2')} \\[1em]
+\text{(A1)} & \dfrac{\mathrm{len}\,|v_2| > \mathrm{len}\,|v_1|}{\mathit{Right}\ v_2 \geq_{r_1+r_2} \mathit{Left}\ v_1} \\[1em]
+\text{(A2)} & \dfrac{\mathrm{len}\,|v_1| \geq \mathrm{len}\,|v_2|}{\mathit{Left}\ v_1 \geq_{r_1+r_2} \mathit{Right}\ v_2} \\[1em]
+\text{(A3)} & \dfrac{v_2 \geq_{r_2} v_2'}{\mathit{Right}\ v_2 \geq_{r_1+r_2} \mathit{Right}\ v_2'} \\[1em]
+\text{(A4)} & \dfrac{v_1 \geq_{r_1} v_1'}{\mathit{Left}\ v_1 \geq_{r_1+r_2} \mathit{Left}\ v_1'} \\[1em]
+\text{(K1)} & \dfrac{|v : vs| = \varepsilon}{[\,] \geq_{r^{*}} v : vs} \\[1em]
+\text{(K2)} & \dfrac{|v : vs| \neq \varepsilon}{v : vs \geq_{r^{*}} [\,]} \\[1em]
+\text{(K3)} & \dfrac{v_1 \geq_r v_2}{v_1 : vs_1 \geq_{r^{*}} v_2 : vs_2} \\[1em]
+\text{(K4)} & \dfrac{v_1 = v_2 \quad vs_1 \geq_{r^{*}} vs_2}{v_1 : vs_1 \geq_{r^{*}} v_2 : vs_2}
+\end{array}
+\]
+Congruence rules (C1), (C2) propagate a componentwise comparison through
+pairs: two concatenated parse trees compare by comparing each component
+in turn, with equality on the first component falling through to the
+second (C1). In place of Greedy's unconditional "left beats right", (A1)
+and (A2) compare by \emph{length} first: whichever alternative produces
+the longer match wins outright (A1), and only when both sides match the
+same length does the left alternative win (A2) -- recovering
+left-preference as a tie-breaker rather than an absolute rule. (A3), (A4)
+recurse structurally once a side has already been fixed. The remaining
+rules govern Kleene star lists: (K1) prefers the empty list $[\,]$ over
+any list of iterations that together still flatten to $\varepsilon$, and
+(K2) is its mirror image, preferring any non-empty-flattening list over
+an empty-flattening one; (K3), (K4) recurse into the list structurally
+once the head elements are compared, first by the ordering on the star's
+body ($r$, via (K3)) and, only on equality, by the tail (via (K4)).
+
+\paragraph{POSIX applied to the running example.}
+Return once more to $r_1 = (a+ab)(b+\varepsilon)$ against $\mathtt{ab}$,
+comparing $v = (\mathit{Right}(a,b), \mathit{Right}())$ against
+$v' = (\mathit{Left}\ a, \mathit{Left}\ b)$ from
+Section~\ref{sec:disambiguation-problem}. Both share the same regular
+expression, so (C2) applies to the first component: comparing
+$\mathit{Right}(a,b)$ against $\mathit{Left}\ a$ within $a + ab$ is a
+direct instance of (A1), since $\mathrm{len}\,|(a,b)| = 2 > 1 =
+\mathrm{len}\,|a|$. Hence $\mathit{Right}(a,b) \geq_{a+ab} \mathit{Left}\
+a$, and by (C2), $v \geq_{r_1} v'$ -- POSIX selects $v$, the
+\emph{opposite} of Greedy's answer for the same $(r_1, \mathtt{ab})$ found
+in Section~\ref{sec:greedy-leftmost}.
+
+\paragraph{POSIX applied to the star example.}
+For $r_2 = (a + b + ab)^{*}$ against $\mathtt{ab}$, comparing
+$v = [\mathit{Right}\ \mathit{Right}(a,b)]$ against
+$v' = [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b]$ starts with
+(K3), comparing head elements $\mathit{Right}\ \mathit{Right}(a,b)$ and
+$\mathit{Left}\ a$ within the star's body $a + (b + ab)$. This is again
+(A1): $\mathrm{len}\,|\mathit{Right}(a,b)| = 2 > 1 = \mathrm{len}\,|a|$,
+so $\mathit{Right}\ \mathit{Right}(a,b) \geq_{a+(b+ab)} \mathit{Left}\ a$,
+and (K3) lifts this to $[\mathit{Right}\ \mathit{Right}(a,b)]
+\geq_{r_2} [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b]$ directly
+-- the single two-character iteration beats the two one-character
+iterations under POSIX.
+
+\paragraph{POSIX applied to the infinite-chain examples.}
+Rule (K1) resolves Section~\ref{sec:infinite-empty-chain}'s pathology
+directly: for $\varepsilon^{*}$ against $\varepsilon$, comparing
+$v_0 = [\,]$ against $v_1 = [()]$ instantiates (K1) with $v = ()$,
+$vs = [\,]$, whose flattening $|() : [\,]| = |()| \, |[\,]| = \varepsilon
+\cdot \varepsilon = \varepsilon$ satisfies the rule's premise immediately,
+giving $[\,] \geq_{\varepsilon^{*}} [()]$ -- and by the same argument
+against $v_2, v_3, \ldots$, against every element of the chain at once,
+with no separate case analysis needed for each one. The same instantiation
+of (K1) applies to $(\varepsilon + a)^{*}$ against $\mathtt{a}$: every
+$v_i$ in that chain other than $v_0 = [\mathit{Right}\ a]$ itself
+flattens to $\mathtt{a}$ once the trailing $\mathit{Right}\ a$ is
+accounted for, but the comparison that matters is between $v_0$ and the
+empty-flattening prefix chains layered in front of it in
+$v_1, v_2, \ldots$ -- and (K1) again picks the shorter, un-padded
+$v_0$ over any of them.
+
+Unlike the Greedy order, $\geq_r$ is total and has a maximal element for
+\emph{every} expression $r$, including the problematic ones of
+Section~\ref{sec:infinite-empty-chain} -- (K1) already picks out $[\,]$ as
+maximal for $\varepsilon^{*}$ with no separate case analysis required
+\citep{sulzmannlu2014}. This single well-definedness property is what
+makes POSIX matching amenable to a direct algorithmic construction rather
+than a family of special cases, and it is exactly what
+Chapter~\ref{sec:derivative-parser} builds a parser around: a way to
+compute the $\geq_r$-maximal parse tree without materializing and
+comparing every candidate.
