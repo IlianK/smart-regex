@@ -9,21 +9,13 @@
 //!   match    Boolean match only (returns exit code 0/1)
 //!   parse    POSIX parsing with parse tree output
 //!
-//! Options (per-subcommand -- run `cargo run -- match --help` /
-//! `cargo run -- parse --help` to see them listed with their allowed
-//! values directly):
 //!   match:
 //!     --matcher <MATCHER>   naive, deriv, pderiv, all   (default: deriv)
-//!     --diag <DIAG>         0, 1, 2, 3                  (default: 0)
 //!   parse:
-//!     --parser <PARSER>     deriv_rec, deriv_loop, deriv_bc, pderiv,
-//!                           pderiv_bc, all               (default: deriv_rec)
+//!     --parser <PARSER>     deriv_std_rec, deriv_std_loop, deriv_bc, pderiv_std, pderiv_bc, all (default: deriv_std_rec)
 //!     --diag <DIAG>         0, 1, 2, 3                  (default: 0)
-//!     --diag-report <PATH>  Level-3 report destination (default: stdout,
-//!                           or reports/report.txt if --diag 3 with no
-//!                           path given)
+//!     --diag-report <PATH>  Level-3 report destination 
 
-mod input;
 mod matcher;
 mod parser;
 
@@ -48,32 +40,22 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Boolean match only (returns exit code 0/1)
+    /// Matcher (returns true/false)
     Match {
-        /// Regular expression pattern
         regex: String,
-        /// Input string to match
         input: String,
-        /// Matcher to use
         #[arg(long, value_enum, default_value_t = MatcherArg::Deriv)]
         matcher: MatcherArg,
-        /// Diagnostic verbosity level
-        #[arg(long, value_enum, default_value_t = DiagArg::Off)]
-        diag: DiagArg,
     },
-    /// POSIX parsing with parse tree output
+
+    /// Parser (returns parse tree) 
     Parse {
-        /// Regular expression pattern
         regex: String,
-        /// Input string to parse
         input: String,
-        /// Parser to use
-        #[arg(long, value_enum, default_value_t = ParserArg::DerivRec)]
+        #[arg(long, value_enum, default_value_t = ParserArg::DerivStdRec)]
         parser: ParserArg,
-        /// Diagnostic verbosity level
         #[arg(long, value_enum, default_value_t = DiagArg::Off)]
         diag: DiagArg,
-        /// Level-3 report destination
         #[arg(long)]
         diag_report: Option<String>,
     },
@@ -103,32 +85,34 @@ impl MatcherArg {
 }
 
 // -------------------------------
-// --parser: deriv_rec, deriv_loop, deriv_bc, pderiv, pderiv_bc, all
+// --parser: deriv_std_rec, deriv_std_loop, deriv_bc, pderiv_std, pderiv_bc
 // -------------------------------
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
 enum ParserArg {
-    #[value(name = "deriv_rec")]
-    DerivRec,
-    #[value(name = "deriv_loop")]
-    DerivLoop,
+    #[value(name = "deriv_std_rec")]
+    DerivStdRec,
+    #[value(name = "deriv_std_loop")]
+    DerivStdLoop,
     #[value(name = "deriv_bc")]
     DerivBc,
-    Pderiv,
+    #[value(name = "pderiv_std")]
+    PderivStd,
     #[value(name = "pderiv_bc")]
     PderivBc,
+
     All,
-}
+} 
 
 impl ParserArg {
     fn single(self) -> Option<ParserType> {
         match self {
-            ParserArg::DerivRec  => Some(ParserType::DerivRec),
-            ParserArg::DerivLoop => Some(ParserType::DerivLoop),
-            ParserArg::DerivBc   => Some(ParserType::DerivBC),
-            ParserArg::Pderiv    => Some(ParserType::PDeriv),
-            ParserArg::PderivBc  => Some(ParserType::PDerivBC),
-            ParserArg::All       => None,
+            ParserArg::DerivStdRec  => Some(ParserType::DerivStdRec),
+            ParserArg::DerivStdLoop => Some(ParserType::DerivStdLoop),
+            ParserArg::DerivBc      => Some(ParserType::DerivBc),
+            ParserArg::PderivStd    => Some(ParserType::PDerivStd),
+            ParserArg::PderivBc     => Some(ParserType::PDerivBc),
+            ParserArg::All          => None,
         }
     }
 }
@@ -168,9 +152,9 @@ pub fn run() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Match { regex, input, matcher, diag } => {
+        Commands::Match { regex, input, matcher } => {
             match matcher.single() {
-                Some(m) => run_match_single(&regex, &input, m, diag.into()),
+                Some(m) => run_match_single(&regex, &input, m),
                 None    => run_match_all(&regex, &input),
             }
         }

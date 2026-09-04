@@ -1,35 +1,34 @@
 //! regex-engine/src/diagnostics/replay.rs
 //! 
 //! Replay utilities for failure diagnostics.
-//!     Level 1 (error position only) 
-//!     Level 2/3 (partial tree).
+//!     Diag 1      (error position only) 
+//!     Diag 2/3    (partial tree).
 
 use crate::types::{Regex, ParseTree};
-use crate::regex::deriv::standard::deriv;
-use crate::regex::nullable::standard::nullable;
+use crate::regex::standard::deriv::deriv;
+use crate::regex::standard::nullable::nullable;
 use crate::parsers::standard::mk_eps;
 use crate::parsers::standard::inject;
 
 
 // -------------------------------
-// Error position (used by Level 1 for both standard and bitcoded)
+// Error position (used by Diag 1 for both standard and bitcoded)
 // -------------------------------
 
-/// Result of replaying the forward pass on a failing input
+/// Result of replaying forward pass on failing input
 #[derive(Debug, Clone)]
 pub struct FailureInfo {
-    /// 1-indexed position where the match failed
+    /// 1-indexed position where match failed
     pub position: usize,
-    /// The character that caused failure ('\\0' if input ended unexpectedly)
+    /// Character that caused failure ('\\0' if input ended unexpectedly)
     pub found: char,
-    /// Human-readable description of what was expected
+    /// Description of what was expected
     pub expected: String,
     /// Number of characters successfully matched before failure
     pub matched_prefix_len: usize,
 }
 
-/// Replay derivative forward pass and locate the first failure position
-/// Called for both standard and bitcoded paths at Level 1 (caret error)
+/// Replay derivative forward pass to locate the first failure position
 pub fn find_failure(input: &str, r: &Regex) -> FailureInfo {
     let chars: Vec<char> = input.chars().collect();
     let mut current = r.clone();
@@ -74,8 +73,7 @@ fn is_dead(r: &Regex) -> bool {
     }
 }
 
-/// Produce a human-readable description of what characters the expression
-/// could still accept at this point, for the error message
+/// Produce description of what characters the expression could still accept at this point
 fn expected_description(r: &Regex) -> String {
     let mut chars = collect_expected_chars(r);
     chars.sort();
@@ -126,9 +124,7 @@ fn collect_expected_chars(r: &Regex) -> Vec<char> {
 // Partial tree recovery (used by Level 2 and Level 3 on failure)
 // -------------------------------
 
-/// Recover partial parse tree from the last nullable derivative expression in forward pass
-/// Returns None if no prefix matched at all.
-///
+/// Recover partial parse tree from last nullable derivative expression in forward pass
 /// Takes stored expression sequence from ParseTrace (so no need rerun forward pass)
 pub fn partial_tree_standard(
     expressions: &[Regex],
@@ -154,13 +150,11 @@ pub fn partial_tree_standard(
 
 
 // -------------------------------
-// Caret line builder (shared across all levels)
+// Caret line builder (shared across all diag levels)
 // -------------------------------
 
-/// Build the two-line caret display:
-///   "  aab"
-///   "    ^"
-/// position is 1-indexed.
+/// Build the two-line caret display: "  aab"
+///                                   "    ^"
 pub fn caret_lines(input: &str, position: usize) -> String {
     let display_input = format!("  {}", input);
     // position 1 means first char; offset = 2 (indent) + position - 1
@@ -169,7 +163,7 @@ pub fn caret_lines(input: &str, position: usize) -> String {
     format!("{}\n{}", display_input, caret_line)
 }
 
-/// Full failure block: "Error: position N: found/expected 
+/// Full failure block
 pub fn error_report(input: &str, r: &Regex) -> String {
     let info = find_failure(input, r);
     let headline = if info.found == '\0' {
@@ -187,10 +181,9 @@ pub fn error_report(input: &str, r: &Regex) -> String {
 }
 
 
-
-// -------------------------------
-// Unit tests
-// -------------------------------
+/// -------------------------------
+/// Unit tests
+/// -------------------------------
 
 #[cfg(test)]
 mod tests {

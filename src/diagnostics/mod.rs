@@ -1,31 +1,26 @@
+//! regex-engine/src/diagnostics/mod.rs
+//! 
 //! Diagnostics module
 //!
-//! Controls output verbosity for matching and parsing via REGEX_DIAG env var.
+//! Controls output verbosity for parsing via --diag env var. 
+//! `match` has no diagnostics, only prints true/false.
 //!
 //! Levels:
-//!   0 = Off     - true / false only
+//!   0 = Off     - true / false only (like match)
 //!   1 = Basic   - regex, input, result, parse tree, error caret
 //!   2 = Verbose - Basic + time, expression count, construction steps
-//!   3 = Debug   - full structural derivation trace
-//!                 (written to REGEX_DIAG_REPORT if set, otherwise stdout)
-//!
-//! Usage:
-//!   REGEX_DIAG=1 cargo run -- parse "a*" "aaa"
-//!   REGEX_DIAG=2 REGEX_PARSER=bitcoded cargo run -- parse "a*" "aab"
-//!   REGEX_DIAG=3 REGEX_DIAG_REPORT=report.txt cargo run -- parse "a*" "aab"
-//!   REGEX_DIAG=1 cargo run --example demo_posix
+//!   3 = Debug   - full structural derivation trace (written to a report/file.txt)
 
 pub mod trace;
 pub mod replay;
 pub mod format;
-pub mod level1;
-pub mod level2;
-pub mod level3;
+pub mod diag_1;
+pub mod diag_2;
+pub mod diag_3;
 pub mod report;
 
 use crate::types::Regex;
 use crate::parsers::selection::ParserType;
-use crate::matchers::MatcherType;
 
 
 // -------------------------------
@@ -59,13 +54,10 @@ impl DiagLevel {
 // -------------------------------
 // DiagConfig
 // -------------------------------
-
-/// Holds  diagnostics configfor a single parse/match call
 #[derive(Debug, Clone)]
 pub struct DiagConfig {
     pub level:       DiagLevel,
     pub parser_type: ParserType,
-    pub matcher_type: MatcherType,
     pub report_path: Option<String>,
 }
 
@@ -73,17 +65,16 @@ impl DiagConfig {
     pub fn new(
         level: DiagLevel,
         parser_type: ParserType,
-        matcher_type: MatcherType,
         report_path: Option<String>,
     ) -> Self {
-        Self { level, parser_type, matcher_type, report_path }
+        Self { level, parser_type, report_path }
     }
 
     pub fn read_from_env() -> Self {
         let level        = DiagLevel::from_env();
         let parser_type  = ParserType::single_from_env();
-        let matcher_type = MatcherType::from_env().into_iter().next().unwrap_or(MatcherType::Deriv);
 
+        // Default report path: reports/report.txt
         let report_path = if level == DiagLevel::Debug {
             Some(
                 std::env::var("REGEX_DIAG_REPORT")
@@ -93,7 +84,7 @@ impl DiagConfig {
             std::env::var("REGEX_DIAG_REPORT").ok()
         };
 
-        Self { level, parser_type, matcher_type, report_path }
+        Self { level, parser_type, report_path }
     }
 
     pub fn is_off(&self) -> bool {
@@ -106,40 +97,21 @@ impl DiagConfig {
 // Entry points
 // -------------------------------
 
-/// Run a parser and show diagnostics output at configured level (by CLI and demo)
+/// Run parser and show diagnostics output at level 
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     match config.level {
         DiagLevel::Off     => level0_parser(r, input, config),
-        DiagLevel::Basic   => level1::run_parser(regex_str, r, input, config),
-        DiagLevel::Verbose => level2::run_parser(regex_str, r, input, config),
-        DiagLevel::Debug   => level3::run_parser(regex_str, r, input, config),
+        DiagLevel::Basic   => diag_1::run_parser(regex_str, r, input, config),
+        DiagLevel::Verbose => diag_2::run_parser(regex_str, r, input, config),
+        DiagLevel::Debug   => diag_3::run_parser(regex_str, r, input, config),
     }
 }
-
-/// Run a matcher and show diagnostics output at configured level (by CLI and demo)
-pub fn run_matcher(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
-    match config.level {
-        DiagLevel::Off => level0_matcher(r, input, config.matcher_type),
-        _              => level1::run_matcher(regex_str, r, input, config.matcher_type),
-    }
-}
-
 
 // -------------------------------
-// Level 0 helpers
+// Level 0 helper (true/false only)
 // -------------------------------
 
 fn level0_parser(r: &Regex, input: &str, config: &DiagConfig) {
     let matched = config.parser_type.parser()(input, r).is_some();
-    println!("{}", matched);
-}
-
-fn level0_matcher(r: &Regex, input: &str, matcher_type: MatcherType) {
-    use crate::matchers::{match_naive, match_deriv, match_pderiv};
-    let matched = match matcher_type {
-        MatcherType::Naive  => match_naive(input, r),
-        MatcherType::Deriv  => match_deriv(input, r),
-        MatcherType::PDeriv => match_pderiv(input, r),
-    };
     println!("{}", matched);
 }

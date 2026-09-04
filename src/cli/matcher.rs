@@ -1,39 +1,30 @@
-//! regex-engine/src/cli/matcher.rs
-//!
-//! Matcher command logic
-//! 
+//! Matcher command logic -- always simple true/false, no diagnostics.
+
 use regex_engine::matchers::MatcherType;
-use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_matcher};
-use regex_engine::parsers::ParserType;
-use super::input::parse_regex_string;
+use regex_engine::frontend::parse_pattern;
+
 
 // Runs with chosen matcher
-pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType, diag: DiagLevel) {
-    let r = match parse_regex_string(regex_str) {
+pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType) {
+    let r = match parse_pattern(regex_str) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
 
-    if diag == DiagLevel::Off {
-        let matched = matcher.matcher()(input, &r);
-        println!("{}", matched);
-        if !matched { std::process::exit(1); }
-    } else {
-        let config = DiagConfig::new(diag, ParserType::DerivRec, matcher, None);
-        run_matcher(regex_str, &r, input, &config);
-        let matched = matcher.matcher()(input, &r);
-        if !matched { std::process::exit(1); }
-    }
+    let matched = matcher.matcher()(input, &r);
+    println!("{}", matched);
+    if !matched { std::process::exit(1); }
 }
+
 
 // Runs with all matchers
 pub fn run_match_all(regex_str: &str, input: &str) {
-    let r = match parse_regex_string(regex_str) {
+    let r = match parse_pattern(regex_str) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
 
-    // "all" mode: comparison table always, regardless of --diag
+    // Comparison table 
     println!("Regex: {}", regex_str);
     println!("Input: {}", input);
     println!();
@@ -50,6 +41,6 @@ pub fn run_match_all(regex_str: &str, input: &str) {
     }
 
     let all_equal = results.windows(2).all(|w| w[0] == w[1]);
-    if all_equal { println!("\n✓ All matchers agree"); }
-    else         { println!("\n✗ MATCHERS DISAGREE!"); }
+    if all_equal { println!("\nAll matchers agree"); }
+    else         { println!("\nMATCHERS DISAGREE!"); }
 }

@@ -3,9 +3,9 @@
 //! Brzozowski derivative matcher (boolean)
 
 use crate::types::Regex;
-use crate::regex::deriv::standard::deriv;
-use crate::regex::simplify::standard::simplify;
-use crate::regex::nullable::standard::nullable;
+use crate::regex::standard::deriv::deriv;
+use crate::regex::standard::simplify::simplify;
+use crate::regex::standard::nullable::nullable;
 
 pub fn match_deriv(input: &str, r: &Regex) -> bool {
     let mut current = r.clone();
@@ -25,6 +25,7 @@ mod tests {
     use crate::types::Regex;
 
     #[test] fn phi_never_matches()      { assert!(!match_deriv("",  &Regex::Phi)); }
+    #[test] fn empty_state_set_on_phi() { assert!(!match_deriv("a", &Regex::Phi));}
     #[test] fn eps_matches_empty()      { assert!(match_deriv("",   &Regex::Eps)); }
     #[test] fn eps_no_nonempty()        { assert!(!match_deriv("a", &Regex::Eps)); }
     #[test] fn lit_matches_char()       { assert!(match_deriv("a",  &Regex::lit('a'))); }

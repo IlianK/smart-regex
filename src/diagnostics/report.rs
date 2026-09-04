@@ -1,8 +1,6 @@
 //! regex-engine/src/diagnostics/report.rs
 //! 
-//! ReportWriter: buffers diagnostic output and writes to a file or stdout.
-//!
-//! Used exclusively by Level 3. Levels 0–2 print directly to stdout.
+//! ReportWriter: buffers diagnostic output and writes to a file (diag_3)
 
 const SEPARATOR: &str = "-------------------------------====";
 
@@ -12,7 +10,6 @@ pub struct ReportWriter {
 }
 
 impl ReportWriter {
-    /// Create a writer. If path is Some, output goes to that file; else stdout.
     pub fn new(path: Option<&str>) -> Self {
         Self {
             lines:       Vec::new(),

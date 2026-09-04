@@ -16,9 +16,11 @@ cargo test --tests
 
 # One integration file
 cargo test --test test_matchers
-cargo test --test test_deriv
+cargo test --test test_deriv_std
 cargo test --test test_deriv_bc
+cargo test --test test_pderiv_std
 cargo test --test test_pderiv_bc
+cargo test --test test_frontend
 
 # One test by name (substring match)
 cargo test parse_recursive_paper_r1_on_ab

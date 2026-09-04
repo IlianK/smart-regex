@@ -60,7 +60,7 @@ impl TestCase {
         let effective_config = if config.level == DiagLevel::Debug {
             let path = std::env::var("REGEX_DIAG_REPORT")
                 .unwrap_or_else(|_| format!("reports/demo_{:02}.txt", index));
-            DiagConfig::new(config.level, config.parser_type, config.matcher_type, Some(path))
+            DiagConfig::new(config.level, config.parser_type, Some(path))
         } else {
             config.clone()
         };

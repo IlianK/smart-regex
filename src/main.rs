@@ -1,6 +1,6 @@
 //! regex-engine/src/main.rs
 //! 
-//! CLI tool for regex matching and parsing
+//! CLI for regex matching and parsing
 
 mod cli;
 

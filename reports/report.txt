@@ -1,15 +1,16 @@
 -------------------------------====
 REGEX ENGINE DEBUG REPORT
 -------------------------------====
-Timestamp:            2026-08-08 23:21:50
+Timestamp:            2026-09-04 18:02:28
 Mode:                 POSIX Bitcoded
 Regex:                a*
 Input:                "aab"
 Result:               NO MATCH
+Policy:               POSIX
 -------------------------------====
 TIMING
 -------------------------------====
-Parse time:           0.029ms
+Parse time:           0.011ms
 Derivative steps:     3
 -------------------------------====
 INTERNALIZE
@@ -53,9 +54,9 @@ nullable_bc(ri3) = false → no full parse tree exists
 PARTIAL RECOVERY
 -------------------------------====
 Last nullable expression: ri2 = [false, false]@([]@'a')*  (after position 2)
-Accumulated bits: [0,0,1]
+Accumulated bits: [001]
 
-mkEpsBC(ri2) would give: [0,0,1]
+mkEpsBC(ri2) would give: [001]
 Decoding not possible: final expression is not nullable.
 
 Partial match:        "aa"  (positions 1–2)

@@ -4,8 +4,8 @@
 
 use std::collections::HashSet;
 use crate::types::Regex;
-use crate::regex::pderiv::standard::pderiv;
-use crate::regex::nullable::standard::nullable;
+use crate::regex::standard::pderiv::pderiv;
+use crate::regex::standard::nullable::nullable;
 
 pub fn match_pderiv(input: &str, r: &Regex) -> bool {
     let mut states: HashSet<Regex> = HashSet::new();
@@ -35,6 +35,7 @@ mod tests {
     use crate::types::Regex;
 
     #[test] fn phi_never_matches()      { assert!(!match_pderiv("",  &Regex::Phi)); }
+    #[test] fn empty_state_set_on_phi() { assert!(!match_pderiv("a", &Regex::Phi));}
     #[test] fn eps_matches_empty()      { assert!(match_pderiv("",   &Regex::Eps)); }
     #[test] fn eps_no_nonempty()        { assert!(!match_pderiv("a", &Regex::Eps)); }
     #[test] fn lit_matches_char()       { assert!(match_pderiv("a",  &Regex::lit('a'))); }
@@ -46,11 +47,4 @@ mod tests {
     #[test] fn alt_left()               { assert!(match_pderiv("a",  &Regex::alt(Regex::lit('a'), Regex::lit('b')))); }
     #[test] fn alt_right()              { assert!(match_pderiv("b",  &Regex::alt(Regex::lit('a'), Regex::lit('b')))); }
     #[test] fn alt_neither()            { assert!(!match_pderiv("c", &Regex::alt(Regex::lit('a'), Regex::lit('b')))); }
-
-    // Extra: empty state set terminates early and returns false
-    #[test]
-    fn empty_state_set_on_phi() {
-        // After consuming 'a' from Phi the state set is empty -> false
-        assert!(!match_pderiv("a", &Regex::Phi));
-    }
 }

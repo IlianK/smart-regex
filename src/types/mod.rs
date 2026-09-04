@@ -1,12 +1,12 @@
 //! regex-engine/src/types/mod.rs
 //! 
-//! Core data types for regular expressions and parse trees
+//! Core data types 
 
 pub mod regex;
 pub mod aregex;
-pub mod parse_tree;
+pub mod tree;
 
 pub use regex::Regex;
 pub use aregex::ARegex;
-pub use parse_tree::ParseTree;
-pub use parse_tree::flatten;
+pub use tree::ParseTree;
+pub use tree::flatten;

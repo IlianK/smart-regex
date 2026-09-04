@@ -1,8 +1,4 @@
-//! regex-engine/src/regex/mod.rs
-//! 
-//! Derivative algorithms for regular expressions
+//! Regex primitives, split by representation.
 
-pub mod nullable;
-pub mod simplify;
-pub mod deriv;
-pub mod pderiv;
+pub mod bitcoded;
+pub mod standard;

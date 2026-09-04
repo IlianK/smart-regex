@@ -1,13 +1,9 @@
 //! regex-engine/benches/bench_posix.rs
 //!
-//! Benchmarks for the four parser combinations (3x posix + 1x greedy) :
-//!   - recursive  (standard/deriv, two-pass, native recursion)
-//!   - loop       (standard/deriv, two-pass, explicit Vec instead of recursion)
-//!   - bitcoded   (bitcoded/deriv, single fused forward pass)
-//!   - pderiv_bc  (bitcoded/pderiv, single forward pass over a residual set (greedy))
+//! Benchmarks for the five parser combinations (3x posix + 2x greedy):
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use regex_engine::parsers::{parse_bitcoded, parse_loop, parse_pderiv_bc, parse_recursive};
+use regex_engine::parsers::{parse_bitcoded, parse_loop, parse_pderiv_bc, parse_pderiv_std, parse_recursive};
 use regex_engine::types::Regex;
 
 // Helpers
@@ -61,8 +57,14 @@ fn bench_small_patterns(c: &mut Criterion) {
 
         group.bench_with_input(
             BenchmarkId::new("pderiv_bc", name),
-            &(input, regex),
+            &(input, regex.clone()),
             |b, (input, r)| b.iter(|| parse_pderiv_bc(black_box(input), black_box(r))),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("pderiv_standard", name),
+            &(input, regex),
+            |b, (input, r)| b.iter(|| parse_pderiv_std(black_box(input), black_box(r))),
         );
     }
 
@@ -98,8 +100,14 @@ fn bench_scaling_a_star(c: &mut Criterion) {
 
         group.bench_with_input(
             BenchmarkId::new("pderiv_bc", n),
-            &(input, r.clone()),
+            &(input.clone(), r.clone()),
             |b, (input, r)| b.iter(|| parse_pderiv_bc(black_box(input), black_box(r))),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("pderiv_standard", n),
+            &(input, r.clone()),
+            |b, (input, r)| b.iter(|| parse_pderiv_std(black_box(input), black_box(r))),
         );
     }
 
@@ -135,8 +143,14 @@ fn bench_deep_expression(c: &mut Criterion) {
 
         group.bench_with_input(
             BenchmarkId::new("pderiv_bc", depth),
-            &(input, r.clone()),
+            &(input.clone(), r.clone()),
             |b, (input, r)| b.iter(|| parse_pderiv_bc(black_box(input), black_box(r))),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("pderiv_standard", depth),
+            &(input, r.clone()),
+            |b, (input, r)| b.iter(|| parse_pderiv_std(black_box(input), black_box(r))),
         );
     }
 
@@ -174,8 +188,14 @@ fn bench_ambiguous_star(c: &mut Criterion) {
 
         group.bench_with_input(
             BenchmarkId::new("pderiv_bc", n),
-            &(input, r.clone()),
+            &(input.clone(), r.clone()),
             |b, (input, r)| b.iter(|| parse_pderiv_bc(black_box(input), black_box(r))),
+        );
+
+        group.bench_with_input(
+            BenchmarkId::new("pderiv_standard", n),
+            &(input, r.clone()),
+            |b, (input, r)| b.iter(|| parse_pderiv_std(black_box(input), black_box(r))),
         );
     }
 

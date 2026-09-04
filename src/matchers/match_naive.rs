@@ -43,6 +43,7 @@ mod tests {
     use crate::types::Regex;
 
     #[test] fn phi_never_matches()      { assert!(!match_naive("",  &Regex::Phi)); }
+    #[test] fn empty_state_set_on_phi() { assert!(!match_naive("a", &Regex::Phi));}
     #[test] fn eps_matches_empty()      { assert!(match_naive("",   &Regex::Eps)); }
     #[test] fn eps_no_nonempty()        { assert!(!match_naive("a", &Regex::Eps)); }
     #[test] fn lit_matches_char()       { assert!(match_naive("a",  &Regex::lit('a'))); }

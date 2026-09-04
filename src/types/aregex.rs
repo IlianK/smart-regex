@@ -3,7 +3,6 @@
 //! Annotated regular expressions (bit-code annotated)
 //! Bit convention: false = 0 (Left / start-of-star), true = 1 (Right / end-of-star)
 
-// Each constructor has bit prefix
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ARegex {
     /// Empty language 

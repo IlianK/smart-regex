@@ -1,6 +1,6 @@
 //! regex-engine/src/matchers/selection.rs
 //! 
-//! Matcher selection logic shared between library and CLI
+//! Matcher selection 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MatcherType {
@@ -12,37 +12,37 @@ pub enum MatcherType {
 impl MatcherType {
     pub fn name(&self) -> &'static str {
         match self {
-            MatcherType::Naive => "naive",
-            MatcherType::Deriv => "deriv",
-            MatcherType::PDeriv => "pderiv",
+            MatcherType::Naive      => "naive",
+            MatcherType::Deriv      => "deriv",
+            MatcherType::PDeriv     => "pderiv",
         }
     }
     
     pub fn display_name(&self) -> &'static str {
         match self {
-            MatcherType::Naive => "NAIVE",
-            MatcherType::Deriv => "DERIV",
-            MatcherType::PDeriv => "PDERIV",
+            MatcherType::Naive      => "NAIVE",
+            MatcherType::Deriv      => "DERIV",
+            MatcherType::PDeriv     => "PDERIV",
         }
     }
     
     pub fn from_str(s: &str) -> Vec<MatcherType> {
         match s {
-            "naive" => vec![MatcherType::Naive],
-            "deriv" => vec![MatcherType::Deriv],
-            "pderiv" => vec![MatcherType::PDeriv],
-            "all" => vec![MatcherType::Naive, MatcherType::Deriv, MatcherType::PDeriv],
-            _ => vec![MatcherType::Deriv],
+            "naive"                 => vec![MatcherType::Naive],
+            "deriv"                 => vec![MatcherType::Deriv],
+            "pderiv"                => vec![MatcherType::PDeriv],
+            "all"                   => vec![MatcherType::Naive, MatcherType::Deriv, MatcherType::PDeriv],
+            _                       => vec![MatcherType::Deriv],
         }
     }
     
     pub fn from_env() -> Vec<MatcherType> {
         match std::env::var("REGEX_MATCHER").as_deref() {
-            Ok("naive") => vec![MatcherType::Naive],
-            Ok("deriv") => vec![MatcherType::Deriv],
-            Ok("pderiv") => vec![MatcherType::PDeriv],
-            Ok("all") => vec![MatcherType::Naive, MatcherType::Deriv, MatcherType::PDeriv],
-            _ => vec![MatcherType::Deriv],
+            Ok("naive")             => vec![MatcherType::Naive],
+            Ok("deriv")             => vec![MatcherType::Deriv],
+            Ok("pderiv")            => vec![MatcherType::PDeriv],
+            Ok("all")               => vec![MatcherType::Naive, MatcherType::Deriv, MatcherType::PDeriv],
+            _                       => vec![MatcherType::Deriv],
         }
     }
     

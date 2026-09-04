@@ -15,12 +15,12 @@ cargo run --example demo_match
 ## POSIX parsing demo
 
 ```bash
-# Default (deriv_rec, diagnostics off)
+# Default (deriv_std_rec, diagnostics off)
 cargo run --example demo_posix
 
 # Select parser
-REGEX_PARSER=deriv_rec  cargo run --example demo_posix
-REGEX_PARSER=deriv_loop cargo run --example demo_posix
+REGEX_PARSER=deriv_std_rec  cargo run --example demo_posix
+REGEX_PARSER=deriv_std_loop cargo run --example demo_posix
 REGEX_PARSER=deriv_bc   cargo run --example demo_posix
 
 # All parsers side by side (comparison table, ignores REGEX_DIAG)
@@ -28,12 +28,12 @@ REGEX_PARSER=all cargo run --example demo_posix
 
 # Level 1
 REGEX_DIAG=1 cargo run --example demo_posix
-REGEX_DIAG=1 REGEX_PARSER=deriv_loop cargo run --example demo_posix
+REGEX_DIAG=1 REGEX_PARSER=deriv_std_loop cargo run --example demo_posix
 REGEX_DIAG=1 REGEX_PARSER=deriv_bc   cargo run --example demo_posix
 
 # Level 2
 REGEX_DIAG=2 cargo run --example demo_posix
-REGEX_DIAG=2 REGEX_PARSER=deriv_loop cargo run --example demo_posix
+REGEX_DIAG=2 REGEX_PARSER=deriv_std_loop cargo run --example demo_posix
 REGEX_DIAG=2 REGEX_PARSER=deriv_bc   cargo run --example demo_posix
 
 # Level 3 with report file

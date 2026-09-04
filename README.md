@@ -5,8 +5,8 @@ A derivative-based regular expression engine in Rust. It implements matching and
 ## [Rust install](https://rust-lang.org/tools/install/)
 
 ```bash
-rustc --version
-cargo --version
+rustc --version # 1.98.0
+cargo --version # 1.98.0
 ```
 
 ---
@@ -35,10 +35,10 @@ There are two base commands:
 cargo run -- match "a*" "aaa"
 
 # Build a POSIX parse tree (default parser: recursive)
-cargo run -- parse "(a+ab)(b+ε)" "ab"
+cargo run -- parse "(a|ab)(b|ε)" "ab"
 
-# Add diagnostics: derivative steps
-REGEX_DIAG=1 cargo run -- match "a*" "aab"
+# Add diagnostics: derivative steps with --diag=1/2/3
+cargo run -- parse "(a|ab)(b|ε)" "ab" --diag=2
 ```
 
 For the full command reference, see:
