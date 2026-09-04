@@ -1,27 +1,4 @@
 //! regex-engine/examples/extract_dataset.rs
-//!
-//! Milestone A, step 1: pull pattern strings out of raw dataset files
-//! (Suricata/Snort `.rules`, SpamAssassin `.cf`, RegexLib's
-//! comment-delimited `.txt` corpus) and triage each one against
-//! `frontend::parse_pcre_rule` -- the same entry point used for all
-//! three formats, since it already handles both the `/pattern/flags`
-//! delimited form (Suricata, SpamAssassin, some RegexLib entries) and
-//! the bare form (most RegexLib entries) transparently: it only strips
-//! delimiters when the string actually starts with `/`.
-//!
-//! Usage:
-//!   cargo run --example extract_dataset -- <format> <file> [file...]
-//!   format = suricata | spamassassin | regexlib
-//!
-//! Writes every pattern this frontend accepts, one per line, to
-//! `data/corpus_patterns.txt` (appending across multiple invocations --
-//! delete it first for a clean run), and prints a triage summary to
-//! stdout. `benches/bench_dataset.rs` reads that file.
-//!
-//! Rejection reasons are bucketed by matching known substrings in the
-//! parse error, not by a structured error type (`parse_pcre_rule`
-//! returns a plain `Result<Regex, String>`) -- good enough for a triage
-//! summary, not meant as a stable API.
 
 use regex_engine::frontend::parse_pcre_rule;
 use std::collections::HashSet;
@@ -48,8 +25,6 @@ fn classify_rejection(msg: &str) -> &'static str {
 }
 
 /// Suricata/Snort `.rules`: one rule per line, `pcre:"/PATTERN/FLAGS";`
-/// embedded among many other options. Handles an escaped `/` inside the
-/// pattern (`\/`) so it isn't mistaken for the closing delimiter.
 fn extract_suricata(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -67,13 +42,7 @@ fn extract_suricata(text: &str) -> Vec<String> {
 }
 
 /// Finds the end of a `/PATTERN/FLAGS` span at the start of `s`,
-/// respecting escaped internal slashes (`\/`) -- walks past the opening
-/// `/`, the pattern body (honoring `\X` escapes), the closing `/`, and
-/// the flag-letter run after it. Returns the index right past the last
-/// flag character; does NOT check what (if anything) follows, since that
-/// differs by source format (Suricata's `pcre:"..."` needs a trailing
-/// `"`, SpamAssassin's bare `Field =~ /.../flags` needs nothing --
-/// callers that care check for their own terminator).
+/// respecting escaped internal slashes (`\/`) 
 fn find_pcre_span_end(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();
     if bytes.first() != Some(&b'/') {
@@ -121,11 +90,7 @@ fn extract_spamassassin(text: &str) -> Vec<String> {
     out
 }
 
-/// RegexLib's comment-delimited corpus: blank-line-separated entries,
-/// each a run of `#`-prefixed comment lines (the last being `# ID: N`)
-/// followed by the pattern -- occasionally spanning more than one line
-/// before the next blank line, so every non-comment line in the block is
-/// joined.
+/// RegexLib's comment-delimited corpus: blank-line-separated entries
 fn extract_regexlib(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut current = String::new();
@@ -205,8 +170,7 @@ fn main() {
         }
     }
 
-    // Dedupe (some datasets repeat identical patterns across rules) and
-    // append to the shared corpus file.
+    // Dedupe (some datasets repeat identical patterns across rules) and append to corpus file.
     let existing: HashSet<String> = fs::read_to_string("data/corpus_patterns.txt")
         .unwrap_or_default()
         .lines()
