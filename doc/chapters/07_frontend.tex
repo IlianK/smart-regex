@@ -1,0 +1,246 @@
+% ----------------------------------------------------------------
+% chapters/07_frontend.tex
+% ----------------------------------------------------------------
+\chapter{Frontend: Parsing External Regular Expression Syntax}
+\label{sec:frontend}
+
+Every example so far in this thesis has been written directly in
+\texttt{Regex} terms -- the six-constructor core algebra of
+Section~\ref{sec:regex-rust-implementation}, exactly what
+\texttt{deriv}/\texttt{pderiv} operate on. No real regular-expression
+user writes that way: a Snort rule, a SpamAssassin filter, or an
+ordinary call to \texttt{cargo run -- match} arrives as an ordinary
+PCRE-style pattern \emph{string} -- \texttt{"[a-c]+\textbackslash{}d\{2\}"},
+not \texttt{Seq(Star(...), ...)}. \texttt{src/frontend/} is the module
+that closes this gap: it parses that string into its own surface-syntax
+AST, then lowers that AST into the \texttt{Regex} every parser in
+Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}
+already understands. It is modeled throughout on
+\texttt{Text.Regex.PDeriv}'s own \texttt{ExtPattern}/\texttt{Parse}/
+\texttt{Translate} modules from \texttt{luzhuomi/regex-pderiv}, Kenny Lu's
+own reference implementation of \citet{sulzmannlu2012}'s partial-derivative
+submatching -- a second, independent reference alongside
+\citet{sulzmannlu2014}'s own teaching-page material
+(Section~\ref{sec:haskell-language-characteristics}), used here
+specifically because the flops14-extended paper itself has nothing to
+say about surface syntax: POSIX parsing is defined directly over the
+same six-constructor \texttt{Regex} algebra this thesis's core inherits,
+with no PCRE-facing frontend of its own.
+
+Section~\ref{sec:dataset-preparation}'s
+real-world corpus depends on everything described here (surface-syntax
+parsing, desugaring, and the substring-search padding scheme) to turn raw
+Suricata/SpamAssassin/RegexLib rule text into \texttt{Regex} values in
+the first place.
+
+\section{Two ASTs, One Lowering Step}
+\label{sec:frontend-two-asts}
+
+\texttt{src/frontend/} is built around a deliberate separation into two
+abstract syntax trees connected by a single function, rather than parsing
+pattern text directly into \texttt{Regex}:
+\[
+\text{pattern string} \xrightarrow{\texttt{parse\_ext\_pattern}} \texttt{ExtPat} \xrightarrow{\texttt{translate}} \texttt{Regex}
+\]
+\texttt{ExtPat} (\texttt{ext\_pattern.rs}) is the \emph{external},
+surface-syntax AST: marking and non-marking groups, \texttt{\{m,n\}}
+bounds, \texttt{\textbackslash{}d}/\texttt{\textbackslash{}w}/\texttt{\textbackslash{}s}
+shorthands, \texttt{\^{}}/\texttt{\$} anchors, and a \texttt{greedy: bool}
+flag on every quantifier (\texttt{a*} vs.\ \texttt{a*?}) -- everything a
+PCRE-style string can express, kept exactly as written, with nothing
+desugared yet. \texttt{Regex} (Section~\ref{sec:regex-rust-implementation})
+is the \emph{internal}, six-constructor core every parser derives or
+partial-derives directly: \texttt{Phi | Eps | Lit | Seq | Alt | Star}, no
+groups, no bounds, no anchors, no laziness flag. Anything \texttt{ExtPat}
+can say that \texttt{Regex} cannot represent is desugared away by
+\texttt{translate} (Section~\ref{sec:frontend-translate}) or, for
+\texttt{\^{}}/\texttt{\$} specifically, erased into \texttt{Eps} and
+handled one level up instead (Section~\ref{sec:frontend-substring-search}).
+
+Keeping \texttt{ExtPat} as an honest AST in its own right, rather than
+routing straight from parser to \texttt{Regex} in one pass, is what makes
+\texttt{translate} independently testable: \texttt{translate.rs}'s own
+unit tests (below) construct \texttt{ExtPat} values by hand and check
+their \texttt{Regex} output directly, with no dependency on
+\texttt{parse.rs}'s recursive-descent logic at all. It is the same
+separation-of-concerns argument Section~\ref{sec:parsetree-and-flatten}
+makes for keeping \texttt{ParseTree} construction and
+\texttt{flatten}/\texttt{decode} as distinct steps rather than one fused
+pass -- here applied one layer further out, at the point where a
+PCRE-style string first becomes structured data at all.
+
+\section{Parsing Surface Syntax}
+\label{sec:frontend-parsing}
+
+\texttt{frontend/parse.rs} is an ordinary recursive-descent parser over a
+\texttt{Chars} iterator, structured directly after
+\texttt{Text.Regex.PDeriv.Parse}'s own grammar --
+\texttt{p\_ere}/\texttt{p\_branch}/\texttt{p\_exp}/\texttt{p\_atom}/
+\texttt{p\_group}/\texttt{p\_charclass}/\texttt{p\_enum}/\texttt{p\_bound}
+become \texttt{parse\_or}/\texttt{parse\_concat}/\texttt{parse\_postfixed}/
+\texttt{parse\_atom}/\texttt{parse\_group}/\texttt{parse\_charclass}/
+\texttt{parse\_class\_enum}/\texttt{parse\_bound} one for one, each
+handling exactly the surface-syntax layer its reference counterpart does
+(alternation, then concatenation, then postfix quantifiers, then a single
+atom). Four deliberate departures:
+
+\begin{itemize}
+  \item \textbf{Class shorthands are PCRE character classes, not literal
+  escapes.} The reference's \texttt{Translate.hs} reads a bare
+  \texttt{EEscape c} as the literal character \texttt{c} always; this
+  frontend special-cases \texttt{d}/\texttt{D}/\texttt{w}/\texttt{W}/
+  \texttt{s}/\texttt{S} into character classes
+  (Section~\ref{sec:frontend-translate}'s \texttt{alphabet.rs}) instead,
+  since real datasets use them that way throughout.
+  \item \textbf{Backreferences and lookaround are rejected outright.}
+  \texttt{\textbackslash{}1}--\texttt{\textbackslash{}9} and
+  \texttt{(?=}/\texttt{(?!}/\texttt{(?<=}/\texttt{(?<!} produce a
+  descriptive parse error rather than the reference's literal-digit or
+  3-digit octal-ASCII escape reading -- both describe languages that are
+  not regular in the formal sense this thesis's entire construction
+  depends on, so silently mis-parsing them into \emph{some} \texttt{Regex}
+  would be a worse outcome than refusing them, and
+  Section~\ref{sec:dataset-preparation}'s extraction pipeline depends on
+  this refusal being loud and categorized, not silent.
+  \item \textbf{Named groups are accepted.} \texttt{(?<name>...)} and
+  \texttt{(?P<name>...)} parse successfully, dropped to their unnamed
+  form during \texttt{translate} -- a name carries no meaning once
+  lowered to \texttt{Regex}, since this project has no capture-group
+  semantics at all, but rejecting a construct this common in real
+  Suricata/RegexLib rules purely because the reference parser predates it
+  would reject working patterns for no benefit.
+  \item \textbf{\texttt{\textbackslash{}xHH} hex escapes are accepted},
+  another addition absent from the reference, for the same reason.
+\end{itemize}
+
+\texttt{parse\_bound} additionally accepts a lazy-quantifier marker
+(\texttt{a*?}, \texttt{a+?}, \texttt{a\{2,4\}?}) and records it as
+\texttt{ExtPat}'s \texttt{greedy: bool} flag -- correctly read, but, as
+Section~\ref{sec:frontend-translate} explains, not honored by
+\texttt{translate}. Grouping, alternation, and concatenation otherwise
+follow the reference's precedence exactly: alternation binds loosest,
+then concatenation, then postfix quantifiers, then a single atom
+(literal, escape, character class, group, or anchor).
+
+\section{Translating \texttt{ExtPat} into \texttt{Regex}}
+\label{sec:frontend-translate}
+
+\texttt{translate} (\texttt{frontend/translate.rs}) is a single
+structural recursion over \texttt{ExtPat}, one match arm per constructor,
+each either a direct one-to-one mapping or an explicit desugaring:
+
+\begin{center}
+\begin{tabular}{ll}
+\hline
+\texttt{ExtPat} & \texttt{Regex} \\
+\hline
+\texttt{Empty}, \texttt{Eps} & \texttt{Eps} \\
+\texttt{Never} & \texttt{Phi} \\
+\texttt{Char(c)} & \texttt{Lit(c)} \\
+\texttt{Group}/\texttt{GroupNonMarking(r)} & \texttt{translate(r)} (grouping is precedence-only) \\
+\texttt{Or([r1, ..., rn])} & left-folded \texttt{Alt} chain \\
+\texttt{Concat([r1, ..., rn])} & left-folded \texttt{Seq} chain \\
+\texttt{Opt(r)} & \texttt{Alt(translate(r), Eps)} \\
+\texttt{Plus(r)} & \texttt{Seq(translate(r), Star(translate(r)))} \\
+\texttt{Star(r)} & \texttt{Star(translate(r))} \\
+\texttt{Carat}, \texttt{Dollar} & \texttt{Eps} (see Section~\ref{sec:frontend-substring-search}) \\
+\texttt{Any(cs)}, \texttt{NoneOf(cs)} & sorted, deduplicated \texttt{Alt} of \texttt{Lit} \\
+\texttt{Bound(r, lo, hi)} & unrolled exact/optional repetition, below \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{Character classes are ordinary alternation, not a primitive.}
+\texttt{Any}/\texttt{NoneOf}/\texttt{Dot}/class-shorthand escapes all
+route through \texttt{alt\_of\_chars}, which sorts and deduplicates the
+character set and left-folds it into a plain \texttt{Alt} chain of
+\texttt{Lit} nodes. \texttt{alphabet.rs} supplies the underlying sets:
+\texttt{alphabet()} (98 characters -- printable ASCII plus tab, newline,
+carriage return), \texttt{digit\_chars}/\texttt{word\_chars}/
+\texttt{space\_chars} for \texttt{\textbackslash{}d}/\texttt{\textbackslash{}w}/
+\texttt{\textbackslash{}s}, and \texttt{complement} (alphabet minus a
+given set) for their negated/uppercase counterparts and \texttt{[\^{}...]}.
+There is no dedicated "character class" \texttt{Regex} variant anywhere
+in this project (Section~\ref{sec:char-class-optimization} returns to
+this as an unexploited optimization) -- every one of the four parsers
+only ever needs to understand \texttt{Regex}'s original six constructors,
+at the cost of a \texttt{\textbackslash{}d} inside a real pattern
+becoming a ten-way \texttt{Alt} the parser walks one branch at a time on
+every character.
+
+\paragraph{Bounds unroll literally, capped against blowup.}
+\texttt{desugar\_bound} builds \texttt{r} repeated exactly \texttt{lo}
+times (\texttt{repeat\_exact}, a left-folded \texttt{Seq} chain, \texttt{Eps}
+for \texttt{lo == 0}), then appends either \texttt{Star(r)} for an
+unbounded upper end (\texttt{r\{2,\}}) or \texttt{hi - lo} further nested
+optional copies (\texttt{optional\_extra}, each layer
+\texttt{Alt(Eps, Seq(r, ...))}) for a bounded one (\texttt{r\{2,4\}}).
+Unlike every other desugaring in this table, this one can make a pattern
+arbitrarily large from a short piece of source text --
+\texttt{r\{1586,\}} (Section~\ref{sec:dataset-preparation}'s own example
+of a rejected real-world bound) would otherwise unroll into 1586 nested
+\texttt{Seq} nodes before the \texttt{Star} even starts. \texttt{MAX\_BOUND}
+(1000 repetitions) is this project's own safety limit, not something
+carried over from the reference, and \texttt{translate} refuses any bound
+past it with a descriptive error rather than silently building an
+oversized \texttt{Regex}.
+
+\paragraph{Greedy/lazy quantifier syntax is parsed but not honored.}
+Every \texttt{Opt}/\texttt{Plus}/\texttt{Star}/\texttt{Bound} match arm
+above ignores the \texttt{greedy} flag \texttt{parse\_bound}
+(Section~\ref{sec:frontend-parsing}) elaborated that \texttt{Regex}
+has no per-operator laziness concept at all, since POSIX-versus-Greedy
+disambiguation in this thesis is a whole-parser policy
+(\texttt{deriv\_std}/\texttt{deriv\_bc} versus
+\texttt{pderiv\_std}/\texttt{pderiv\_bc}, Section~\ref{sec:disambiguation-problem}),
+not a per-quantifier one. \texttt{a*} and \texttt{a*?} 
+produce byte-identical \texttt{Regex} values.. A pattern mixing lazy and greedy quantifiers,
+expecting per-operator control the way PCRE engines provide it, will
+therefore parse successfully but not behave as its author likely
+intended -- a genuine expressiveness gap between the surface syntax this
+frontend accepts and what \texttt{Regex} can actually distinguish, noted
+here rather than left to be discovered.
+
+\section{Substring Search}
+\label{sec:frontend-substring-search}
+
+No parser in Chapters~\ref{sec:derivative-parser}
+and~\ref{sec:partial-derivative-parser} answers any question but "does
+this entire input derive to nullable" -- there is no "found somewhere
+inside a longer string" mode anywhere below the frontend, and neither
+\citet{sulzmannlu2014} nor Sulzmann's teaching-page material defines one:
+POSIX/Antimirov derivatives are inherently full-match operations. Real
+rules, though, are \emph{written} as search patterns -- a Suricata rule
+fires on seeing its pattern anywhere in a packet payload, not on the
+payload being exactly that pattern -- so \texttt{frontend/mod.rs} fakes
+substring search entirely at this layer, before a \texttt{Regex} ever
+reaches a parser, by padding the translated core with
+\texttt{wildcard\_run()} (\texttt{Star} over a 98-way \texttt{Alt} of the
+full alphabet, "any run of characters at all") on whichever side lacks an
+explicit anchor:
+\[
+\begin{array}{ll}
+\texttt{\^{}abc} & \to \texttt{abc} \cdot \Sigma^{*} \quad\text{(leading anchor: pad the end only)} \\
+\texttt{abc\$} & \to \Sigma^{*} \cdot \texttt{abc} \quad\text{(trailing anchor: pad the start only)} \\
+\texttt{abc} & \to \Sigma^{*} \cdot \texttt{abc} \cdot \Sigma^{*} \quad\text{(no anchor: pad both sides)} \\
+\texttt{\^{}abc\$} & \to \texttt{abc} \quad\text{(fully anchored: no padding)}
+\end{array}
+\]
+\texttt{starts\_with\_carat}/\texttt{ends\_with\_dollar}
+(\texttt{ext\_pattern.rs}) decide which sides need padding by walking
+into \texttt{Concat}/\texttt{Group} to find a leading \texttt{\^{}} or
+trailing \texttt{\$} even when nested, before \texttt{Carat}/\texttt{Dollar}
+are themselves translated away to \texttt{Eps} -- their only real effect,
+under the search-oriented entry points \texttt{parse\_dataset\_pattern}/
+\texttt{parse\_pcre\_rule} (as against \texttt{parse\_pattern}'s plain
+full-string equality, used everywhere else in this thesis's own examples),
+is deciding which side of this padding is skipped.
+
+\paragraph{Edge case.} An unanchored
+pattern already nullable on empty input, \texttt{"a*"} being the
+simplest example, gets padded on both sides regardless of its own
+content -- and the padding's own empty match, combined with either
+\texttt{Star}, is then enough by itself to match \emph{any} string at
+all, not just runs of \texttt{a}. 
+This is correct substring-search semantics ("some substring matches", 
+and the empty substring of anything always does).

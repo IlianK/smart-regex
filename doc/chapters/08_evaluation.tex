@@ -1,0 +1,423 @@
+\chapter{Evaluation}
+\label{sec:evaluation}
+
+Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}
+developed four parser combinations -- \texttt{deriv\_std},
+\texttt{deriv\_bc}, \texttt{pderiv\_std}, \texttt{pderiv\_bc} -- each
+claimed to compute either the POSIX or the Greedy $\geq_r$-ordered parse
+tree, by four structurally different constructions. This chapter
+verifies those claims empirically: Section~\ref{sec:testing-strategy}
+describes how the test suite checks the four parsers, and the three
+Boolean matchers of Chapter~\ref{sec:derivatives}, against each other
+and against the paper's own worked examples;
+Section~\ref{sec:dataset-preparation} describes how a corpus of
+real-world regular expressions was assembled to test and benchmark
+against, alongside the synthetic patterns used elsewhere in this
+thesis; Section~\ref{sec:correctness-verification} reports the results
+of that testing; and Section~\ref{sec:performance-analysis} measures
+where the four parsers' costs actually diverge from each other, on both
+the synthetic and real-world workloads.
+
+
+
+\section{Compared Engines}
+\label{sec:compared-engines}
+
+The primary object of comparison in this chapter is the four parser
+combinations against \emph{each other} -- two POSIX, two Greedy, one
+tree-building and one bit-coded within each pair
+(Chapters~\ref{sec:derivative-parser}-\ref{sec:partial-derivative-parser})
+-- since that internal comparison is what this thesis's own theoretical
+claims (POSIX-correctness, Greedy/POSIX agreement on membership, the
+tree-vs-bit-coded performance trade-off) are actually about. A second,
+external comparison against established regular expression engines is
+motivated in Chapter~\ref{sec:motivation} and positions these results
+relative to the wider field. It is implemented as an optional,
+feature-gated addition to this codebase (Rust's \texttt{regex} crate as
+an ordinary optional dependency; Google's RE2 via a small C++ shim over
+its own API, since RE2 offers no C API of its own) rather than a default
+one, specifically so that the default build stays free of any external
+regular-expression engine dependency -- \texttt{cargo build}/\texttt{cargo
+test}/\texttt{cargo bench} never touch either engine unless the
+\texttt{external-engines} feature is explicitly enabled.
+Section~\ref{sec:comparison-existing-engines} reports and discusses the
+resulting numbers; what follows briefly positions both engines
+conceptually, since that section refers back to this framing.
+
+\subsection{Rust's \texttt{regex} Crate}
+\label{sec:rust-regex-crate-eval}
+
+Rust's \texttt{regex} crate compiles a pattern to a Thompson-construction
+NFA and simulates it without backtracking, guaranteeing linear-time
+matching in the input length independent of the pattern -- the same
+automaton-based guarantee Chapter~\ref{sec:motivation} attributes to
+finite-automata approaches generally. Its disambiguation policy is
+leftmost-first, matching Section~\ref{sec:greedy-leftmost}'s Greedy
+order rather than POSIX leftmost-longest; it offers no POSIX mode. This
+makes it a natural comparison point for this thesis's Greedy parsers
+(\texttt{pderiv\_std}/\texttt{pderiv\_bc}) specifically, on both
+performance and, since both claim the same disambiguation policy,
+parse-tree agreement -- an even more direct check than the
+membership-only agreement this thesis's own Greedy/POSIX comparison
+already establishes (Section~\ref{sec:correctness-verification}).
+
+\subsection{RE2}
+\label{sec:re2-eval}
+
+Google's RE2 is likewise automaton-based (Thompson NFA compiled lazily
+to a DFA on demand), explicitly designed to avoid the exponential
+backtracking blowup of backreference-supporting engines
+\citep{re2,cox2007}. Unlike Rust's \texttt{regex} crate, RE2 supports an
+explicit POSIX leftmost-longest mode alongside its default Perl-style
+leftmost-first mode, making it a comparison point for \emph{both}
+disambiguation policies studied in this thesis, in one engine, depending
+on which mode is selected.
+
+
+
+\section{Testing Strategy}
+\label{sec:testing-strategy}
+
+The test suite is split, following ordinary Rust convention, into unit
+tests (\texttt{\#[cfg(test)] mod tests} blocks inside the \texttt{src/}
+files they exercise, testing private helper functions alongside public
+ones) and integration tests (\texttt{tests/}, exercising only the public
+API each parser or matcher module exposes). \texttt{tests/common/mod.rs}
+factors out what is shared across the integration suites: the two
+worked examples from the paper, \texttt{paper\_r1} and \texttt{paper\_r2}
+(Section~\ref{sec:parse-trees-as-evidence}), and two assertion helpers,
+\texttt{assert\_round\_trip} (checking \texttt{flatten(parse(r,w)) == w},
+i.e.\ that a produced parse tree is actually evidence for the word it
+was built from) and \texttt{assert\_parsers\_agree} (comparing two
+\texttt{Option<ParseTree>} results with a labeled failure message
+identifying which two implementations disagreed).
+
+
+\section{Dataset Preparation}
+\label{sec:dataset-preparation}
+
+The synthetic patterns used throughout this thesis -- \texttt{paper\_r1},
+\texttt{paper\_r2}, the pathological $(a^{*})^{*}$-style expressions of
+Section~\ref{sec:membership-overview} -- are deliberately small and
+hand-constructed, chosen to isolate one specific algorithmic property at
+a time. They say little about how any of the four parsers behaves on the
+regular expressions people actually write. Mamouras et al.'s
+disambiguation-robustness study \citep{mamouras2024} motivates closing
+that gap: it studies exactly the POSIX-versus-Greedy question this
+thesis studies, via real Snort/Suricata intrusion-detection signatures,
+and finds concrete real-world patterns where the two policies visibly
+diverge. That paper provides no public dataset artifact of its own, so
+this thesis's corpus was independently assembled from three families of
+real-world regular expression sources chosen to cover different
+"shapes" of real regex use, not three samples of the same thing:
+
+\begin{itemize}
+  \item \textbf{Snort/Suricata} network intrusion-detection signatures
+  (\texttt{pcre:"..."} rule options, sourced from the Emerging Threats
+  Open ruleset) -- literal-heavy, moderate complexity, the closest of
+  the three to "everyday" regex use.
+  \item \textbf{SpamAssassin} email spam-filtering rules
+  (\texttt{body}/\texttt{header} Perl-regex rules) -- content matching
+  over unstructured text, a different shape than network signatures.
+  \item \textbf{RegexLib} crowd-sourced general-purpose patterns
+  (validators, extractors) -- the opposite end, where chained lookahead
+  assertions are idiomatic, stress-testing the frontend's rejection path
+  hardest of the three.
+\end{itemize}
+
+\paragraph{Extraction.} Each source embeds its patterns in a different
+surrounding syntax, so each needs its own extractor
+(\texttt{examples/extract\_dataset.rs}): Suricata's rule lines carry a
+\texttt{pcre:"/PATTERN/FLAGS";} option; SpamAssassin's carry a bare
+\texttt{body}/\texttt{header NAME =~ /PATTERN/FLAGS} without the
+Suricata's trailing-quote convention; RegexLib's sample file lists plain
+patterns directly, one (possibly multi-line) entry per blank-line-delimited
+block. All three converge on the same \texttt{/PATTERN/FLAGS} PCRE
+delimiter convention once extracted, parsed by
+\texttt{frontend::parse\_pcre\_rule} -- including the case-insensitive
+\texttt{i} flag, applied by case-folding every literal character in the
+translated \texttt{ExtPat} to an \texttt{Any} of both cases
+(Chapter~\ref{sec:frontend}'s frontend) rather than as a runtime
+matching option, since \texttt{Regex} itself has no case-insensitivity
+concept.
+
+\paragraph{Filtering.} Real rules routinely use constructs no
+derivative-based engine over the six-constructor \texttt{Regex} of
+Section~\ref{sec:regex-rust-implementation} can express at all --
+backreferences and lookaround assertions describe languages that are
+not regular in the formal sense this thesis's entire construction
+depends on. \texttt{parse\_pcre\_rule} rejects both outright with a
+descriptive error rather than silently mis-parsing them, and
+\texttt{extract\_dataset} tallies every rejection by cause
+(\texttt{backreference}, \texttt{lookaround}, or \texttt{other} --
+chiefly bound expressions such as \texttt{\{1586,\}} that would unroll
+past this frontend's repetition cap, and a handful of unsupported
+\texttt{(?...)}~group syntaxes). Re-running this pipeline against the
+tracked raw sources gives the current triage:
+
+\begin{center}
+\begin{tabular}{lrrrrr}
+\hline
+Format & Extracted & Accepted & Backreference & Lookaround & Other \\
+\hline
+Suricata & 231 & 209 (90.5\%) & 5 & 11 & 6 \\
+SpamAssassin & 82 & 69 (84.1\%) & 1 & 11 & 1 \\
+RegexLib & 499 & 407 (81.6\%) & 8 & 55 & 29 \\
+\hline
+\textbf{Total} & \textbf{812} & \textbf{685 (84.4\%)} & \textbf{14} & \textbf{77} & \textbf{36} \\
+\hline
+\end{tabular}
+\end{center}
+
+Lookaround dominates the rejections and is concentrated almost entirely
+in RegexLib, matching that family's idiomatic use of chained
+assertions; Suricata and SpamAssassin reject mostly on the same handful
+of negative-lookahead idioms (guarding against one specific following
+word). The accepted 685 patterns, deduplicated across all three formats
+into \texttt{data/corpus\_patterns.txt} (665 lines after deduplication),
+are what Section~\ref{sec:benchmark-results}'s dataset benchmark
+actually runs against.
+
+\paragraph{Unanchored matching.} Real rules are \emph{written} as
+search patterns -- a Suricata rule fires on seeing a match anywhere in a
+packet payload, not on the payload being exactly that pattern -- so they
+are parsed for substring search via
+\texttt{frontend::parse\_dataset\_pattern}/\texttt{parse\_pcre\_rule}
+rather than the full-string-equality \texttt{parse\_pattern} used
+elsewhere in this thesis's own examples. Section~\ref{sec:frontend-substring-search}
+covers the mechanism in full -- an unanchored core pattern is padded
+with an ordinary \texttt{Star} over a 98-way alternation on whichever
+side lacks an explicit \texttt{\^{}}/\texttt{\$} anchor, with no special
+status in the parser layer -- and the one consequence worth restating
+here: real dataset patterns, run unanchored the way they have to be, are
+measurably bigger and expose scaling behavior the small synthetic
+patterns of Section~\ref{sec:pathological-inputs} do not by themselves.
+
+\paragraph{What this dataset does not (yet) give.} The corpus was
+triaged for "does it parse at all," not for "does POSIX visibly diverge
+from Greedy on this pattern the way \texttt{paper\_r1}/\texttt{paper\_r2}
+do" -- unlike Mamouras et al.'s own disambiguation-robustness analysis
+\citep{mamouras2024}, this thesis does not (yet) identify which, if any,
+of the 685 accepted real-world patterns are themselves
+disambiguation-non-robust in their sense. Combining this dataset with
+their static-analysis technique to find such patterns automatically, or
+constructing inputs that provoke visible POSIX/Greedy divergence on the
+existing corpus directly, is a natural extension of this evaluation left
+to future work (Section~\ref{sec:further-performance-optimizations}).
+
+
+
+\section{Correctness Verification}
+\label{sec:correctness-verification}
+
+\subsection{Paper Examples Reproduced}
+\label{sec:paper-examples-reproduced}
+
+Both worked examples from Sulzmann and Lu's paper are reproduced as
+executable tests rather than only as the manual derivations of
+Sections~\ref{sec:disambiguation-problem} and~\ref{sec:posix-longest-leftmost}:
+\texttt{parse\_recursive\_paper\_r1\_on\_ab} and
+\texttt{parse\_recursive\_paper\_r2\_on\_ab}
+(\texttt{tests/test\_deriv\_std.rs}) assert the exact POSIX tree shape
+derived by hand in Section~\ref{sec:posix-longest-leftmost};
+\texttt{paper\_r1\_computes\_greedy\_not\_posix} and
+\texttt{paper\_r2\_computes\_greedy\_not\_posix}
+(\texttt{src/parsers/pderiv\_bc/parse.rs}) assert both the Greedy tree
+shape of Section~\ref{sec:greedy-leftmost} \emph{and} that it disagrees
+with the POSIX answer on the identical input -- encoding the divergence
+itself, not merely each answer separately, as the property under test.
+Every one of these four assertions currently passes, confirming this
+implementation reproduces both documented policies exactly on the
+paper's own examples.
+
+\subsection{Cross-Implementation Equivalence}
+\label{sec:cross-implementation-equivalence}
+
+Following the agreement-testing strategy of
+Section~\ref{sec:testing-strategy}, the full test suite checks, and at
+the time of writing passes, agreement at every layer this thesis
+introduces more than one implementation of the same specification:
+
+\begin{itemize}
+  \item \texttt{match\_naive} = \texttt{match\_deriv} = \texttt{match\_pderiv}
+  on membership, across the hand-picked cases of
+  \texttt{tests/test\_matchers.rs}.
+  \item \texttt{parse\_recursive} and \texttt{parse\_loop} produce
+  identical parse trees on every shared test case
+  (Section~\ref{sec:recursive-vs-loop}), including
+  \texttt{recursive\_traced\_and\_loop\_traced\_agree\_on\_all\_paper\_examples}
+  comparing full derivation traces, not just final answers.
+  \item \texttt{deriv\_bc} agrees with \texttt{deriv\_std} (via
+  \texttt{parse\_recursive}) on every shared test case
+  (\texttt{bitcoded\_agrees\_with\_recursive}, \texttt{tests/test\_deriv\_bc.rs}),
+  the empirical counterpart of Section~\ref{sec:derivative-parser}'s
+  claim that both compute the identical POSIX tree by different means.
+  \item \texttt{pderiv\_std} and \texttt{pderiv\_bc} agree exactly, not
+  just on membership, on every hand-picked and fuzzed case
+  (Section~\ref{sec:testing-strategy}).
+  \item All four parser combinations agree on membership wherever POSIX
+  and Greedy are not known to diverge, and the two POSIX parsers
+  (\texttt{deriv\_std}, \texttt{deriv\_bc}) and two Greedy parsers
+  (\texttt{pderiv\_std}, \texttt{pderiv\_bc}) each agree exactly with
+  their own policy-mate on tree shape -- exercised directly by the CLI's
+  \texttt{-{}-parser all} comparison mode
+  (\texttt{src/cli/parser.rs}), which reports all three checks
+  side by side for a given regex/input pair on demand.
+\end{itemize}
+
+No disagreement has been observed in any of these checks against the
+current implementation; a regression in any one parser would show up
+first as a failure here, in the specific pairing that parser
+participates in, before it could show up as an incorrect answer with no
+diagnosis of which implementation is at fault.
+
+
+
+\section{Performance Analysis}
+\label{sec:performance-analysis}
+
+\subsection{Stack Depth: Recursive vs.\ Iterative Construction}
+\label{sec:stack-depth}
+
+
+\subsection{Heap Allocation: \texttt{deriv\_std} vs.\ \texttt{deriv\_bc}}
+\label{sec:heap-allocation}
+
+
+\subsection{Derivative-Based vs.\ Partial-Derivative-Based}
+\label{sec:deriv-vs-pderiv-performance}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=7.5cm,
+  xlabel={nesting depth}, ylabel={mean time (ms)},
+  xmode=log, ymode=log,
+  legend pos=north west, legend cell align=left,
+  grid=major,
+]
+\addplot coordinates {(50,0.781781) (100,5.782) (200,47.659) (400,337.588) (600,1108) (800,2587) (1000,4968)};
+\addlegendentry{\texttt{recursive} (\texttt{deriv\_std})}
+\addplot coordinates {(50,0.856238) (100,5.485) (200,40.639) (400,310.084) (600,1006) (800,2339) (1000,4538)};
+\addlegendentry{\texttt{loop} (\texttt{deriv\_std})}
+\addplot coordinates {(50,0.177474) (100,1.119) (200,7.717) (400,58.650) (600,214.236) (800,559.635) (1000,1155)};
+\addlegendentry{\texttt{bitcoded} (\texttt{deriv\_bc})}
+\addplot coordinates {(50,0.122207) (100,0.739572) (200,4.796) (400,31.445) (600,103.264) (800,254.264) (1000,549.164)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot coordinates {(50,0.168377) (100,0.947508) (200,5.485) (400,34.691) (600,111.227) (800,278.002) (1000,616.815)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\subsection{Pathological Inputs}
+\label{sec:pathological-inputs}
+
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=7.5cm,
+  xlabel={input length}, ylabel={mean time (ns)},
+  xmode=log, ymode=log,
+  legend pos=north west, legend cell align=left,
+  grid=major,
+]
+\addplot coordinates {(5,438.9) (8,736.1) (10,929.6) (12,1139) (15,1472)};
+\addlegendentry{\texttt{match\_naive} (stops at 15)}
+\addplot coordinates {(5,2024) (10,4363) (50,21653) (100,44934) (500,219540) (1000,471765)};
+\addlegendentry{\texttt{match\_deriv}}
+\addplot coordinates {(5,2189) (10,4495) (50,22518) (100,44276) (500,222756) (1000,476212)};
+\addlegendentry{\texttt{match\_pderiv}}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+
+\subsection{Benchmark Results}
+\label{sec:benchmark-results}
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\hline
+Parser & $n{=}5$ & $n{=}10$ & $n{=}15$ & $n{=}18$ \\
+\hline
+\texttt{recursive} (\texttt{deriv\_std}) & 8.0\,\textmu s & 110.7\,\textmu s & 1.427\,ms & 6.052\,ms \\
+\texttt{bitcoded} (\texttt{deriv\_bc}) & 11.4\,\textmu s & 183.8\,\textmu s & 4.175\,ms & 49.491\,ms \\
+\texttt{pderiv\_bc} & 13.4\,\textmu s & 210.6\,\textmu s & 2.207\,ms & 9.236\,ms \\
+\texttt{pderiv\_std} & 22.4\,\textmu s & 323.9\,\textmu s & 3.374\,ms & 14.263\,ms \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Parser & Mean time / sweep \\
+\hline
+\texttt{deriv\_std\_rec} & 1.311\,s \\
+\texttt{deriv\_std\_loop} & 1.091\,s \\
+\texttt{deriv\_bc} & 643.5\,ms \\
+\texttt{pderiv\_bc} & 159.2\,ms \\
+\texttt{pderiv\_std} & 158.6\,ms \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Parser & Mean time \\
+\hline
+\texttt{deriv\_std\_rec} & 1.000\,s \\
+\texttt{deriv\_bc} & 81.1\,ms \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\section{Comparison with Existing Engines}
+\label{sec:comparison-existing-engines}
+
+\subsection{Performance}
+\label{sec:performance-comparison}
+
+
+\begin{center}
+\begin{tabular}{lrr}
+\hline
+Engine & Mean time / sweep & vs.\ \texttt{regex} \\
+\hline
+\texttt{deriv\_std\_rec} (POSIX, recursive) & 1.503\,s & $\times$1{,}415{,}254 \\
+\texttt{deriv\_std\_loop} (POSIX, loop) & 1.218\,s & $\times$1{,}146{,}893 \\
+\texttt{deriv\_bc} (POSIX, bit-coded) & 690.74\,ms & $\times$650{,}417 \\
+\texttt{pderiv\_bc} (Greedy, bit-coded) & 171.85\,ms & $\times$161{,}815 \\
+\texttt{pderiv\_std} (Greedy, tree-injection) & 173.28\,ms & $\times$163{,}167 \\
+\hline
+\texttt{regex} (Rust crate) & 1.06\,\textmu s & $\times$1 \\
+\texttt{re2\_perl} (leftmost-first) & 6.61\,\textmu s & $\times$6.2 \\
+\texttt{re2\_posix} (leftmost-longest) & 2.75\,\textmu s & $\times$2.6 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{lrr}
+\hline
+Engine & Mean time / sweep & vs.\ \texttt{regex} \\
+\hline
+\texttt{match\_deriv} & 273.07\,ms & $\times$259{,}815 \\
+\texttt{match\_pderiv} & 134.95\,ms & $\times$128{,}397 \\
+\hline
+\texttt{regex} (Rust crate) & 1.05\,\textmu s & $\times$1 \\
+\texttt{re2\_perl} (leftmost-first) & 6.63\,\textmu s & $\times$6.3 \\
+\texttt{re2\_posix} (leftmost-longest) & 2.72\,\textmu s & $\times$2.6 \\
+\hline
+\end{tabular}
+\end{center}
+
+
+\subsection{Standardized Benchmarking via rebar}
+\label{sec:rebar-comparison}
+

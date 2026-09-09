@@ -1,0 +1,136 @@
+\chapter{Discussion}
+\label{sec:discussion}
+
+\section{Discussion of Evaluation Results}
+\label{sec:results-discussion}
+
+
+\section{Rust versus Haskell}
+\label{sec:rust-vs-haskell}
+
+\subsection{Language Characteristics of the Reference Implementation}
+\label{sec:haskell-language-characteristics}
+
+The reference material this thesis translates from -- both
+flops14-extended's own presentation \citep{sulzmannlu2014} and
+Sulzmann's fuller teaching-page Haskell transcript \citep{sulzmann_slides}
+-- leans on several Haskell features with no direct Rust counterpart,
+each already surfaced individually at the point in this thesis where it
+first mattered; this section collects them.
+
+\paragraph{Algebraic data types with blanket \texttt{deriving}.} The
+teaching page's own regex type,
+\begin{verbatim}
+data R = Phi | Eps | L Char | Seq R R | Choice R R | Star R
+  deriving (Show, Eq, Ord)
+\end{verbatim}
+derives structural equality, ordering, \emph{and} printing in one clause,
+whether or not a given piece of code actually uses all three. Section~\ref{sec:regex-rust-implementation}'s
+\texttt{Regex} derives only \texttt{Debug}, \texttt{Clone},
+\texttt{PartialEq}, \texttt{Eq}, and \texttt{Hash} -- no \texttt{Ord} --
+because nothing in this thesis's Rust port ever compares two
+\texttt{Regex} values for ordering; Rust's per-trait, opt-in
+\texttt{derive} makes that omission a visible, deliberate fact about the
+codebase, where the reference's blanket \texttt{deriving} leaves it
+implicit.
+
+\paragraph{GADT syntax used without a type index.} The reference's parse
+tree type is written as a GADT,
+\begin{verbatim}
+data U where
+  Nil :: U
+  Empty :: U
+  Letter :: Char -> U
+  LeftU :: U -> U
+  RightU :: U -> U
+  Pair :: (U,U) -> U
+  List :: [U] -> U
+\end{verbatim}
+but no constructor's return type is ever refined to anything other than
+plain \texttt{U} -- this is an ordinary sum type written in GADT syntax,
+not a use of GADTs' actual type-level power. Section~\ref{sec:parsetree-and-flatten}'s
+\texttt{ParseTree} enum needs nothing beyond an ordinary Rust
+\texttt{enum} to match it.
+
+
+\subsection{What the Reference Provides vs. What It Leaves Open}
+\label{sec:reference-scope}
+
+\subsection{Translation Strategy}
+\label{sec:translation-strategy}
+
+\subsection{Translation Insights}
+\label{sec:translation-insights}
+
+\section{Mismatch Analysis via Derivative Tracing}
+\label{sec:mismatch-analysis}
+
+\subsection{The Gap}
+\label{sec:diagnostics-gap}
+
+
+\subsection{Deriving Diagnostics for Free from the Algorithm Itself}
+\label{sec:diagnostics-for-free}
+
+\subsection{Design}
+\label{sec:diagnostics-design}
+
+\texttt{DiagLevel} (\texttt{src/diagnostics/mod.rs}) has four values --
+\texttt{Off} (0), \texttt{Basic} (1, regex/input/match/tree/error caret),
+\texttt{Verbose} (2, \texttt{Basic} plus timing, expression count, and
+construction steps), and \texttt{Debug} (3, the full derivation trace,
+written to a file if \texttt{REGEX\_DIAG\_REPORT} is set) -- selected via
+the CLI's \texttt{--diag} flag or the \texttt{REGEX\_DIAG} environment
+variable, and applies only to \texttt{parse}, not \texttt{match}: a
+Boolean matcher has no parse tree, and hence nothing at levels 1--3 to
+report beyond what the trace itself would show, which level 3 already
+provides directly. Each of the four parser variants renders its own
+trace independently rather than sharing one generic renderer --
+\texttt{diag\_2/\{deriv\_std,deriv\_bc,pderiv\_std,pderiv\_bc\}.rs} and
+the analogous four files under \texttt{diag\_3/} -- since what is worth
+showing at each level differs by construction (a bit-coded parser's trace
+is bit-strings and \texttt{ARegex} states; the tree-injection parsers'
+traces are \texttt{Regex} derivative sequences and, at level 3, the
+backward injection steps that reconstruct a tree from them).
+\texttt{docs/DIAG.md} documents concrete output at every level, for every
+parser, on both successful and failing matches.
+
+\subsection{Scope and Limits}
+\label{sec:diagnostics-scope-limits}
+
+\section{Optimization Challenges and Insights}
+\label{sec:optimization-challenges}
+
+
+\section{Future Work}
+\label{sec:future-work}
+
+\subsection{Paper-Suggested Extensions}
+\label{sec:paper-suggested-extensions}
+
+\subsubsection{Tagged NFA for Submatching}
+\label{sec:tagged-nfa}
+
+\subsubsection{Space-Efficient Parsing}
+\label{sec:space-efficient-parsing}
+
+\subsubsection{DFA/NFA Hybrid Abstraction}
+\label{sec:dfa-nfa-hybrid}
+
+\subsection{Further Performance Optimizations}
+\label{sec:further-performance-optimizations}
+
+\subsubsection{Character Classes in Place of Literal Alternation}
+\label{sec:char-class-optimization}
+
+\subsubsection{Structural Sharing via \texttt{Rc}}
+\label{sec:rc-sharing-optimization}
+
+\subsubsection{Memoizing \texttt{deriv}/\texttt{nullable}}
+\label{sec:memoization-optimization}
+
+\subsubsection{Benchmarking the Matcher, Not the Parser, for Membership}
+\label{sec:matcher-benchmark-fairness}
+
+\subsection{A Full Mismatch Diagnostics System}
+\label{sec:mismatch-diagnostics-future}

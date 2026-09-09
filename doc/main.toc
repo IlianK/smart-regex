@@ -59,98 +59,73 @@
 \contentsline {section}{\numberline {6.1}Extending Derivatives to Partial Derivatives}{36}{section.6.1}%
 \contentsline {paragraph}{Why the result is Greedy, not POSIX.}{36}{section.6.1}%
 \contentsline {section}{\numberline {6.2}Bit-Coded Variant}{37}{section.6.2}%
-\contentsline {paragraph}{A negative result: why not \texttt {ARegex}.}{38}{section.6.2}%
 \contentsline {section}{\numberline {6.3}Rust Implementation: The \texttt {pderiv\_bc} Parser}{38}{section.6.3}%
-\contentsline {paragraph}{Worked example.}{39}{section.6.3}%
+\contentsline {paragraph}{Worked example.}{38}{section.6.3}%
 \contentsline {section}{\numberline {6.4}Rust Implementation: The \texttt {pderiv\_std} Parser}{39}{section.6.4}%
-\contentsline {paragraph}{Injection closures in place of bits.}{40}{section.6.4}%
-\contentsline {section}{\numberline {6.5}Worked Example: \texttt {paper\_r1} End to End}{41}{section.6.5}%
-\contentsline {paragraph}{Success: \texttt {pderiv\_std}.}{41}{section.6.5}%
-\contentsline {paragraph}{Success: \texttt {pderiv\_bc}.}{43}{section.6.5}%
-\contentsline {paragraph}{Failure: \texttt {pderiv\_std}.}{44}{section.6.5}%
-\contentsline {paragraph}{Failure: \texttt {pderiv\_bc}.}{46}{section.6.5}%
-\contentsline {chapter}{\numberline {7}Frontend: Parsing External Regular Expression Syntax}{48}{chapter.7}%
-\contentsline {section}{\numberline {7.1}Two ASTs, One Lowering Step}{48}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{49}{section.7.2}%
-\contentsline {section}{\numberline {7.3}Translating \texttt {ExtPat} into \texttt {Regex}}{50}{section.7.3}%
-\contentsline {paragraph}{Character classes are ordinary alternation, not a primitive.}{50}{section.7.3}%
-\contentsline {paragraph}{Bounds unroll literally, capped against blowup.}{50}{section.7.3}%
-\contentsline {paragraph}{Greedy/lazy quantifier syntax is parsed but not honored.}{50}{section.7.3}%
-\contentsline {section}{\numberline {7.4}Faking Substring Search}{51}{section.7.4}%
-\contentsline {paragraph}{A correct but sometimes surprising edge case.}{51}{section.7.4}%
-\contentsline {paragraph}{Open problem: the padding can land on the wrong occurrence.}{51}{section.7.4}%
-\contentsline {paragraph}{Cost: the wildcard is a real subexpression, not a special case.}{52}{section.7.4}%
-\contentsline {chapter}{\numberline {8}Evaluation}{53}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Compared Engines}{53}{section.8.1}%
-\contentsline {subsection}{\numberline {8.1.1}Rust's \texttt {regex} Crate}{53}{subsection.8.1.1}%
-\contentsline {subsection}{\numberline {8.1.2}RE2}{54}{subsection.8.1.2}%
-\contentsline {section}{\numberline {8.2}Testing Strategy}{54}{section.8.2}%
-\contentsline {paragraph}{The agreement-testing pattern.}{54}{section.8.2}%
-\contentsline {paragraph}{Differential fuzzing.}{54}{section.8.2}%
-\contentsline {section}{\numberline {8.3}Dataset Preparation}{55}{section.8.3}%
-\contentsline {paragraph}{Extraction.}{55}{section.8.3}%
-\contentsline {paragraph}{Filtering.}{55}{section.8.3}%
-\contentsline {paragraph}{Unanchored matching.}{56}{section.8.3}%
-\contentsline {paragraph}{What this dataset does not (yet) give.}{56}{section.8.3}%
-\contentsline {section}{\numberline {8.4}Correctness Verification}{56}{section.8.4}%
-\contentsline {subsection}{\numberline {8.4.1}Paper Examples Reproduced}{56}{subsection.8.4.1}%
-\contentsline {subsection}{\numberline {8.4.2}Cross-Implementation Equivalence}{57}{subsection.8.4.2}%
-\contentsline {section}{\numberline {8.5}Performance Analysis}{57}{section.8.5}%
-\contentsline {subsection}{\numberline {8.5.1}Stack Depth: Recursive vs.\ Iterative Construction}{57}{subsection.8.5.1}%
-\contentsline {subsection}{\numberline {8.5.2}Heap Allocation: \texttt {deriv\_std} vs.\ \texttt {deriv\_bc}}{58}{subsection.8.5.2}%
-\contentsline {subsection}{\numberline {8.5.3}Derivative-Based vs.\ Partial-Derivative-Based}{58}{subsection.8.5.3}%
-\contentsline {subsection}{\numberline {8.5.4}Pathological Inputs}{59}{subsection.8.5.4}%
-\contentsline {subsection}{\numberline {8.5.5}Benchmark Results}{60}{subsection.8.5.5}%
-\contentsline {paragraph}{\texttt {ambiguous\_star\_a\_or\_aa}.}{61}{subsection.8.5.5}%
-\contentsline {paragraph}{\texttt {dataset\_corpus\_sample\_sweep}.}{61}{subsection.8.5.5}%
-\contentsline {paragraph}{\texttt {dataset\_worst\_case\_probe}.}{61}{subsection.8.5.5}%
-\contentsline {section}{\numberline {8.6}Comparison with Existing Engines}{62}{section.8.6}%
-\contentsline {subsection}{\numberline {8.6.1}Performance}{62}{subsection.8.6.1}%
-\contentsline {paragraph}{The gap to \texttt {regex}/RE2 is five to six orders of magnitude, and this is not a defect to explain away.}{62}{subsection.8.6.1}%
-\contentsline {paragraph}{The ranking among this thesis's own five parsers matches theory.}{63}{subsection.8.6.1}%
-\contentsline {paragraph}{The matcher-vs-parser comparison, redone fairly.}{63}{subsection.8.6.1}%
-\contentsline {paragraph}{What would close some of this gap, and what would not.}{64}{subsection.8.6.1}%
-\contentsline {subsection}{\numberline {8.6.2}Standardized Benchmarking via rebar}{64}{subsection.8.6.2}%
-\contentsline {chapter}{\numberline {9}Discussion}{65}{chapter.9}%
-\contentsline {section}{\numberline {9.1}Discussion of Evaluation Results}{65}{section.9.1}%
-\contentsline {paragraph}{Bit-coding and partial derivatives are independent wins that compound.}{65}{section.9.1}%
-\contentsline {paragraph}{The gap to \texttt {regex}/RE2 is architectural, not incidental.}{65}{section.9.1}%
-\contentsline {paragraph}{Ambiguity, not size, is what makes a construction slow.}{66}{section.9.1}%
-\contentsline {paragraph}{Correctness held throughout, including under adversarial testing built specifically to break it.}{66}{section.9.1}%
-\contentsline {section}{\numberline {9.2}Rust versus Haskell}{66}{section.9.2}%
-\contentsline {subsection}{\numberline {9.2.1}Language Characteristics of the Reference Implementation}{66}{subsection.9.2.1}%
-\contentsline {paragraph}{Algebraic data types with blanket \texttt {deriving}.}{66}{subsection.9.2.1}%
-\contentsline {paragraph}{GADT syntax used without a type index.}{67}{subsection.9.2.1}%
-\contentsline {paragraph}{List comprehensions.}{67}{subsection.9.2.1}%
-\contentsline {paragraph}{\texttt {Data.List.nub}/\texttt {nubBy}.}{67}{subsection.9.2.1}%
-\contentsline {paragraph}{Laziness.}{67}{subsection.9.2.1}%
-\contentsline {paragraph}{\texttt {error} for impossible cases.}{67}{subsection.9.2.1}%
-\contentsline {subsection}{\numberline {9.2.2}What the Reference Provides vs. What It Leaves Open}{68}{subsection.9.2.2}%
-\contentsline {subsection}{\numberline {9.2.3}Translation Strategy}{69}{subsection.9.2.3}%
-\contentsline {subsection}{\numberline {9.2.4}Translation Insights}{69}{subsection.9.2.4}%
-\contentsline {section}{\numberline {9.3}Mismatch Analysis via Derivative Tracing}{70}{section.9.3}%
-\contentsline {subsection}{\numberline {9.3.1}The Gap}{70}{subsection.9.3.1}%
-\contentsline {subsection}{\numberline {9.3.2}Deriving Diagnostics for Free from the Algorithm Itself}{70}{subsection.9.3.2}%
-\contentsline {subsection}{\numberline {9.3.3}Design}{71}{subsection.9.3.3}%
-\contentsline {subsection}{\numberline {9.3.4}Scope and Limits}{71}{subsection.9.3.4}%
-\contentsline {section}{\numberline {9.4}Optimization Challenges and Insights}{71}{section.9.4}%
-\contentsline {paragraph}{The $(a+aa)^{*}$ blowup on \texttt {deriv\_bc}.}{72}{section.9.4}%
-\contentsline {paragraph}{The \texttt {ambiguous\_star\_a\_or\_aa} benchmark fix.}{72}{section.9.4}%
-\contentsline {paragraph}{The \texttt {match\_pderiv} \texttt {HashSet} fix.}{72}{section.9.4}%
-\contentsline {section}{\numberline {9.5}Future Work}{73}{section.9.5}%
-\contentsline {subsection}{\numberline {9.5.1}Paper-Suggested Extensions Not Yet Implemented}{73}{subsection.9.5.1}%
-\contentsline {subsubsection}{Tagged NFA for Submatching}{73}{subsection.9.5.1}%
-\contentsline {subsubsection}{Space-Efficient Parsing}{73}{subsection.9.5.1}%
-\contentsline {subsubsection}{DFA/NFA Hybrid Abstraction}{74}{subsection.9.5.1}%
-\contentsline {subsection}{\numberline {9.5.2}Further Performance Optimizations}{74}{subsection.9.5.2}%
-\contentsline {subsubsection}{Character Classes in Place of Literal Alternation}{74}{subsection.9.5.2}%
-\contentsline {subsubsection}{Structural Sharing via \texttt {Rc}}{75}{subsection.9.5.2}%
-\contentsline {subsubsection}{Memoizing \texttt {deriv}/\texttt {nullable}}{75}{subsection.9.5.2}%
-\contentsline {subsubsection}{Benchmarking the Matcher, Not the Parser, for Membership}{75}{subsection.9.5.2}%
-\contentsline {subsubsection}{A Different Project: Caching the Derivative Automaton}{75}{subsection.9.5.2}%
-\contentsline {subsection}{\numberline {9.5.3}A Full Mismatch Diagnostics System}{76}{subsection.9.5.3}%
-\contentsline {chapter}{\numberline {10}Related Work and Conclusion}{77}{chapter.10}%
-\contentsline {chapter}{\numberline {A}Code Listings}{80}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Full Benchmark Results}{81}{appendix.B}%
-\contentsline {chapter}{\numberline {C}Test Case Catalogue}{82}{appendix.C}%
-\contentsline {chapter}{\numberline {D}CLI and ENV Reference}{83}{appendix.D}%
+\contentsline {section}{\numberline {6.5}Worked Example: \texttt {paper\_r1} End to End}{39}{section.6.5}%
+\contentsline {paragraph}{Success: \texttt {pderiv\_std}.}{39}{section.6.5}%
+\contentsline {paragraph}{Success: \texttt {pderiv\_bc}.}{41}{section.6.5}%
+\contentsline {paragraph}{Failure: \texttt {pderiv\_std}.}{43}{section.6.5}%
+\contentsline {paragraph}{Failure: \texttt {pderiv\_bc}.}{44}{section.6.5}%
+\contentsline {chapter}{\numberline {7}Frontend: Parsing External Regular Expression Syntax}{46}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Two ASTs, One Lowering Step}{46}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{47}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Translating \texttt {ExtPat} into \texttt {Regex}}{47}{section.7.3}%
+\contentsline {paragraph}{Character classes are ordinary alternation, not a primitive.}{48}{section.7.3}%
+\contentsline {paragraph}{Bounds unroll literally, capped against blowup.}{48}{section.7.3}%
+\contentsline {paragraph}{Greedy/lazy quantifier syntax is parsed but not honored.}{48}{section.7.3}%
+\contentsline {section}{\numberline {7.4}Substring Search}{49}{section.7.4}%
+\contentsline {paragraph}{Edge case.}{49}{section.7.4}%
+\contentsline {chapter}{\numberline {8}Evaluation}{50}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Compared Engines}{50}{section.8.1}%
+\contentsline {subsection}{\numberline {8.1.1}Rust's \texttt {regex} Crate}{50}{subsection.8.1.1}%
+\contentsline {subsection}{\numberline {8.1.2}RE2}{51}{subsection.8.1.2}%
+\contentsline {section}{\numberline {8.2}Testing Strategy}{51}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Dataset Preparation}{51}{section.8.3}%
+\contentsline {paragraph}{Extraction.}{52}{section.8.3}%
+\contentsline {paragraph}{Filtering.}{52}{section.8.3}%
+\contentsline {paragraph}{Unanchored matching.}{52}{section.8.3}%
+\contentsline {paragraph}{What this dataset does not (yet) give.}{52}{section.8.3}%
+\contentsline {section}{\numberline {8.4}Correctness Verification}{53}{section.8.4}%
+\contentsline {subsection}{\numberline {8.4.1}Paper Examples Reproduced}{53}{subsection.8.4.1}%
+\contentsline {subsection}{\numberline {8.4.2}Cross-Implementation Equivalence}{53}{subsection.8.4.2}%
+\contentsline {section}{\numberline {8.5}Performance Analysis}{54}{section.8.5}%
+\contentsline {subsection}{\numberline {8.5.1}Stack Depth: Recursive vs.\ Iterative Construction}{54}{subsection.8.5.1}%
+\contentsline {subsection}{\numberline {8.5.2}Heap Allocation: \texttt {deriv\_std} vs.\ \texttt {deriv\_bc}}{54}{subsection.8.5.2}%
+\contentsline {subsection}{\numberline {8.5.3}Derivative-Based vs.\ Partial-Derivative-Based}{54}{subsection.8.5.3}%
+\contentsline {subsection}{\numberline {8.5.4}Pathological Inputs}{54}{subsection.8.5.4}%
+\contentsline {subsection}{\numberline {8.5.5}Benchmark Results}{55}{subsection.8.5.5}%
+\contentsline {section}{\numberline {8.6}Comparison with Existing Engines}{55}{section.8.6}%
+\contentsline {subsection}{\numberline {8.6.1}Performance}{55}{subsection.8.6.1}%
+\contentsline {subsection}{\numberline {8.6.2}Standardized Benchmarking via rebar}{55}{subsection.8.6.2}%
+\contentsline {chapter}{\numberline {9}Discussion}{56}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Discussion of Evaluation Results}{56}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Rust versus Haskell}{56}{section.9.2}%
+\contentsline {subsection}{\numberline {9.2.1}Language Characteristics of the Reference Implementation}{56}{subsection.9.2.1}%
+\contentsline {paragraph}{Algebraic data types with blanket \texttt {deriving}.}{56}{subsection.9.2.1}%
+\contentsline {paragraph}{GADT syntax used without a type index.}{56}{subsection.9.2.1}%
+\contentsline {subsection}{\numberline {9.2.2}What the Reference Provides vs. What It Leaves Open}{57}{subsection.9.2.2}%
+\contentsline {subsection}{\numberline {9.2.3}Translation Strategy}{57}{subsection.9.2.3}%
+\contentsline {subsection}{\numberline {9.2.4}Translation Insights}{57}{subsection.9.2.4}%
+\contentsline {section}{\numberline {9.3}Mismatch Analysis via Derivative Tracing}{57}{section.9.3}%
+\contentsline {subsection}{\numberline {9.3.1}The Gap}{57}{subsection.9.3.1}%
+\contentsline {subsection}{\numberline {9.3.2}Deriving Diagnostics for Free from the Algorithm Itself}{57}{subsection.9.3.2}%
+\contentsline {subsection}{\numberline {9.3.3}Design}{57}{subsection.9.3.3}%
+\contentsline {subsection}{\numberline {9.3.4}Scope and Limits}{58}{subsection.9.3.4}%
+\contentsline {section}{\numberline {9.4}Optimization Challenges and Insights}{58}{section.9.4}%
+\contentsline {section}{\numberline {9.5}Future Work}{58}{section.9.5}%
+\contentsline {subsection}{\numberline {9.5.1}Paper-Suggested Extensions}{58}{subsection.9.5.1}%
+\contentsline {subsubsection}{Tagged NFA for Submatching}{58}{subsection.9.5.1}%
+\contentsline {subsubsection}{Space-Efficient Parsing}{58}{subsection.9.5.1}%
+\contentsline {subsubsection}{DFA/NFA Hybrid Abstraction}{58}{subsection.9.5.1}%
+\contentsline {subsection}{\numberline {9.5.2}Further Performance Optimizations}{58}{subsection.9.5.2}%
+\contentsline {subsubsection}{Character Classes in Place of Literal Alternation}{58}{subsection.9.5.2}%
+\contentsline {subsubsection}{Structural Sharing via \texttt {Rc}}{58}{subsection.9.5.2}%
+\contentsline {subsubsection}{Memoizing \texttt {deriv}/\texttt {nullable}}{58}{subsection.9.5.2}%
+\contentsline {subsubsection}{Benchmarking the Matcher, Not the Parser, for Membership}{58}{subsection.9.5.2}%
+\contentsline {subsection}{\numberline {9.5.3}A Full Mismatch Diagnostics System}{58}{subsection.9.5.3}%
+\contentsline {chapter}{\numberline {10}Related Work and Conclusion}{59}{chapter.10}%
+\contentsline {chapter}{\numberline {A}Code Listings}{61}{appendix.A}%
+\contentsline {chapter}{\numberline {B}Full Benchmark Results}{62}{appendix.B}%
+\contentsline {chapter}{\numberline {C}Test Case Catalogue}{63}{appendix.C}%
+\contentsline {chapter}{\numberline {D}CLI and ENV Reference}{64}{appendix.D}%

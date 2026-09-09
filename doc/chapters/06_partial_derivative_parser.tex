@@ -134,46 +134,6 @@ than "corrected", since correctness of this construction is judged
 against literal agreement with that reference (Chapter~\ref{sec:evaluation}),
 not against an independently-derived ideal form.
 
-\paragraph{A negative result: why not \texttt{ARegex}.} Given
-Chapter~\ref{sec:derivative-parser}'s bit-coded parser threads bits
-\emph{through} the tree via \texttt{ARegex}, extending
-\texttt{pderiv\_bc} the same way -- so that it, too, could share
-\texttt{internalize}/\texttt{fuse}/\texttt{mkEpsBC}/\texttt{decode}
-with \texttt{deriv\_bc} -- looks like the natural, structurally
-consistent choice, and was built and tested as exactly that during this
-project's development. It was correct: verified byte-for-byte identical
-to the external-bits construction above across a 20{,}000-case
-differential fuzzer. It was also, on real ambiguous input, dramatically
-slower -- on $(a+(b+ab))^{*}$ against \texttt{"ab"} repeated, roughly
-240 microseconds at 10 characters growing to roughly
-14 seconds at 40, a blowup far beyond what the same pattern costs
-either \texttt{pderiv\_std} or \texttt{pderiv\_bc} as actually shipped.
-The diagnosed cause connects directly to
-Section~\ref{sec:deriv-bc}'s observation that \texttt{deriv\_bc}'s
-\texttt{Alt} case keeps its outer bit-list on the \texttt{Alt} node
-itself rather than pushing it into either branch: partial derivatives,
-unlike Brzozowski's, \emph{flatten} every alternation branch out into
-its own independent strand rather than keeping the \texttt{Alt}
-structure intact, so an \texttt{ARegex}-based \texttt{pderiv\_bc} has no
-outer node left to attach bits to and must fuse them into each
-flattened branch instead. That fusion makes two strands that are
-semantically identical -- reachable from the same residual, differing
-only in \emph{which derivation path} produced them -- come out
-syntactically different depending on that path, which silently defeats
-\texttt{nub2}'s shape-based deduplication: strands the un-annotated
-construction above would collapse into one instead survive as separate,
-and the frontier this is meant to keep bounded
-(Section~\ref{sec:partial-derivative-parser-theory}) grows instead.
-Keeping bits external and structurally separate from the shape used for
-deduplication, as the teaching-page reference itself does, is what
-makes Antimirov's finiteness guarantee actually hold in this
-implementation; \texttt{ARegex} was designed around Brzozowski's
-single-threaded derivative, where exactly one combined tree exists to
-annotate at every step, and does not transfer cleanly to a construction
-that has already split into independent strands with nothing to
-annotate collectively at all.
-
-
 
 \section{Rust Implementation: The \texttt{pderiv\_bc} Parser}
 \label{sec:partial-derivative-parser-rust}
@@ -269,86 +229,6 @@ Section~\ref{sec:partial-derivative-parser-theory} argues is built into
 \section{Rust Implementation: The \texttt{pderiv\_std} Parser}
 \label{sec:pderiv-std-theory-rust}
 
-Unlike every other parser in Chapters~\ref{sec:derivative-parser}
-and~\ref{sec:partial-derivative-parser}, \texttt{pderiv\_std} transcribes
-no reference construction -- neither primary source defines a
-partial-derivative parser that builds a \texttt{ParseTree} directly,
-without going through a bit-string intermediate. It exists to fill a
-structural gap the rest of this thesis's four-parser comparison would
-otherwise have: Chapter~\ref{sec:derivative-parser}'s \texttt{deriv\_std}
-and \texttt{deriv\_bc} form a matched pair sharing the same underlying
-derivative and differing only in how a successful derivation becomes a
-tree -- a direct backward pass versus incremental bit annotation --
-which makes comparing them, both for correctness and for the
-performance analysis of Chapter~\ref{sec:evaluation}, a controlled,
-apples-to-apples comparison. \texttt{pderiv\_bc}
-(Section~\ref{sec:pderiv-bc-theory-rust}) had no such sibling before
-\texttt{pderiv\_std} was built: it was the only Greedy
-partial-derivative parser available, with nothing sharing its
-underlying derivative but differing only in tree-construction strategy
-to compare it against. \texttt{pderiv\_std} closes that gap, giving all
-four parsers this thesis studies the same paired structure --
-Section~\ref{sec:derivative-parser} covering the derivative pair,
-Section~\ref{sec:pderiv-bc-theory-rust} and this section covering the
-partial-derivative pair.
-
-\paragraph{Injection closures in place of bits.} \texttt{pDerivBC}'s
-bit-vector trick works because bits alone are enough for
-\texttt{decode} to later reconstruct a tree, given the \emph{original}
-expression to decode them against. Building the tree directly during
-the forward pass, with no such second decoding step, needs something
-that can still be applied once a strand's eventual \texttt{mk\_eps}
-value is known, without needing the original expression again -- an
-injection function \texttt{ParseTree -> ParseTree} that wraps whatever
-value a residual eventually produces in exactly the \texttt{Left}/\texttt{Right}/\texttt{Pair}
-structure needed to have come from the \emph{original} expression, not
-the residual. \texttt{type Inj = Rc<dyn Fn(ParseTree) -> ParseTree>}
-(\texttt{src/parsers/pderiv\_std/inject.rs}) is this closure --
-\texttt{Rc} rather than \texttt{Box}, since a fan-out step such as
-\texttt{Alt} shares one parent strand's injection across more than one
-child strand, which a uniquely-owned closure could not do. Every
-frontier strand carries \texttt{(Regex, Inj)} in place of
-\texttt{pderiv\_bc}'s \texttt{(Regex, Vec<bool>)} -- the closure
-\emph{is} this parser's bit-vector, composed at each step rather than
-concatenated.
-
-\texttt{pderiv\_tree} (\texttt{src/parsers/pderiv\_std/pderiv\_tree.rs})
-mirrors \texttt{pderiv\_bc}'s case structure directly, with
-injection-wrapping in place of bit-prepending at every case -- a
-literal match wraps its result in a closure building
-\texttt{ParseTree::Char} directly (where the bit-coded version records
-no bits at all, since there was nothing to choose between);
-alternation's two branches wrap in \texttt{Left}/\texttt{Right}-building
-closures composed with each branch's own; concatenation's
-nullable-first-operand case builds \texttt{Pair(mk\_eps(r1), ...)}
-directly for its "jump into \texttt{r2}" strand, calling the
-\emph{shared} \texttt{mk\_eps} (Section~\ref{sec:mk-eps-impl}) eagerly
-rather than deferring it the way \texttt{mkEpsBC}'s bits would; and
-Kleene star's closure unpacks and prepends one iteration onto the
-existing \texttt{Star} list. \texttt{nub\_tree} dedups exactly as
-\texttt{pderiv\_bc}'s \texttt{nub2} does, on the residual alone,
-keeping the first (highest Greedy priority) strand's injection.
-\texttt{step\_frontier}/\texttt{select}
-(\texttt{src/parsers/pderiv\_std/parse.rs}) mirror
-\texttt{pderiv\_bc}'s \texttt{step\_frontier}/\texttt{select\_bits}
-one to one, composing injections instead of concatenating bits and
-applying the winning strand's closure directly to
-\texttt{mk\_eps(residual)} at the end -- no decoding step required,
-since the tree was under construction the entire time rather than
-encoded.
-
-Because \texttt{pderiv\_tree} shares \texttt{pderiv\_bc}'s exact case
-structure, a strand-for-strand differential comparison between the two
-is close to free to state and check: Chapter~\ref{sec:evaluation}'s
-20{,}000-case fuzzer finding the two implementations byte-identical on
-every generated regular expression and input, together with the shared
-\texttt{paper\_r1}/\texttt{paper\_r2} examples both compute the
-documented Greedy answer for, is the actual evidence available that
-this thesis's own partial-derivative-to-parse-tree extension is correct
--- in the absence of a reference construction, as
-Section~\ref{sec:partial-derivative-parser-theory} already noted, two
-independently-shaped implementations of the same specification agreeing
-exactly is the strongest correctness signal available.
 
 \section{Worked Example: \texttt{paper\_r1} End to End}
 \label{sec:pderiv-worked-example}

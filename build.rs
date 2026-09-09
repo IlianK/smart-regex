@@ -1,7 +1,3 @@
-//! Only does work when the `external-engines` feature is enabled: compiles
-//! `csrc/re2_shim.cpp` and links the system RE2 C++ library, via pkg-config
-//! See docs/EXTERNAL_ENGINES.md for the required system packages.
-
 use std::env;
 
 fn main() {
