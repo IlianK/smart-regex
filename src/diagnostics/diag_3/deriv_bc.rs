@@ -3,8 +3,8 @@
 use std::time::Instant;
 
 use crate::types::{Regex, ARegex, flatten};
-use crate::parsers::bitcoded::parse_bitcoded_traced;
-use crate::regex::bitcoded::nullable::nullable_bc;
+use crate::parsers::deriv_bc::parse_bitcoded_traced;
+use crate::parsers::deriv_bc::nullable::nullable_bc;
 use crate::diagnostics::format::bits_str;
 use crate::diagnostics::report::ReportWriter;
 use super::{timestamp, render_error_summary};
@@ -117,8 +117,6 @@ pub fn render(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter) {
                 w.line(&format!("Accumulated bits: {}", bits_str(bits)));
                 w.blank();
                 w.line(&format!("mkEpsBC(ri{}) would give: {}", last_idx, bits_str(bits)));
-                // Cannot decode partial bits - final expression is not nullable,
-                // so no valid complete parse tree exists for the accumulated bits.
                 w.line("Decoding not possible: final expression is not nullable.");
             }
             w.blank();

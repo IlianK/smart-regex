@@ -1,11 +1,9 @@
-//! regex-engine/src/matchers/match_deriv.rs
-//! 
-//! Brzozowski derivative matcher (boolean)
+//! Brzozowski derivative matcher (boolean).
 
 use crate::types::Regex;
-use crate::regex::standard::deriv::deriv;
-use crate::regex::standard::simplify::simplify;
-use crate::regex::standard::nullable::nullable;
+use crate::regex::deriv::deriv;
+use crate::regex::simplify::simplify;
+use crate::regex::nullable::nullable;
 
 pub fn match_deriv(input: &str, r: &Regex) -> bool {
     let mut current = r.clone();
@@ -15,9 +13,7 @@ pub fn match_deriv(input: &str, r: &Regex) -> bool {
     nullable(&current)
 }
 
-// -------------------------------
-// Tests for match_deriv
-// -------------------------------
+// Tests
 
 #[cfg(test)]
 mod tests {

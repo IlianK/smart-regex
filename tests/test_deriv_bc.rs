@@ -1,27 +1,16 @@
-// tests/test_deriv_bc.rs
-//
-// Integration tests for src/posix/bitcoded/
-//   - parse_bitcoded (bitcoded/parse.rs)
-//
-// Correctness property (Theorem 1 applied to bitcoded path):
-//   parse_bitcoded(w, r) == parse_recursive(w, r)   for all w, r
-//
-// Run:  cargo test --test test_deriv_bc
+// Integration tests for parsers/deriv_bc/: parse_bitcoded(w, r) == parse_recursive(w, r) for all w, r.
 
 mod common;
 use common::{assert_round_trip, assert_parsers_agree, paper_r1, paper_r2};
 
 use regex_engine::Regex;
-use regex_engine::parsers::{parse_recursive, parse_bitcoded};
+use regex_engine::parsers::{parse_deriv_std_rec, parse_deriv_bc};
 
-
-// -------------------------------
-// parse_bitcoded 
-// -------------------------------
+// parse_bitcoded
 
 fn bitcoded_agrees_with_recursive(input: &str, r: &Regex) {
-    let rec = parse_recursive(input, r);
-    let bc  = parse_bitcoded(input, r);
+    let rec = parse_deriv_std_rec(input, r);
+    let bc  = parse_deriv_bc(input, r);
     assert_parsers_agree("recursive", &rec, "bitcoded", &bc);
 }
 
@@ -75,15 +64,13 @@ fn bitcoded_round_trip_flatten() {
     // Whatever parse_bitcoded returns, flatten should reproduce the input
     let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
     for w in &["", "a", "b", "ab", "ba", "aabb", "baba"] {
-        if let Some(tree) = parse_bitcoded(w, &r) {
+        if let Some(tree) = parse_deriv_bc(w, &r) {
             assert_round_trip(&tree, w);
         }
     }
 }
 
-// -------------------------------
-// POSIX ordering rules 
-// -------------------------------
+// POSIX ordering rules
 
 #[test]
 fn bitcoded_agrees_on_a1_longer_right_wins() {

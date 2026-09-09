@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use crate::types::{Regex, flatten};
 use crate::parsers::selection::ParserType;
-use crate::parsers::standard::{parse_loop_traced, parse_recursive_traced};
+use crate::parsers::deriv_std::{parse_loop_traced, parse_recursive_traced};
 use crate::diagnostics::DiagConfig;
 use crate::diagnostics::replay::{error_report, partial_tree_standard};
 

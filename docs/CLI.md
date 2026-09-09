@@ -29,17 +29,17 @@ cargo run -- match "(a|ab)(b|ε)" "b" --matcher naive
 ## Parser
 
 ```bash
-# Default parser (deriv_rec), default diagnostics (off)
+# Default parser (deriv_std_rec), default diagnostics (off)
 cargo run -- parse "(a|ab)(b|ε)" "ab"
 cargo run -- parse "(a|b|ab)*"   "ab"
 
 # Specific parser
-cargo run -- parse "a*" "aaa" --parser deriv_rec
-cargo run -- parse "a*" "aaa" --parser deriv_loop
+cargo run -- parse "a*" "aaa" --parser deriv_std_rec
+cargo run -- parse "a*" "aaa" --parser deriv_std_loop
 cargo run -- parse "a*" "aaa" --parser deriv_bc
 
-# Bit-coded partial-derivative parser computes GREEDY
-cargo run -- parse "a*" "aaa" --parser pderiv
+# Partial-derivative parsers compute GREEDY, not POSIX
+cargo run -- parse "a*" "aaa" --parser pderiv_std
 cargo run -- parse "a*" "aaa" --parser pderiv_bc 
 
 # Compare all parsers side by side: 
@@ -128,7 +128,7 @@ cat reports/report.txt
 
 | Flag | Values | Default | Use |
 |---|---|---|---|
-| `--parser` | `deriv_rec` `deriv_loop` `deriv_bc` `pderiv` `pderiv_bc` `all` | `deriv_rec` | Parser selection |
+| `--parser` | `deriv_std_rec` `deriv_std_loop` `deriv_bc` `pderiv_std` `pderiv_bc` `all` | `deriv_std_rec` | Parser selection |
 | `--diag`  | `0` `1` `2` `3` | `0` | Output verbosity level |
 | `--diag-report` | file path | unset (`reports/report.txt` if `--diag 3` with no path given) | Level 3 report destination |
 

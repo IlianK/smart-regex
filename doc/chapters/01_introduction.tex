@@ -17,24 +17,25 @@ For example, the expression \texttt{(ab|a)*} matches the input string
 \texttt{"a"}, but does not match \texttt{"abb"}, since no sequence of
 subexpressions can produce that input.
 
-For many applications, a Boolean answer is sufficient. An input validator,
-for instance, may only need to accept or reject a password, URL, or
-configuration value. Other applications require more: a lexer must
-determine how an input decomposes into tokens, while capturing groups,
-schema validation, and information extraction require identifying which
-parts of the input correspond to different parts of the expression. In
-these settings, a matcher must recover the \emph{structure} of a match, and the
-problem shifts from recognition to parsing.
+For many applications, a Boolean answer is enough. An input validator
+may only need to accept or reject a password, URL, or configuration
+value. Other applications require more: a lexer must determine how an
+input decomposes into tokens, while capturing groups, schema validation,
+and information extraction require identifying which parts of the input
+correspond to different parts of the expression. In these settings,
+recognition alone is insufficient: a matcher must also recover the
+\emph{structure} of a match, turning a membership problem into a parsing
+problem.
 
-Efficiently solving these problems remains an active area of research: 
-the choice of algorithm directly influences performance, 
+Efficiently solving these problems remains an active research area: 
+the choice of algorithm influences performance, 
 memory consumption, and security, and, once matching becomes parsing, 
-the choice of how a match's structure is recovered directly 
+the choice of how a match's structure is recovered 
 influences correctness as well.
 
 Existing approaches include
 backtracking, finite-automata-based techniques such as nondeterministic
-(NFA) and deterministic (DFA) automata, and derivative-based algorithms.
+(NFA) and deterministic (DFA) automata.
 Each approach provides different trade-offs between implementation
 complexity, memory consumption, and worst-case performance. Backtracking
 engines are flexible and widely adopted, but may exhibit exponential
@@ -43,15 +44,17 @@ expression denial-of-service (ReDoS) vulnerabilities \citep{cox2007}.
 Automata-based approaches provide stronger worst-case guarantees but may 
 require costly preprocessing and can suffer from state-space explosion.
 
-Derivative-based algorithms provide an alternative by
-transforming the regular expression itself as input symbols are consumed.
-By maintaining a direct correspondence between an expression and its
-successive residuals, they offer an elegant foundation for structured
-regular expression matching. 
+Derivative-based algorithms provide an alternative by transforming the
+regular expression itself as input symbols are consumed. Each derivative
+represents the language that remains to be matched after a particular
+input symbol has been consumed. By maintaining a direct correspondence
+between an expression and its successive residuals, derivative-based
+methods provide an elegant foundation for regular expression matching
+and, with suitable extensions, structured parsing.
 
-However, derivative-based techniques are less commonly used in practical
-regular expression tools than other matching approaches. Bridging this gap
-between theory and practice motivates the work presented in this thesis.
+However, derivative-based techniques are less commonly used in practice 
+than other matching approaches. Bridging this gap
+"From Theory to Tools" motivates the work presented in this thesis.
 
 
 
@@ -60,7 +63,7 @@ between theory and practice motivates the work presented in this thesis.
 
 Brzozowski introduced regular expression derivatives as an algebraic
 characterization of regular expression matching~\citep{brzozowski1964}.
-Antimirov later introduced partial derivatives, which represent sets of
+Antimirov later introduced partial derivatives, representing sets of
 residual expressions and provide a construction closely related to
 nondeterministic automata while reducing redundancy compared with ordinary
 derivatives~\citep{antimirov1996}. Building on these ideas, Sulzmann and Lu
@@ -74,13 +77,18 @@ such an environment through its compile-time ownership model, allowing
 memory allocation, stack usage, and execution time to be studied as direct
 properties of the implementation.
 
-This thesis investigates the practical implementation of Sulzmann and Lu's
-POSIX-correct derivative-based parsing algorithm in Rust and explores
-implementations based on Antimirov's partial derivatives and the bit-coded
-optimization proposed by the authors. The resulting implementations are then
-evaluated in terms of performance and resource usage and compared against
-established regular expression implementations, including Rust's
-\texttt{regex} crate and Google's RE2.
+This thesis investigates the implementation of Sulzmann and
+Lu's POSIX derivative-based parsing algorithm in Rust and explores an
+extension of this construction based on Antimirov's partial derivatives.
+The implementations also incorporate the bit-coded optimization proposed
+by the same authors, to reduce memory usage and improve performance.
+
+The resulting implementations are evaluated in terms of performance and
+resource usage, both against each other and on real-world regular
+expression patterns drawn from network-signature, spam-filtering, and
+general-purpose corpora (Chapter~\ref{sec:evaluation}). The evaluation
+also includes a direct empirical comparison with two established engines:
+Rust's \texttt{regex} crate and Google's RE2.
 
 Furthermore, the derivative-based representation provides an opportunity
 to show the reasoning of the algorithm. This thesis
@@ -100,16 +108,19 @@ This thesis makes the following contributions:
   POSIX parser}, including a direct two-pass construction following the
   original algorithm and a bit-coded single-pass optimization. The
   implementation additionally explores partial derivatives as an alternative
-  representation.
+  representation, resulting in four parser variants: 
+  derivative-based and partial-derivative-based, in direct and bit-coded forms.
 
-  \item \textbf{An empirical evaluation} comparing derivative-based and
-  partial-derivative-based implementations with each other and with
-  established regular expression engines, including Rust's \texttt{regex}
-  crate and Google's RE2.
+  \item \textbf{An empirical evaluation} comparing all four
+  parser combinations with each other, on both synthetic benchmarks and a triaged corpus of
+  real-world regular expressions, based on the datasets used in the paper 
+  of Mamouras et al. \citep{mamouras2024}. 
+  Then comparing them against established regular expression matchers such as
+  Rust's \texttt{regex} crate and Google's RE2.
 
-  \item \textbf{A lightweight derivative-tracing mismatch diagnostics system},
-  exposing the parser's intermediate derivative computations and using 
-  them to explain successful matches and failures.
+  \item \textbf{A derivative-tracing diagnostics system},
+  showing the parser's computation steps to explain successful matches and mismatches,
+  to provide a tool for understanding the algorithm's behaviour and debugging of regular expressions.
 \end{itemize}
 
 
@@ -138,14 +149,15 @@ Brzozowski derivatives to Antimirov's partial derivatives, again in both
 its direct and bit-coded variants.
 
 With all four parser variants in place, Section~\ref{sec:evaluation}
-evaluates their correctness and performance against each other and against
-established regular expression engines.
+evaluates their correctness and performance against each other, on both
+synthetic benchmarks and a corpus of real-world regular expressions, and
+positions this evaluation relative to established regular expression
+engines.
 Section~\ref{sec:discussion} situates this work relative to related
 approaches, reflects on translating the underlying algorithm from Haskell
 to Rust, and discusses the derivative-tracing facility built alongside the
-parser, including its levels of diagnostic detail and their usefulness.
-Section~\ref{sec:conclusion} closes by summarizing what these four
-implementations and their evaluation establish, and outlines the
-extensions -- including a fuller mismatch diagnostics system built on this
-tracing facility, and the algorithmic extensions suggested but not
-implemented by Sulzmann and Lu left as future work.
+parser, their usefulness and potential extensions.
+
+Section~\ref{sec:conclusion} closes by summarizing the main findings and
+contributions of the thesis and mentioning of related work.
+

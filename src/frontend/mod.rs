@@ -1,6 +1,5 @@
-//! regex-engine/src/frontend/mod.rs
-//!
-//! External surface-syntax pattern AST after (https://github.com/luzhuomi/regex-pderiv)
+//! External surface-syntax pattern AST, modeled on https://github.com/luzhuomi/regex-pderiv.
+
 pub mod alphabet;
 pub mod ext_pattern;
 pub mod parse;
@@ -33,8 +32,7 @@ pub fn parse_pcre_rule(s: &str) -> Result<Regex, String> {
     translate_as_search(&ep)
 }
 
-/// `translate(ep)`, padded with unanchored-search wildcard 
-/// (on whichever side (start/end) has no explicit `^`/`$`)
+/// `translate(ep)`, padded with unanchored-search wildcard on whichever side lacks `^`/`$`
 fn translate_as_search(ep: &ExtPat) -> Result<Regex, String> {
     let core = translate(ep)?;
     Ok(match (starts_with_carat(ep), ends_with_dollar(ep)) {
@@ -45,7 +43,10 @@ fn translate_as_search(ep: &ExtPat) -> Result<Regex, String> {
     })
 }
 
-fn strip_pcre_delimiters(s: &str) -> (&str, bool) {
+/// Strips a `/PATTERN/FLAGS` PCRE-rule wrapper
+/// returning the bare pattern body and whether the `i` (case-insensitive) flag was set
+/// Passes `s`through unchanged (not case-insensitive) if it isn't `/`-delimited
+pub fn strip_pcre_delimiters(s: &str) -> (&str, bool) {
     let s = s.trim();
     if !s.starts_with('/') {
         return (s, false);
@@ -60,32 +61,29 @@ fn strip_pcre_delimiters(s: &str) -> (&str, bool) {
     }
 }
 
-// -------------------------------
 // Tests
-// -------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parsers::parse_recursive;
+    use crate::parsers::parse_deriv_std_rec;
 
     #[test]
     fn eps_and_never_end_to_end() {
-        // Definition 1's own notation, now expressible through this
-        // frontend without a second grammar.
+        // Definition 1's own eps/never notation, expressible through this frontend
         let r = parse_dataset_pattern("^aε$").expect("should parse");
-        assert!(parse_recursive("a", &r).is_some());
+        assert!(parse_deriv_std_rec("a", &r).is_some());
 
         let r = parse_dataset_pattern("^∅$").expect("should parse");
-        assert!(parse_recursive("", &r).is_none());
-        assert!(parse_recursive("x", &r).is_none());
+        assert!(parse_deriv_std_rec("", &r).is_none());
+        assert!(parse_deriv_std_rec("x", &r).is_none());
     }
 
     #[test]
     fn parse_dataset_pattern_end_to_end() {
         let r = parse_dataset_pattern(r"[a-c]+\d{2}").expect("should parse");
-        assert!(parse_recursive("aabb12", &r).is_some());
-        assert!(parse_recursive("aabb1", &r).is_none());
+        assert!(parse_deriv_std_rec("aabb12", &r).is_some());
+        assert!(parse_deriv_std_rec("aabb1", &r).is_none());
     }
 
     #[test]
@@ -108,58 +106,65 @@ mod tests {
     #[test]
     fn parse_pcre_rule_case_folds_on_i_flag() {
         let r = parse_pcre_rule("/abc/i").expect("should parse");
-        assert!(parse_recursive("ABC", &r).is_some());
-        assert!(parse_recursive("aBc", &r).is_some());
-        assert!(parse_recursive("abc", &r).is_some());
+        assert!(parse_deriv_std_rec("ABC", &r).is_some());
+        assert!(parse_deriv_std_rec("aBc", &r).is_some());
+        assert!(parse_deriv_std_rec("abc", &r).is_some());
     }
 
     #[test]
     fn parse_pcre_rule_without_i_flag_is_case_sensitive() {
         let r = parse_pcre_rule("/abc/").expect("should parse");
-        assert!(parse_recursive("abc", &r).is_some());
-        assert!(parse_recursive("ABC", &r).is_none());
+        assert!(parse_deriv_std_rec("abc", &r).is_some());
+        assert!(parse_deriv_std_rec("ABC", &r).is_none());
     }
 
     #[test]
     fn parse_pcre_rule_passes_through_bare_pattern() {
         let r = parse_pcre_rule("abc").expect("should parse");
-        assert!(parse_recursive("abc", &r).is_some());
+        assert!(parse_deriv_std_rec("abc", &r).is_some());
     }
 
-    // -------------------------------
-    // Substring-search (unanchored patterns match *containing* string
-    // -------------------------------
+    // Substring search: unanchored patterns match a *containing* string
 
     #[test]
     fn unanchored_pattern_matches_as_substring() {
         let r = parse_dataset_pattern("abc").expect("should parse");
-        assert!(parse_recursive("xxabcyy", &r).is_some());
-        assert!(parse_recursive("abc", &r).is_some());
-        assert!(parse_recursive("xyz", &r).is_none());
+        assert!(parse_deriv_std_rec("xxabcyy", &r).is_some());
+        assert!(parse_deriv_std_rec("abc", &r).is_some());
+        assert!(parse_deriv_std_rec("xyz", &r).is_none());
+    }
+
+    // A pattern nullable on empty input (e.g. "a*") is padded on both sides too, so it trivially matches anything.
+    #[test]
+    fn unanchored_nullable_pattern_matches_anything() {
+        let r = parse_dataset_pattern("a*").expect("should parse");
+        assert!(parse_deriv_std_rec("", &r).is_some());
+        assert!(parse_deriv_std_rec("xyz", &r).is_some());
+        assert!(parse_deriv_std_rec("zzz999", &r).is_some());
     }
 
     #[test]
     fn fully_anchored_pattern_rejects_surrounding_text() {
         let r = parse_dataset_pattern("^abc$").expect("should parse");
-        assert!(parse_recursive("abc", &r).is_some());
-        assert!(parse_recursive("xxabcyy", &r).is_none());
-        assert!(parse_recursive("xabc", &r).is_none());
-        assert!(parse_recursive("abcx", &r).is_none());
+        assert!(parse_deriv_std_rec("abc", &r).is_some());
+        assert!(parse_deriv_std_rec("xxabcyy", &r).is_none());
+        assert!(parse_deriv_std_rec("xabc", &r).is_none());
+        assert!(parse_deriv_std_rec("abcx", &r).is_none());
     }
 
     #[test]
     fn start_anchored_only_allows_trailing_text_not_leading() {
         let r = parse_dataset_pattern("^abc").expect("should parse");
-        assert!(parse_recursive("abc", &r).is_some());
-        assert!(parse_recursive("abcxyz", &r).is_some());
-        assert!(parse_recursive("xabc", &r).is_none());
+        assert!(parse_deriv_std_rec("abc", &r).is_some());
+        assert!(parse_deriv_std_rec("abcxyz", &r).is_some());
+        assert!(parse_deriv_std_rec("xabc", &r).is_none());
     }
 
     #[test]
     fn end_anchored_only_allows_leading_text_not_trailing() {
         let r = parse_dataset_pattern("abc$").expect("should parse");
-        assert!(parse_recursive("abc", &r).is_some());
-        assert!(parse_recursive("xyzabc", &r).is_some());
-        assert!(parse_recursive("abcx", &r).is_none());
+        assert!(parse_deriv_std_rec("abc", &r).is_some());
+        assert!(parse_deriv_std_rec("xyzabc", &r).is_some());
+        assert!(parse_deriv_std_rec("abcx", &r).is_none());
     }
 }

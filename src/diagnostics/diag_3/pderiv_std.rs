@@ -1,19 +1,16 @@
-//! Level 3 rendering for the standard partial-derivative-based parser 
-//!
-//! Mirrors `pderiv_bc.rs`'s, with one difference by the trace shape:
-//! `PDerivStdTrace` records each strand's residual regex only
+//! Level 3 rendering for pderiv_std; mirrors pderiv_bc's but the trace has no bits, residuals only.
 
 use std::time::Instant;
 
 use crate::types::{Regex, flatten};
-use crate::parsers::standard::pderiv_std::{parse_pderiv_standard_traced, pderiv_tree};
-use crate::regex::standard::nullable::nullable;
+use crate::parsers::pderiv_std::{parse_pderiv_std_traced, pderiv_tree};
+use crate::regex::nullable::nullable;
 use crate::diagnostics::report::ReportWriter;
 use super::{timestamp, render_error_summary};
 
 pub fn render(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter) {
     let start = Instant::now();
-    let (result, trace) = parse_pderiv_standard_traced(input, r);
+    let (result, trace) = parse_pderiv_std_traced(input, r);
     let elapsed = start.elapsed();
 
     let result_label = if result.is_some() { "MATCH" } else { "NO MATCH" };
@@ -23,7 +20,7 @@ pub fn render(regex_str: &str, r: &Regex, input: &str, w: &mut ReportWriter) {
     w.line("REGEX ENGINE DEBUG REPORT");
     w.separator();
     w.kv("Timestamp", &timestamp());
-    w.kv("Mode",      "Standard Partial-Derivative (pderiv_standard)");
+    w.kv("Mode",      "Standard Partial-Derivative (pderiv_std)");
     w.kv("Regex",     regex_str);
     w.kv("Input",     &format!("{:?}", input));
     w.kv("Result",    result_label);

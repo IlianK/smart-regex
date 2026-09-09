@@ -6,7 +6,7 @@ mod common;
 use common::{assert_round_trip, paper_r1, paper_r2};
 
 use regex_engine::Regex;
-use regex_engine::parsers::{parse_recursive, parse_pderiv_bc};
+use regex_engine::parsers::{parse_deriv_std_rec, parse_pderiv_bc};
 
 
 // -------------------------------
@@ -14,7 +14,7 @@ use regex_engine::parsers::{parse_recursive, parse_pderiv_bc};
 // -------------------------------
 
 fn pderiv_bc_agrees_with_recursive(input: &str, r: &Regex) {
-    let rec = parse_recursive(input, r);
+    let rec = parse_deriv_std_rec(input, r);
     let pd = parse_pderiv_bc(input, r);
     assert_eq!(
         rec, pd,
@@ -73,7 +73,7 @@ fn pderiv_bc_round_trip_flatten() {
 fn pderiv_bc_membership_agrees_on_paper_r1() {
     let r = paper_r1();
     for w in &["ab", "a", "b", ""] {
-        let rec = parse_recursive(w, &r);
+        let rec = parse_deriv_std_rec(w, &r);
         let pd = parse_pderiv_bc(w, &r);
         assert_eq!(rec.is_some(), pd.is_some(), "membership disagreement on {:?}", w);
         if let Some(tree) = pd {
@@ -86,7 +86,7 @@ fn pderiv_bc_membership_agrees_on_paper_r1() {
 fn pderiv_bc_membership_agrees_on_paper_r2() {
     let r = paper_r2();
     for w in &["ab", "a", "b", "aab", "abab", ""] {
-        let rec = parse_recursive(w, &r);
+        let rec = parse_deriv_std_rec(w, &r);
         let pd = parse_pderiv_bc(w, &r);
         assert_eq!(rec.is_some(), pd.is_some(), "membership disagreement on {:?}", w);
         if let Some(tree) = pd {

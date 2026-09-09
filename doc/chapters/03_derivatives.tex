@@ -163,7 +163,7 @@ returns to for the bit-coded construction, where the same $a^{*}$-style
 blowup is shown to collapse back to a single equivalence class at every
 step once simplification is applied.
 
-\texttt{src/regex/nullable/standard.rs} and \texttt{src/regex/deriv/standard.rs}
+\texttt{src/regex/nullable.rs} and \texttt{src/regex/deriv.rs}
 transcribe $n(r)$ and $r \backslash x$ case for case, matching the
 \texttt{Regex} enum of Section~\ref{sec:regex-rust-implementation} one
 variant at a time. \texttt{match\_deriv} (\texttt{src/matchers/match\_deriv.rs})
@@ -171,7 +171,7 @@ folds \texttt{deriv} over the input characters and checks \texttt{nullable}
 on the result, exactly as \texttt{matchDeriv} does in the reference
 implementation. One deliberate departure from that reference: after every
 derivative step, \texttt{match\_deriv} also applies \texttt{simplify}
-(\texttt{src/regex/simplify/standard.rs}, discussed further in
+(\texttt{src/regex/simplify.rs}, discussed further in
 Section~\ref{sec:simplification-rules-theory}), collapsing exactly the
 algebraic identities used informally above --
 $\emptyset \cdot r = \emptyset$, $\varepsilon \cdot r = r$,
@@ -273,12 +273,20 @@ Section~\ref{sec:simplification-rules-theory} to identify equivalent
 expressions; the partial-derivative bound holds already at the syntactic
 level, with no equivalence-checking required.
 
-\texttt{src/regex/pderiv/standard.rs} implements $pd$ as
+$pd$ is implemented directly inside \texttt{match\_pderiv}
+(\texttt{src/matchers/match\_pderiv.rs}) as a private function returning
 \texttt{HashSet<Regex>}, reusing the same \texttt{smart\_seq} smart
 constructor already introduced for \texttt{simplify} in
 Section~\ref{sec:brzozowski-derivatives} -- \texttt{smartC} and
 \texttt{smart\_seq} coincide, since both exist to normalize
-$\varepsilon \cdot r$ to $r$.
+$\varepsilon \cdot r$ to $r$. Unlike \texttt{deriv} and \texttt{simplify},
+this plain, un-annotated $pd$ has no independent module of its own: no
+parser in Chapter~\ref{sec:partial-derivative-parser} calls it directly --
+each parser variant there needs partial derivatives paired with parse-tree
+or bit information $pd$ itself does not carry, and defines its own
+richer version of the same recursion instead
+(Section~\ref{sec:partial-derivative-parser-rust}) -- so \texttt{match\_pderiv}
+is the only caller, and the function lives where it is used.
 
 The matcher itself, \texttt{match\_pderiv} in
 \texttt{src/matchers/match\_pderiv.rs}, mirrors \texttt{matchPDeriv} from
@@ -316,17 +324,19 @@ this thesis for parsers rather than matchers, wherever multiple
 independently-derived implementations are expected to agree.
 
 \texttt{MatcherType} (\texttt{src/matchers/selection.rs}) enumerates the
-three matchers and gives library callers a single place to resolve
-"which matcher runs" without hard-coding a choice at every call
-site -- either via the \texttt{REGEX\_MATCHER} environment variable
-(\texttt{naive}, \texttt{deriv}, \texttt{pderiv}, or \texttt{all},
-defaulting to \texttt{deriv}), used by the standalone demos under
-\texttt{examples/}, or, for the \texttt{regex-engine} command-line
-tool itself, an explicit \texttt{-{}-matcher} flag on the \texttt{match}
-subcommand -- the CLI does not read \texttt{REGEX\_MATCHER} at all, so
-that there is exactly one place (the flag) resolving "which matcher"
-for a given invocation rather than two that could disagree. Either
-way, all three matchers can also be run side by side on one input in a
+three matchers and gives the \texttt{regex-engine} command-line tool a
+single place to resolve "which matcher runs" for a given invocation,
+via an explicit \texttt{-{}-matcher} flag on the \texttt{match}
+subcommand (\texttt{naive}, \texttt{deriv}, \texttt{pderiv}, or
+\texttt{all}, defaulting to \texttt{deriv}) parsed through \texttt{clap}'s
+own enum derivation rather than a hand-written string match -- there is
+exactly one selection mechanism, not two that could silently disagree.
+The standalone demo under \texttt{examples/} (\texttt{demo\_match.rs})
+takes no such flag or environment variable at all: it always runs every
+matcher unconditionally on a fixed set of worked examples, which is the
+simpler, and in this case sufficient, choice for a demo whose entire
+purpose is showing the three side by side. All three matchers can also be
+compared side by side on an arbitrary input through the CLI itself, in a
 single invocation:
 \begin{verbatim}
 cargo run -- match "a*" "aaa" --matcher all

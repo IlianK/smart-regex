@@ -1,6 +1,4 @@
-//! regex-engine/src/frontend/translate.rs
-//!
-//! Lowers an `ExtPat` (surface syntax) down into core `Regex`(`types::regex`) -
+//! Lowers an `ExtPat` (surface syntax) down into the core `Regex`.
 
 use super::alphabet;
 use super::ext_pattern::ExtPat;
@@ -59,8 +57,7 @@ fn translate_escape(c: char) -> Result<Regex, String> {
         'W' => alt_of_chars(alphabet::complement(&alphabet::word_chars())),
         's' => alt_of_chars(alphabet::space_chars()),
         'S' => alt_of_chars(alphabet::complement(&alphabet::space_chars())),
-        // Everything else (\. \( \) \[ \] \{ \} \| \+ \* \? \^ \$ \\ or any
-        // other escaped char): a literal, matching EEscape
+        // Any other escaped char (\. \( \) \[ \] \{ \} \| \+ \* \? \^ \$ \\, ...): a literal
         _ => Ok(Regex::lit(c)),
     }
 }
@@ -105,8 +102,7 @@ fn repeat_exact(r: &Regex, k: u32) -> Regex {
     (0..k).fold(Regex::Eps, |acc, _| Regex::seq(acc, r.clone()))
 }
 
-/// `eps | r.(eps | r.(... k times))` -- zero to `k` further copies of `r`,
-/// the desugaring of the optional upper part of `{m,n}` (`k = n - m`).
+/// Zero to `k` further optional copies of `r` -- the `{m,n}` upper part, `k = n - m`
 fn optional_extra(r: &Regex, k: u32) -> Regex {
     if k == 0 {
         Regex::Eps
@@ -115,14 +111,12 @@ fn optional_extra(r: &Regex, k: u32) -> Regex {
     }
 }
 
-// -------------------------------
 // Tests
-// -------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parsers::{parse_recursive, parse_pderiv_bc};
+    use crate::parsers::{parse_deriv_std_rec, parse_pderiv_bc};
     use crate::types::flatten;
 
     fn t(ep: ExtPat) -> Regex {
@@ -189,31 +183,31 @@ mod tests {
     fn any_class_matches_each_member_and_nothing_else() {
         let r = t(ExtPat::Any(vec!['a', 'b', 'c']));
         for w in ["a", "b", "c"] {
-            assert!(parse_recursive(w, &r).is_some(), "should match {:?}", w);
+            assert!(parse_deriv_std_rec(w, &r).is_some(), "should match {:?}", w);
         }
-        assert!(parse_recursive("d", &r).is_none());
+        assert!(parse_deriv_std_rec("d", &r).is_none());
     }
 
     #[test]
     fn noneof_class_excludes_given_chars() {
         let r = t(ExtPat::NoneOf(vec!['a', 'b']));
-        assert!(parse_recursive("c", &r).is_some());
-        assert!(parse_recursive("a", &r).is_none());
-        assert!(parse_recursive("b", &r).is_none());
+        assert!(parse_deriv_std_rec("c", &r).is_some());
+        assert!(parse_deriv_std_rec("a", &r).is_none());
+        assert!(parse_deriv_std_rec("b", &r).is_none());
     }
 
     #[test]
     fn escape_d_matches_only_digits() {
         let r = t(ExtPat::Escape('d'));
-        assert!(parse_recursive("7", &r).is_some());
-        assert!(parse_recursive("x", &r).is_none());
+        assert!(parse_deriv_std_rec("7", &r).is_some());
+        assert!(parse_deriv_std_rec("x", &r).is_none());
     }
 
     #[test]
     fn escape_capital_d_matches_only_non_digits() {
         let r = t(ExtPat::Escape('D'));
-        assert!(parse_recursive("x", &r).is_some());
-        assert!(parse_recursive("7", &r).is_none());
+        assert!(parse_deriv_std_rec("x", &r).is_some());
+        assert!(parse_deriv_std_rec("7", &r).is_none());
     }
 
     #[test]
@@ -226,27 +220,27 @@ mod tests {
     #[test]
     fn bound_exact_three() {
         let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 3, Some(3), true));
-        assert!(parse_recursive("aaa", &r).is_some());
-        assert!(parse_recursive("aa", &r).is_none());
-        assert!(parse_recursive("aaaa", &r).is_none());
+        assert!(parse_deriv_std_rec("aaa", &r).is_some());
+        assert!(parse_deriv_std_rec("aa", &r).is_none());
+        assert!(parse_deriv_std_rec("aaaa", &r).is_none());
     }
 
     #[test]
     fn bound_range_two_to_four() {
         let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, Some(4), true));
-        assert!(parse_recursive("a", &r).is_none());
-        assert!(parse_recursive("aa", &r).is_some());
-        assert!(parse_recursive("aaa", &r).is_some());
-        assert!(parse_recursive("aaaa", &r).is_some());
-        assert!(parse_recursive("aaaaa", &r).is_none());
+        assert!(parse_deriv_std_rec("a", &r).is_none());
+        assert!(parse_deriv_std_rec("aa", &r).is_some());
+        assert!(parse_deriv_std_rec("aaa", &r).is_some());
+        assert!(parse_deriv_std_rec("aaaa", &r).is_some());
+        assert!(parse_deriv_std_rec("aaaaa", &r).is_none());
     }
 
     #[test]
     fn bound_unbounded_lower() {
         let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, None, true));
-        assert!(parse_recursive("a", &r).is_none());
-        assert!(parse_recursive("aa", &r).is_some());
-        assert!(parse_recursive("aaaaaaaa", &r).is_some());
+        assert!(parse_deriv_std_rec("a", &r).is_none());
+        assert!(parse_deriv_std_rec("aa", &r).is_some());
+        assert!(parse_deriv_std_rec("aaaaaaaa", &r).is_some());
     }
 
     #[test]
@@ -255,16 +249,28 @@ mod tests {
         assert!(translate(&ep).is_err());
     }
 
+    // Regex has no lazy-quantifier concept, so translate() drops the greedy flag entirely.
+    #[test]
+    fn lazy_and_greedy_quantifiers_translate_identically() {
+        assert_eq!(
+            t(ExtPat::Star(Box::new(ExtPat::Char('a')), true)),
+            t(ExtPat::Star(Box::new(ExtPat::Char('a')), false)),
+        );
+        assert_eq!(
+            t(ExtPat::Opt(Box::new(ExtPat::Char('a')), true)),
+            t(ExtPat::Opt(Box::new(ExtPat::Char('a')), false)),
+        );
+    }
+
     #[test]
     fn dot_matches_any_alphabet_char() {
         let r = t(ExtPat::Dot);
-        assert!(parse_recursive("q", &r).is_some());
-        assert!(parse_recursive("!", &r).is_some());
-        assert!(parse_recursive(" ", &r).is_some());
+        assert!(parse_deriv_std_rec("q", &r).is_some());
+        assert!(parse_deriv_std_rec("!", &r).is_some());
+        assert!(parse_deriv_std_rec(" ", &r).is_some());
     }
 
-    // Round trip: whatever a translated ExtPat matches, its parse tree
-    // still flattens back to the original input
+    // Round trip: a translated ExtPat's parse tree flattens back to the original input
     #[test]
     fn round_trip_through_desugared_bound_and_class() {
         let ep = ExtPat::Concat(vec![
@@ -273,7 +279,7 @@ mod tests {
         ]);
         let r = t(ep);
         for w in ["1.", "12.", "123."] {
-            let tree = parse_recursive(w, &r).unwrap_or_else(|| panic!("should match {:?}", w));
+            let tree = parse_deriv_std_rec(w, &r).unwrap_or_else(|| panic!("should match {:?}", w));
             assert_eq!(flatten(&tree), w);
             // Greedy pderiv_bc must at least agree on membership.
             assert!(parse_pderiv_bc(w, &r).is_some());

@@ -4,12 +4,12 @@
 // Run:  cargo test --test test_frontend
 
 use regex_engine::frontend::parse_dataset_pattern;
-use regex_engine::parsers::{parse_pderiv_bc, parse_recursive};
+use regex_engine::parsers::{parse_pderiv_bc, parse_deriv_std_rec};
 use regex_engine::{flatten, parse_pcre_rule};
 
 fn matches(pattern: &str, input: &str) -> bool {
     let r = parse_dataset_pattern(pattern).unwrap_or_else(|e| panic!("parse({:?}) failed: {}", pattern, e));
-    parse_recursive(input, &r).is_some()
+    parse_deriv_std_rec(input, &r).is_some()
 }
 
 // -------------------------------
@@ -45,7 +45,7 @@ fn snort_ip_regex_rejects_text_with_no_dotted_quad_shape_anywhere() {
 fn snort_ip_regex_greedy_and_posix_agree_on_membership_may_differ_on_tree() {
     let r = parse_dataset_pattern(snort_ip_regex()).expect("should parse");
     let word = "239.255.250.250";
-    let posix_tree = parse_recursive(word, &r);
+    let posix_tree = parse_deriv_std_rec(word, &r);
     let greedy_tree = parse_pderiv_bc(word, &r);
     assert!(posix_tree.is_some(), "POSIX parser should match {:?}", word);
     assert!(greedy_tree.is_some(), "Greedy parser should match {:?}", word);
@@ -102,9 +102,9 @@ fn user_agent_sniff_pattern_matches_within_full_header_line() {
 fn pcre_rule_style_case_insensitive_header_match() {
     // Snort/Suricata's own pcre:"/.../i" option convention.
     let r = parse_pcre_rule(r"/user-agent:\s*sqlmap/i").expect("should parse");
-    assert!(parse_recursive("User-Agent: sqlmap/1.5", &r).is_some());
-    assert!(parse_recursive("USER-AGENT: SQLMAP/1.5", &r).is_some());
-    assert!(parse_recursive("User-Agent: Mozilla", &r).is_none());
+    assert!(parse_deriv_std_rec("User-Agent: sqlmap/1.5", &r).is_some());
+    assert!(parse_deriv_std_rec("USER-AGENT: SQLMAP/1.5", &r).is_some());
+    assert!(parse_deriv_std_rec("User-Agent: Mozilla", &r).is_none());
 }
 
 // -------------------------------
@@ -160,7 +160,7 @@ fn membership_agrees_between_posix_and_greedy_across_all_sample_patterns() {
     for (pattern, words) in cases {
         let r = parse_dataset_pattern(pattern).unwrap_or_else(|e| panic!("parse({:?}) failed: {}", pattern, e));
         for w in *words {
-            let posix = parse_recursive(w, &r).is_some();
+            let posix = parse_deriv_std_rec(w, &r).is_some();
             let greedy = parse_pderiv_bc(w, &r).is_some();
             assert_eq!(posix, greedy, "membership disagreement on pattern {:?}, word {:?}", pattern, w);
         }

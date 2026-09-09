@@ -3,7 +3,7 @@
 //! Parser command logic
 
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
-use regex_engine::{parse_recursive, parse_loop, parse_bitcoded, parse_pderiv_bc, flatten};
+use regex_engine::{parse_deriv_std_rec, parse_deriv_std_loop, parse_deriv_bc, parse_pderiv_bc, flatten};
 use regex_engine::parsers::{ParserType, parse_pderiv_std};
 use regex_engine::types::ParseTree;
 use regex_engine::frontend::parse_pattern;
@@ -54,9 +54,9 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
 
     // POSIX Brzozowski-derivative parsers
     let posix_parsers: Vec<(&str, ParserFn)> = vec![
-        ("DERIV_REC",  parse_recursive),
-        ("DERIV_LOOP", parse_loop),
-        ("DERIV_BC",   parse_bitcoded),
+        ("DERIV_REC",  parse_deriv_std_rec),
+        ("DERIV_LOOP", parse_deriv_std_loop),
+        ("DERIV_BC",   parse_deriv_bc),
     ];
 
     let mut posix_results: Vec<Option<ParseTree>> = Vec::new();

@@ -21,6 +21,11 @@ all. The operators $+$, $\cdot$, and $^{*}$ denote alternation,
 concatenation, and repetition (Kleene star) respectively; concatenation is
 frequently left implicit, writing $rs$ for $r \cdot s$.
 
+Unless parentheses are shown explicitly, Kleene star binds most tightly,
+followed by concatenation, followed by alternation. Thus, for example,
+$ab^*+c$ is parsed as $(a(b^*))+c$.
+
+
 As a running example, consider the problem of recognizing binary strings
 that end in \texttt{"01"} -- a small but non-trivial pattern that touches
 every construct in the grammar above. Over $\Sigma = \{0, 1\}$, this
@@ -30,9 +35,7 @@ r_{01} \;=\; (0 + 1)^{*} \cdot 0 \cdot 1.
 \]
 Reading this expression against the grammar: $(0+1)$ is an alternation of
 two literals, $(0+1)^{*}$ applies Kleene star to that alternation, and the
-result is concatenated with the literals $0$ and $1$ in sequence. This
-example is used throughout the remainder of this section.
-
+result is concatenated with the literals $0$ and $1$ in sequence. 
 
 
 \section{Semantics}
@@ -52,9 +55,27 @@ L(r \cdot s) &= \{v w \mid v \in L(r),\ w \in L(s)\} \\
 L(r^{*}) &= \{\varepsilon\} \cup \{w_1 \cdots w_n \mid w_1, \ldots, w_n \in L(r),\ n \geq 1\}
 \end{align*}
 
+For example, these following examples illustrate the distinction 
+between an expression and the
+language it denotes: different expressions may describe related or even
+identical sets of words, while the semantics assigns a precise language
+to each expression.
+\[
+\begin{array}{c|c}
+\text{Expression} & \text{Language} \\ \hline
+a & \{a\} \\
+\varepsilon & \{\varepsilon\} \\
+\emptyset & \emptyset \\
+a+b & \{a,b\} \\
+ab & \{ab\} \\
+a^* & \{\varepsilon,a,aa,aaa,\ldots\}
+\end{array}
+\]
+
+
+
 A word $w$ \emph{matches} $r$ exactly when $w \in L(r)$ -- this is the
-membership problem introduced in Section~\ref{sec:motivation}, now stated
-precisely.
+membership problem introduced in Section~\ref{sec:motivation}.
 
 Unwinding the semantics for the running example, $L(0+1) = \{0, 1\}$, so
 $L((0+1)^{*})$ is the set of all finite binary strings, including the
@@ -64,14 +85,9 @@ restricts this to
 L(r_{01}) = \{\, w \cdot 0 \cdot 1 \mid w \in \{0,1\}^{*} \,\},
 \]
 i.e.\ exactly the binary strings ending in \texttt{"01"} -- \texttt{"01"},
-\texttt{"001"}, \texttt{"1101"}, and so on, but not \texttt{"010"} or the
-empty string. This last point is worth making explicit: $r_{01}$ is
-\emph{not} nullable -- $\varepsilon \notin L(r_{01})$, since every word in
-$L(r_{01})$ must end in the literal $1$. Nullability, i.e.\ whether
-$\varepsilon \in L(r)$, is a property later chapters compute directly on
-the syntax of $r$ rather than by reasoning about $L(r)$; the two are
-guaranteed to agree by the semantics defined here.
-
+\texttt{"001"}, \texttt{"1101"}, and so on. In particular, the empty
+string is not matched, since every word in $L(r_{01})$ contains the final
+literal $0$ followed by the literal $1$.
 
 
 \section{Rust Implementation}
@@ -92,6 +108,30 @@ pub enum Regex {
 }
 \end{verbatim}
 
+For example, the expression
+\[
+(0+1)^*01
+\]
+is represented structurally by an expression tree whose root is a
+concatenation, with $(0+1)^*$ and $01$ as its subexpressions. More
+explicitly, its structure can be viewed schematically as
+\[
+\operatorname{Seq}\bigl(
+    \operatorname{Seq}(
+        \operatorname{Star}(
+            \operatorname{Alt}(0,1)
+        ),
+        0
+    ),
+    1
+\bigr).
+\]
+Thus, the Rust value is not merely a string representation of the regular
+expression; it is a tree that directly represents its syntactic
+structure. This structural representation is what later allows
+operations to be defined recursively over the expression.
+
+
 This one-to-one correspondence is not incidental. Rust's enums are
 algebraic data types: each variant corresponds to exactly one production
 of the grammar, and Rust's \texttt{match} requires every variant to be
@@ -106,14 +146,15 @@ this correspondence but what it costs to maintain, which is not always
 nothing. \texttt{Phi} and \texttt{Eps} carry no data, matching
 $L(\emptyset) = \{\}$ and $L(\varepsilon) = \{\varepsilon\}$ directly, and
 \texttt{Lit} carries the literal symbol $x$ -- these three variants
-transcribe directly with no adjustment. The recursive constructs --
-\texttt{Seq}, \texttt{Alt}, \texttt{Star} -- do not: unlike Haskell's
-\texttt{data R = ... | Seq R R | ...}, whose recursive constructors are
-represented indirectly by the runtime with no annotation required, Rust
-must know the exact size of a type at compile time, and a \texttt{Regex}
-containing a \texttt{Regex} directly would have unbounded size.
-\texttt{Box<Regex>} breaks the recursion by storing the subexpression on
-the heap and holding only a pointer inline -- the first of several places
-in this thesis where a construct free in the Haskell reference requires an
-explicit, visible workaround in Rust, revisited more generally in
-Section~\ref{sec:rust-vs-haskell}.
+transcribe directly with no adjustment. 
+
+The recursive constructs -- \texttt{Seq}, \texttt{Alt}, and
+\texttt{Star} -- require explicit indirection in Rust. A type must have a
+known size at compile time, so a recursive definition such as
+\texttt{Seq(Regex, Regex)} would have infinite size: each \texttt{Regex}
+would contain another \texttt{Regex}, and so on. \texttt{Box<Regex>}
+breaks this recursion by storing the subexpression separately and keeping
+only a fixed-size pointer in the enum. The need for this explicit
+indirection is one of the practical differences between the Rust
+implementation and the Haskell reference implementation, and is revisited
+more generally in Section~\ref{sec:rust-vs-haskell}.

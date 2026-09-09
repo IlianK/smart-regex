@@ -5,7 +5,7 @@
 //! cargo build --example demo_crash_worker
 
 use regex_engine::types::Regex;
-use regex_engine::parsers::{parse_recursive, parse_loop};
+use regex_engine::parsers::{parse_deriv_std_rec, parse_deriv_std_loop};
 use std::env;
 use std::process;
 
@@ -32,8 +32,8 @@ fn main() {
     let regex = Regex::star(Regex::lit('a'));
     
     if use_loop {
-        let _ = parse_loop(&input, &regex);
+        let _ = parse_deriv_std_loop(&input, &regex);
     } else {
-        let _ = parse_recursive(&input, &regex);
+        let _ = parse_deriv_std_rec(&input, &regex);
     }
 }

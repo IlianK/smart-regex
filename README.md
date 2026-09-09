@@ -45,5 +45,18 @@ For the full command reference, see:
 
 - [docs/CLI.md](docs/CLI.md): matcher/parser selection, diagnostics levels 1–3, env var reference
 - [docs/EXAMPLES.md](docs/EXAMPLES.md): runnable demos (`examples/`)
-- [docs/BENCHMARKS.md](docs/BENCHMARKS.md): Criterion benchmarks
-- [docs/TESTING.md](docs/TESTING.md): test layout and `cargo test` invocations
+
+- [docs/PARSERS.md](docs/PARSERS.md): the five `--parser` values, one call each
+- [docs/parsers/DERIV_STD.md](docs/parsers/DERIV_STD.md): POSIX derivatives, plain Regex (Fig. 3)
+- [docs/parsers/DERIV_BC.md](docs/parsers/DERIV_BC.md): POSIX derivatives, bit-coded ARegex (Fig. 4-6)
+- [docs/parsers/PDERIV_STD.md](docs/parsers/PDERIV_STD.md): Greedy partial derivatives, injection closures (no reference)
+- [docs/parsers/PDERIV_BC.md](docs/parsers/PDERIV_BC.md): Greedy partial derivatives, bit-coded, plain Regex + `Vec<bool>`
+
+- [docs/testing/DATASET.md](docs/testing/DATASETS.md): the real-world regex corpus and how it's triaged
+- [docs/testing/BENCHMARKS.md](docs/testing/BENCHMARKS.md): Criterion benchmarks
+- [docs/testing/TESTING.md](docs/testing/TESTING.md): test layout and `cargo test` invocations
+
+- [docs/DIAG.md](docs/DIAG.md): `--diag 1/2/3` output examples, every parser, success and failure
+- [docs/FRONTEND.md](docs/FRONTEND.md): pattern string → `ExtPat` → `Regex`
+- [docs/SUBSTRING_SEARCH.md](docs/SUBSTRING_SEARCH.md): substring search vs. full-string match
+

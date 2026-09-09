@@ -3,7 +3,7 @@
 use std::time::Instant;
 
 use crate::types::Regex;
-use crate::parsers::bitcoded::pderiv_bc::parse_pderiv_bc_traced;
+use crate::parsers::pderiv_bc::parse_pderiv_bc_traced;
 use crate::diagnostics::replay::error_report;
 use crate::diagnostics::format::bits_str;
 

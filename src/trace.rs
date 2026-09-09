@@ -161,7 +161,7 @@ impl PDerivBitTrace {
 
 
 /// -------------------------------
-/// Standard partial-derivative parser trace (parse_pderiv_standard_traced)
+/// Standard partial-derivative parser trace (parse_pderiv_std_traced)
 /// -------------------------------
 
 /// Like PDerivBitStep, tracks a *frontier* (one residual per surviving strand)
@@ -187,7 +187,7 @@ pub struct PDerivStdStep {
     pub nullable: bool,
 }
 
-// Full trace from parse_pderiv_standard_traced
+// Full trace from parse_pderiv_std_traced
 #[derive(Debug, Clone)]
 pub struct PDerivStdTrace {
     /// Initial frontier's residuals: just [r0]

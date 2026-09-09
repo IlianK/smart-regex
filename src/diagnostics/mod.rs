@@ -1,17 +1,5 @@
-//! regex-engine/src/diagnostics/mod.rs
-//! 
-//! Diagnostics module
-//!
-//! Controls output verbosity for parsing via --diag env var. 
-//! `match` has no diagnostics, only prints true/false.
-//!
-//! Levels:
-//!   0 = Off     - true / false only (like match)
-//!   1 = Basic   - regex, input, result, parse tree, error caret
-//!   2 = Verbose - Basic + time, expression count, construction steps
-//!   3 = Debug   - full structural derivation trace (written to a report/file.txt)
+//! Diagnostics module: verbosity levels 0-3 for `parse`, controlled via --diag. `match` has none.
 
-pub mod trace;
 pub mod replay;
 pub mod format;
 pub mod diag_1;
@@ -22,10 +10,7 @@ pub mod report;
 use crate::types::Regex;
 use crate::parsers::selection::ParserType;
 
-
-// -------------------------------
 // DiagLevel
-// -------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DiagLevel {
@@ -50,10 +35,8 @@ impl DiagLevel {
     }
 }
 
-
-// -------------------------------
 // DiagConfig
-// -------------------------------
+
 #[derive(Debug, Clone)]
 pub struct DiagConfig {
     pub level:       DiagLevel,
@@ -92,12 +75,9 @@ impl DiagConfig {
     }
 }
 
-
-// -------------------------------
 // Entry points
-// -------------------------------
 
-/// Run parser and show diagnostics output at level 
+/// Run parser and show diagnostics output at level
 pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) {
     match config.level {
         DiagLevel::Off     => level0_parser(r, input, config),
@@ -107,9 +87,7 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
     }
 }
 
-// -------------------------------
 // Level 0 helper (true/false only)
-// -------------------------------
 
 fn level0_parser(r: &Regex, input: &str, config: &DiagConfig) {
     let matched = config.parser_type.parser()(input, r).is_some();

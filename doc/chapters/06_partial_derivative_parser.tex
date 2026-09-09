@@ -3,24 +3,687 @@
 % ----------------------------------------------------------------
 \chapter{Partial-Derivative-Based Parser}
 \label{sec:partial-derivative-parser}
-% Brzozowski derivatives to Antimirov partial derivatives.
+
+Chapter~\ref{sec:derivative-parser} built two parsers around Brzozowski's
+derivative, both computing the identical POSIX $\geq_r$-maximal tree of
+Section~\ref{sec:posix-longest-leftmost}. This chapter repeats the
+exercise with Antimirov's partial derivative from
+Section~\ref{sec:antimirov-partial-derivatives} in place of $r
+\backslash x$ throughout -- but, as Section~\ref{sec:partial-derivative-parser-theory}
+shows first, repeating the construction with a different derivative
+operator does not repeat its disambiguation guarantee. Neither
+flops14-extended \citep{sulzmannlu2014} nor Sulzmann's teaching-page
+Haskell reference \citep{sulzmann_slides} defines a POSIX
+partial-derivative parser at all -- the paper's bit-coded construction
+(Chapter~\ref{sec:derivative-parser}) is Brzozowski-derivative-only, and
+the teaching page's own bit-coded partial-derivative parser,
+\texttt{pDerivBC}, is built around a dedup rule this chapter shows to be
+fundamentally Greedy rather than POSIX. This chapter therefore builds
+two \emph{Greedy} parsers, \texttt{pderiv\_bc} (Section~\ref{sec:pderiv-bc-theory-rust},
+following \texttt{pDerivBC} directly) and \texttt{pderiv\_std}
+(Section~\ref{sec:pderiv-std-theory-rust}, this project's own
+construction, built to give \texttt{pderiv\_bc} the same kind of
+matched non-bit-coded counterpart Chapter~\ref{sec:derivative-parser}'s
+\texttt{deriv\_bc} has in \texttt{deriv\_std}) -- both verified to agree
+with each other exactly, and with the two POSIX parsers on membership
+alone, in Chapter~\ref{sec:evaluation}.
 
 
 
-\section{Extending POSIX Parsing to Partial Derivatives}
+\section{Extending Derivatives to Partial Derivatives}
 \label{sec:partial-derivative-parser-theory}
-% TODO: how nondeterminism (a set of residuals per step) affects the mkEps/inject construction
-% what changes and what carries over unchanged from Chapter~\ref{sec:derivative-parser}
+
+Section~\ref{sec:antimirov-partial-derivatives} already defined $pd(r,x)$
+as a \emph{set} of residual expressions rather than one combined
+expression, and noted the NFA reading: each element of $pd(r,x)$ is one
+state of an implicit NFA the original $r$ denotes, alive after reading
+$x$. Extending this to parsing means pairing each surviving element of
+that set with enough information to reconstruct a parse tree once a
+particular strand turns out to be the winning one at the end of the
+input -- concretely, either an accumulated bit-string per strand
+(Section~\ref{sec:pderiv-bc-theory}) or, in this project's own
+extension, an accumulated tree-injection closure per strand
+(Section~\ref{sec:pderiv-std-theory-rust}). Either way, the algorithm shape
+is the same: maintain a \emph{frontier} of \texttt{(residual, extra)}
+pairs, one per live strand, replace it at each character with the union
+of $pd$ applied to every current strand (each contributing its own
+possibly-empty set of successor strands), and at the end of the input
+select the first strand in the frontier whose residual is nullable.
+
+\paragraph{Why the result is Greedy, not POSIX.} This last step -- "the
+\emph{first} nullable strand in the frontier" -- is where this
+construction's disambiguation policy is actually decided, and it is
+decided implicitly, as a consequence of how the frontier's growth is
+kept finite rather than by any explicit ordering rule analogous to
+Section~\ref{sec:posix-longest-leftmost}'s (A1)-(A4)/(K1)-(K4).
+Antimirov's finiteness theorem (Section~\ref{sec:antimirov-partial-derivatives})
+guarantees the set of \emph{distinct} partial derivatives is bounded,
+but nothing about the extended, tree-or-bit-carrying construction
+guarantees strands stay distinct as they accumulate -- two different
+derivation paths can easily reach the identical residual \emph{shape}
+by two different routes, each carrying its own bits or injection. Kept
+without pruning, this set would multiply extra copies of an already-fully-explored
+residual instead of the bounded, syntactic set $pd$ itself guarantees;
+pruned by comparing the accumulated bits or trees for POSIX-style
+"longest match wins" the way Section~\ref{sec:posix-longest-leftmost}'s
+ordering does, the resulting comparison would need to look inside
+possibly-incomplete, still-growing accumulated state rather than a
+finished \texttt{ParseTree}, which the ordering relation of
+Definition~\ref{sec:posix-longest-leftmost} is not defined over. The
+Haskell reference's actual choice -- \texttt{nub2}, deduplicating
+purely on residual \emph{shape} and keeping whichever strand reached
+that shape \emph{first} -- sidesteps this entirely by discarding the
+comparison altogether: once a residual shape has been claimed by some
+strand, every later strand reaching the identical shape is simply
+dropped, regardless of what either one's accumulated bits or tree would
+eventually have produced. "First" here means first in the list-ordered
+traversal $pd$'s own case structure produces, which explores the left
+operand of $+$ before the right at every step -- so "first claim wins"
+is exactly Greedy's leftmost-commits-immediately rule
+(Section~\ref{sec:greedy-leftmost}), not POSIX's longest-wins-with-left-as-tiebreak
+rule. This reading is this thesis's own account of why the construction
+lands on Greedy rather than POSIX; neither primary source states it in
+these terms; both parsers built in this chapter are verified empirically
+in Chapter~\ref{sec:evaluation} to compute exactly the Greedy answer
+wherever it is known to differ from POSIX (the \texttt{paper\_r1}/
+\texttt{paper\_r2} examples of Section~\ref{sec:disambiguation-problem}),
+which is the strongest evidence available for it in the absence of a
+reference construction to check against directly.
 
 
 
 \section{Bit-Coded Variant}
 \label{sec:partial-derivative-parser-bitcoded-theory}
-% TODO: theoretical extension of incremental construction to a set-valued derivative
+\label{sec:pderiv-bc-theory}
+
+Sulzmann's teaching-page Haskell transcript gives a bit-coded
+partial-derivative construction, \texttt{pDerivBC}, that this thesis's
+\texttt{pderiv\_bc} follows directly \citep{sulzmann_slides}. It extends
+$pd$ with per-strand bits the same way
+Section~\ref{sec:bitcoded-optimization-theory}'s $\backslash_b$ extends
+the Brzozowski derivative -- but, notably, keeps those bits
+\emph{external} to the regular-expression tree, as a plain list
+carried alongside a plain, un-annotated $r$, rather than folding them
+into an \texttt{ARegex}-shaped tree the way $\backslash_b$ does:
+\begin{align*}
+\mathit{pDerivBC}(x, \varepsilon) &= \{\} &
+\mathit{pDerivBC}(x, \emptyset) &= \{\} \\
+\mathit{pDerivBC}(x, y) &=
+  \begin{cases} \{(\varepsilon, [\,])\} & x = y \\ \{\} & x \neq y \end{cases} \\
+\mathit{pDerivBC}(x, r+s) &= \mathit{nub2}\big(
+  \{(r', 0{:}bs) \mid (r',bs) \in \mathit{pDerivBC}(x,r)\} \cup
+  \{(s', 1{:}bs) \mid (s',bs) \in \mathit{pDerivBC}(x,s)\}\big) \\
+\mathit{pDerivBC}(x, rs) &=
+  \begin{cases}
+    \mathit{nub2}\big(\{(rs', bs) \mid (r',bs) \in \mathit{pDerivBC}(x,r), rs' = r's\} \\
+    \qquad \cup\ \{(s', \mathit{mkEpsBC}_r \mathbin{+\!\!+} bs) \mid (s',bs) \in \mathit{pDerivBC}(x,s)\}\big) & n(r) \\
+    \{(\mathit{smartC}(r',s), bs) \mid (r',bs) \in \mathit{pDerivBC}(x,r)\} & \text{otherwise}
+  \end{cases} \\
+\mathit{pDerivBC}(x, r^{*}) &= \mathit{nub2}\big(
+  \{(\mathit{smartC}(r', r^{*}), 0{:}bs) \mid (r',bs) \in \mathit{pDerivBC}(x,r)\}\big)
+\end{align*}
+where $\mathit{mkEpsBC}_r$ is the plain-$r$ analogue of
+Section~\ref{sec:mk-eps-bc}'s $\mathit{mkEpsBC}$ (identical
+structure, walking an un-annotated tree instead of an \texttt{ARegex}),
+and \texttt{nub2} deduplicates a list of \texttt{(residual, bits)}
+pairs purely by comparing the residual, keeping the first occurrence.
+The concatenation case's first strand deliberately keeps $r'$ wrapped
+in a literal, non-smart-constructed $r's$ rather than $\mathit{smartC}$
+-- an asymmetry present in the reference itself, preserved here rather
+than "corrected", since correctness of this construction is judged
+against literal agreement with that reference (Chapter~\ref{sec:evaluation}),
+not against an independently-derived ideal form.
+
+\paragraph{A negative result: why not \texttt{ARegex}.} Given
+Chapter~\ref{sec:derivative-parser}'s bit-coded parser threads bits
+\emph{through} the tree via \texttt{ARegex}, extending
+\texttt{pderiv\_bc} the same way -- so that it, too, could share
+\texttt{internalize}/\texttt{fuse}/\texttt{mkEpsBC}/\texttt{decode}
+with \texttt{deriv\_bc} -- looks like the natural, structurally
+consistent choice, and was built and tested as exactly that during this
+project's development. It was correct: verified byte-for-byte identical
+to the external-bits construction above across a 20{,}000-case
+differential fuzzer. It was also, on real ambiguous input, dramatically
+slower -- on $(a+(b+ab))^{*}$ against \texttt{"ab"} repeated, roughly
+240 microseconds at 10 characters growing to roughly
+14 seconds at 40, a blowup far beyond what the same pattern costs
+either \texttt{pderiv\_std} or \texttt{pderiv\_bc} as actually shipped.
+The diagnosed cause connects directly to
+Section~\ref{sec:deriv-bc}'s observation that \texttt{deriv\_bc}'s
+\texttt{Alt} case keeps its outer bit-list on the \texttt{Alt} node
+itself rather than pushing it into either branch: partial derivatives,
+unlike Brzozowski's, \emph{flatten} every alternation branch out into
+its own independent strand rather than keeping the \texttt{Alt}
+structure intact, so an \texttt{ARegex}-based \texttt{pderiv\_bc} has no
+outer node left to attach bits to and must fuse them into each
+flattened branch instead. That fusion makes two strands that are
+semantically identical -- reachable from the same residual, differing
+only in \emph{which derivation path} produced them -- come out
+syntactically different depending on that path, which silently defeats
+\texttt{nub2}'s shape-based deduplication: strands the un-annotated
+construction above would collapse into one instead survive as separate,
+and the frontier this is meant to keep bounded
+(Section~\ref{sec:partial-derivative-parser-theory}) grows instead.
+Keeping bits external and structurally separate from the shape used for
+deduplication, as the teaching-page reference itself does, is what
+makes Antimirov's finiteness guarantee actually hold in this
+implementation; \texttt{ARegex} was designed around Brzozowski's
+single-threaded derivative, where exactly one combined tree exists to
+annotate at every step, and does not transfer cleanly to a construction
+that has already split into independent strands with nothing to
+annotate collectively at all.
 
 
 
-\section{Rust Implementation}
+\section{Rust Implementation: The \texttt{pderiv\_bc} Parser}
 \label{sec:partial-derivative-parser-rust}
-% src/regex/antimirov/annotated.rs - pderiv_bc
-% TODO: implementation and any deviations from the direct-derivative version's design
+\label{sec:pderiv-bc-theory-rust}
+
+\texttt{src/parsers/pderiv\_bc/pderiv.rs} transcribes
+$\mathit{pDerivBC}$ case for case, as \texttt{Vec<(Regex, Vec<bool>)>}
+rather than a set (order matters here, encoding Greedy priority
+directly in list position, so a \texttt{HashSet} would lose exactly the
+information the construction depends on). \texttt{mk\_eps\_bits}
+implements $\mathit{mkEpsBC}_r$; \texttt{nub2} dedups on the residual
+\texttt{Regex} alone via a \texttt{HashSet<Regex>} used only to test
+membership, keeping the first-seen pair for each distinct residual and
+discarding the rest. \texttt{pderiv\_bc}'s own \texttt{Seq} case
+matches the reference literally, down to the same asymmetric use of
+plain \texttt{Regex::seq} (not \texttt{smart\_seq}) for its first
+strand.
+
+\texttt{step\_frontier}/\texttt{select\_bits}
+(\texttt{src/parsers/pderiv\_bc/parse.rs}) implement the frontier-driving
+loop of Section~\ref{sec:partial-derivative-parser-theory}: at each
+character, \texttt{step\_frontier} replaces every \texttt{(residual,
+bits)} pair in the current frontier with the union of \texttt{pderiv\_bc}
+applied to it, concatenating each result's bits onto that strand's
+already-accumulated prefix; at the end of the input,
+\texttt{select\_bits} scans the frontier in list order and returns
+the first nullable strand's \texttt{bits ++ mk\_eps\_bits(residual)}.
+\texttt{parse\_pderiv\_bc} drives this loop to completion and passes
+the winning bit-string, together with the \emph{original} \texttt{Regex}
+(never the derived residual), to \texttt{decode}
+(Section~\ref{sec:decode}) -- the same shared decoder
+Chapter~\ref{sec:derivative-parser}'s \texttt{deriv\_bc} uses, since
+both constructions end up at the identical \texttt{(Regex, bits)} shape
+by the time decoding is needed, whatever route each took to get there.
+
+\paragraph{Worked example.} Run
+Section~\ref{sec:bitcoded-optimization-theory}'s $r_1 = (a+ab)(b+\varepsilon)$
+against $\mathtt{ab}$ through \texttt{pderiv\_bc} instead of
+\texttt{deriv\_bc} -- same regex, same input, different parser, to see
+Greedy and POSIX visibly disagree on the same worked example rather
+than only being told they can. (Again, this is exactly
+\texttt{cargo run -- parse "(a|ab)(b|}$\varepsilon$\texttt{)" "ab" --parser pderiv\_bc --diag 3}'s
+output.) The frontier starts as a single strand, the whole regex with no
+bits yet:
+\[
+\big[\, (r_1,\ [\,])\, \big]
+\]
+Deriving with respect to $\mathtt{a}$: $r_1$'s left \emph{Seq} operand is
+not nullable, so \texttt{pDerivBC}'s \emph{Seq} case applies uniformly
+to the single strand, producing one residual per partial derivative of
+$(a+ab)$ with respect to $\mathtt{a}$ -- two strands where the plain
+bit-coded construction kept one:
+\[
+\big[\, (b+\varepsilon,\ [0]),\ \ (b \cdot (b+\varepsilon),\ [1])\, \big]
+\]
+the first strand from $a$'s own derivative ($\varepsilon$, smart-concatenated
+away against $(b+\varepsilon)$), tagged $0$ for having come from
+$(a+ab)$'s left disjunct; the second from $ab$'s derivative ($b$,
+concatenated onto $(b+\varepsilon)$), tagged $1$ for the right disjunct.
+Deriving with respect to $\mathtt{b}$ steps \emph{both} strands
+independently: strand $0$'s $(b+\varepsilon)$ splits again into two
+partial derivatives of its own ($\varepsilon$ from the left disjunct,
+$\emptyset$ from the right, \texttt{nub2}-deduplicated and the
+$\emptyset$ one dropped), while strand $1$'s $b \cdot (b+\varepsilon)$
+takes the Seq case's not-nullable branch and derives only its left
+factor:
+\[
+\big[\, (\varepsilon,\ [0,0]),\ \ (b+\varepsilon,\ [1])\, \big]
+\]
+\emph{Selection} scans this final frontier in list order and takes the
+\emph{first} nullable strand -- strand $0$, $(\varepsilon, [0,0])$, is
+checked and accepted before strand $1$ is even inspected, regardless of
+strand $1$ also being nullable. This is Greedy's leftmost-commits rule
+made mechanical: strand $0$ is exactly the "matched \texttt{a} then
+\texttt{b} separately" reading, the first alternative
+$\mathtt{pDerivBC}$ generated back at the first derivative step, and it
+wins here purely because it appears first in the frontier -- not because
+any length comparison favors it. Decoding its accumulated bits:
+\[
+\mathit{decode}_{r_1}([0,0]) = (\mathit{Left}\ a,\ \mathit{Left}\ b)
+\]
+the \emph{shorter} $\mathtt{a} + \mathtt{b}$ reading -- the opposite
+answer from Section~\ref{sec:bitcoded-optimization-theory}'s
+$(\mathit{Right}(a,b), \mathit{Right}())$ on the identical regex and
+input. Nothing about $r_1$ or $\mathtt{"ab"}$ changed between the two
+traces; only the disambiguation policy governing which nullable
+strand/branch wins did, exactly the distinction
+Section~\ref{sec:partial-derivative-parser-theory} argues is built into
+\texttt{nub2}'s shape-only, first-occurrence-wins deduplication.
+
+
+
+\section{Rust Implementation: The \texttt{pderiv\_std} Parser}
+\label{sec:pderiv-std-theory-rust}
+
+Unlike every other parser in Chapters~\ref{sec:derivative-parser}
+and~\ref{sec:partial-derivative-parser}, \texttt{pderiv\_std} transcribes
+no reference construction -- neither primary source defines a
+partial-derivative parser that builds a \texttt{ParseTree} directly,
+without going through a bit-string intermediate. It exists to fill a
+structural gap the rest of this thesis's four-parser comparison would
+otherwise have: Chapter~\ref{sec:derivative-parser}'s \texttt{deriv\_std}
+and \texttt{deriv\_bc} form a matched pair sharing the same underlying
+derivative and differing only in how a successful derivation becomes a
+tree -- a direct backward pass versus incremental bit annotation --
+which makes comparing them, both for correctness and for the
+performance analysis of Chapter~\ref{sec:evaluation}, a controlled,
+apples-to-apples comparison. \texttt{pderiv\_bc}
+(Section~\ref{sec:pderiv-bc-theory-rust}) had no such sibling before
+\texttt{pderiv\_std} was built: it was the only Greedy
+partial-derivative parser available, with nothing sharing its
+underlying derivative but differing only in tree-construction strategy
+to compare it against. \texttt{pderiv\_std} closes that gap, giving all
+four parsers this thesis studies the same paired structure --
+Section~\ref{sec:derivative-parser} covering the derivative pair,
+Section~\ref{sec:pderiv-bc-theory-rust} and this section covering the
+partial-derivative pair.
+
+\paragraph{Injection closures in place of bits.} \texttt{pDerivBC}'s
+bit-vector trick works because bits alone are enough for
+\texttt{decode} to later reconstruct a tree, given the \emph{original}
+expression to decode them against. Building the tree directly during
+the forward pass, with no such second decoding step, needs something
+that can still be applied once a strand's eventual \texttt{mk\_eps}
+value is known, without needing the original expression again -- an
+injection function \texttt{ParseTree -> ParseTree} that wraps whatever
+value a residual eventually produces in exactly the \texttt{Left}/\texttt{Right}/\texttt{Pair}
+structure needed to have come from the \emph{original} expression, not
+the residual. \texttt{type Inj = Rc<dyn Fn(ParseTree) -> ParseTree>}
+(\texttt{src/parsers/pderiv\_std/inject.rs}) is this closure --
+\texttt{Rc} rather than \texttt{Box}, since a fan-out step such as
+\texttt{Alt} shares one parent strand's injection across more than one
+child strand, which a uniquely-owned closure could not do. Every
+frontier strand carries \texttt{(Regex, Inj)} in place of
+\texttt{pderiv\_bc}'s \texttt{(Regex, Vec<bool>)} -- the closure
+\emph{is} this parser's bit-vector, composed at each step rather than
+concatenated.
+
+\texttt{pderiv\_tree} (\texttt{src/parsers/pderiv\_std/pderiv\_tree.rs})
+mirrors \texttt{pderiv\_bc}'s case structure directly, with
+injection-wrapping in place of bit-prepending at every case -- a
+literal match wraps its result in a closure building
+\texttt{ParseTree::Char} directly (where the bit-coded version records
+no bits at all, since there was nothing to choose between);
+alternation's two branches wrap in \texttt{Left}/\texttt{Right}-building
+closures composed with each branch's own; concatenation's
+nullable-first-operand case builds \texttt{Pair(mk\_eps(r1), ...)}
+directly for its "jump into \texttt{r2}" strand, calling the
+\emph{shared} \texttt{mk\_eps} (Section~\ref{sec:mk-eps-impl}) eagerly
+rather than deferring it the way \texttt{mkEpsBC}'s bits would; and
+Kleene star's closure unpacks and prepends one iteration onto the
+existing \texttt{Star} list. \texttt{nub\_tree} dedups exactly as
+\texttt{pderiv\_bc}'s \texttt{nub2} does, on the residual alone,
+keeping the first (highest Greedy priority) strand's injection.
+\texttt{step\_frontier}/\texttt{select}
+(\texttt{src/parsers/pderiv\_std/parse.rs}) mirror
+\texttt{pderiv\_bc}'s \texttt{step\_frontier}/\texttt{select\_bits}
+one to one, composing injections instead of concatenating bits and
+applying the winning strand's closure directly to
+\texttt{mk\_eps(residual)} at the end -- no decoding step required,
+since the tree was under construction the entire time rather than
+encoded.
+
+Because \texttt{pderiv\_tree} shares \texttt{pderiv\_bc}'s exact case
+structure, a strand-for-strand differential comparison between the two
+is close to free to state and check: Chapter~\ref{sec:evaluation}'s
+20{,}000-case fuzzer finding the two implementations byte-identical on
+every generated regular expression and input, together with the shared
+\texttt{paper\_r1}/\texttt{paper\_r2} examples both compute the
+documented Greedy answer for, is the actual evidence available that
+this thesis's own partial-derivative-to-parse-tree extension is correct
+-- in the absence of a reference construction, as
+Section~\ref{sec:partial-derivative-parser-theory} already noted, two
+independently-shaped implementations of the same specification agreeing
+exactly is the strongest correctness signal available.
+
+\section{Worked Example: \texttt{paper\_r1} End to End}
+\label{sec:pderiv-worked-example}
+
+Section~\ref{sec:disambiguation-problem} constructed, by hand, the
+\emph{second} valid derivation of $r_1 = (a + ab)(b + \varepsilon)$
+against $\mathtt{ab}$ (\texttt{paper\_r1}) that
+Section~\ref{sec:deriv-worked-example} deliberately left aside: $v' =
+(\mathit{Left}\ a, \mathit{Left}\ b)$, matching the \emph{first}
+alternative of $a + ab$ against $\mathtt{a}$ alone rather than the second
+alternative against $\mathtt{ab}$ in one step. This is the Greedy result
+-- leftmost-alternative priority, decided locally at $a + ab$ without
+looking ahead at what $b + \varepsilon$ could still consume -- and it is
+exactly what \texttt{pderiv\_std} and \texttt{pderiv\_bc} compute, not
+$v = (\mathit{Right}(a,b), \mathit{Right}())$ from
+Section~\ref{sec:deriv-worked-example}. What follows is the full
+diagnostics level 3 trace for both -- every partial derivative computed
+at every frontier step, not the summarized residual list level 2 prints
+-- run against the identical $r_1$/$\mathtt{ab}$
+(\texttt{cargo run -- parse "(a|ab)(b|\ensuremath{\varepsilon})" "ab"
+--parser pderiv\_std --diag 3}, and again with \texttt{--parser
+pderiv\_bc}): the frontier construction this chapter developed, actually
+computing the \emph{other} tree Section~\ref{sec:disambiguation-problem}
+worked out by hand, and a concrete demonstration that this chapter's
+parsers and Chapter~\ref{sec:derivative-parser}'s are not interchangeable
+substitutes for the same problem: same input, same regular expression,
+two different, individually correct answers.
+
+\paragraph{Success: \texttt{pderiv\_std}.} Each step shows every residual
+in the frontier \emph{before} the step, the rule
+(Section~\ref{sec:pderiv-std-theory-rust}'s \texttt{pderiv\_tree}, one
+case per residual depending on whether its own head is nullable) applied
+to each, and the resulting frontier \emph{after}:
+\begin{verbatim}
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                (a|ab)(b|epsilon)
+Input:                "ab"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.018ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'),
+      Eps))
+  pderiv_tree('a', .) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1.r2)  [nullable(r1)=false]
+           = [(r1'.r2, inj: continue r1) | (r1',_) <-
+             pderiv_tree(c,r1)]
+      -> Seq(Eps, Alt(Lit('b'), Eps))  (+ injection closure, not
+        printable)
+      -> Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))  (+ injection
+        closure, not printable)
+  frontier after (2 residual(s)):
+    [0] Seq(Eps, Alt(Lit('b'), Eps))
+    [1] Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))
+  a residual in this frontier is nullable  [OK]  parse tree
+    available
+
+Step 2 (char: 'b', position 2)
+  frontier before (2 residual(s)):
+    [0] Seq(Eps, Alt(Lit('b'), Eps))
+    [1] Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))
+  pderiv_tree('b', .) applied to each:
+    from [0]:
+      rule: pderiv_tree('b', r1.r2)  [nullable(r1)=true]
+           = nub_tree $ [(r1'.r2, inj: continue r1) | (r1',_) <-
+             pderiv_tree(c,r1)]
+                       ++ [(r2', inj: mk_eps(r1) paired with r2's
+                         result) | (r2',_) <- pderiv_tree(c,r2)]
+      -> Eps  (+ injection closure, not printable)
+    from [1]:
+      rule: pderiv_tree('b', r1.r2)  [nullable(r1)=false]
+           = [(r1'.r2, inj: continue r1) | (r1',_) <-
+             pderiv_tree(c,r1)]
+      -> Seq(Eps, Alt(Lit('b'), Eps))  (+ injection closure, not
+        printable)
+  frontier after (2 residual(s)):
+    [0] Eps
+    [1] Seq(Eps, Alt(Lit('b'), Eps))
+  a residual in this frontier is nullable  [OK]  parse tree
+    available
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to
+  injection (already applied by select)
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           (Left a, Left b)
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+Step 1's frontier already shows the fork this chapter's theory predicts:
+residual \texttt{[0]}, \texttt{Seq(Eps, Alt(Lit('b'), Eps))}, is the
+strand that consumed $\mathtt{a}$ via $a + ab$'s \emph{first}
+alternative; residual \texttt{[1]}, nested one step deeper, is the
+strand that instead committed to $a + ab$'s \emph{second} alternative and
+still owes a $\mathtt{b}$ before $b + \varepsilon$ is even reached.
+\texttt{nub\_tree} keeps both alive (they are structurally distinct
+residuals), and at step 2 the first-listed, first-priority residual is
+the one that reaches \texttt{Eps} -- nullable -- first: Greedy's
+leftmost-alternative priority, operating directly on frontier order
+rather than on any global comparison between the two candidate trees.
+
+\paragraph{Success: \texttt{pderiv\_bc}.} The bit-coded sibling
+(Section~\ref{sec:pderiv-bc-theory-rust}) reaches the same tree via
+\texttt{nub2}-deduplicated \texttt{(Regex, bits)} pairs instead of
+\texttt{(Regex, Inj)} closures, each frontier entry carrying its
+accumulated bits alongside its residual:
+\begin{verbatim}
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (a|ab)(b|epsilon)
+Input:                "ab"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.036ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'),
+      Eps))   bits-so-far = []
+  pDerivBC('a', .) applied to each:
+    from [0]:
+      rule: pDerivBC('a', r1.r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Alt(Lit('b'), Eps), [0])
+      -> (Seq(Lit('b'), Alt(Lit('b'), Eps)), [1])
+  frontier after (2 residual(s)):
+    [0] Alt(Lit('b'), Eps)   bits = [0]
+    [1] Seq(Lit('b'), Alt(Lit('b'), Eps))   bits = [1]
+  a residual in this frontier is nullable  [OK]  bits accumulating
+
+Step 2 (char: 'b', position 2)
+  frontier before (2 residual(s)):
+    [0] Alt(Lit('b'), Eps)   bits-so-far = [0]
+    [1] Seq(Lit('b'), Alt(Lit('b'), Eps))   bits-so-far = [1]
+  pDerivBC('b', .) applied to each:
+    from [0]:
+      rule: pDerivBC('b', r1+r2) = tag(0, pDerivBC('b',r1)) ++
+        tag(1, pDerivBC('b',r2)), nub2
+      -> (Eps, [0])
+    from [1]:
+      rule: pDerivBC('b', r1.r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Alt(Lit('b'), Eps), [])
+  frontier after (2 residual(s)):
+    [0] Eps   bits = [00]
+    [1] Alt(Lit('b'), Eps)   bits = [1]
+  a residual in this frontier is nullable  [OK]  bits accumulating
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to
+  mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+selected residual's accumulated bits ++ mkEpsBC(residual) = [00]
+
+decode((a|ab)(b|epsilon), [00]):
+  = (Left a, Left b)
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [00]
+Parse tree:           (Left a, Left b)
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+Bits \texttt{[00]} select \emph{Left} at both alternation points --
+exactly $v'$'s shape -- and the winning residual at each step is
+identical to \texttt{pderiv\_std}'s first-listed one above, consistent
+with \texttt{pderiv\_tree} being built to mirror \texttt{pderiv\_bc}'s
+case structure one to one (Section~\ref{sec:pderiv-std-theory-rust}).
+
+\paragraph{Failure: \texttt{pderiv\_std}.} Against $\mathtt{b}$ instead
+of $\mathtt{ab}$: the first partial derivative of $r_1$ by $\mathtt{b}$
+produces no residual at all, since neither alternative of $a + ab$
+begins with $\mathtt{b}$, so the frontier is empty after step 1 and no
+selection ever runs:
+\begin{verbatim}
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                (a|ab)(b|epsilon)
+Input:                "b"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.005ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'b', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'),
+      Eps))
+  pderiv_tree('b', .) applied to each:
+    from [0]:
+      rule: pderiv_tree('b', r1.r2)  [nullable(r1)=false]
+           = [(r1'.r2, inj: continue r1) | (r1',_) <-
+             pderiv_tree(c,r1)]
+      -> []
+  frontier after (0 residual(s)):
+  no nullable residual in this frontier  [FAIL]
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse
+  tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\paragraph{Failure: \texttt{pderiv\_bc}.} The bit-coded construction on
+the identical input, reaching the same empty frontier by the same rule:
+\begin{verbatim}
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (a|ab)(b|epsilon)
+Input:                "b"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.004ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'b', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'),
+      Eps))   bits-so-far = []
+  pDerivBC('b', .) applied to each:
+    from [0]:
+      rule: pDerivBC('b', r1.r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> []
+  frontier after (0 residual(s)):
+  no nullable residual in this frontier  [FAIL]
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse
+  tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+The two chapters' constructions disagree, deliberately, on which tree a
+successful match produces -- Greedy versus POSIX -- but agree exactly on
+the boolean question of membership and on the diagnostics reported for a
+non-match, since neither disambiguation policy nor bit-versus-closure
+tree construction is ever reached until after the underlying
+derivative/partial-derivative walk has already found at least one live
+residual.

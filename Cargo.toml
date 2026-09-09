@@ -5,6 +5,11 @@ edition = "2021"
 
 [features]
 debug = []
+# Optional comparison against Rust's `regex` crate and Google's RE2 on the
+# same data as this crate's own parsers (benches/bench_external.rs). Off by
+# default: RE2 needs its system C++ library at build time. See
+# docs/EXTERNAL_ENGINES.md.
+external-engines = ["dep:regex"]
 
 
 # CLI
@@ -37,12 +42,17 @@ name = "bench_match"
 harness = false
 
 [[bench]]
-name = "bench_posix"
+name = "bench_parse"
 harness = false
 
 [[bench]]
 name = "bench_dataset"
 harness = false
+
+[[bench]]
+name = "bench_external"
+harness = false
+required-features = ["external-engines"]
 
 
 # Tests
@@ -51,7 +61,12 @@ harness = false
 [dependencies]
 clap   = { version = "4.5", features = ["derive"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+regex  = { version = "1", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+
+[build-dependencies]
+cc         = "1.0"
+pkg-config = "0.3"
 

@@ -3,9 +3,9 @@
 use std::time::Instant;
 
 use crate::types::{Regex, flatten};
-use crate::parsers::bitcoded::pderiv_bc::parse_pderiv_bc_traced;
-use crate::regex::standard::nullable::nullable;
-use crate::regex::bitcoded::pderiv::pderiv_bc;
+use crate::parsers::pderiv_bc::parse_pderiv_bc_traced;
+use crate::regex::nullable::nullable;
+use crate::parsers::pderiv_bc::pderiv::pderiv_bc;
 use crate::diagnostics::format::bits_str;
 use crate::diagnostics::report::ReportWriter;
 use super::{timestamp, render_error_summary};

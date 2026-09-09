@@ -1,6 +1,4 @@
-//! regex-engine/src/types/parse_tree.rs
-//! 
-//! Parse tree representation (values v)
+//! Parse tree representation (values v).
 
 use std::fmt;
 
@@ -54,9 +52,7 @@ pub fn flatten(v: &ParseTree) -> String {
 }
 
 
-// -------------------------------
-// Tests for ParseTree and flatten
-// -------------------------------
+// Tests
 
 #[cfg(test)]
 mod tests {

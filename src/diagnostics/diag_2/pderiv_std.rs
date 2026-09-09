@@ -1,12 +1,9 @@
-//! Level 2 rendering for the standard partial-derivative-based parser 
-//! 
-//! Mirrors `pderiv_bc.rs`'s, with one difference by the trace shape: 
-//! `PDerivStdTrace` records each strand's residual regex only
+//! Level 2 rendering for pderiv_std; mirrors pderiv_bc's but the trace has no bits, residuals only.
 
 use std::time::Instant;
 
 use crate::types::Regex;
-use crate::parsers::standard::pderiv_std::parse_pderiv_standard_traced;
+use crate::parsers::pderiv_std::parse_pderiv_std_traced;
 use crate::diagnostics::replay::error_report;
 
 fn frontier_str(frontier: &[Regex]) -> String {
@@ -19,7 +16,7 @@ fn frontier_str(frontier: &[Regex]) -> String {
 
 pub fn run(regex_str: &str, r: &Regex, input: &str) {
     let start = Instant::now();
-    let (result, trace) = parse_pderiv_standard_traced(input, r);
+    let (result, trace) = parse_pderiv_std_traced(input, r);
     let elapsed = start.elapsed();
 
     println!("Regex:  {}", regex_str);
@@ -32,7 +29,7 @@ pub fn run(regex_str: &str, r: &Regex, input: &str) {
             println!("Tree:   {}", tree);
             println!("Time:   {:.3}ms", elapsed.as_secs_f64() * 1000.0);
             println!(
-                "Steps:  {} pderiv_standard steps computed (frontier size at each step: {})",
+                "Steps:  {} pderiv_std steps computed (frontier size at each step: {})",
                 trace.steps.len(),
                 trace.steps.iter().map(|s| s.after.len().to_string())
                     .collect::<Vec<_>>().join(" -> ")
@@ -55,7 +52,7 @@ pub fn run(regex_str: &str, r: &Regex, input: &str) {
             println!("Match:  false");
             println!("Time:   {:.3}ms", elapsed.as_secs_f64() * 1000.0);
             println!(
-                "Steps:  {} pderiv_standard steps computed ({} with a nullable residual)",
+                "Steps:  {} pderiv_std steps computed ({} with a nullable residual)",
                 trace.steps.len(), successful
             );
 

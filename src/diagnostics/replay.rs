@@ -1,19 +1,12 @@
-//! regex-engine/src/diagnostics/replay.rs
-//! 
-//! Replay utilities for failure diagnostics.
-//!     Diag 1      (error position only) 
-//!     Diag 2/3    (partial tree).
+//! Replay utilities for failure diagnostics: error position (Diag 1) and partial tree (Diag 2/3).
 
 use crate::types::{Regex, ParseTree};
-use crate::regex::standard::deriv::deriv;
-use crate::regex::standard::nullable::nullable;
-use crate::parsers::standard::mk_eps;
-use crate::parsers::standard::inject;
+use crate::regex::deriv::deriv;
+use crate::regex::nullable::nullable;
+use crate::regex::mk_eps;
+use crate::parsers::deriv_std::inject;
 
-
-// -------------------------------
 // Error position (used by Diag 1 for both standard and bitcoded)
-// -------------------------------
 
 /// Result of replaying forward pass on failing input
 #[derive(Debug, Clone)]
@@ -120,12 +113,9 @@ fn collect_expected_chars(r: &Regex) -> Vec<char> {
 }
 
 
-// -------------------------------
 // Partial tree recovery (used by Level 2 and Level 3 on failure)
-// -------------------------------
 
-/// Recover partial parse tree from last nullable derivative expression in forward pass
-/// Takes stored expression sequence from ParseTrace (so no need rerun forward pass)
+/// Recover partial parse tree from the last nullable expression, replaying stored inject steps
 pub fn partial_tree_standard(
     expressions: &[Regex],
     chars: &[char],
@@ -149,12 +139,9 @@ pub fn partial_tree_standard(
 }
 
 
-// -------------------------------
 // Caret line builder (shared across all diag levels)
-// -------------------------------
 
-/// Build the two-line caret display: "  aab"
-///                                   "    ^"
+/// Build the two-line caret display (input line, then a "^" under the failing position)
 pub fn caret_lines(input: &str, position: usize) -> String {
     let display_input = format!("  {}", input);
     // position 1 means first char; offset = 2 (indent) + position - 1
@@ -181,9 +168,7 @@ pub fn error_report(input: &str, r: &Regex) -> String {
 }
 
 
-/// -------------------------------
-/// Unit tests
-/// -------------------------------
+// Unit tests
 
 #[cfg(test)]
 mod tests {

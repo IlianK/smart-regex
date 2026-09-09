@@ -1,33 +1,61 @@
-//! regex-engine/src/matchers/match_pderiv.rs
-//! 
 //! Antimirov partial derivative matcher (boolean)
 
 use std::collections::HashSet;
 use crate::types::Regex;
-use crate::regex::standard::pderiv::pderiv;
-use crate::regex::standard::nullable::nullable;
+use crate::regex::nullable::nullable;
+use crate::regex::simplify::smart_seq;
+
+/// Antimirov partial derivatives
+fn pderiv(r: &Regex, x: char) -> Vec<Regex> {
+    match r {
+        Regex::Phi => Vec::new(),
+        Regex::Eps => Vec::new(),
+        Regex::Lit(c) => {
+            if *c == x { vec![Regex::Eps] } else { Vec::new() }
+        }
+        Regex::Alt(r, s) => {
+            let mut out = pderiv(r, x);
+            out.extend(pderiv(s, x));
+            out
+        }
+        Regex::Seq(r, s) => {
+            let mut out: Vec<Regex> = pderiv(r, x)
+                .into_iter()
+                .map(|r_prime| smart_seq(r_prime, s))
+                .collect();
+            if nullable(r) {
+                out.extend(pderiv(s, x));
+            }
+            out
+        }
+        Regex::Star(r) => {
+            pderiv(r, x)
+                .into_iter()
+                .map(|r_prime| smart_seq(r_prime, &Regex::star(*r.clone())))
+                .collect()
+        }
+    }
+}
 
 pub fn match_pderiv(input: &str, r: &Regex) -> bool {
     let mut states: HashSet<Regex> = HashSet::new();
     states.insert(r.clone());
 
     for c in input.chars() {
-        let mut next_states: HashSet<Regex> = HashSet::new();
+        let mut next_states: HashSet<Regex> = HashSet::with_capacity(states.len());
         for state in &states {
             next_states.extend(pderiv(state, c));
         }
-        states = next_states;
-        if states.is_empty() {
+        if next_states.is_empty() {
             return false;
         }
+        states = next_states;
     }
 
-    states.iter().any(|r| nullable(r))
+    states.iter().any(nullable)
 }
 
-// -------------------------------
-// Tests for match_pderiv
-// -------------------------------
+// Tests
 
 #[cfg(test)]
 mod tests {

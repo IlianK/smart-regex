@@ -1,56 +1,50 @@
-// tests/test_pderiv_standard.rs
-//
-// Integration tests for parsers::standard::pderiv_std::parse_pderiv_standard
-//
-// Run:  cargo test --test test_pderiv_standard
+// Integration tests for parsers::pderiv_std::parse_pderiv_std.
 
 mod common;
 use common::{assert_round_trip, paper_r1, paper_r2};
 
 use regex_engine::Regex;
-use regex_engine::parsers::{parse_pderiv_bc, parse_pderiv_std, parse_recursive};
+use regex_engine::parsers::{parse_pderiv_bc, parse_pderiv_std, parse_deriv_std_rec};
 
-// -------------------------------
-// parse_pderiv_standard == parse_pderiv_bc
-// -------------------------------
+// parse_pderiv_std == parse_pderiv_bc
 
-fn pderiv_standard_agrees_with_bc(input: &str, r: &Regex) {
+fn pderiv_std_agrees_with_bc(input: &str, r: &Regex) {
     let std_tree = parse_pderiv_std(input, r);
     let bc_tree = parse_pderiv_bc(input, r);
     assert_eq!(
         std_tree, bc_tree,
-        "parse_pderiv_standard and parse_pderiv_bc disagree on {:?} for {:?}:\n  standard: {:?}\n  bitcoded: {:?}",
+        "parse_pderiv_std and parse_pderiv_bc disagree on {:?} for {:?}:\n  std: {:?}\n  bitcoded: {:?}",
         input, r, std_tree, bc_tree
     );
 }
 
 #[test]
-fn agrees_on_eps()        { pderiv_standard_agrees_with_bc("",    &Regex::Eps); }
+fn agrees_on_eps()        { pderiv_std_agrees_with_bc("",    &Regex::Eps); }
 #[test]
-fn agrees_on_literal()    { pderiv_standard_agrees_with_bc("a",   &Regex::lit('a')); }
+fn agrees_on_literal()    { pderiv_std_agrees_with_bc("a",   &Regex::lit('a')); }
 #[test]
-fn agrees_on_no_match()   { pderiv_standard_agrees_with_bc("b",   &Regex::lit('a')); }
+fn agrees_on_no_match()   { pderiv_std_agrees_with_bc("b",   &Regex::lit('a')); }
 #[test]
-fn agrees_on_phi()        { pderiv_standard_agrees_with_bc("a",   &Regex::Phi); }
+fn agrees_on_phi()        { pderiv_std_agrees_with_bc("a",   &Regex::Phi); }
 #[test]
-fn agrees_on_star_empty() { pderiv_standard_agrees_with_bc("",    &Regex::star(Regex::lit('a'))); }
+fn agrees_on_star_empty() { pderiv_std_agrees_with_bc("",    &Regex::star(Regex::lit('a'))); }
 #[test]
-fn agrees_on_star_one()   { pderiv_standard_agrees_with_bc("a",   &Regex::star(Regex::lit('a'))); }
+fn agrees_on_star_one()   { pderiv_std_agrees_with_bc("a",   &Regex::star(Regex::lit('a'))); }
 #[test]
-fn agrees_on_star_three() { pderiv_standard_agrees_with_bc("aaa", &Regex::star(Regex::lit('a'))); }
+fn agrees_on_star_three() { pderiv_std_agrees_with_bc("aaa", &Regex::star(Regex::lit('a'))); }
 
 #[test]
 fn agrees_on_seq() {
     let r = Regex::seq(Regex::lit('a'), Regex::lit('b'));
-    pderiv_standard_agrees_with_bc("ab", &r);
-    pderiv_standard_agrees_with_bc("a",  &r);
+    pderiv_std_agrees_with_bc("ab", &r);
+    pderiv_std_agrees_with_bc("a",  &r);
 }
 
 #[test]
 fn agrees_on_paper_r1() {
     let r = paper_r1();
     for w in &["ab", "a", "b", ""] {
-        pderiv_standard_agrees_with_bc(w, &r);
+        pderiv_std_agrees_with_bc(w, &r);
     }
 }
 
@@ -58,7 +52,7 @@ fn agrees_on_paper_r1() {
 fn agrees_on_paper_r2() {
     let r = paper_r2();
     for w in &["ab", "a", "b", "aab", "abab", ""] {
-        pderiv_standard_agrees_with_bc(w, &r);
+        pderiv_std_agrees_with_bc(w, &r);
     }
 }
 
@@ -77,15 +71,13 @@ fn round_trip_flatten() {
 fn membership_agrees_with_posix_on_paper_r1() {
     let r = paper_r1();
     for w in &["ab", "a", "b", ""] {
-        let rec = parse_recursive(w, &r);
+        let rec = parse_deriv_std_rec(w, &r);
         let pd = parse_pderiv_std(w, &r);
         assert_eq!(rec.is_some(), pd.is_some(), "membership disagreement on {:?}", w);
     }
 }
 
-// -------------------------------
-// Differential fuzz: parse_pderiv_standard vs. parse_pderiv_bc 
-// -------------------------------
+// Differential fuzz: parse_pderiv_std vs. parse_pderiv_bc
 
 struct Rng(u64);
 impl Rng {
@@ -123,7 +115,7 @@ fn gen_word(rng: &mut Rng, len: u32, alphabet: &[char]) -> String {
 }
 
 #[test]
-fn fuzz_standard_matches_bitcoded_exactly() {
+fn fuzz_std_matches_bitcoded_exactly() {
     let alphabet = ['a', 'b', 'c'];
     let mut rng = Rng(0xD1B54A32D192ED03);
     let mut checked = 0u32;
@@ -148,7 +140,7 @@ fn fuzz_standard_matches_bitcoded_exactly() {
         let mut msg = format!("{} mismatches out of {} checked:\n", mismatches.len(), checked);
         for (r, w, std_tree, bc_tree) in &mismatches {
             msg.push_str(&format!(
-                "regex = {:?}\n  word = {:?}\n  standard = {:?}\n  bitcoded = {:?}\n\n",
+                "regex = {:?}\n  word = {:?}\n  std = {:?}\n  bitcoded = {:?}\n\n",
                 r, w, std_tree, bc_tree
             ));
         }
@@ -168,11 +160,11 @@ fn fuzz_membership_agrees_with_posix() {
         let w = gen_word(&mut rng, wlen, &alphabet);
         checked += 1;
 
-        let rec = parse_recursive(&w, &r);
+        let rec = parse_deriv_std_rec(&w, &r);
         let pd = parse_pderiv_std(&w, &r);
         assert_eq!(
             rec.is_some(), pd.is_some(),
-            "membership disagreement: r={:?} w={:?}\n  recursive: {:?}\n  pderiv_standard: {:?}",
+            "membership disagreement: r={:?} w={:?}\n  recursive: {:?}\n  pderiv_std: {:?}",
             r, w, rec, pd
         );
         if let Some(ref tree) = pd {

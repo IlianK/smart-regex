@@ -1,8 +1,12 @@
 # Parsers Quick Reference
 
-The five `--parser` values, one example call each. 
+The five `--parser` values, one example call each. Each has its own
+detailed writeup with code references:
+[DERIV_STD.md](DERIV_STD.md), [DERIV_BC.md](DERIV_BC.md),
+[PDERIV_STD.md](PDERIV_STD.md), [PDERIV_BC.md](PDERIV_BC.md).
 - Full flag/diagnostics reference: [docs/CLI.md](CLI.md). 
-- Frontend/syntax reference: [docs/FRONTEND.md](FRONTEND.md).
+- Frontend/syntax reference: [docs/FRONTEND.md](FRONTEND.md),
+  [docs/SUBSTRING_SEARCH.md](SUBSTRING_SEARCH.md).
 
 ---
 
@@ -65,8 +69,7 @@ cargo run -- parse "(a|ab)(b|ε)" "ab" --parser pderiv_bc
 Antimirov partial derivatives, bit-coded. **Greedy leftmost priority,
 not POSIX** -- may pick a different parse tree than the three parsers
 above on an ambiguous input (Chapter 6), though it always agrees with
-them on *whether* a string matches. `pderiv` is an alias for this exact
-value.
+them on *whether* a string matches.
 
 ---
 

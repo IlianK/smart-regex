@@ -18,7 +18,7 @@
 
 use regex_engine::types::Regex;
 use regex_engine::parsers::{flatten, ParseTree};
-use regex_engine::parsers::{parse_recursive, parse_loop, parse_bitcoded};
+use regex_engine::parsers::{parse_deriv_std_rec, parse_deriv_std_loop, parse_deriv_bc};
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 
 // -------------------------------
@@ -90,9 +90,9 @@ impl TestCase {
         println!("  {:12} | {}", "Parser", "Result");
         println!("  {:-<12}-+-{:-<40}", "", "");
 
-        let r1 = self.run_parser_without_diag(parse_recursive, "RECURSIVE");
-        let r2 = self.run_parser_without_diag(parse_loop,      "LOOP");
-        let r3 = self.run_parser_without_diag(parse_bitcoded,  "BITCODED");
+        let r1 = self.run_parser_without_diag(parse_deriv_std_rec, "RECURSIVE");
+        let r2 = self.run_parser_without_diag(parse_deriv_std_loop,      "LOOP");
+        let r3 = self.run_parser_without_diag(parse_deriv_bc,  "BITCODED");
 
         let all_equal = r1 == r2 && r2 == r3;
         if all_equal { println!("\n  ✓ All parsers agree"); }
