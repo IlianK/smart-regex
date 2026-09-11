@@ -7,7 +7,7 @@ Regular expressions are a fundamental formalism for describing regular
 languages and are among the most widely used abstractions in computer
 science. They underpin applications including lexical analysis, input
 validation, log processing, search tools, and network security. Across
-these applications, the fundamental problem is regular expression
+these applications, the problem is regular expression
 matching: given a regular expression and an input string, determine
 whether the string belongs to the language denoted by the expression.
 Formally, this is the \emph{membership problem}.
@@ -52,50 +52,53 @@ between an expression and its successive residuals, derivative-based
 methods provide an elegant foundation for regular expression matching
 and, with suitable extensions, structured parsing.
 
-However, derivative-based techniques are less commonly used in practice 
-than other matching approaches. Bridging this gap
-"From Theory to Tools" motivates the work presented in this thesis.
-
+However, derivative-based techniques are
+less commonly used in practical regular expression tooling than
+backtracking and automata-based approaches.
+Investigating how these techniques behave in a systems implementation, 
+and whether they can support practical matching, parsing, and diagnostic tools, 
+therefore provides the motivation for this thesis: "From Theory to Tools".
 
 
 \section{Problem Statement}
 \label{sec:problem-statement}
 
-Brzozowski introduced regular expression derivatives as an algebraic
-characterization of regular expression matching~\citep{brzozowski1964}.
-Antimirov later introduced partial derivatives, representing sets of
-residual expressions and provide a construction closely related to
-nondeterministic automata while reducing redundancy compared with ordinary
-derivatives~\citep{antimirov1996}. Building on these ideas, Sulzmann and Lu
-presented a derivative-based algorithm for POSIX-correct regular expression
-parsing \citep{sulzmannlu2014}.
+Derivative-based regular expression matching has been studied extensively
+from a theoretical perspective. Brzozowski introduced regular expression
+derivatives as an algebraic characterization of regular language
+membership~\citep{brzozowski1964}, while Antimirov introduced partial
+derivatives, which represent sets of residual expressions and are closely
+related to nondeterministic automata~\citep{antimirov1996}. Building on
+these ideas, Sulzmann and Lu developed a derivative-based algorithm for
+POSIX-correct regular expression parsing and provided a Haskell reference
+implementation~\citep{sulzmannlu2014}.
 
-Although the algorithm is formally developed and accompanied by a Haskell
-reference implementation, its practical behaviour can be further studied
-through an implementation in a systems programming language. Rust provides
-such an environment through its compile-time ownership model, allowing
-memory allocation, stack usage, and execution time to be studied as direct
-properties of the implementation.
+Sulzmann and Lu's work therefore provides a formally developed basis 
+for structured regular expression matching, but leaves several practical questions open. 
+In particular, the behaviour of the construction in a systems programming language can be
+investigated with respect to execution time, memory consumption, and other
+implementation-level resource usage. 
+Rust provides an appropriate setting for such an investigation through 
+its ownership model and fine-grained control over data representation 
+and memory allocation.
 
-This thesis investigates the implementation of Sulzmann and
-Lu's POSIX derivative-based parsing algorithm in Rust and explores an
-extension of this construction based on Antimirov's partial derivatives.
-The implementations also incorporate the bit-coded optimization proposed
-by the same authors, to reduce memory usage and improve performance.
+A further question is whether the construction can be extended to use
+Antimirov's partial derivatives as an alternative representation of
+residual expressions, and how such an implementation compares with the
+original derivative-based construction. The bit-coded representation
+proposed by Sulzmann and Lu also provides an opportunity to investigate
+the practical effect of reducing the memory required to represent
+derivative expressions.
 
-The resulting implementations are evaluated in terms of performance and
-resource usage, both against each other and on real-world regular
-expression patterns drawn from network-signature, spam-filtering, and
-general-purpose corpora (Chapter~\ref{sec:evaluation}). The evaluation
-also includes a direct empirical comparison with two established engines:
-Rust's \texttt{regex} crate and Google's RE2.
-
-Furthermore, the derivative-based representation provides an opportunity
-to show the reasoning of the algorithm. This thesis
-therefore also shows how derivative computations can be used as a
-basis for diagnostic tooling, allowing matches and mismatches to be
-explained through the transformations performed during the matching
-process.
+The central problem addressed by this thesis is therefore to investigate 
+the practical behaviour of derivative-based approaches to POSIX parsing: 
+first, by implementing Sulzmann and Lu's construction in Rust and 
+evaluating its performance and resource usage; second, 
+by investigating an alternative construction based on partial derivatives; 
+and third, by comparing the resulting implementations with established 
+regular expression engines. In addition, the thesis investigates
+whether the intermediate derivative computations can be exposed to
+provide useful explanations of successful and unsuccessful matches.
 
 
 \section{Contributions}
@@ -105,22 +108,24 @@ This thesis makes the following contributions:
 
 \begin{itemize}
   \item \textbf{A Rust implementation of Sulzmann and Lu's derivative-based
-  POSIX parser}, including a direct two-pass construction following the
-  original algorithm and a bit-coded single-pass optimization. The
-  implementation additionally explores partial derivatives as an alternative
-  representation, resulting in four parser variants: 
-  derivative-based and partial-derivative-based, in direct and bit-coded forms.
+  POSIX parser.} The implementation includes both a direct two-pass
+  construction following the original algorithm and a bit-coded
+  single-pass optimization. It additionally explores Antimirov's partial
+  derivatives as an alternative representation, resulting in four parser
+  variants: derivative-based and partial-derivative-based implementations,
+  each in direct and bit-coded forms.
 
-  \item \textbf{An empirical evaluation} comparing all four
-  parser combinations with each other, on both synthetic benchmarks and a triaged corpus of
-  real-world regular expressions, based on the datasets used in the paper 
-  of Mamouras et al. \citep{mamouras2024}. 
-  Then comparing them against established regular expression matchers such as
-  Rust's \texttt{regex} crate and Google's RE2.
+  \item \textbf{An empirical evaluation of the parser variants.} The four
+  variants are evaluated against one another using synthetic benchmarks
+  and a corpus of real-world regular expressions based on the datasets
+  used by Mamouras et al.~\citep{mamouras2024}. Their performance is also
+  compared with established regular expression engines, including Rust's
+  \texttt{regex} crate and Google's RE2.
 
-  \item \textbf{A derivative-tracing diagnostics system},
-  showing the parser's computation steps to explain successful matches and mismatches,
-  to provide a tool for understanding the algorithm's behaviour and debugging of regular expressions.
+  \item \textbf{A derivative-tracing diagnostic system.} The implementation
+  exposes the intermediate derivative computations performed during
+  matching, providing a basis for explaining successful and unsuccessful
+  matches and for investigating the behaviour of the parser.
 \end{itemize}
 
 
@@ -129,37 +134,45 @@ This thesis makes the following contributions:
 \label{sec:thesis-outline}
 
 The remainder of this thesis is structured as follows.
-Section~\ref{sec:regular-expressions} introduces the syntax and semantics
+
+Chapter~\ref{sec:regular-expressions} introduces the syntax and semantics
 of regular expressions, together with the Rust representation of their
-abstract syntax used throughout the rest of this work.
-Section~\ref{sec:derivatives} builds on this representation to introduce
+syntax used throughout the rest of this work.
+
+Building on this representation, Chapter~\ref{sec:derivatives} introduces
 Brzozowski's derivatives and Antimirov's partial derivatives as algorithms
-for deciding language membership, along with their Rust implementation --
-the foundation on which the parsers presented later are built.
+for deciding language membership, along with their Rust implementation.
 
-Before extending these algorithms to parsing, Section~\ref{sec:matching-vs-parsing}
+Before extending these algorithms to parsing, Chapter~\ref{sec:matching-vs-parsing}
 distinguishes matching from parsing and introduces the disambiguation
-problem that arises once a parse tree, not just a boolean, is required.
-Section~\ref{sec:derivative-parser} then presents the derivative-based
-POSIX parser adopted as this thesis's algorithmic basis, Sulzmann and Lu's
-construction~\citep{sulzmannlu2014}, together with its Rust implementation
-in both a direct ("inj") and a bit-coded form.
-Section~\ref{sec:partial-derivative-parser} extends this construction from
-Brzozowski derivatives to Antimirov's partial derivatives, again in both
-its direct and bit-coded variants. And Section~\ref{sec:frontend} 
-describes the front-end of the implementation, which translates 
-the input regular expression into the internal representation used by the parsers.
+problem that arises once a parse tree, not just a Boolean, is required.
 
-With all four parser variants in place, Section~\ref{sec:evaluation}
+Then Chapter~\ref{sec:derivative-parser} 
+presents Sulzmann and Lu's derivative-based POSIX parser ~\citep{sulzmannlu2014}, 
+which serves as the algorithmic basis of this thesis, 
+together with its Rust implementation in both a direct and a bit-coded form.
+
+Chapter~\ref{sec:partial-derivative-parser} extends this construction from
+Brzozowski derivatives to Antimirov's partial derivatives, again in both
+its direct and bit-coded variants, resulting in a Greedy parser. 
+
+The translation of the input regular expression 
+into the internal representation used by the parsers 
+is described in Chapter~\ref{sec:frontend}, presenting the front-end of the implementation.
+
+With all four parsers variants in place, Chapter~\ref{sec:evaluation}
 evaluates their correctness and performance against each other, on both
 synthetic benchmarks and a corpus of real-world regular expressions, and
 positions this evaluation relative to established regular expression
 engines.
-Section~\ref{sec:discussion} situates this work relative to related
-approaches, reflects on translating the underlying algorithm from Haskell
-to Rust, and discusses the derivative-tracing facility built alongside the
-parser, their usefulness and potential extensions.
 
-Section~\ref{sec:conclusion} closes by summarizing the main findings and
-contributions of the thesis and mentioning of related work.
+Chapter~\ref{sec:discussion} discusses and interprets the evaluation
+results, situates the work relative to related approaches, and reflects on
+the translation of the underlying algorithm from Haskell to Rust. It also
+discusses the derivative-tracing system, its usefulness and limitations.
 
+Finally, Chapter~\ref{sec:conclusion} concludes the thesis by summarizing the main
+findings and contributions and relating them to the research questions
+introduced in this chapter. It also discusses directions for future work,
+including potential extensions and improvements to the implementations and
+diagnostic tooling.

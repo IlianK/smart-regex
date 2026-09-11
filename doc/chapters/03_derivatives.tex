@@ -1,29 +1,37 @@
-
-% ----------------------------------------------------------------------
-% chapters/03_derivatives.tex
-% ----------------------------------------------------------------------
 \chapter{Derivatives and Partial Derivatives}
 \label{sec:derivatives}
 
-Chapter~\ref{sec:regular-expressions} fixed the syntax and semantics of
-regular expressions: $L(r)$ tells us, declaratively, which words $r$
-matches. It says nothing about how to compute membership. This chapter
-introduces three ways of doing so -- naive recursive backtracking, and two
-algebraic reformulations due to Brzozowski and Antimirov -- each realized as
-a Rust matcher with the common signature \texttt{fn(\&str, \&Regex) ->
-bool}. All three answer exactly the membership question of
-Section~\ref{sec:regex-semantics}; they differ in how directly that
-question is asked of the input, and in what it costs to ask it repeatedly.
-The derivative operation introduced here is also the foundation the POSIX
-parsers of Chapters~\ref{sec:derivative-parser}
-and~\ref{sec:partial-derivative-parser} are built on -- membership is a
-special case of parsing that discards the parse tree, and it is the
-simplest setting in which to introduce the operation itself.
+Chapter~\ref{sec:regular-expressions} introduced the syntax and semantics
+of regular expressions. The semantics provides a declarative definition of
+membership: a word $w$ matches an expression $r$ exactly when
+$w \in L(r)$. This chapter turns that definition into executable
+algorithms for deciding membership.
+
+Three approaches are considered. The first is a direct recursive matcher
+that follows the structure of the semantic definition. The second uses
+Brzozowski derivatives to transform an expression as input symbols are
+consumed. The third uses Antimirov's partial derivatives, representing
+the possible residual expressions as a collection rather than combining
+them into a single expression. All three are implemented in Rust with the
+common interface \texttt{fn(\&str, \&Regex) -> bool}.
+
+The three approaches decide the same membership problem, but they differ
+in how they represent and explore the remaining matching problem. The
+derivative-based approaches are particularly important for this thesis:
+the derivative operation introduced here forms the basis of the
+structured parsing algorithms developed in
+Chapters~\ref{sec:derivative-parser} and
+\ref{sec:partial-derivative-parser}.
 
 
-
-\section{Deciding Membership: An Overview}
+\section{Deciding Membership}
 \label{sec:membership-overview}
+
+The most direct way to decide $w \in L(r)$ 
+is to follow the structure of the expression and
+search for a decomposition of the input that satisfies it. This gives a
+recursive matcher that closely mirrors the semantic definition from
+Section~\ref{sec:regex-semantics}.
 
 The most direct way to decide $w \in L(r)$ is to read $L(r)$'s definition
 as an algorithm: try every way $w$ could have been produced by $r$'s
