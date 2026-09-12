@@ -23,94 +23,88 @@ structured parsing algorithms developed in
 Chapters~\ref{sec:derivative-parser} and
 \ref{sec:partial-derivative-parser}.
 
+%
 
 \section{Deciding Membership}
 \label{sec:membership-overview}
 
-The most direct way to decide $w \in L(r)$ 
-is to follow the structure of the expression and
-search for a decomposition of the input that satisfies it. This gives a
-recursive matcher that closely mirrors the semantic definition from
-Section~\ref{sec:regex-semantics}.
+The semantics of Section~\ref{sec:regex-semantics} defines membership
+declaratively: a word $w$ matches a regular expression $r$ exactly when
+$w \in L(r)$. A direct way to decide membership is therefore to interpret
+these semantic definitions as recursive matching rules.
 
-The most direct way to decide $w \in L(r)$ is to read $L(r)$'s definition
-as an algorithm: try every way $w$ could have been produced by $r$'s
-structure, and succeed if any of them works. Writing $w$ as an indexable
-sequence of characters and $(i,j)$ for the substring between positions $i$
-and $j$, membership of the whole word corresponds to $(0, |w|)$, and each
-case of $L(r)$ becomes a recursive case of a function \texttt{matchR}
-deciding whether $r$ matches the substring $(i,j)$:
+Let $w$ be represented as an indexable sequence of characters, and let $w[i:j]$
+denote the substring beginning at position $i$ and ending immediately
+before position $j$. A recursive procedure
+$\operatorname{match}(w,i,j,r)$ can then determine whether
+$w[i:j] \in L(r)$ by following the structure of $r$:
+
 
 \begin{itemize}
-  \item $\varepsilon$ matches $(i,j)$ iff $i = j$.
-  \item A literal $x$ matches $(i,j)$ iff $j = i+1$ and the character at
+  \item $\varepsilon$ matches $w[i:j]$ iff $i = j$.
+  \item A literal $x$ matches $w[i:j]$ iff $j = i+1$ and the character at
         position $i$ is $x$.
-  \item $r + s$ matches $(i,j)$ iff $r$ matches $(i,j)$ or $s$ does.
-  \item $r \cdot s$ matches $(i,j)$ iff there is some split point $k \in
-        [i,j]$ such that $r$ matches $(i,k)$ and $s$ matches $(k,j)$.
-  \item $r^{*}$ matches $(i,j)$ iff $i = j$, or there is some $k \in
-        (i,j]$ such that $r$ matches $(i,k)$ and $r^{*}$ matches $(k,j)$.
+  \item $r + s$ matches $w[i:j]$ iff $r$ matches $w[i:j]$ or $s$ does.
+  \item $r \cdot s$ matches $w[i:j]$ iff there is some split point $k \in
+        [i,j]$ such that $r$ matches $w[i:k]$ and $s$ matches $w[k:j]$.
+  \item $r^{*}$ matches $w[i:j]$ iff $i = j$, or there is some $k \in
+        (i,j]$ such that $r$ matches $w[i:k]$ and $r^{*}$ matches
+        $w[k:j]$.
 \end{itemize}
 
-This is a correct matcher by construction: every case reproduces the
-corresponding case of $L(r)$ verbatim, so there is nothing to prove beyond
-the definition itself. It is also, in general, an expensive one, because
-concatenation and star both branch over \emph{every} split point in the
-current range rather than committing to one, and nothing remembers a
-sub-range once it has been explored from a different call.
+Membership of the whole word $w$ corresponds to $\operatorname{match}(w,
+0, |w|, r)$. This procedure is correct by construction: every case
+reproduces the corresponding case of $L(r)$ directly, so nothing beyond
+the semantic definition itself needs to be proved.
 
-To see the blowup concretely, take $r = a \cdot a \cdot a$ (three literals
-concatenated, right-associated as $a \cdot (a \cdot a)$) against
-$w = \mathtt{aaa}$. Matching $(0,3)$ against $r$ tries every split point
-$k \in \{0,1,2,3\}$ for the outer concatenation, but only $k = 1$ can
-possibly succeed, since the left operand is a single literal and can only
-match a range of length exactly $1$; the other three attempts are wasted
-work discovered only after descending into them. The right operand at
-that point, $(1,3)$ against $a \cdot a$, repeats the same pattern one
-level down, again trying every split point in $\{1,2,3\}$ before finding
-$k=2$. Each concatenation node re-explores every split point of the range
-handed to it with no memory of the fact that the same range, or a
-sub-range of it, may already have been tried while resolving a sibling
-call -- for a chain of $n$ literals against an input of length $n$, the
-number of $(i,j)$ pairs examined this way grows exponentially in $n$
-rather than linearly. \texttt{src/matchers/match\_naive.rs} transcribes
-this scheme directly, operating on a \texttt{Vec<char>} and a pair of
-\texttt{usize} bounds in place of the Haskell reference's
-\texttt{matchR w (i,j) r}; the benchmarks in
-Chapter~\ref{sec:evaluation} restrict this matcher to inputs of length
-$15$ or less precisely because of this blowup.
+It is also, in general, an expensive procedure. Concatenation and star
+both search over every split point in the current range rather than
+committing to one, and nothing remembers a range once it has already
+been explored while resolving a different call. Take $r = a \cdot a
+\cdot a$ against $w = \mathtt{aaa}$. Matching $w[0:3]$ against $r$ tries
+every split point $k \in \{0,1,2,3\}$ for the outer concatenation, even
+though only $k = 1$ can possibly succeed, since the left operand is a
+single literal and can only match a range of length exactly $1$. The
+right operand at that point, $w[1:3]$ against $a \cdot a$, repeats the
+same search one level down. For a chain of $n$ literals against an input
+of length $n$, the number of ranges examined this way grows
+exponentially in $n$ rather than linearly, since each concatenation node
+re-explores the full range handed to it regardless of what a sibling
+call already tried.
 
-\texttt{match\_naive} is nonetheless useful, and stays in the codebase for
-that reason: because it is a direct transcription of $L(r)$'s definition,
-it serves as an independent oracle that the more efficient matchers
-introduced below can be checked against -- any disagreement is a bug in
-one of the newer matchers, not a question of what the "correct" answer is
-supposed to be. The remainder of this chapter develops two such matchers,
-both based on a different idea entirely -- instead of searching for a
+\texttt{src/matchers/match\_naive.rs} implements this procedure directly
+on a \texttt{Vec<char>} and a pair of \texttt{usize} bounds. Despite its
+cost, it remains useful: because it transcribes $L(r)$'s definition
+without any intervening transformation, it serves as an independent
+reference that the more efficient matchers introduced below can be
+checked against. The remainder of this chapter develops two such
+matchers, both based on a different idea: instead of searching for a
 decomposition of $w$ against a fixed $r$, \emph{transform} $r$ itself as
 each character of $w$ is consumed, so that membership of the remaining
 suffix is asked against a smaller, adjusted expression rather than
 re-asked against the same $r$ every time.
 
-
+%
 
 \section{Brzozowski Derivatives}
 \label{sec:brzozowski-derivatives}
 
 Brzozowski's derivative of $r$ with respect to a symbol $x$, written
 $r \backslash x$, is the expression describing exactly what remains of
-$r$'s language after the leading symbol $x$ has been removed:
+$r$'s language once a leading $x$ has been removed \citep{brzozowski1964}:
+
 \[
-L(r \backslash x) \;=\; x \backslash L(r) \;=\; \{\, w \mid x w \in L(r)
-\,\} \citep{brzozowski1964}.
+L(r \backslash x) \;=\; \{\, w \mid x w \in L(r) \,\}.
 \]
+
 Deciding whether a word $x_1 x_2 \cdots x_n$ is in $L(r)$ then reduces to
 computing the chain $r \backslash x_1 \backslash x_2 \backslash \cdots
 \backslash x_n$ and checking whether the final expression accepts the
-empty word -- i.e.\ whether it is \emph{nullable}. Both nullability and the
+empty word, i.e.\ whether it is \emph{nullable}. Both nullability and the
 derivative itself are defined by structural recursion directly on the
-syntax of $r$, with no reference to $L(r)$ needed once the base cases are
-fixed:
+syntax of $r$, with no reference back to $L(r)$ needed once the base
+cases are fixed:
+
 \begin{align*}
 n(\emptyset) &= \mathrm{false} &
 n(\varepsilon) &= \mathrm{true} &
@@ -132,90 +126,203 @@ r^{*} \backslash x &= (r \backslash x) \cdot r^{*} \\
     (r \backslash x) \cdot s & \text{otherwise}
   \end{cases}
 \end{align*}
+
 The only case that needs justification beyond direct case analysis on
 $L(r \cdot s)$ is concatenation: if $r$ is nullable, a word starting with
 $x$ can either continue matching $r$ (so the derivative goes into $r$
 while $s$ is left untouched) or arise from $r$ already being satisfied by
-$\varepsilon$ and $x$ belonging to $s$ instead -- hence the extra
-$s \backslash x$ summand exactly when $n(r)$ holds. If $r$ is not
-nullable, the second possibility cannot arise, since $\varepsilon \notin
+$\varepsilon$, with $x$ belonging to $s$ instead. Hence the extra
+$s \backslash x$ summand appears exactly when $n(r)$ holds. If $r$ is not
+nullable, this second possibility cannot arise, since $\varepsilon \notin
 L(r)$ rules out $r$ having already been satisfied before any input was
 consumed.
 
 \paragraph{Worked example: single-symbol matching.}
 Consider $x^{*}$ against the word $\mathtt{xx}$. Writing
 $r \xrightarrow{x} r \backslash x$ for one derivative step,
+
 \[
 x^{*} \xrightarrow{x} (x \backslash x) \cdot x^{*} = \varepsilon \cdot x^{*}
 \xrightarrow{x} (\varepsilon \backslash x) \cdot x^{*} + x^{*} \backslash x
 = \emptyset \cdot x^{*} + (x \backslash x) \cdot x^{*} = \emptyset \cdot x^{*} + \varepsilon \cdot x^{*}.
 \]
+
 Checking nullability of the final expression by structural recursion,
+
 \begin{align*}
 n(\emptyset \cdot x^{*} + \varepsilon \cdot x^{*})
 &= n(\emptyset \cdot x^{*}) \lor n(\varepsilon \cdot x^{*}) \\
 &= (n(\emptyset) \land n(x^{*})) \lor (n(\varepsilon) \land n(x^{*})) \\
 &= (\mathrm{false} \land \mathrm{true}) \lor (\mathrm{true} \land \mathrm{true}) \;=\; \mathrm{true},
 \end{align*}
-so $x^{*}$ matches $\mathtt{xx}$. This short trace illustrates two
-things. First, the expression has grown from one node to five across
-two steps, purely from the $+$ introduced at each nullable-prefix step of
-the concatenation rule; nothing above bounds this growth, and a third
-derivative step would nest a further $+$ inside each existing summand.
-Second, applying the algebraic identities $\emptyset \cdot r = \emptyset$
-and $\emptyset + r = r$ collapses the final expression back down to
-$\varepsilon \cdot x^{*}$ -- exactly the expression reached after only
-\emph{one} derivative step. This is not a coincidence particular to this
-example: it is the general phenomenon Section~\ref{sec:simplification-rules-theory}
-returns to for the bit-coded construction, where the same $a^{*}$-style
-blowup is shown to collapse back to a single equivalence class at every
-step once simplification is applied.
+
+so $x^{*}$ matches $\mathtt{xx}$, correctly. This short trace makes two
+things visible. First, the expression has grown from one node to five
+across two steps, purely from the $+$ the concatenation rule introduces
+at each nullable-prefix step; nothing above bounds this growth, and a
+third derivative step would nest a further $+$ inside each existing
+summand. Second, the identities listed below collapse the final
+expression straight back down to $\varepsilon \cdot x^{*}$ -- exactly
+the expression reached after only \emph{one} derivative step, not two.
+Without them, a derivative sequence accumulates $\emptyset$'s and
+$\varepsilon$'s that never get removed; with them, the sequence for
+$x^{*}$ never grows past a single node.
+
+\medskip
+\noindent Four identities do this collapsing, each a direct consequence
+of the semantics of Section~\ref{sec:regex-semantics}:
+
+\begin{itemize}
+  \item $\emptyset \cdot r = \emptyset$
+  \item $\varepsilon \cdot r = r$
+  \item $\emptyset + r = r$
+  \item $r + r = r$ \quad (idempotent alternation)
+\end{itemize}
+
+\texttt{src/regex/simplify.rs} implements exactly these four rules,
+applied to every subexpression; \texttt{match\_deriv}
+(\texttt{src/matchers/match\_deriv.rs}) calls it after every derivative
+step, which is why neither worked example in this section ever shows an
+expression larger than what is written down. Each step in the trace
+below is annotated with the identity it uses.
+
+
+%
+
+\paragraph{Worked example: $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$}
+Recall $r_{01}$ from Section~\ref{sec:regex-syntax}, left-associated as
+$((0+1)^{*} \cdot 0) \cdot 1$. Derive it against $w = \mathtt{101}$ one
+symbol at a time.
+
+\begin{enumerate}
+  \item \textbf{Derive by $\mathtt{1}$.} The left operand
+  $(0+1)^{*} \cdot 0$ is not nullable (it still needs its trailing $0$),
+  so the concatenation rule's second case applies:
+  \[
+  r_{01} \backslash \mathtt{1} \;=\; \big( ((0+1)^{*} \cdot 0) \backslash
+  \mathtt{1} \big) \cdot 1.
+  \]
+  The inner star $(0+1)^{*}$ is nullable, so its own derivative needs
+  the concatenation rule's first case too:
+  \[
+  (0+1)^{*} \backslash \mathtt{1}
+  \;=\; \big( (0 \backslash \mathtt{1}) + (1 \backslash \mathtt{1}) \big) \cdot (0+1)^{*}
+  \;=\; (\emptyset + \varepsilon) \cdot (0+1)^{*}
+  \;=\; (0+1)^{*}
+  \quad \text{(by $\emptyset+r=r$, $\varepsilon\cdot r=r$).}
+  \]
+  Substituting back, since $(0+1)^{*}$ is nullable:
+  \[
+  ((0+1)^{*} \cdot 0) \backslash \mathtt{1}
+  \;=\; \big( (0+1)^{*} \backslash \mathtt{1} \big) \cdot 0 \;+\; (0 \backslash \mathtt{1})
+  \;=\; (0+1)^{*} \cdot 0 \;+\; \emptyset
+  \;=\; (0+1)^{*} \cdot 0
+  \quad \text{(by $\emptyset+r=r$).}
+  \]
+  So
+  \[
+  r_{01} \backslash \mathtt{1} \;=\; \big( (0+1)^{*} \cdot 0 \big) \cdot 1 \;=\; r_{01}.
+  \]
+  A $\mathtt{1}$ that is not yet part of the final $\mathtt{01}$ loops
+  back to the start, since $(0+1)^{*}$ can absorb it.
+
+  \item \textbf{Derive by $\mathtt{0}$.} The same computation, with $0$
+  and $1$ exchanged: $(0+1)^{*} \backslash \mathtt{0}$ again simplifies
+  to $(0+1)^{*}$, but this time $0 \backslash \mathtt{0} = \varepsilon$
+  rather than $\emptyset$, so
+  \[
+  ((0+1)^{*} \cdot 0) \backslash \mathtt{0} \;=\; (0+1)^{*} \cdot 0 \;+\; \varepsilon
+  \]
+  does \emph{not} collapse further -- neither summand is $\emptyset$,
+  and the two are not identical. This gives
+  \[
+  r_{01} \backslash \mathtt{1} \backslash \mathtt{0} \;=\; \big( (0+1)^{*} \cdot 0 \;+\; \varepsilon \big) \cdot 1.
+  \]
+  It reads exactly as it should: after \texttt{"10"}, either the
+  trailing $\mathtt{01}$ is still owed in full (the $(0+1)^{*} \cdot 0$
+  summand), or the just-consumed $\mathtt{0}$ was already the first half
+  of it (the $\varepsilon$ summand); both possibilities stay open until
+  the next symbol decides between them.
+
+  \item \textbf{Derive by $\mathtt{1}$.} $(0+1)^{*} \cdot 0 + \varepsilon$
+  is nullable (via its $\varepsilon$ summand), so the concatenation
+  rule's first case applies:
+  \[
+  \big( ((0+1)^{*} \cdot 0 + \varepsilon) \cdot 1 \big) \backslash \mathtt{1}
+  \;=\; \big( ((0+1)^{*} \cdot 0 + \varepsilon) \backslash \mathtt{1} \big) \cdot 1
+  \;+\; (1 \backslash \mathtt{1}).
+  \]
+  Working out the inner derivative, reusing step~1's result that
+  $((0+1)^{*} \cdot 0) \backslash \mathtt{1}$ simplifies to
+  $(0+1)^{*} \cdot 0$:
+  \[
+  ((0+1)^{*} \cdot 0 + \varepsilon) \backslash \mathtt{1}
+  \;=\; \big( ((0+1)^{*} \cdot 0) \backslash \mathtt{1} \big) + (\varepsilon \backslash \mathtt{1})
+  \;=\; (0+1)^{*} \cdot 0 \;+\; \emptyset
+  \;=\; (0+1)^{*} \cdot 0
+  \quad \text{(by $\emptyset+r=r$).}
+  \]
+  So
+  \[
+  r_{01} \backslash \mathtt{1} \backslash \mathtt{0} \backslash \mathtt{1}
+  \;=\; \big( (0+1)^{*} \cdot 0 \big) \cdot 1 \;+\; \varepsilon
+  \;=\; r_{01} + \varepsilon.
+  \]
+\end{enumerate}
+
+$r_{01} + \varepsilon$ is nullable, since $n(r_{01} + \varepsilon) =
+n(r_{01}) \lor n(\varepsilon) = \mathrm{false} \lor \mathrm{true} =
+\mathrm{true}$, so $\mathtt{101} \in L(r_{01})$, correctly: $\mathtt{101}$
+ends in $\mathtt{01}$. The final $\varepsilon$ summand is exactly what
+witnesses this -- it says the match was already complete the moment the
+third symbol was read, which is precisely what makes the whole
+expression nullable.
+
+Now for only the word, $w = \mathtt{10}$. 
+It shares its first two symbols with $\mathtt{101}$, 
+so deriving $r{01}$ by $\mathtt{1}$ then by $\mathtt{0}$ produces 
+the same intermediate expression as step~2 above, 
+$\big( (0+1)^{} \cdot 0 + \varepsilon \big) \cdot 1$ -- but since $\mathtt{10}$ 
+has only two symbols, this \emph{is} the final result for this word, 
+not an intermediate one. Checking its nullability directly: the expression 
+is \emph{not} nullable, since neither summand of $(0+1)^{} \cdot 0 + \varepsilon$ 
+makes the whole concatenation with $1$ nullable: $(0+1)^{*} \cdot 0$ is not nullable, 
+and $\varepsilon \cdot 1$ still needs the literal $1$. So $\mathtt{10} \notin L(r{01})$, 
+correctly: $\mathtt{10}$ ends in $\mathtt{0}$, not $\mathtt{01}$.
 
 \texttt{src/regex/nullable.rs} and \texttt{src/regex/deriv.rs}
-transcribe $n(r)$ and $r \backslash x$ case for case, matching the
+implement $n(r)$ and $r \backslash x$ case by case, matching the
 \texttt{Regex} enum of Section~\ref{sec:regex-rust-implementation} one
-variant at a time. \texttt{match\_deriv} (\texttt{src/matchers/match\_deriv.rs})
-folds \texttt{deriv} over the input characters and checks \texttt{nullable}
-on the result, exactly as \texttt{matchDeriv} does in the reference
-implementation. One deliberate departure from that reference: after every
-derivative step, \texttt{match\_deriv} also applies \texttt{simplify}
-(\texttt{src/regex/simplify.rs}, discussed further in
-Section~\ref{sec:simplification-rules-theory}), collapsing exactly the
-algebraic identities used informally above --
-$\emptyset \cdot r = \emptyset$, $\varepsilon \cdot r = r$,
-$\emptyset + r = r$, and idempotent alternation $r + r = r$. Applied to
-the trace above, \texttt{simplify} would keep the expression at
-$\varepsilon \cdot x^{*}$ (equivalently, after normalizing $\varepsilon
-\cdot r$ to $r$, at $x^{*}$ itself) after every step rather than letting
-it grow. Since \texttt{simplify} preserves $L(r)$ by construction, this
-changes nothing about which words are accepted; it only keeps the
-expressions produced along the way from growing as in the example above.
+variant at a time. \texttt{match\_deriv}
+(\texttt{src/matchers/match\_deriv.rs}) folds \texttt{deriv} over the
+input characters, applies \texttt{simplify} after every step exactly as
+annotated in the worked example above, and checks \texttt{nullable} on
+the result.
 
 The sequence of derivatives $r_0 \xrightarrow{x_1} r_1
-\xrightarrow{x_2} \cdots \xrightarrow{x_n} r_n$ can be read as tracing a
-path through an automaton built lazily, on demand: each $r_i$ is a state,
-and $\xrightarrow{x}$ is the transition relation. This "derivatives as an
-implicit DFA" reading is what motivates calling \texttt{match\_deriv}
-DFA-style throughout this thesis -- at every step there is exactly one
-current expression, playing the role of exactly one current automaton
-state, however large that single state's internal syntax tree happens to
-be.
+\xrightarrow{x_2} \cdots \xrightarrow{x_n} r_n$ can equivalently be read
+as tracing a path through an automaton built lazily, on demand: each
+$r_i$ is a state, and $\xrightarrow{x}$ is the transition relation. At
+every step there is exactly one current expression, playing the role of
+exactly one current automaton state, however large that state's internal
+syntax tree happens to be -- a DFA-style view of the construction that
+Section~\ref{sec:antimirov-partial-derivatives} contrasts directly with
+an NFA-style one.
 
 
+
+% 
 
 \section{Antimirov Partial Derivatives}
 \label{sec:antimirov-partial-derivatives}
 
 The derivative of Section~\ref{sec:brzozowski-derivatives} keeps the
-residual language as a single expression, at the cost of that expression's
-internal structure growing with every step -- the $+$ introduced by the
-concatenation rule nests deeper each time a nullable prefix is derived
-again, and only an explicit simplification pass folds it back down.
-Antimirov's partial derivatives take a different route to the same
-residual language: rather than combining the alternatives produced along
-the way with $+$, keep them apart as a \emph{set} of expressions, one per
-strand of nondeterminism \citep{antimirov1996}. Writing $pd(r,x)$ for this
-set,
+residual language as a single expression, combining every alternative
+reached so far with $+$. Antimirov's partial derivatives take a
+different route to the same residual language: rather than combining the
+alternatives produced along the way, keep them apart as a \emph{set} of
+expressions, one per strand of nondeterminism \citep{antimirov1996}.
+Writing $pd(r,x)$ for this set,
 \begin{align*}
 pd(\emptyset, x) &= \{\} \\
 pd(\varepsilon, x) &= \{\} \\
@@ -230,132 +337,219 @@ pd(r \cdot s, x) &=
   \end{cases}
 \end{align*}
 where the smart constructor $\mathit{smartC}(\varepsilon, s) = s$ and
-$\mathit{smartC}(r', s) = r' \cdot s$ otherwise normalizes away the
-spurious $\varepsilon \cdot s$ that would otherwise appear whenever a
-partial derivative of $r$ is exactly $\varepsilon$. This normalization is
-not just cosmetic: it is what guarantees every partial derivative is
-literally a subexpression of $r$ (up to the concatenations
-$\mathit{smartC}$ builds), rather than an expression that could in
-principle grow without bound the way plain $r \backslash x$ can.
+$\mathit{smartC}(r', s) = r' \cdot s$ otherwise avoids introducing a
+spurious $\varepsilon \cdot s$ whenever a partial derivative of $r$ is
+exactly $\varepsilon$. This keeps every partial derivative a
+subexpression of $r$ (up to the concatenations $\mathit{smartC}$
+builds), rather than an expression that could grow without bound the way
+plain $r \backslash x$ can.
 
-\paragraph{Worked example: derivative versus partial derivative,
-side by side.}
-Take $r = a + ab$ and derive with respect to $\mathtt{a}$ under both
-constructions. Brzozowski's derivative, following
-Section~\ref{sec:brzozowski-derivatives}, produces one expression:
+\paragraph{Worked example: single-symbol matching.}
+Consider $x^{*}$ against $\mathtt{xx}$ again, this time under $pd$. The
+base case gives $pd(x,\mathtt{x}) = \{\varepsilon\}$, and the star rule
+applies the smart constructor to it:
 \[
-r \backslash \mathtt{a} = (a \backslash \mathtt{a}) + (ab \backslash \mathtt{a})
-= \varepsilon + ((a \backslash \mathtt{a}) \cdot b) = \varepsilon + (\varepsilon \cdot b),
+pd(x^{*},\mathtt{x}) \;=\; \{\, \mathit{smartC}(r', x^{*}) \mid r' \in pd(x,\mathtt{x}) \,\}
+\;=\; \{\mathit{smartC}(\varepsilon, x^{*})\} \;=\; \{x^{*}\},
 \]
-which \texttt{simplify} would reduce to $\varepsilon + b$ -- still a
-\emph{single} expression, whose top-level shape is an alternation joining
-the two strands together. Antimirov's partial derivative keeps those same
-two strands apart instead of joining them with $+$:
-\begin{align*}
-pd(r, \mathtt{a}) &= pd(a,\mathtt{a}) \cup pd(ab,\mathtt{a}) \\
-&= \{\varepsilon\} \cup \{\, \mathit{smartC}(r', b) \mid r' \in pd(a,\mathtt{a}) \,\} \\
-&= \{\varepsilon\} \cup \{\mathit{smartC}(\varepsilon, b)\} \;=\; \{\varepsilon, b\}.
-\end{align*}
-Both describe the same residual language, $\{\varepsilon\} \cup \{
-\mathtt{b} w \mid w \in \Sigma^{*} \}$ restricted to $\{\mathtt{b}\}$
-itself here -- but $r \backslash \mathtt{a}$ represents it as one
-expression with an internal $+$, while $pd(r,\mathtt{a})$ represents it as
-two separate, syntactically smaller expressions with no $+$ at all. This
-is the concrete sense in which $pd$ is NFA-shaped: $\{\varepsilon, b\}$ is
-exactly the state set an NFA for $r$ would be in after reading
-$\mathtt{a}$, with one state per strand, rather than one DFA state
-encoding both strands internally.
+since $\mathit{smartC}(\varepsilon,s) = s$. Deriving again by $\mathtt{x}$
+repeats exactly the same computation, because the set to derive is still
+$\{x^{*}\}$: $pd(x^{*},\mathtt{x},\mathtt{x}) = \{x^{*}\}$. This set
+contains $x^{*}$, which is nullable, so $x^{*}$ matches $\mathtt{xx}$,
+correctly -- the same conclusion as the derivative trace, reached here in
+two steps that never leave $\{x^{*}\}$. Unlike that trace, which passed
+through an expression carrying an $\emptyset$ and an $\varepsilon$ neither
+one needed, before collapsing back down, $pd$ never produces either kind
+of clutter to begin with: $pd(\emptyset,x) = \{\}$ discards empty
+alternatives the moment they arise, and $\mathit{smartC}$ discards a
+spurious $\varepsilon \cdot s$ the moment it would be built. No separate
+simplification pass is needed for this to hold -- it follows directly
+from how $pd$ and $\mathit{smartC}$ are defined, not from an additional
+rewriting step applied afterwards.
 
-That subexpression property underlies Antimirov's central finiteness
-result: the set of \emph{all} partial derivatives reachable from $r$ by
-derivation with respect to arbitrary words is finite, bounded by the
-number of literal-symbol occurrences in $r$ \citep{antimirov1996}. For
-$r = a + ab$ above, there are three literal occurrences (the two
-$a$'s and the one $b$), so at most three \emph{distinct} partial
-derivatives (plus $r$ itself) can ever appear, no matter how long a word
-$r$ is derived with respect to -- and indeed $pd(r,\mathtt{a}) =
-\{\varepsilon, b\}$ already uses two of that budget. Ordinary derivatives
-are also finite up to language equivalence, but only after applying
-simplification laws such as those of
-Section~\ref{sec:simplification-rules-theory} to identify equivalent
-expressions; the partial-derivative bound holds already at the syntactic
-level, with no equivalence-checking required.
+\paragraph{Worked example: $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$}
+Derive $r_{01}$ against $w = \mathtt{101}$ again, this time tracking a
+set of residuals instead of one expression.
 
-$pd$ is implemented directly inside \texttt{match\_pderiv}
-(\texttt{src/matchers/match\_pderiv.rs}) as a private function returning
-\texttt{HashSet<Regex>}, reusing the same \texttt{smart\_seq} smart
-constructor already introduced for \texttt{simplify} in
-Section~\ref{sec:brzozowski-derivatives} -- \texttt{smartC} and
-\texttt{smart\_seq} coincide, since both exist to normalize
-$\varepsilon \cdot r$ to $r$. Unlike \texttt{deriv} and \texttt{simplify},
-this plain, un-annotated $pd$ has no independent module of its own: no
-parser in Chapter~\ref{sec:partial-derivative-parser} calls it directly --
-each parser variant there needs partial derivatives paired with parse-tree
-or bit information $pd$ itself does not carry, and defines its own
-richer version of the same recursion instead
-(Section~\ref{sec:partial-derivative-parser-rust}) -- so \texttt{match\_pderiv}
-is the only caller, and the function lives where it is used.
+\begin{enumerate}
+  \item \textbf{Derive by $\mathtt{1}$.} As in
+  Section~\ref{sec:brzozowski-derivatives}, finding
+  $pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big)$ needs the inner star first.
+  Since $(0+1)^{*}$ is nullable,
+  \[
+  pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big)
+  \;=\; \{\, \mathit{smartC}(r',0) \mid r' \in pd\big((0+1)^{*},\mathtt{1}\big) \,\} \;\cup\; pd(0,\mathtt{1}).
+  \]
+  Working out $pd\big((0+1)^{*},\mathtt{1}\big)$: $pd(0{+}1,\mathtt{1}) =
+  pd(0,\mathtt{1}) \cup pd(1,\mathtt{1}) = \{\} \cup \{\varepsilon\} =
+  \{\varepsilon\}$, so
+  $pd\big((0+1)^{*},\mathtt{1}\big) = \{\mathit{smartC}(\varepsilon,(0+1)^{*})\} = \{(0+1)^{*}\}$.
+  Substituting back, and since $pd(0,\mathtt{1}) = \{\}$:
+  \[
+  pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big) \;=\; \{\mathit{smartC}((0+1)^{*},0)\} \cup \{\} \;=\; \{(0+1)^{*}\cdot0\}.
+  \]
+  $(0+1)^{*}\cdot0$ is not nullable, so the outer concatenation rule
+  needs no union with $pd(1,\mathtt{1})$:
+  \[
+  pd(r_{01},\mathtt{1}) \;=\; \{\, \mathit{smartC}(r',1) \mid r' \in pd\big((0+1)^{*}\cdot0,\mathtt{1}\big) \,\}
+  \;=\; \{(0+1)^{*}\cdot0\cdot1\} \;=\; \{r_{01}\}.
+  \]
+  A single residual, identical to $r_{01}$ itself: reading a $\mathtt{1}$
+  that is not yet part of the final $\mathtt{01}$ loops back to the
+  start, exactly as in the derivative trace -- but here as a one-element
+  set, rather than as one expression equal to $r_{01}$.
 
-The matcher itself, \texttt{match\_pderiv} in
-\texttt{src/matchers/match\_pderiv.rs}, mirrors \texttt{matchPDeriv} from
-the reference implementation: rather than tracking one expression, it
-maintains a \texttt{HashSet<Regex>} of currently-live residuals, replacing
-that set at each character with the union of $pd(r', x)$ over every
+  \item \textbf{Derive by $\mathtt{0}$.} The set is still $\{r_{01}\}$,
+  so derive $r_{01}$ by $\mathtt{0}$. The same computation as step~1,
+  with $0$ and $1$ exchanged, again gives
+  $pd\big((0+1)^{*},\mathtt{0}\big) = \{(0+1)^{*}\}$, but now
+  $pd(0,\mathtt{0}) = \{\varepsilon\}$ rather than $\{\}$, so
+  \[
+  pd\big((0+1)^{*}\cdot0,\ \mathtt{0}\big) \;=\; \{\mathit{smartC}((0+1)^{*},0)\} \cup \{\varepsilon\}
+  \;=\; \{(0+1)^{*}\cdot0,\ \varepsilon\}.
+  \]
+  Substituting into the outer concatenation:
+  \[
+  pd(r_{01},\mathtt{1},\mathtt{0}) \;=\; \{\, \mathit{smartC}(r',1) \mid r' \in \{(0+1)^{*}\cdot0,\ \varepsilon\} \,\}
+  \;=\; \{(0+1)^{*}\cdot0\cdot1,\ 1\} \;=\; \{r_{01},\ 1\}.
+  \]
+  This is the same information as $\big((0+1)^{*}\cdot0 + \varepsilon\big)\cdot1$
+  from the derivative trace -- both say "either the trailing $\mathtt{01}$
+  is still owed in full, or the just-consumed $\mathtt{0}$ was already its
+  first half" -- but where the derivative folds the two possibilities
+  into one expression with an internal $+$, $pd$ keeps them apart as two
+  separate residuals, $r_{01}$ and the literal $1$, with no $+$ at all.
+  This is the concrete sense in which $pd$ is NFA-shaped: the two-element
+  set is exactly the state set an NFA for $r_{01}$ would be in after
+  reading $\mathtt{10}$, one state per strand, rather than one DFA state
+  encoding both strands internally.
+
+  \item \textbf{Derive by $\mathtt{1}$.} Each element of $\{r_{01},\ 1\}$
+  is derived separately and the results unioned: $pd(r_{01},\mathtt{1}) =
+  \{r_{01}\}$, repeating step~1, and $pd(1,\mathtt{1}) = \{\varepsilon\}$.
+  So
+  \[
+  pd(r_{01},\mathtt{1},\mathtt{0},\mathtt{1}) \;=\; \{r_{01}\} \cup \{\varepsilon\} \;=\; \{r_{01},\ \varepsilon\}.
+  \]
+\end{enumerate}
+
+This set contains $\varepsilon$, so it contains a nullable residual, and
+$\mathtt{101} \in L(r_{01})$ -- the same conclusion as the derivative
+trace, reached here by checking whether any residual currently held is
+nullable, rather than by checking nullability of one combined expression.
+
+Now check $w = \mathtt{10}$, the same way the derivative trace did: it
+shares its first two symbols with $\mathtt{101}$, so deriving by
+$\mathtt{1}$ then $\mathtt{0}$ (step~2 above) reaches the same set,
+$\{r_{01},\ 1\}$ -- and since $\mathtt{10}$ has only two symbols, this
+\emph{is} the final set for this word. Neither element is nullable:
+$n(r_{01}) = \mathrm{false}$, and the literal $1$ is nullable only once
+it has been derived into $\varepsilon$, not as itself. So
+$\mathtt{10} \notin L(r_{01})$, correctly.
+
+The set of all partial derivatives reachable from a fixed $r$ by
+derivation with respect to arbitrary words is always finite, bounded by
+the number of literal-symbol occurrences in $r$ \citep{antimirov1996}.
+$r_{01}$ has four such occurrences -- the two inside $(0+1)^{*}$, and one
+each for the trailing $0$ and $1$ -- so at most four distinct partial
+derivatives (plus $r_{01}$ itself) can ever appear, no matter how long a
+word $r_{01}$ is derived with respect to. The worked example above
+already shows three of those residuals directly: every set encountered,
+$\{r_{01}\}$, $\{r_{01}, 1\}$, and $\{r_{01}, \varepsilon\}$, is built
+entirely from $r_{01}$, the literal $1$, and $\varepsilon$. Ordinary
+derivatives are also finite up to language equivalence, but only once
+the simplification identities of Section~\ref{sec:brzozowski-derivatives}
+are applied to identify equivalent expressions; the partial-derivative
+bound holds already at the syntactic level, with no such identification
+needed -- the same point the single-symbol example above made concretely
+for $x^{*}$.
+
+$pd$ is implemented inside \texttt{match\_pderiv}
+(\texttt{src/matchers/match\_pderiv.rs}), which mirrors the worked
+example above directly: rather than tracking one expression, it
+maintains a \texttt{HashSet<Regex>}
+\citep{rust-hashset,rust-hash} of currently-live residuals, replacing
+that set at each character with the union of $pd(r',x)$ over every
 residual $r'$ currently in it, and accepting once the input is exhausted
-if any surviving residual is nullable. Running \texttt{match\_pderiv} on
-$r = a + ab$ against $\mathtt{ab}$ starts from $\{r\}$, steps to
-$pd(r,\mathtt{a}) = \{\varepsilon, b\}$ exactly as computed above, then
-steps again on $\mathtt{b}$: $pd(\varepsilon,\mathtt{b}) \cup
-pd(b,\mathtt{b}) = \{\} \cup \{\varepsilon\} = \{\varepsilon\}$, which
-contains a nullable residual, so the word is accepted. This is exactly
-subset simulation of an NFA whose states are subexpressions of the
-original $r$, run directly on the syntax rather than on a separately
-constructed automaton.
+if any surviving residual is nullable -- exactly the frontier
+$\{r_{01}\} \to \{r_{01}, 1\} \to \{r_{01}, \varepsilon\}$ traced by hand
+above. This is subset simulation of an NFA whose states are
+subexpressions of $r_{01}$, run directly on the syntax rather than on a
+separately constructed automaton.
 
-
+%
 
 \section{Matcher Selection}
 \label{sec:matcher-selection}
 
 \texttt{match\_naive}, \texttt{match\_deriv}, and \texttt{match\_pderiv}
-share the signature \texttt{fn(\&str, \&Regex) -> bool} despite implementing
-three structurally different algorithms -- exhaustive search over
-substring splits, a single evolving DFA-style expression, and an evolving
-NFA-style set of expressions. This uniform interface is what makes the
+share the signature \texttt{fn(\&str, \&Regex) -> bool} despite
+implementing three structurally different algorithms: exhaustive search
+over substring splits, a single evolving DFA-style expression, and an
+evolving NFA-style set of expressions. This uniform interface makes the
 three matchers directly interchangeable: the same regular expression and
 input can be run through any of them, and any disagreement between their
 answers points to a bug in one of the three independently-written
-implementations rather than to an ambiguity in what the "correct" answer
-is supposed to be. This is precisely the property the matcher-agreement
-tests in the test suite exploit, and the same pattern is reused throughout
-this thesis for parsers rather than matchers, wherever multiple
-independently-derived implementations are expected to agree.
+implementations rather than to an ambiguity in what the correct answer is
+supposed to be. The same pattern of comparing independently-derived
+implementations is reused throughout this thesis for parsers rather than
+matchers, wherever multiple constructions are expected to agree.
 
-\texttt{MatcherType} (\texttt{src/matchers/selection.rs}) enumerates the
-three matchers and gives the \texttt{regex-engine} command-line tool a
-single place to resolve "which matcher runs" for a given invocation,
-via an explicit \texttt{-{}-matcher} flag on the \texttt{match}
-subcommand (\texttt{naive}, \texttt{deriv}, \texttt{pderiv}, or
-\texttt{all}, defaulting to \texttt{deriv}) parsed through \texttt{clap}'s
-own enum derivation rather than a hand-written string match -- there is
-exactly one selection mechanism, not two that could silently disagree.
-The standalone demo under \texttt{examples/} (\texttt{demo\_match.rs})
-takes no such flag or environment variable at all: it always runs every
-matcher unconditionally on a fixed set of worked examples, which is the
-simpler, and in this case sufficient, choice for a demo whose entire
-purpose is showing the three side by side. All three matchers can also be
-compared side by side on an arbitrary input through the CLI itself, in a
-single invocation:
+\texttt{MatcherType} (\texttt{src/matchers/selection.rs}) is an enum with
+one variant per matcher and a \texttt{matcher()} method returning the
+corresponding function pointer. Its purpose is purely to give the
+\texttt{regex-engine} command-line tool (\texttt{src/cli/matcher.rs}) a
+single place that maps a \texttt{-{}-matcher} flag value
+(\texttt{naive}, \texttt{deriv}, \texttt{pderiv}, or \texttt{all},
+defaulting to \texttt{deriv}) on the \texttt{match} subcommand to the
+matcher it names, rather than every call site duplicating that mapping
+itself. All three matchers can be compared side by side on an arbitrary
+input through the CLI directly, which is how the two worked examples of
+this chapter can be checked end to end rather than only by hand. Running
+each of $x^{*}$ against $\mathtt{xx}$, and $r_{01}$ against $\mathtt{101}$
+and $\mathtt{10}$, with \texttt{-{}-matcher all} gives:
+
+\begin{center}
+\begin{tabular}{llccc}
+\hline
+Example & Word & \texttt{naive} & \texttt{deriv} & \texttt{pderiv} \\
+\hline
+$x^{*}$   & \texttt{xx}  & true  & true  & true \\
+$r_{01}$  & \texttt{101} & true  & true  & true \\
+$r_{01}$  & \texttt{10}  & false & false & false \\
+\hline
+\end{tabular}
+\end{center}
+
 \begin{verbatim}
-cargo run -- match "a*" "aaa" --matcher all
+cargo run -- match "(0|1)*01" "101" --matcher all
 \end{verbatim}
-prints the result of \texttt{match\_naive}, \texttt{match\_deriv}, and
-\texttt{match\_pderiv} together, letting the three be compared directly
-rather than one at a time.
+prints \texttt{true} for all three matchers and reproduces the second
+row directly. This agrees with the hand-derived conclusions of
+Sections~\ref{sec:brzozowski-derivatives}
+and~\ref{sec:antimirov-partial-derivatives} in every cell: $x^{*}$
+accepts $\mathtt{xx}$, $r_{01}$ accepts $\mathtt{101}$, and $r_{01}$
+rejects $\mathtt{10}$ -- and all three independently-written matchers
+reach each conclusion the same way. The same
+table-plus-CLI-invocation pattern is used again in
+Chapters~\ref{sec:derivative-parser}--\ref{sec:partial-derivative-parser}
+to check the parsers' worked examples against the \texttt{parse}
+subcommand instead of \texttt{match}.
+
+Running these through the CLI does, however, lean on more than the three
+matchers themselves. \texttt{match\_naive}, \texttt{match\_deriv}, and
+\texttt{match\_pderiv} take only an already-built \texttt{Regex} value and
+their shared signature is \texttt{fn(\&str, \&Regex) -> bool}, with no
+path from a string like \texttt{"(0|1)*01"} to a \texttt{Regex} anywhere
+in them. That translation is entirely the frontend's purpose: the \texttt{match}
+subcommand (\texttt{src/cli/matcher.rs}) calls
+\texttt{frontend::parse\_pattern} \emph{before} it calls whichever matcher
+\texttt{-{}-matcher} selected, turning the concrete syntax into the
+\texttt{Regex} AST of Section~\ref{sec:regex-rust-implementation} first.
+Chapter~\ref{sec:frontend} covers that parsing and translation in detail.
 
 The POSIX parsers built in Chapters~\ref{sec:derivative-parser}
 and~\ref{sec:partial-derivative-parser} follow the same pattern one level
-up: rather than a boolean, each of the parser combinations introduced
-there returns a parse tree, but all of them are again selectable through
-a single uniform interface and are expected to agree with one another
-wherever they overlap.
+up: rather than a Boolean, each parser returns a parse tree, but all of
+them remain selectable through a single uniform interface and are
+expected to agree with one another wherever they overlap.
