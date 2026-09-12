@@ -1,38 +1,130 @@
-
-% ----------------------------------------------------------------------
-% chapters/04_matching_vs_parsing.tex
-% ----------------------------------------------------------------------
 \chapter{Matching versus Parsing}
 \label{sec:matching-vs-parsing}
 
-Chapter~\ref{sec:derivatives} answered the membership question, always with
-a Boolean. This chapter motivates and makes precise the harder question the
-rest of this thesis is about: not just \emph{whether} $r$ matches $w$, but
-\emph{how} -- which parts of $w$ were consumed by which parts of $r$. That
-question turns out not to have a unique answer in general, and this
-chapter's second half develops the disambiguation machinery, in particular
-the POSIX policy, needed to make it one again.
+Chapter~\ref{sec:derivatives} established matching with a Boolean
+answer: whether $w \in L(r)$, the word is either accepted or rejected.
+Parsing refines this question by asking for the derivation that
+witnesses the match. Parse trees provide a representation of such
+derivations, recording the choices made by the structure of $r$ while
+consuming $w$.
 
+This refinement introduces ambiguity: a fixed $r$ and $w$ may admit
+multiple parse trees. A parser must therefore combine the semantics of
+matching with a \emph{disambiguation policy} that selects one of them.
+This chapter introduces parse trees, examines Greedy and POSIX
+disambiguation, and establishes the ordering that the parsers developed
+later must compute.
 
+%
 
 \section{The Matching Problem}
 \label{sec:matching-problem}
 
-The three matchers of Chapter~\ref{sec:derivatives} all decide the same
-question: given $r$ and $w$, is $w \in L(r)$? A Boolean answer is enough
-for some uses of regular expressions -- validating that a password meets a
-policy, or that a configuration value has an acceptable shape, needs
-nothing more. It is not enough for others. A lexer must know not just that
-an input decomposes into valid tokens, but exactly where each token
-begins and ends. Capturing groups, schema validation, and information
-extraction all require identifying which \emph{part} of $w$ corresponds to
-which \emph{part} of $r$, not merely that some correspondence exists. In
-each of these settings the question is no longer recognition but parsing:
-recover a witness that $w \in L(r)$, structured enough to read off
-submatch boundaries from, rather than a single bit reporting that such a
-witness exists.
+The three matchers of Chapter~\ref{sec:derivatives} all answer the same
+Boolean question: given $r$ and $w$, is $w \in L(r)$? Several
+applications need more than that answer. For example
+knowing \emph{which alternative} of $r$ matched, and
+knowing \emph{which part} of $w$ a given subexpression matched. Boolean
+recognition discards both kinds of information: it confirms that some
+derivation of the match exists, but nothing about what that derivation
+actually was \citep{frischcardelli2004}.
 
+\paragraph{Which alternative: lexing and schema validation.}
+Consider a lexer for a programming language, using the pattern
+\texttt{if|[a-z]+} to recognize a single token that could be the
+keyword \texttt{if}, marking the start of a conditional statement, or
+an ordinary lowercase identifier, naming a variable or function.
+Against the input \texttt{"if"}, both readings apply: the string is the
+literal keyword, but it is also a valid identifier, since it consists
+only of lowercase letters. A Boolean matcher confirms only that the
+pattern matches \texttt{"if"}; it does not say which of the two
+readings was taken, and the two readings are not interchangeable
+downstream. In a statement such as \texttt{if (x > 0) foo();}, the
+parser needs an \texttt{IF} token to recognize a conditional. If the
+lexer instead reported an identifier, \texttt{IDENT("if")}, the parser
+would try to read \texttt{if} as an expression, and the conditional
+would never be recognized.
 
+In practice, this particular ambiguity is resolved before parsing ever
+begins, not during it. Most languages forbid identifiers from being
+spelled the same as a keyword, and lexer generators enforce this
+directly: flex always matches the longest possible token, and when two
+rules match input of the same length, the rule listed earlier in the
+specification wins \citep{flex-manual-patterns}. Placing the keyword
+pattern for \texttt{if} before the general identifier pattern is
+therefore enough to guarantee the keyword reading whenever both would
+otherwise apply, and \texttt{"if"} can never be tokenized as an
+identifier at all. The underlying problem, that a Boolean matcher
+cannot report which alternative explains a match, has not gone away; it
+has been settled in advance by a rule the tool applies uniformly,
+rather than recovered from any particular match. That rule is already a
+disambiguation policy in miniature, of exactly the kind
+Section~\ref{sec:greedy-leftmost} and
+Section~\ref{sec:posix-longest-leftmost} formalize later in this
+chapter.
+
+Schema validation avoids the same problem whenever a schema declares a
+field's type up front: checking a value declared as an integer against
+the pattern for integers never raises the question of whether it might
+also be a Boolean, since no other pattern is ever consulted. The
+problem reappears in formats that infer a value's type from its text
+instead of from a declared schema. YAML is the clearest documented case.
+A plain, unquoted scalar is resolved to a type by checking it against an
+ordered set of patterns, one for null, one for booleans, one for
+integers, one for floats, and so on, with the type belonging to the
+first pattern that matches \citep{yaml-1-1-spec}. In YAML 1.1, the
+boolean pattern accepts not only \texttt{true} and \texttt{false} but
+also \texttt{yes}, \texttt{no}, \texttt{on}, \texttt{off}, and several
+capitalizations of each, so the two-letter ISO country code for Norway,
+\texttt{NO}, is resolved to the Boolean value \texttt{false} rather than
+the string \texttt{"NO"} in any YAML document that does not quote it
+explicitly. This became widely known as the "Norway problem," and it is
+exactly the failure this section describes: the text \texttt{NO}
+matches both the boolean pattern and, trivially, the fallback string
+pattern, and only the fixed order in which YAML checks its candidate
+types, not anything about the text \texttt{NO} itself, decides which one
+wins \citep{strictyaml-implicit-typing}. YAML 1.2 removed the
+\texttt{yes}/\texttt{no}/\texttt{on}/\texttt{off} boolean forms
+specifically to shrink this overlap, though widely used implementations
+such as PyYAML still default to the 1.1 rules.
+
+%
+
+\paragraph{A pattern where the two readings genuinely compete.}
+The \texttt{"if"} example is resolved by a tie-breaking convention. Both
+alternatives of \texttt{if|[a-z]+} match the same two-character input, so
+a longest-match rule cannot distinguish them. The lexical specification
+therefore gives the keyword alternative priority. What appears to be an
+obvious choice is thus the result of a specific disambiguation rule: the
+two alternatives consume equally long substrings, and the earlier
+alternative wins the tie.
+
+The pattern $(a+ab)(b+\varepsilon)$ against \texttt{"ab"} presents a
+different situation. The two alternatives of $a+ab$ consume different
+amounts of input. The \texttt{ab} alternative can consume both characters,
+after which $(b+\varepsilon)$ matches $\varepsilon$. Alternatively, the
+\texttt{a} alternative consumes only the first character, leaving
+\texttt{b} to be matched by the \texttt{b} alternative of
+$(b+\varepsilon)$. Both choices produce a complete and valid match of the
+same input.
+
+Here, two natural disambiguation policies give different results. A
+policy that prefers the longer match selects the \texttt{ab} alternative,
+whereas a policy that gives priority to the earlier alternative selects
+\texttt{a}. Unlike the \texttt{"if"} example, neither choice can be
+dismissed as merely resolving a tie. The expression admits both parses,
+and selecting between them requires an explicit policy.
+
+Before such choices can be compared, however, the possible parses must be
+made explicit. A Boolean result records only that a match exists; it does
+not record the structural choices through which the match was obtained.
+Section~\ref{sec:parse-trees-as-evidence} represents these choices as
+\emph{parse trees} for a structured \emph{witness} to a
+match: it records how the structure of $r$ was used to consume $w$. When
+multiple parse trees witness the same match, the parser must determine
+which one to return.
+
+%
 
 \section{Parse Trees as Matching Evidence}
 \label{sec:parse-trees-as-evidence}
@@ -41,273 +133,1008 @@ Sulzmann and Lu formalize such a witness by viewing regular expressions as
 types and parse trees as the values inhabiting them
 \citep{sulzmannlu2014}. A parse tree $v$ is built from the same
 constructors used informally in Section~\ref{sec:regex-semantics}'s
-definition of $L(r)$ -- a pair for concatenation, a tagged left or right
-injection for alternation, a list for repetition -- and a judgment
-$\vdash v : r$, defined by structural recursion on both $v$ and $r$
-simultaneously, states that $v$ is a valid parse tree of $r$:
+definition of $L(r)$: a pair for concatenation, a tagged left or right
+injection for alternation, and a list for repetition. A judgment
+$\vdash v : r$, defined by structural recursion on both $v$ and $r$,
+states that $v$ is a valid parse tree for $r$:
+
 \[
 \begin{array}{ll}
 \vdash () : \varepsilon &
 \dfrac{l \in \Sigma}{\vdash l : l} \\[1.2em]
-\dfrac{\vdash v_1 : r_1 \quad \vdash v_2 : r_2}{\vdash (v_1,v_2) : r_1 r_2} &
-\dfrac{\vdash v_1 : r_1}{\vdash \mathit{Left}\ v_1 : r_1 + r_2} \quad
-\dfrac{\vdash v_2 : r_2}{\vdash \mathit{Right}\ v_2 : r_1 + r_2} \\[1.2em]
+\dfrac{\vdash v_1 : r_1 \quad \vdash v_2 : r_2}
+      {\vdash (v_1,v_2) : r_1 r_2}
+&
+\dfrac{\vdash v_1 : r_1}
+      {\vdash \mathit{Left}\ v_1 : r_1 + r_2}
+\quad
+\dfrac{\vdash v_2 : r_2}
+      {\vdash \mathit{Right}\ v_2 : r_1 + r_2}
+\\[1.2em]
 \dfrac{}{\vdash [\,] : r^{*}} &
-\dfrac{\vdash v : r \quad \vdash vs : r^{*}}{\vdash (v:vs) : r^{*}}
+\dfrac{\vdash v : r \quad \vdash vs : r^{*}}
+      {\vdash (v:vs) : r^{*}}
 \end{array}
 \]
-A \emph{flattening} function $|v|$ reads the underlying word back off a
-parse tree by structural recursion -- $|()| = \varepsilon$, $|l| = l$,
-$|(v_1,v_2)| = |v_1||v_2|$, $|\mathit{Left}\ v| = |\mathit{Right}\ v| =
-|v|$, and $|v : vs| = |v||vs|$ -- and the two are related by the property
-that matters: for every derivable $\vdash v : r$, the word $|v|$ is a
-member of $L(r)$. A parse tree is thus not merely evidence that $w \in
-L(r)$; each derivation of $\vdash v : r$ with $|v| = w$ \emph{is} a proof
-of that membership, in the same sense a value of a type is evidence that
-the type is inhabited.
 
-\paragraph{Warm-up example.}
-Before turning to a compound expression, it is worth seeing the rules
-apply to the simplest nontrivial case. For $r = a \cdot b$ against
-$w = \mathtt{ab}$, only one derivation is possible: the \emph{Pair} rule
-requires $\vdash v_1 : a$ and $\vdash v_2 : b$, and the only parse trees
-of a single literal are the literal itself, so $v_1 = a$, $v_2 = b$, and
+A \emph{flattening} function $\lvert v\rvert$ reads the word represented
+by a parse tree by structural recursion:
+
 \[
-\dfrac{\vdash a : a \quad \vdash b : b}{\vdash (a,b) : ab}
+\begin{aligned}
+\lvert ()\rvert &= \varepsilon, &
+\lvert l\rvert &= l, &
+\lvert [\,]\rvert &= \varepsilon, \\
+\lvert (v_1,v_2)\rvert &= \lvert v_1\rvert\lvert v_2\rvert, &
+\lvert \mathit{Left}\ v\rvert &= \lvert v\rvert, &
+\lvert \mathit{Right}\ v\rvert &= \lvert v\rvert, \\
+\lvert v:vs\rvert &= \lvert v\rvert\lvert vs\rvert. &&
+\end{aligned}
 \]
-is the only possible derivation, giving $v = (a,b)$ with $|v| = |a||b| =
-\mathtt{ab}$. Nothing here is ambiguous yet -- ambiguity, taken up in
-Section~\ref{sec:disambiguation-problem}, requires a choice point such as
-$+$ or $^{*}$ somewhere in $r$.
 
-\paragraph{Compound example.}
-Now take $r_1 = (a + ab)(b + \varepsilon)$ against the word
-$\mathtt{ab}$ (\texttt{paper\_r1} in the test suite,
-\texttt{tests/common/mod.rs}, reproducing the running example of
-\citep{sulzmannlu2014}). One valid derivation picks the second alternative
-of $a + ab$, matching \texttt{ab} in one step, then the empty alternative
-of $b + \varepsilon$:
+The key property is that the parse trees characterize the language:
+
 \[
-\dfrac{\vdash a : a \quad \vdash b : b}{\vdash (a,b) : ab} \Big/
-\dfrac{\vdash (a,b) : a + ab}{\vdash \mathit{Right}(a,b) : a + ab} \quad
-\dfrac{}{\vdash () : \varepsilon} \Big/
-\dfrac{\vdash () : \varepsilon}{\vdash \mathit{Right}() : b + \varepsilon}
+L(r) = \{\,\lvert v\rvert \mid \vdash v : r\,\}.
 \]
-yielding $v = (\mathit{Right}(a,b), \mathit{Right}())$ with $|v| =
-|(a,b)||()| = \mathtt{ab} \cdot \varepsilon = \mathtt{ab}$. A second,
-equally valid derivation exists for the same $r_1$ and the same word --
-Section~\ref{sec:disambiguation-problem} constructs it explicitly, since
-it is exactly what makes disambiguation necessary in the first place.
 
-\texttt{src/types/tree.rs} represents $v$ directly as the
-\texttt{ParseTree} enum -- \texttt{Empty}, \texttt{Char}, \texttt{Pair},
-\texttt{Left}, \texttt{Right}, \texttt{Star} correspond one to one with
-$()$, a literal, $(v_1,v_2)$, $\mathit{Left}\ v$, $\mathit{Right}\ v$, and
-$v{:}vs$ respectively (Section~\ref{sec:parsetree-and-flatten} presents
-the Rust type itself, alongside the rest of the \texttt{inj} parser it
-belongs to), and \texttt{flatten} is $|v|$ by structural recursion,
-matching each \texttt{ParseTree} case to the corresponding clause above.
-One constructor present in the reference's \texttt{U} type has no
-counterpart here: \texttt{Nil}, used there for the (untypeable) "no parse
-tree" case when a match does not exist. The Rust implementation has no
-need for it, representing absence of a parse tree with
-\texttt{Option<ParseTree>::None} at the type level instead -- a first,
-small instance of a translation choice Rust's type system invites that
-the untyped reference does not; Section~\ref{sec:translation-strategy}
-returns to this pattern more generally once the full implementation is on
-the table.
+Thus, a parse tree together with its derivation provides a structured
+\emph{witness} that $w \in L(r)$: it records not only that the match
+exists, but the choices made by the regular expression while producing
+$w$.
+
+%
 
 
+\paragraph{Unambiguous example.}
+For an unambiguous match, this witness is unique. For
+$r = a \cdot b$ and $w = \mathtt{ab}$, only one derivation is possible.
+The \emph{Pair} rule requires $\vdash v_1 : a$ and $\vdash v_2 : b$, and
+the only parse tree for each literal is the literal itself. Hence
+$v_1 = a$ and $v_2 = b$, giving
 
-\section{Ambiguity in Regular Expression Parsing}
+\[
+\dfrac{\vdash a : a \quad \vdash b : b}
+      {\vdash (a,b) : ab}.
+\]
+
+This is the only possible derivation, yielding $v = (a,b)$ with
+
+\[
+\lvert v\rvert
+= \lvert (a,b)\rvert
+= \lvert a\rvert\lvert b\rvert
+= \mathtt{ab}.
+\]
+
+When the structure of the expression permits different choices, the
+witness itself can be ambiguous. The first two examples below are
+adapted from the running examples of \citet{sulzmannlu2014} and are
+reproduced in this project's test suite as \texttt{paper\_r1} and
+\texttt{paper\_r2}. They are included here because the same cases are
+used later to illustrate and evaluate the parser implementations
+developed in Chapters~\ref{sec:derivative-parser} and
+\ref{sec:partial-derivative-parser}. The derivations given here provide
+a reference for that later discussion. Two further examples, drawn from
+this project's own test suite, follow.
+
+
+%
+
+\paragraph{Ambiguous example 1: concatenation.}
+Consider $r_1 = (a + ab)(b + \varepsilon)$ against $w = \mathtt{ab}$.
+One valid derivation chooses the second alternative of $a+ab$, which
+consumes both characters, and the empty alternative of
+$b+\varepsilon$:
+
+\[
+\dfrac{
+  \dfrac{\vdash a : a \quad \vdash b : b}
+        {\vdash (a,b) : ab}
+}{
+  \vdash \mathit{Right}(a,b) : a + ab
+}
+\qquad
+\dfrac{
+  \vdash () : \varepsilon
+}{
+  \vdash \mathit{Right}() : b + \varepsilon
+}
+\]
+
+and therefore
+
+\[
+\vdash
+\bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr)
+:
+(a+ab)(b+\varepsilon).
+\]
+
+The corresponding parse tree is
+
+\[
+v
+=
+\bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr),
+\]
+
+with
+
+\[
+\lvert v\rvert
+=
+\lvert (a,b)\rvert\,\lvert ()\rvert
+=
+\mathtt{ab}\,\varepsilon
+=
+\mathtt{ab}.
+\]
+
+This is not the only witness. The first alternative of $a+ab$ can
+instead consume $\mathtt{a}$, leaving $\mathtt{b}$ for the first
+alternative of $b+\varepsilon$:
+
+\[
+\dfrac{
+  \vdash a : a
+}{
+  \vdash \mathit{Left}\ a : a + ab
+}
+\qquad
+\dfrac{
+  \vdash b : b
+}{
+  \vdash \mathit{Left}\ b : b + \varepsilon
+}
+\]
+
+and therefore
+
+\[
+\vdash
+\bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr)
+:
+(a+ab)(b+\varepsilon).
+\]
+
+The corresponding parse tree is
+
+\[
+v'
+=
+\bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr),
+\]
+
+with
+
+\[
+\lvert v'\rvert
+=
+\lvert a\rvert\,\lvert b\rvert
+=
+\mathtt{ab}.
+\]
+
+Thus the same expression $r_1$ and word $w$ have two distinct parse
+trees, $v$ and $v'$, satisfying
+
+\[
+\lvert v\rvert = \lvert v'\rvert = \mathtt{ab}.
+\]
+
+%
+
+\paragraph{Ambiguous example 2: repetition.}
+The same phenomenon can arise from repetition rather than
+concatenation. Consider $r_2 = (a+b+ab)^{*}$ against $w = \mathtt{ab}$,
+nesting the alternation as $a+(b+ab)$
+(\texttt{paper\_r2}\footnote{The associativity of $+$ is immaterial to
+$L(r)$ and to this example.} in the test suite). One derivation uses a
+single iteration, taking the \texttt{ab} alternative directly:
+
+\[
+\dfrac{
+  \dfrac{
+    \dfrac{\vdash a : a \quad \vdash b : b}
+          {\vdash (a,b) : ab}
+  }{
+    \vdash \mathit{Right}(a,b) : b + ab
+  }
+}{
+  \vdash \mathit{Right}\ \mathit{Right}(a,b) : a + (b+ab)
+}
+\]
+
+which becomes a one-element list via the star's constructor rule:
+
+\[
+\vdash [\mathit{Right}\ \mathit{Right}(a,b)] : (a+(b+ab))^{*}.
+\]
+
+The corresponding parse tree is
+
+\[
+v_2 = [\mathit{Right}\ \mathit{Right}(a,b)],
+\qquad
+\lvert v_2\rvert = \lvert (a,b)\rvert = \mathtt{ab}.
+\]
+
+A second derivation instead uses two iterations, matching $\mathtt{a}$
+and $\mathtt{b}$ through separate alternatives of the star's body:
+
+\[
+\dfrac{\vdash a : a}
+      {\vdash \mathit{Left}\ a : a+(b+ab)}
+\qquad
+\dfrac{
+  \dfrac{\vdash b : b}
+        {\vdash \mathit{Left}\ b : b+ab}
+}{
+  \vdash \mathit{Right}\ \mathit{Left}\ b : a+(b+ab)
+}
+\]
+
+which combine, one iteration at a time, into
+
+\[
+\vdash [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b] :
+(a+(b+ab))^{*}.
+\]
+
+The corresponding parse tree, with two iterations of the star, is
+
+\[
+v_2' = [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b],
+\qquad
+\lvert v_2'\rvert = \lvert a\rvert\,\lvert b\rvert = \mathtt{ab}.
+\]
+
+
+As with $r_1$, both $v_2$ and $v_2'$ witness the same match: ambiguity
+here comes from how many iterations the star takes, not from which
+top-level alternative fires.
+
+%
+
+\paragraph{Ambiguous example 3: duplicate alternatives.}
+Concatenation and repetition are not the only sources of ambiguity.
+Consider $r_3 = (a+a)^{*}$ against $w = \mathtt{aa}$. Here the star's
+body contains two syntactically distinct but semantically identical
+alternatives for the same literal. This is an instance of
+\texttt{ambiguous\_star\_dedup\_matches\_bitcoded} in
+\texttt{src/parsers/pderiv\_std/parse.rs}
+\footnote{The test uses a four-character input; the two-character case
+shown here exhibits the same phenomenon.}.
+
+Each of the two positions in $w$ can
+independently be matched by either the left or the right copy of
+\texttt{a}, giving four distinct parse trees for this two-character
+input alone:
+
+\[
+[\mathit{Left}\ a,\mathit{Left}\ a],\quad
+[\mathit{Left}\ a,\mathit{Right}\ a],\quad
+[\mathit{Right}\ a,\mathit{Left}\ a],\quad
+[\mathit{Right}\ a,\mathit{Right}\ a],
+\]
+
+all flattening to $\mathtt{aa}$. Nothing about $\mathit{Left}\ a$ and
+$\mathit{Right}\ a$ distinguishes them semantically; the ambiguity is
+entirely an artifact of writing the same alternative twice. This kind
+of duplication is particularly relevant to the partial-derivative
+parser, where distinct syntactic paths can produce equivalent residual
+matches. The deduplication mechanisms discussed in
+Chapter~\ref{sec:partial-derivative-parser} prevent such redundant
+paths from accumulating in the parse frontier.
+
+
+%
+
+\paragraph{Ambiguous example 4: an IPv4 pattern.}
+The previous examples isolate particular sources of ambiguity. The same
+phenomenon also occurs in a pattern taken from practice: a regular
+expression for dotted-quad IPv4 addresses from the Snort
+intrusion-detection dataset studied by \citet{mamouras2024}. The pattern
+is included in this project's test suite as
+\texttt{snort\_ip\_regex}\footnote{\texttt{tests/test\_frontend.rs}.}.
+
+\begin{center}
+\texttt{((\textbackslash d[1-9]\textbackslash d|1\textbackslash d\textbackslash d|2[0-4]\textbackslash d|25[0-5])\textbackslash .)\{3\}}\\
+\texttt{(\textbackslash d[1-9]\textbackslash d|1\textbackslash d\textbackslash d|2[0-4]\textbackslash d|25[0-5])}
+\end{center}
+
+using the class and repetition shorthands of
+Section~\ref{sec:frontend-translate}, under which \texttt{\textbackslash
+d} desugars to a ten-way alternation of the literals \texttt{0}
+through \texttt{9} and \texttt{\{3\}} desugars to three concatenated
+copies of its operand. The pattern concatenates four copies of a
+shared three-character octet pattern, separated by literal dots. Write
+$O = A+B+C+D$ for this shared four-way alternation, with
+
+\begin{center}
+$A = $ \texttt{\textbackslash d[1-9]\textbackslash d} \quad
+$B = $ \texttt{1\textbackslash d\textbackslash d} \quad
+$C = $ \texttt{2[0-4]\textbackslash d} \quad
+$D = $ \texttt{25[0-5]},
+\end{center}
+
+left-associated as $((A+B)+C)+D$, so that the full pattern is
+$(O\,\mathtt{.})^{3}O$ with the final dot omitted. Already at the level
+of a single octet, $O$ is ambiguous on some inputs in exactly the sense
+of $r_1$: against $w=\mathtt{239}$, alternative $A$ matches, reading
+the digits as \emph{any digit}, \emph{a digit from \texttt{1} to
+\texttt{9}}, \emph{any digit}; but so does alternative $C$, reading
+\texttt{2} as the literal \texttt{2}, \texttt{3} as a digit from
+\texttt{0} to \texttt{4}, and \texttt{9} as any digit ($B$ and $D$ both
+fail, since $w$ does not begin with \texttt{1} or \texttt{25}). 
+Both $A$ and $C$ consume all three characters of $w$. Thus, unlike
+$r_3$, where the alternatives are semantically identical, the ambiguity
+here is between two genuinely different alternatives that happen to
+match the same substring.
+
+
+%
+
+
+\section{Disambiguation Policies}
 \label{sec:disambiguation-problem}
 
-The judgment $\vdash v : r$ is not functional: for a fixed $r$ and $w$,
-there can be more than one $v$ with $\vdash v : r$ and $|v| = w$. Return
-to $r_1 = (a + ab)(b + \varepsilon)$ against $\mathtt{ab}$ from
-Section~\ref{sec:parse-trees-as-evidence}: alongside
-$v = (\mathit{Right}(a,b), \mathit{Right}())$, the \emph{first}
-alternative of $a + ab$ also leads to a valid, different derivation --
-match $\mathtt{a}$ against the first alternative, leaving $\mathtt{b}$ for
-$b + \varepsilon$'s own first alternative:
+
+The parse-tree judgment identifies every valid witness, but it does not
+say which witness a parser should return. A \emph{disambiguation policy}
+adds this missing choice. Given a regular expression $r$ and word $w$, the
+policy selects one parse tree $v$ satisfying
+
 \[
-\dfrac{}{\vdash a : a} \Big/
-\dfrac{\vdash a : a}{\vdash \mathit{Left}\ a : a + ab} \quad
-\dfrac{}{\vdash b : b} \Big/
-\dfrac{\vdash b : b}{\vdash \mathit{Left}\ b : b + \varepsilon}
+\vdash v : r
+\qquad\text{and}\qquad
+\lvert v\rvert = w.
 \]
-giving $v' = (\mathit{Left}\ a, \mathit{Left}\ b)$, with $|v'| =
-|a||b| = \mathtt{ab}$ -- the same word, a different parse. A second
-example makes the same point with repetition instead of concatenation:
-$r_2 = (a + b + ab)^{*}$ against $\mathtt{ab}$
-(\texttt{paper\_r2}\footnote{As implemented, \texttt{paper\_r2} nests
-the alternation as $a + (b + ab)$; the associativity of $+$ is immaterial
-to $L(r)$ and to this example.} in the test suite). One iteration of the
-star can consume $\mathtt{ab}$ in a single step via the third alternative,
-giving $v = [\mathit{Right}\ \mathit{Right}(a,b)]$; alternatively, two
-iterations can consume $\mathtt{a}$ and $\mathtt{b}$ separately via the
-first two alternatives, giving $v' = [\mathit{Left}\ a,\ \mathit{Right}\
-\mathit{Left}\ b]$. Nothing in Section~\ref{sec:parse-trees-as-evidence}'s
-typing rules prefers one derivation over the other in either example. A
-parser that must return a single answer therefore needs an explicit
-\emph{disambiguation policy}: a rule that, given $r$ and $w$, picks out
-one $v$ from the (possibly many) parse trees satisfying $\vdash v : r$
-and $|v| = w$.
+
+The four ambiguous examples above illustrate why the policy matters, and
+in more than one way. For $r_1$ and $\mathtt{ab}$, one witness chooses
+$\texttt{a}$ before $\texttt{b}$, while the other assigns the whole input
+to $\texttt{ab}$. For $r_2$ and $\mathtt{ab}$, one witness uses two
+iterations and the other uses one. For $r_3$ and $\mathtt{aa}$, four
+witnesses differ only in which of two identical alternatives each
+position is attributed to. For $O$ and $\mathtt{239}$, two alternatives
+with different content, not merely different labels, both happen to
+consume the whole octet. Different matching conventions select
+different witnesses, and, as $r_3$ and $O$ show, a policy also has to
+say something about witnesses that agree on every character consumed
+and differ only in which alternative gets the credit.
+
+The two policies considered here resolve these choices differently.
+Greedy matching follows the structural priority of the expression,
+whereas POSIX matching gives priority to longer leftmost submatches.
+Their difference becomes clear when they are applied to the same
+ambiguous expression.
+
+
+%
 
 
 \subsection{Greedy Leftmost Matching}
 \label{sec:greedy-leftmost}
 
-The policy implicit in backtracking engines is \emph{greedy}: alternatives
-are tried in left-to-right order and the first one that leads to an
-overall match wins, and inside a Kleene star, one more iteration is always
-attempted before the star is allowed to stop \citep{frischcardelli2004}.
-Operationally this is exactly what a backtracking matcher's exploration
-order already realizes; formalized as an ordering on parse trees, the
-relevant rule states that between two candidates agreeing everywhere else,
-$\mathit{Left}\ v \geq_{r_1+r_2} \mathit{Right}\ v'$ always -- the left
-alternative is preferred outright, independent of how long a match each
-side produces.
+The policy associated with conventional backtracking matchers is
+\emph{Greedy}. Alternatives are considered from left to right, and the
+first alternative that leads to an overall match is selected. 
+Within a Kleene star, another iteration is preferred to stopping whenever
+continuing the repetition can still lead to an overall match
+\citep{frischcardelli2004}.
 
-Applied to $r_1 = (a + ab)(b + \varepsilon)$ against $\mathtt{ab}$ from
-above, Greedy matching tries the first alternative of $a + ab$ first: $a$
-matches the leading character, so the engine commits to it immediately
-without ever considering whether $ab$ might have matched more. What
-remains, $\mathtt{b}$, is then matched against $b + \varepsilon$, whose
-own first alternative $b$ succeeds directly. The Greedy result is
-therefore $v' = (\mathit{Left}\ a, \mathit{Left}\ b)$ -- the \emph{second}
-of the two derivations found in Section~\ref{sec:disambiguation-problem}.
-Section~\ref{sec:posix-longest-leftmost} revisits this exact pair $(r_1,
-\mathtt{ab})$ once the POSIX ordering has been introduced, and finds the
-opposite answer.
+For alternatives, the defining preference is structural: the left
+alternative is preferred regardless of how much input the two
+alternatives consume. In an ordering notation, the essential rule is
 
+\[
+\mathit{Left}\ v
+\succ_{r_1+r_2}
+\mathit{Right}\ v'.
+\]
+
+\paragraph{Applied to $r_1$.}
+Greedy first tries the \texttt{a} alternative. It consumes the leading
+\texttt{a}, and the remaining \texttt{b} is successfully matched by the
+first alternative of $b+\varepsilon$. Since the complete match succeeds,
+there is no need to try the \texttt{ab} alternative. The Greedy result is
+therefore
+
+\[
+v'
+=
+\bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr).
+\]
+
+\paragraph{Applied to $r_2$.}
+Greedy similarly begins with the first alternative, matching $\mathtt{a}$.
+The star then attempts another iteration, in which the first alternative
+fails on $\mathtt{b}$ and the second alternative succeeds. The resulting
+parse uses two iterations:
+
+\[
+v_2'
+=
+[\mathit{Left}\ a,\mathit{Right}\ \mathit{Left}\ b].
+\]
+
+The Greedy result therefore depends directly on the order in which the
+regular expression presents its alternatives.
+
+\paragraph{Applied to $r_3$.}
+At each of the two positions, $\mathit{Left}\ v \succ_{a+a} \mathit{Right}\
+v'$ applies directly, regardless of length, since both alternatives
+consume the same single character. Greedy therefore selects the left
+alternative every time:
+
+\[
+[\mathit{Left}\ a,\mathit{Left}\ a].
+\]
+
+Unlike $r_1$ and $r_2$, this result is not decided by which alternative
+matches more of the input; every alternative here matches exactly one
+character. It is decided purely by position in the pattern, the same
+kind of tie-breaking that Section~\ref{sec:matching-problem} showed
+resolving \texttt{"if"} against \texttt{if|[a-z]+}.
+
+\paragraph{Applied to $O$.}
+Against $w=\mathtt{239}$, Greedy tries $O$'s alternatives left to
+right: $A$, then $B$, then $C$, then $D$. Alternative $A$ matches the
+leading digit \texttt{2} against \texttt{\textbackslash d}, the digit
+\texttt{3} against \texttt{[1-9]}, and the digit \texttt{9} against
+\texttt{\textbackslash d}, consuming all three characters. Since this
+already produces a complete match, Greedy never tries $B$, $C$, or
+$D$, even though $C$ would also have matched. The Greedy result
+selects $A$, exactly as it selected the left alternative of $r_1$ and
+of $r_3$: once an alternative leads to a full match, later
+alternatives are never even attempted.
+
+%
+
+%\paragraph{Procedural versus declarative view.}
+%The description above gives a procedural intuition for Greedy matching: 
+%alternatives are considered from left to right, and a choice is retained 
+%when it can be extended to a complete match. The relation $\succ_r$, by contrast, 
+%is a declarative ordering on the parse trees admitted by $r$ and $w$. 
+%For ordinary cases in which a Greedy-preferred parse exists, these two views agree: 
+%the parse returned by the Greedy procedure is the $\succ_r$-maximal parse tree. 
+%The ordering therefore provides the semantic specification, 
+%while the procedural description explains the intuition for how that 
+%preference is commonly realized. The distinction matters in 
+%Section~\ref{sec:infinite-empty-chain}, where the Greedy ordering can have no 
+%maximal element even though a concrete parser can still compute the intended 
+%Greedy result.
+
+%
 
 \subsection{The Infinite Empty-Match Chain Problem}
 \label{sec:infinite-empty-chain}
 
-Greedy's "always iterate before stopping" rule interacts badly with
-expressions that can match the empty word inside a star.
-Take $\varepsilon^{*}$ against the empty input: since $\varepsilon$ itself
-is nullable, nothing stops the star from iterating arbitrarily many times
-while still matching only $\varepsilon$ overall, and Greedy's preference
-for "one more iteration" ranks every such expansion above the last:
-\[
-v_0 = [\,] \; <_{\varepsilon^{*}} \; v_1 = [()] \; <_{\varepsilon^{*}} \;
-v_2 = [(),()] \; <_{\varepsilon^{*}} \; \cdots
-\]
-This chain has no maximum, so Greedy matching on $\varepsilon^{*}$ is only
-well-defined once such \emph{problematic} expressions are given special
-treatment beyond the ordering rule of
-Section~\ref{sec:greedy-leftmost} alone. The same issue appears in
-slightly less degenerate form for $(\varepsilon + a)^{*}$ against
-$\mathtt{a}$, where $v_0 = [\mathit{Right}\ a]$, $v_1 = [\mathit{Left}\ (),
-\mathit{Right}\ a]$, $v_2 = [\mathit{Left}\ (), \mathit{Left}\ (),
-\mathit{Right}\ a]$, \ldots again form an infinite ascending chain under
-Greedy, this time padding an arbitrary number of empty iterations in front
-of the one iteration that actually consumes $\mathtt{a}$.
-Section~\ref{sec:posix-longest-leftmost} shows exactly how POSIX's rule
-(K1) blocks both chains at $v_0$ directly, with no special case required.
+Greedy's preference for continuing a repetition creates a problem when
+the repeated expression can match the empty word. Consider
+$\varepsilon^{*}$ against the empty input. The following parse trees are
+all valid:
 
+\[
+v_0 = [\,],
+\qquad
+v_1 = [()],
+\qquad
+v_2 = [(),()],
+\qquad \ldots
+\]
+
+Each additional iteration still produces the same flattened word
+$\varepsilon$. Under the Greedy ordering, every additional iteration is
+preferred:
+
+\[
+v_0
+\prec_{\varepsilon^{*}}
+v_1
+\prec_{\varepsilon^{*}}
+v_2
+\prec_{\varepsilon^{*}}
+\cdots.
+\]
+
+There is therefore no maximal parse tree. The problem is not that the
+language is ill-defined; $\varepsilon$ is clearly a valid match. The
+problem is that the Greedy preference does not identify a largest witness
+when empty iterations can be added indefinitely.
+
+A slightly less degenerate example is
+$(\varepsilon+a)^{*}$ against $\mathtt{a}$. The parse trees
+
+\[
+\begin{aligned}
+v_0 &= [\mathit{Right}\ a],\\
+v_1 &= [\mathit{Left}\ (),\mathit{Right}\ a],\\
+v_2 &= [\mathit{Left}\ (),\mathit{Left}\ (),\mathit{Right}\ a],\\
+&\quad\vdots
+\end{aligned}
+\]
+
+all flatten to $\mathtt{a}$. Greedy prefers each additional empty
+iteration, producing another infinite ascending chain.
+
+The same pathology reappears whenever a star's body is itself nullable,
+not just when the body is $\varepsilon$ outright. Take $(a^{*})^{*}$
+against $\mathtt{aaa}$: since the inner $a^{*}$ can always match
+$\varepsilon$, an outer iteration contributing nothing is always
+available, and Greedy always prefers taking it:
+
+\[
+[[a,a,a]]
+\;\prec_{(a^{*})^{*}}\;
+[[a,a,a],[\,]]
+\;\prec_{(a^{*})^{*}}\;
+[[a,a,a],[\,],[\,]]
+\;\prec_{(a^{*})^{*}}\;
+\cdots,
+\]
+
+another infinite ascending chain, this time built on top of an
+otherwise unambiguous inner match rather than on $\varepsilon$ itself.
+Nested, mutually nullable stars of this shape are also the classic
+trigger for catastrophic backtracking in engines that search for a
+Greedy-maximal match directly \citep{cox2007}; the ordering-theoretic
+failure identified here is the same failure that shows up operationally
+as exponential blowup in those engines. The frontier-based Greedy
+parsers of Chapter~\ref{sec:partial-derivative-parser} do not search for
+an ordering maximum at all, so this particular failure mode does not
+resurface there; Section~\ref{sec:posix-longest-leftmost} returns to
+$(a^{*})^{*}$ once POSIX's rule (K1) is available, to show why POSIX
+does not have this problem either.
+
+This exposes a limitation of the Greedy ordering: without additional
+restrictions or special handling of empty matches, a maximal parse tree
+need not exist. The POSIX ordering avoids this problem by treating empty
+matches explicitly.
 
 \subsection{POSIX Longest-Leftmost Matching}
 \label{sec:posix-longest-leftmost}
 
-The POSIX standard specifies a different policy, \emph{leftmost-longest}
-matching:
+POSIX uses a different disambiguation policy. Subpatterns are compared
+according to the length of the substrings they match, with subpatterns
+that occur earlier in the regular expression taking priority. The
+standard describes this as giving subpatterns the ``longest possible
+substrings'' while giving earlier subpatterns priority over later ones
+\citep{posix_ere}.
 
-\begin{quote}
-``Subpatterns should match the longest possible substrings, where
-subpatterns that start earlier (to the left) in the regular expression
-take priority over ones starting later. Hence, higher-level subpatterns
-take priority over their lower-level component subpatterns. Matching an
-empty string is considered longer than no match at all.''
-\citep{posix_ere}
-\end{quote}
+Sulzmann and Lu formalize this policy as an ordering on parse trees
+\citep{sulzmannlu2014}. Let $\operatorname{len}(w)$ denote the number of
+characters in $w$. The ordering is defined by the following rules:
 
-Sulzmann and Lu formalize this as an ordering $\geq_r$ on parse trees of a
-fixed $r$, obtained from the Greedy order of
-Section~\ref{sec:greedy-leftmost} by replacing exactly one rule and
-leaving the rest unchanged \citep{sulzmannlu2014}:
 \[
 \begin{array}{ll}
-\text{(C1)} & \dfrac{v_1 = v_1' \quad v_2 \geq_{r_2} v_2'}{(v_1,v_2) \geq_{r_1 r_2} (v_1',v_2')} \\[1em]
-\text{(C2)} & \dfrac{v_1 \geq_{r_1} v_1'}{(v_1,v_2) \geq_{r_1 r_2} (v_1',v_2')} \\[1em]
-\text{(A1)} & \dfrac{\mathrm{len}\,|v_2| > \mathrm{len}\,|v_1|}{\mathit{Right}\ v_2 \geq_{r_1+r_2} \mathit{Left}\ v_1} \\[1em]
-\text{(A2)} & \dfrac{\mathrm{len}\,|v_1| \geq \mathrm{len}\,|v_2|}{\mathit{Left}\ v_1 \geq_{r_1+r_2} \mathit{Right}\ v_2} \\[1em]
-\text{(A3)} & \dfrac{v_2 \geq_{r_2} v_2'}{\mathit{Right}\ v_2 \geq_{r_1+r_2} \mathit{Right}\ v_2'} \\[1em]
-\text{(A4)} & \dfrac{v_1 \geq_{r_1} v_1'}{\mathit{Left}\ v_1 \geq_{r_1+r_2} \mathit{Left}\ v_1'} \\[1em]
-\text{(K1)} & \dfrac{|v : vs| = \varepsilon}{[\,] \geq_{r^{*}} v : vs} \\[1em]
-\text{(K2)} & \dfrac{|v : vs| \neq \varepsilon}{v : vs \geq_{r^{*}} [\,]} \\[1em]
-\text{(K3)} & \dfrac{v_1 \geq_r v_2}{v_1 : vs_1 \geq_{r^{*}} v_2 : vs_2} \\[1em]
-\text{(K4)} & \dfrac{v_1 = v_2 \quad vs_1 \geq_{r^{*}} vs_2}{v_1 : vs_1 \geq_{r^{*}} v_2 : vs_2}
+\text{(C1)} &
+\dfrac{
+  v_1 = v_1'
+  \quad
+  v_2 \succ_{r_2} v_2'
+}{
+  (v_1,v_2) \succ_{r_1 r_2} (v_1',v_2')
+}
+\\[1.2em]
+
+\text{(C2)} &
+\dfrac{
+  v_1 \succ_{r_1} v_1'
+}{
+  (v_1,v_2) \succ_{r_1 r_2} (v_1',v_2')
+}
+\\[1.2em]
+
+\text{(A1)} &
+\dfrac{
+  \operatorname{len}(\lvert v_2\rvert)
+  >
+  \operatorname{len}(\lvert v_1\rvert)
+}{
+  \mathit{Right}\ v_2
+  \succ_{r_1+r_2}
+  \mathit{Left}\ v_1
+}
+\\[1.2em]
+
+\text{(A2)} &
+\dfrac{
+  \operatorname{len}(\lvert v_1\rvert)
+  \geq
+  \operatorname{len}(\lvert v_2\rvert)
+}{
+  \mathit{Left}\ v_1
+  \succ_{r_1+r_2}
+  \mathit{Right}\ v_2
+}
+\\[1.2em]
+
+\text{(A3)} &
+\dfrac{
+  v_2 \succ_{r_2} v_2'
+}{
+  \mathit{Right}\ v_2
+  \succ_{r_1+r_2}
+  \mathit{Right}\ v_2'
+}
+\\[1.2em]
+
+\text{(A4)} &
+\dfrac{
+  v_1 \succ_{r_1} v_1'
+}{
+  \mathit{Left}\ v_1
+  \succ_{r_1+r_2}
+  \mathit{Left}\ v_1'
+}
+\\[1.2em]
+
+\text{(K1)} &
+\dfrac{
+  \lvert v:vs\rvert = \varepsilon
+}{
+  [\,]
+  \succ_{r^{*}}
+  v:vs
+}
+\\[1.2em]
+
+\text{(K2)} &
+\dfrac{
+  \lvert v:vs\rvert \neq \varepsilon
+}{
+  v:vs
+  \succ_{r^{*}}
+  [\,]
+}
+\\[1.2em]
+
+\text{(K3)} &
+\dfrac{
+  v_1 \succ_r v_2
+}{
+  v_1:vs_1
+  \succ_{r^{*}}
+  v_2:vs_2
+}
+\\[1.2em]
+
+\text{(K4)} &
+\dfrac{
+  v_1 = v_2
+  \quad
+  vs_1 \succ_{r^{*}} vs_2
+}{
+  v_1:vs_1
+  \succ_{r^{*}}
+  v_2:vs_2
+}
 \end{array}
 \]
-Congruence rules (C1), (C2) propagate a componentwise comparison through
-pairs: two concatenated parse trees compare by comparing each component
-in turn, with equality on the first component falling through to the
-second (C1). In place of Greedy's unconditional "left beats right", (A1)
-and (A2) compare by \emph{length} first: whichever alternative produces
-the longer match wins outright (A1), and only when both sides match the
-same length does the left alternative win (A2) -- recovering
-left-preference as a tie-breaker rather than an absolute rule. (A3), (A4)
-recurse structurally once a side has already been fixed. The remaining
-rules govern Kleene star lists: (K1) prefers the empty list $[\,]$ over
-any list of iterations that together still flatten to $\varepsilon$, and
-(K2) is its mirror image, preferring any non-empty-flattening list over
-an empty-flattening one; (K3), (K4) recurse into the list structurally
-once the head elements are compared, first by the ordering on the star's
-body ($r$, via (K3)) and, only on equality, by the tail (via (K4)).
 
-\paragraph{POSIX applied to the running example.}
-Return once more to $r_1 = (a+ab)(b+\varepsilon)$ against $\mathtt{ab}$,
-comparing $v = (\mathit{Right}(a,b), \mathit{Right}())$ against
-$v' = (\mathit{Left}\ a, \mathit{Left}\ b)$ from
-Section~\ref{sec:disambiguation-problem}. Both share the same regular
-expression, so (C2) applies to the first component: comparing
-$\mathit{Right}(a,b)$ against $\mathit{Left}\ a$ within $a + ab$ is a
-direct instance of (A1), since $\mathrm{len}\,|(a,b)| = 2 > 1 =
-\mathrm{len}\,|a|$. Hence $\mathit{Right}(a,b) \geq_{a+ab} \mathit{Left}\
-a$, and by (C2), $v \geq_{r_1} v'$ -- POSIX selects $v$, the
-\emph{opposite} of Greedy's answer for the same $(r_1, \mathtt{ab})$ found
-in Section~\ref{sec:greedy-leftmost}.
+The corresponding non-strict relation $\succeq_r$ is defined by
 
-\paragraph{POSIX applied to the star example.}
-For $r_2 = (a + b + ab)^{*}$ against $\mathtt{ab}$, comparing
-$v = [\mathit{Right}\ \mathit{Right}(a,b)]$ against
-$v' = [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b]$ starts with
-(K3), comparing head elements $\mathit{Right}\ \mathit{Right}(a,b)$ and
-$\mathit{Left}\ a$ within the star's body $a + (b + ab)$. This is again
-(A1): $\mathrm{len}\,|\mathit{Right}(a,b)| = 2 > 1 = \mathrm{len}\,|a|$,
-so $\mathit{Right}\ \mathit{Right}(a,b) \geq_{a+(b+ab)} \mathit{Left}\ a$,
-and (K3) lifts this to $[\mathit{Right}\ \mathit{Right}(a,b)]
-\geq_{r_2} [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b]$ directly
--- the single two-character iteration beats the two one-character
-iterations under POSIX.
+\[
+v_1 \succeq_r v_2
+\quad\Longleftrightarrow\quad
+v_1 = v_2
+\quad\text{or}\quad
+v_1 \succ_r v_2.
+\]
 
-\paragraph{POSIX applied to the infinite-chain examples.}
+Rules (C1) and (C2) propagate comparisons through concatenation.
+Rule (C1) compares the second component when the first components are
+equal, while (C2) gives priority to the first component whenever it
+differs. Thus, earlier subexpressions have priority over later ones.
+
+Rules (A1)--(A4) define the crucial difference from Greedy matching.
+When two alternatives compete, the alternative producing the longer
+substring is preferred. If the two substrings have the same length,
+(A2) gives preference to the left alternative. Rules (A3) and (A4)
+continue the comparison when both candidates have already chosen the
+same alternative.
+
+Rules (K1)--(K4) apply the same idea to repetition. In particular,
+(K1) prefers the empty list when a non-empty sequence of iterations also
+flattens to $\varepsilon$, while (K2) prefers a non-empty match over the
+empty list. Rules (K3) and (K4) compare the iterations structurally,
+first comparing their heads and then their tails.
+
+\paragraph{Applied to $r_1$.}
+Return to
+$r_1=(a+ab)(b+\varepsilon)$ against $\mathtt{ab}$, with
+
+\[
+v
+=
+\bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr)
+\]
+
+and
+
+\[
+v'
+=
+\bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr).
+\]
+
+The two parse trees already choose different alternatives within
+$a+ab$, so rule (C2) applies directly, reducing the comparison to
+exactly those first components,
+
+\[
+\mathit{Right}(a,b)
+\quad\text{versus}\quad
+\mathit{Left}\ a
+\]
+
+within $a+ab$. Rule (A1) applies because
+
+\[
+\operatorname{len}(\lvert(a,b)\rvert)
+=
+2
+>
+1
+=
+\operatorname{len}(\lvert a\rvert).
+\]
+
+Hence
+
+\[
+\mathit{Right}(a,b)
+\succ_{a+ab}
+\mathit{Left}\ a,
+\]
+
+and therefore
+
+\[
+v \succeq_{r_1} v'.
+\]
+
+POSIX consequently selects
+
+\[
+v
+=
+\bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr),
+\]
+
+which is the opposite of the Greedy result.
+
+\paragraph{Applied to $r_2$.}
+For
+$r_2=(a+b+ab)^{*}$ against $\mathtt{ab}$, consider
+
+\[
+v_2 =
+[\mathit{Right}\ \mathit{Right}(a,b)]
+\]
+
+and
+
+\[
+v_2' =
+[\mathit{Left}\ a,\mathit{Right}\ \mathit{Left}\ b].
+\]
+
+Rule (K3) compares the first iterations within the body
+$a+(b+ab)$:
+
+\[
+\mathit{Right}\ \mathit{Right}(a,b)
+\quad\text{versus}\quad
+\mathit{Left}\ a.
+\]
+
+Again, (A1) applies because the first candidate consumes two
+characters while the second consumes one:
+
+\[
+\operatorname{len}(\lvert\mathit{Right}(a,b)\rvert)
+=
+2
+>
+1
+=
+\operatorname{len}(\lvert a\rvert).
+\]
+
+Thus
+
+\[
+\mathit{Right}\ \mathit{Right}(a,b)
+\succ_{a+(b+ab)}
+\mathit{Left}\ a,
+\]
+
+and (K3) lifts this comparison to the star:
+
+\[
+v_2
+\succeq_{r_2}
+v_2'.
+\]
+
+POSIX therefore selects the single two-character iteration, whereas
+Greedy selects the two one-character iterations.
+
+\paragraph{Applied to $r_3$.}
+For $r_3=(a+a)^{*}$ against $\mathtt{aa}$, every candidate alternative at
+every position matches exactly one character, so (A1)'s strict
+inequality never holds and every comparison falls to (A2)'s tie-break:
+
+\[
+\operatorname{len}(\lvert a\rvert)
+\geq
+\operatorname{len}(\lvert a\rvert)
+\quad\Longrightarrow\quad
+\mathit{Left}\ a \succ_{a+a} \mathit{Right}\ a.
+\]
+
+(K3) and (K4) lift this position by position, giving the same result as
+Greedy:
+
+\[
+[\mathit{Left}\ a,\mathit{Left}\ a].
+\]
+
+Unlike $r_1$ and $r_2$, Greedy and POSIX agree here. This is not a
+coincidence: (A2) only ever overrules (A1) when both alternatives tie in
+length, and a tie is exactly the condition under which Greedy's
+unconditional left-preference and POSIX's tie-broken left-preference
+compute the same thing, the same connection already observed for
+\texttt{"if"} in Section~\ref{sec:matching-problem}.
+
+\paragraph{Applied to $O$.}
+For $O=((A+B)+C)+D$ against $w=\mathtt{239}$, only $A$ and $C$ match
+at all, so the comparison is between a tree choosing $A$ and a tree
+choosing $C$. Both trees agree on the outer alternation: neither
+chooses $D$, so the comparison reduces, by (A4), to a comparison
+within $(A+B)+C$ of a tree choosing $A$ (further inside $A+B$) against
+one choosing $C$ directly. Since $A$ and $C$ both consume the full
+input,
+
+\[
+\operatorname{len}(\lvert v_A\rvert)
+=
+3
+=
+\operatorname{len}(\lvert v_C\rvert),
+\]
+
+so (A1)'s strict inequality fails and (A2) resolves the tie in favor
+of the left-hand candidate, the one going through $A+B$ and ultimately
+choosing $A$. POSIX therefore also selects $A$. As with $r_3$, this is
+not a coincidence: $A$ and $C$ tie in length, so (A2)'s tie-break
+coincides with Greedy's unconditional left-preference, even though $A$
+and $C$, unlike $r_3$'s two copies of \texttt{a}, are not otherwise
+interchangeable.
+
+\paragraph{Applied to the infinite-chain examples.}
 Rule (K1) resolves Section~\ref{sec:infinite-empty-chain}'s pathology
-directly: for $\varepsilon^{*}$ against $\varepsilon$, comparing
-$v_0 = [\,]$ against $v_1 = [()]$ instantiates (K1) with $v = ()$,
-$vs = [\,]$, whose flattening $|() : [\,]| = |()| \, |[\,]| = \varepsilon
-\cdot \varepsilon = \varepsilon$ satisfies the rule's premise immediately,
-giving $[\,] \geq_{\varepsilon^{*}} [()]$ -- and by the same argument
-against $v_2, v_3, \ldots$, against every element of the chain at once,
-with no separate case analysis needed for each one. The same instantiation
-of (K1) applies to $(\varepsilon + a)^{*}$ against $\mathtt{a}$: every
-$v_i$ in that chain other than $v_0 = [\mathit{Right}\ a]$ itself
-flattens to $\mathtt{a}$ once the trailing $\mathit{Right}\ a$ is
-accounted for, but the comparison that matters is between $v_0$ and the
-empty-flattening prefix chains layered in front of it in
-$v_1, v_2, \ldots$ -- and (K1) again picks the shorter, un-padded
-$v_0$ over any of them.
+directly: for $\varepsilon^{*}$ against $\varepsilon$, since
 
-Unlike the Greedy order, $\geq_r$ is total and has a maximal element for
-\emph{every} expression $r$, including the problematic ones of
-Section~\ref{sec:infinite-empty-chain} -- (K1) already picks out $[\,]$ as
-maximal for $\varepsilon^{*}$ with no separate case analysis required
-\citep{sulzmannlu2014}. This single well-definedness property is what
-makes POSIX matching amenable to a direct algorithmic construction rather
-than a family of special cases, and it is exactly what
-Chapter~\ref{sec:derivative-parser} builds a parser around: a way to
-compute the $\geq_r$-maximal parse tree without materializing and
-comparing every candidate.
+\[
+\lvert () : [\,]\rvert
+=
+\lvert ()\rvert\,\lvert [\,]\rvert
+=
+\varepsilon,
+\]
+
+(K1) gives
+
+\[
+[\,]
+\succ_{\varepsilon^{*}}
+[()].
+\]
+
+The same rule applies to every longer list of empty iterations. Thus
+$[\,]$ is preferred to every parse tree obtained by repeatedly matching
+$\varepsilon$.
+
+For $(\varepsilon+a)^{*}$ against $\mathtt{a}$, the relevant comparison
+is different. Consider
+
+\[
+v_0=[\mathit{Right}\ a]
+\]
+
+and
+
+\[
+v_1=[\mathit{Left}\ (),\mathit{Right}\ a].
+\]
+
+Rule (K3) compares their first iterations, reducing the comparison to
+
+\[
+\mathit{Right}\ a
+\quad\text{versus}\quad
+\mathit{Left}\ ()
+\]
+
+within $\varepsilon+a$. Rule (A1) applies because
+
+\[
+\operatorname{len}(\lvert a\rvert)
+=
+1
+>
+0
+=
+\operatorname{len}(\lvert ()\rvert).
+\]
+
+Therefore
+
+\[
+\mathit{Right}\ a
+\succ_{\varepsilon+a}
+\mathit{Left}\ (),
+\]
+
+and hence
+
+\[
+v_0
+\succ_{(\varepsilon+a)^{*}}
+v_1.
+\]
+
+The same comparison applies to every parse tree obtained by inserting
+additional empty iterations before the iteration matching
+$\mathtt{a}$. Thus the POSIX ordering selects $v_0$, while the Greedy
+ordering admits the infinite ascending chain.
+
+Finally, for $(a^{*})^{*}$ against $\mathtt{aaa}$, compare
+
+\[
+[[a,a,a]]
+\qquad\text{against}\qquad
+[[a,a,a],[\,]].
+\]
+
+Since $\lvert [\,]:[\,]\rvert = \varepsilon$, (K1) applies to the tail
+once the first (identical) iteration is matched by (K4), giving
+
+\[
+[[a,a,a]]
+\succ_{(a^{*})^{*}}
+[[a,a,a],[\,]],
+\]
+
+and the same argument disposes of every list padded with further empty
+iterations after the first. POSIX therefore selects the single outer
+iteration whose inner star consumes all three characters directly,
+
+\[
+[[a,a,a]],
+\]
+
+exactly the same tree the running implementation returns for
+\texttt{(a*)*} against \texttt{aaa} under \texttt{deriv\_std\_rec} and
+\texttt{deriv\_bc}. Unlike the abstract Greedy ordering, which has no
+maximal element for this expression, the frontier-based Greedy
+implementations of Chapter~\ref{sec:partial-derivative-parser} do not
+compute an ordering maximum at all, and return this same tree without
+difficulty; the ordering-theoretic failure identified in
+Section~\ref{sec:infinite-empty-chain} is a property of the abstract
+Greedy comparison, not of every construction that happens to compute a
+Greedy answer.
+
+The contrast between the two policies is now explicit. Greedy resolves
+ambiguity according to the structural priority encoded by the regular
+expression, whereas POSIX compares the substrings assigned to
+subexpressions and gives priority to longer leftmost matches. 
+The POSIX ordering of Sulzmann and Lu is designed to select a maximal
+parse tree for every expression and input \citep{sulzmannlu2014}.
+The derivative parser developed in Chapter~\ref{sec:derivative-parser} computes that
+candidate without enumerating all possible parse trees.
