@@ -33,9 +33,9 @@ memory consumption, and security, and, once matching becomes parsing,
 the choice of how a match's structure is recovered 
 influences correctness as well.
 
-Existing approaches include
-backtracking, finite-automata-based techniques such as nondeterministic
-(NFA) and deterministic (DFA) automata.
+Existing approaches include backtracking and finite-automata-based
+techniques, such as nondeterministic (NFA) and deterministic (DFA)
+automata. 
 Each approach provides different trade-offs between implementation
 complexity, memory consumption, and worst-case performance. Backtracking
 engines are flexible and widely adopted, but may exhibit exponential
@@ -65,8 +65,8 @@ therefore provides the motivation for this thesis: "From Theory to Tools".
 
 Derivative-based regular expression matching has been studied extensively
 from a theoretical perspective. Brzozowski introduced regular expression
-derivatives as an algebraic characterization of regular language
-membership~\citep{brzozowski1964}, while Antimirov introduced partial
+derivatives to construct a finite-state automaton directly from a
+regular expression~\citep{brzozowski1964}, while Antimirov introduced partial
 derivatives, which represent sets of residual expressions and are closely
 related to nondeterministic automata~\citep{antimirov1996}. Building on
 these ideas, Sulzmann and Lu developed a derivative-based algorithm for
@@ -86,9 +86,9 @@ A further question is whether the construction can be extended to use
 Antimirov's partial derivatives as an alternative representation of
 residual expressions, and how such an implementation compares with the
 original derivative-based construction. The bit-coded representation
-proposed by Sulzmann and Lu also provides an opportunity to investigate
-the practical effect of reducing the memory required to represent
-derivative expressions.
+Sulzmann and Lu adopt for parse trees also provides an opportunity to
+investigate the practical effect of reducing the memory required to
+represent derivative expressions.
 
 The central problem addressed by this thesis is therefore to investigate 
 the practical behaviour of derivative-based approaches to POSIX parsing: 
@@ -117,8 +117,10 @@ This thesis makes the following contributions:
 
   \item \textbf{An empirical evaluation of the parser variants.} The four
   variants are evaluated against one another using synthetic benchmarks
-  and a corpus of real-world regular expressions based on the datasets
-  used by Mamouras et al.~\citep{mamouras2024}. Their performance is also
+  and a corpus of real-world regular expressions drawn from the same
+  source categories (Snort/Suricata, SpamAssassin, and RegexLib)
+  that Mamouras et al.~\citep{mamouras2024} investigate in motivating
+  this same POSIX-versus-Greedy question. Their performance is also
   compared with established regular expression engines, including Rust's
   \texttt{regex} crate and Google's RE2.
 

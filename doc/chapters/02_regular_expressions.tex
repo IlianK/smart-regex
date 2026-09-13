@@ -26,9 +26,9 @@ followed by concatenation, followed by alternation. Thus, for example,
 $ab^{*}c$ is parsed as $(a \cdot (b^{*})) \cdot c$, and $a + bc^{*}$ is
 parsed as $a + (b \cdot (c^{*}))$, not $(a+b) \cdot (c^{*})$.
 
-Both $+$ and $\cdot$ are associative as operations on languages -- $L((r+s)+t)
+Both $+$ and $\cdot$ are associative as operations on languages: $L((r+s)+t)
 = L(r+(s+t))$ and $L((r \cdot s)\cdot t) = L(r \cdot (s \cdot t))$ follow
-directly from the semantics of Section~\ref{sec:regex-semantics} -- so
+directly from the semantics of Section~\ref{sec:regex-semantics}, so
 which of $r+s+t$'s two possible groupings the grammar above picks out
 never changes the language denoted. It does, however, fix a specific
 \emph{syntax tree}, and the algorithms of later chapters operate on that
@@ -37,7 +37,7 @@ unambiguously: both operators associate to the \emph{left}, so $r+s+t$
 means $(r+s)+t$ and $rst$ means $(rs)t$. Section~\ref{sec:regex-rust-implementation}
 makes this concrete for the running example $r_{01}$, whose concatenation
 $(0+1)^{*} \cdot 0 \cdot 1$ left-associates into the tree
-$((0+1)^{*} \cdot 0) \cdot 1$ -- the exact grouping
+$((0+1)^{*} \cdot 0) \cdot 1$, the exact grouping
 Section~\ref{sec:brzozowski-derivatives} and
 Section~\ref{sec:antimirov-partial-derivatives} derive against, character
 by character.
@@ -45,9 +45,9 @@ by character.
 The grammar above deliberately has no one-or-more, optional, or bounded
 repetition operator ($r^{+}$, $r\,?$, $r^{\{m,n\}}$): every algorithm in
 this thesis is defined over exactly the six constructs above, and nothing
-else. This is not a limitation on what can be matched -- each of those
+else. This is not a limitation on what can be matched. Each of those
 convenience operators is equivalent to some expression already
-expressible here ($r^{+} = r \cdot r^{*}$, for instance) -- only on what
+expressible here ($r^{+} = r \cdot r^{*}$, for instance) and only on what
 the core language needs to define recursion over directly.
 Chapter~\ref{sec:frontend} (Section~\ref{sec:frontend-translate}) gives
 the complete table of such desugarings, applied by the frontend before
@@ -57,7 +57,7 @@ any of the matchers or parsers implemented ever see the result.
 
 As a running example, consider the problem of recognizing binary strings
 that end in \texttt{"01"}, a small but non-trivial pattern that uses all
-three operators in the grammar above. Over $\Sigma = {0,1}$, this
+three operators in the grammar above. Over $\Sigma = \{0,1\}$, this
 pattern is expressed as
 
 \[
@@ -113,9 +113,9 @@ is understood in terms of the languages those expressions denote.
 A word $w$ \emph{matches} $r$ exactly when $w \in L(r)$. This is the
 membership problem.
 
-Unwinding the semantics for the running example, $L(0+1) = {0,1}$, so
+Unwinding the semantics for the running example, $L(0+1) = \{0,1\}$, so
 $L((0+1)^{*})$ is the set of all finite binary strings, including the
-empty string. Concatenating with $L(0) = {0}$ and then $L(1) = {1}$
+empty string. Concatenating with $L(0) = \{0\}$ and then $L(1) = \{1\}$
 restricts this to
 
 \[
@@ -157,15 +157,12 @@ one enum variant. For example, \texttt{Phi} represents $\emptyset$,
 symbol, and the remaining variants represent the three recursive
 constructs. 
 
-For example, the expression
-
-\[
-(0+1)^*01
-\]
-
+For example, the running example $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$
 is represented structurally by an expression tree whose root is a
-concatenation, with $(0+1)^*$ and $01$ as its subexpressions. More
-explicitly, its structure can be viewed schematically as
+concatenation, with $(0+1)^{*} \cdot 0$ and $1$ as its subexpressions,
+the same left-associated grouping fixed in
+Section~\ref{sec:regex-syntax}. Its structure can be
+viewed schematically as
 
 \[
 \operatorname{Seq}\bigl(
@@ -207,7 +204,6 @@ directly to $\emptyset$ and $\varepsilon$, while \texttt{Lit} stores the
 literal symbol $x$. In the implementation, literal symbols are
 represented using Rust's \texttt{char} type and therefore correspond to
 Unicode scalar values \citep{rust-char}.
-
 
 The recursive constructs, \texttt{Seq}, \texttt{Alt}, and
 \texttt{Star} require explicit indirection in Rust. A recursive type

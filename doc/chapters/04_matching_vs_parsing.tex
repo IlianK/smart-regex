@@ -218,7 +218,6 @@ developed in Chapters~\ref{sec:derivative-parser} and
 a reference for that later discussion. Two further examples, drawn from
 this project's own test suite, follow.
 
-
 %
 
 \paragraph{Ambiguous example 1: concatenation.}
@@ -471,7 +470,12 @@ fail, since $w$ does not begin with \texttt{1} or \texttt{25}).
 Both $A$ and $C$ consume all three characters of $w$. Thus, unlike
 $r_3$, where the alternatives are semantically identical, the ambiguity
 here is between two genuinely different alternatives that happen to
-match the same substring.
+match the same substring. \citet{mamouras2024} use this same pattern to
+illustrate a different symptom of the same underlying policy
+difference: under unanchored substring search, Greedy's leftmost-first
+matching can return a shorter, truncated address where POSIX returns
+the complete one, a distinction in match \emph{span} rather than, as
+here, in which of two total-match parse trees is selected.
 
 
 %
@@ -479,7 +483,6 @@ match the same substring.
 
 \section{Disambiguation Policies}
 \label{sec:disambiguation-problem}
-
 
 The parse-tree judgment identifies every valid witness, but it does not
 say which witness a parser should return. A \emph{disambiguation policy}
@@ -534,6 +537,20 @@ alternatives consume. In an ordering notation, the essential rule is
 \succ_{r_1+r_2}
 \mathit{Right}\ v'.
 \]
+
+Every other comparison rule: (C1) and (C2) for concatenation, (A3)
+and (A4) for continuing a comparison once both alternatives already
+agree on a branch, and (K1)--(K4) for repetition is shared,
+unchanged, between Greedy and POSIX; the two orderings differ only in
+how they compare two alternatives that choose \emph{different}
+branches, where POSIX replaces the rule above with the length-comparing
+pair (A1) and (A2) of Section~\ref{sec:posix-longest-leftmost}.
+Sulzmann and Lu construct their
+POSIX ordering explicitly as this one substitution into Frisch and
+Cardelli's Greedy ordering \citep{frischcardelli2004,sulzmannlu2014},
+leaving every other rule untouched.
+
+%
 
 \paragraph{Applied to $r_1$.}
 Greedy first tries the \texttt{a} alternative. It consumes the leading
@@ -593,19 +610,27 @@ alternatives are never even attempted.
 
 %
 
-%\paragraph{Procedural versus declarative view.}
-%The description above gives a procedural intuition for Greedy matching: 
-%alternatives are considered from left to right, and a choice is retained 
-%when it can be extended to a complete match. The relation $\succ_r$, by contrast, 
-%is a declarative ordering on the parse trees admitted by $r$ and $w$. 
-%For ordinary cases in which a Greedy-preferred parse exists, these two views agree: 
-%the parse returned by the Greedy procedure is the $\succ_r$-maximal parse tree. 
-%The ordering therefore provides the semantic specification, 
-%while the procedural description explains the intuition for how that 
-%preference is commonly realized. The distinction matters in 
-%Section~\ref{sec:infinite-empty-chain}, where the Greedy ordering can have no 
-%maximal element even though a concrete parser can still compute the intended 
-%Greedy result.
+\paragraph{Procedural versus declarative view.}
+The description above gives a procedural intuition for Greedy matching:
+alternatives are considered from left to right, and a choice is
+retained when it can be extended to a complete match. The relation
+$\succ_{r_1+r_2}$ used throughout this subsection is a different kind
+of thing: a declarative ordering on the parse trees admitted by $r$
+and $w$, generalized to arbitrary $r$ as $\succ_r$ in
+Section~\ref{sec:posix-longest-leftmost}. \citet{frischcardelli2004},
+whose ordering this one adapts, are explicit that these two views are
+not the same thing computationally: a backtracking procedure computing
+their ordering's maximum is possible, but they describe it as ``quite
+inefficient because of backtracking,'' and spend the rest of their
+paper building a two-pass, backtracking-free algorithm instead, with a
+proof that it computes the same value. Neither \texttt{pderiv\_std} nor
+\texttt{pderiv\_bc} (Chapter~\ref{sec:partial-derivative-parser})
+backtracks either, for the same reason: both compute the Greedy answer
+through a forward partial-derivative frontier with
+first-occurrence-wins deduplication. The distinction matters
+concretely in Section~\ref{sec:infinite-empty-chain}, where the
+ordering can have no maximal element at all, even though a concrete,
+non-backtracking parser can still compute the intended Greedy result.
 
 %
 
@@ -694,15 +719,17 @@ restrictions or special handling of empty matches, a maximal parse tree
 need not exist. The POSIX ordering avoids this problem by treating empty
 matches explicitly.
 
+%
+
 \subsection{POSIX Longest-Leftmost Matching}
 \label{sec:posix-longest-leftmost}
 
 POSIX uses a different disambiguation policy. Subpatterns are compared
 according to the length of the substrings they match, with subpatterns
 that occur earlier in the regular expression taking priority. The
-standard describes this as giving subpatterns the ``longest possible
-substrings'' while giving earlier subpatterns priority over later ones
-\citep{posix_ere}.
+standard states that, consistent with the whole match being the
+longest of the leftmost matches, each subpattern, from left to right,
+shall match the longest possible string \citep{posix_ere}.
 
 Sulzmann and Lu formalize this policy as an ordering on parse trees
 \citep{sulzmannlu2014}. Let $\operatorname{len}(w)$ denote the number of
@@ -843,6 +870,8 @@ flattens to $\varepsilon$, while (K2) prefers a non-empty match over the
 empty list. Rules (K3) and (K4) compare the iterations structurally,
 first comparing their heads and then their tails.
 
+%
+
 \paragraph{Applied to $r_1$.}
 Return to
 $r_1=(a+ab)(b+\varepsilon)$ against $\mathtt{ab}$, with
@@ -907,6 +936,8 @@ v
 
 which is the opposite of the Greedy result.
 
+%
+
 \paragraph{Applied to $r_2$.}
 For
 $r_2=(a+b+ab)^{*}$ against $\mathtt{ab}$, consider
@@ -964,6 +995,8 @@ v_2'.
 POSIX therefore selects the single two-character iteration, whereas
 Greedy selects the two one-character iterations.
 
+%
+
 \paragraph{Applied to $r_3$.}
 For $r_3=(a+a)^{*}$ against $\mathtt{aa}$, every candidate alternative at
 every position matches exactly one character, so (A1)'s strict
@@ -991,6 +1024,8 @@ unconditional left-preference and POSIX's tie-broken left-preference
 compute the same thing, the same connection already observed for
 \texttt{"if"} in Section~\ref{sec:matching-problem}.
 
+%
+
 \paragraph{Applied to $O$.}
 For $O=((A+B)+C)+D$ against $w=\mathtt{239}$, only $A$ and $C$ match
 at all, so the comparison is between a tree choosing $A$ and a tree
@@ -1015,6 +1050,8 @@ not a coincidence: $A$ and $C$ tie in length, so (A2)'s tie-break
 coincides with Greedy's unconditional left-preference, even though $A$
 and $C$, unlike $r_3$'s two copies of \texttt{a}, are not otherwise
 interchangeable.
+
+%
 
 \paragraph{Applied to the infinite-chain examples.}
 Rule (K1) resolves Section~\ref{sec:infinite-empty-chain}'s pathology
@@ -1133,8 +1170,9 @@ Greedy answer.
 The contrast between the two policies is now explicit. Greedy resolves
 ambiguity according to the structural priority encoded by the regular
 expression, whereas POSIX compares the substrings assigned to
-subexpressions and gives priority to longer leftmost matches. 
-The POSIX ordering of Sulzmann and Lu is designed to select a maximal
-parse tree for every expression and input \citep{sulzmannlu2014}.
+subexpressions and gives priority to longer leftmost matches.
+Sulzmann and Lu prove that, unlike the Greedy ordering, the POSIX
+ordering is total and has a maximal element for every expression and
+input \citep{sulzmannlu2014}.
 The derivative parser developed in Chapter~\ref{sec:derivative-parser} computes that
 candidate without enumerating all possible parse trees.

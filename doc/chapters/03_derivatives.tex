@@ -154,7 +154,6 @@ x^{*} \xrightarrow{x} (x \backslash x) \cdot x^{*} = \varepsilon \cdot x^{*}
 
 Checking nullability of the final expression by structural recursion,
 
-
 \begin{align*}
 n(\emptyset \cdot x^{*} + \varepsilon \cdot x^{*})
 &= n(\emptyset \cdot x^{*}) \lor n(\varepsilon \cdot x^{*}) \\
@@ -193,7 +192,14 @@ step, which is why neither worked example in this section ever shows an
 expression larger than what is written down. Each step in the trace
 below is annotated with the identity it uses.
 
-
+This is not only a matter of efficiency: Antimirov observes that
+Brzozowski's original formulation of the concatenation rule, phrased as
+multiplication by the nullability value rather than as the explicit
+case split used above, produces an infinite, non-collapsing sequence of
+derivatives for expressions such as $(x+y)^{*}$ unless simplification is
+applied at every step \citep{antimirov1996}. Eager simplification is
+therefore what keeps the finiteness property in practice, not merely
+what keeps expressions small.
 
 %
 
@@ -213,21 +219,21 @@ symbol at a time.
   \]
   The inner star $(0+1)^{*}$ is nullable, so its own derivative needs
   the concatenation rule's first case too:
-  \[
+  \begin{align*}
   (0+1)^{*} \backslash \mathtt{1}
-  \;=\; \big( (0 \backslash \mathtt{1}) + (1 \backslash \mathtt{1}) \big) \cdot (0+1)^{*}
-  \;=\; (\emptyset + \varepsilon) \cdot (0+1)^{*}
-  \;=\; (0+1)^{*}
+  &= \big( (0 \backslash \mathtt{1}) + (1 \backslash \mathtt{1}) \big) \cdot (0+1)^{*} \\
+  &= (\emptyset + \varepsilon) \cdot (0+1)^{*} \\
+  &= (0+1)^{*}
   \quad \text{(by $\emptyset+r=r$, $\varepsilon\cdot r=r$).}
-  \]
+  \end{align*}
   Substituting back, since $(0+1)^{*}$ is nullable:
-  \[
+  \begin{align*}
   ((0+1)^{*} \cdot 0) \backslash \mathtt{1}
-  \;=\; \big( (0+1)^{*} \backslash \mathtt{1} \big) \cdot 0 \;+\; (0 \backslash \mathtt{1})
-  \;=\; (0+1)^{*} \cdot 0 \;+\; \emptyset
-  \;=\; (0+1)^{*} \cdot 0
+  &= \big( (0+1)^{*} \backslash \mathtt{1} \big) \cdot 0 \;+\; (0 \backslash \mathtt{1}) \\
+  &= (0+1)^{*} \cdot 0 \;+\; \emptyset \\
+  &= (0+1)^{*} \cdot 0
   \quad \text{(by $\emptyset+r=r$).}
-  \]
+  \end{align*}
   So
   \[
   r_{01} \backslash \mathtt{1} \;=\; \big( (0+1)^{*} \cdot 0 \big) \cdot 1 \;=\; r_{01}.
@@ -264,13 +270,13 @@ symbol at a time.
   Working out the inner derivative, reusing step~1's result that
   $((0+1)^{*} \cdot 0) \backslash \mathtt{1}$ simplifies to
   $(0+1)^{*} \cdot 0$:
-  \[
+  \begin{align*}
   ((0+1)^{*} \cdot 0 + \varepsilon) \backslash \mathtt{1}
-  \;=\; \big( ((0+1)^{*} \cdot 0) \backslash \mathtt{1} \big) + (\varepsilon \backslash \mathtt{1})
-  \;=\; (0+1)^{*} \cdot 0 \;+\; \emptyset
-  \;=\; (0+1)^{*} \cdot 0
+  &= \big( ((0+1)^{*} \cdot 0) \backslash \mathtt{1} \big) + (\varepsilon \backslash \mathtt{1}) \\
+  &= (0+1)^{*} \cdot 0 \;+\; \emptyset \\
+  &= (0+1)^{*} \cdot 0
   \quad \text{(by $\emptyset+r=r$).}
-  \]
+  \end{align*}
   So
   \[
   r_{01} \backslash \mathtt{1} \backslash \mathtt{0} \backslash \mathtt{1}
@@ -288,21 +294,20 @@ witnesses this: it says the match was already complete the moment the
 third symbol was read, which is precisely what makes the whole
 expression nullable.
 
-Now for only the word, $w = \mathtt{10}$. 
-It shares its first two symbols with $\mathtt{101}$, 
-so deriving $r{01}$ by $\mathtt{1}$ then by $\mathtt{0}$ produces 
-the same intermediate expression as step~2 above, 
-$\big( (0+1)^{} \cdot 0 + \varepsilon \big) \cdot 1$, but since $\mathtt{10}$ 
-has only two symbols, this \emph{is} the final result for this word, 
-not an intermediate one. Checking its nullability directly: the expression 
-is \emph{not} nullable, since neither summand of $(0+1)^{} \cdot 0 + \varepsilon$ 
-makes the whole concatenation with $1$ nullable: $(0+1)^{*} \cdot 0$ is not nullable, 
-and $\varepsilon \cdot 1$ still needs the literal $1$. So $\mathtt{10} \notin L(r{01})$, 
+Now for only the word, $w = \mathtt{10}$.
+It shares its first two symbols with $\mathtt{101}$,
+so deriving $r_{01}$ by $\mathtt{1}$ then by $\mathtt{0}$ produces
+the same intermediate expression as step~2 above,
+$\big( (0+1)^{*} \cdot 0 + \varepsilon \big) \cdot 1$, but since $\mathtt{10}$
+has only two symbols, this \emph{is} the final result for this word,
+not an intermediate one. Checking its nullability directly: the expression
+is \emph{not} nullable, since neither summand of $(0+1)^{*} \cdot 0 + \varepsilon$
+makes the whole concatenation with $1$ nullable: $(0+1)^{*} \cdot 0$ is not nullable,
+and $\varepsilon \cdot 1$ still needs the literal $1$. So $\mathtt{10} \notin L(r_{01})$,
 correctly: $\mathtt{10}$ ends in $\mathtt{0}$, not $\mathtt{01}$.
 
 \texttt{src/regex/nullable.rs} and \texttt{src/regex/deriv.rs}
-implement $n(r)$ and $r \backslash x$ case by case, matching the
-\texttt{Regex} enum of Section~\ref{sec:regex-rust-implementation} one
+implement $n(r)$ and $r \backslash x$ case by case, one \texttt{Regex}
 variant at a time. \texttt{match\_deriv}
 (\texttt{src/matchers/match\_deriv.rs}) folds \texttt{deriv} over the
 input characters, applies \texttt{simplify} after every step exactly as
@@ -315,11 +320,9 @@ as tracing a path through an automaton built lazily, on demand: each
 $r_i$ is a state, and $\xrightarrow{x}$ is the transition relation. At
 every step there is exactly one current expression, playing the role of
 exactly one current automaton state, however large that state's internal
-syntax tree happens to be a DFA-style view of the construction that
-Section~\ref{sec:antimirov-partial-derivatives} contrasts directly with
-an NFA-style one.
-
-
+syntax tree happens to be. This is a DFA-style view of the construction,
+one that Section~\ref{sec:antimirov-partial-derivatives} contrasts
+directly with an NFA-style one.
 
 % 
 
@@ -355,6 +358,7 @@ exactly $\varepsilon$. This keeps every partial derivative a
 subexpression of $r$ (up to the concatenations $\mathit{smartC}$
 builds), rather than an expression that could grow without bound the way
 plain $r \backslash x$ can.
+
 
 %
 
@@ -436,10 +440,11 @@ set of residuals instead of one expression.
 
   Substituting into the outer concatenation:
 
-  \[
-  pd(r_{01},\mathtt{1},\mathtt{0}) \;=\; \{\, \mathit{smartC}(r',1) \mid r' \in \{(0+1)^{*}\cdot0,\ \varepsilon\} \,\}
-  \;=\; \{(0+1)^{*}\cdot0\cdot1,\ 1\} \;=\; \{r_{01},\ 1\}.
-  \]
+  \begin{align*}
+  pd(r_{01},\mathtt{1},\mathtt{0})
+  &= \{\, \mathit{smartC}(r',1) \mid r' \in \{(0+1)^{*}\cdot0,\ \varepsilon\} \,\} \\
+  &= \{(0+1)^{*}\cdot0\cdot1,\ 1\} \;=\; \{r_{01},\ 1\}.
+  \end{align*}
 
   This is the same information as $\big((0+1)^{*}\cdot0 + \varepsilon\big)\cdot1$
   from the derivative trace. Both say "either the trailing $\mathtt{01}$
@@ -460,6 +465,8 @@ set of residuals instead of one expression.
   pd(r_{01},\mathtt{1},\mathtt{0},\mathtt{1}) \;=\; \{r_{01}\} \cup \{\varepsilon\} \;=\; \{r_{01},\ \varepsilon\}.
   \]
 \end{enumerate}
+
+%
 
 This set contains $\varepsilon$, so it contains a nullable residual, and
 $\mathtt{101} \in L(r_{01})$ the same conclusion as the derivative
@@ -493,7 +500,12 @@ identities of Section~\ref{sec:brzozowski-derivatives} are applied to
 identify equivalent expressions; the partial-derivative bound holds
 already at the syntactic level, with no such identification
 needed and the same point the single-symbol example above made concretely
-for $x^{*}$.
+for $x^{*}$. The two bounds also differ in kind, not just in what they
+need to hold: Brzozowski's own bound on the number of derivative types
+is exponential in the structure of $r$
+\citep[Theorem~4.3]{brzozowski1964}, while Antimirov's $\|r\|+1$
+bound on partial derivatives is linear in the number of literal
+occurrences \citep[Theorem~3.4, p.~309]{antimirov1996}.
 
 $pd$ is implemented inside \texttt{match\_pderiv}
 (\texttt{src/matchers/match\_pderiv.rs}), which mirrors the worked
