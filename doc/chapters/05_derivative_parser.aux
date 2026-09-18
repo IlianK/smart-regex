@@ -1,61 +1,79 @@
 \relax 
 \providecommand\hyper@newdestlabel[2]{}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {chapter}{\numberline {5}Derivative-Based Parser}{35}{chapter.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}Derivative-Based Parser}{36}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{sec:derivative-parser}{{5}{35}{Derivative-Based Parser}{chapter.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}Core Algorithm}{35}{section.5.1}\protected@file@percent }
-\newlabel{sec:core-algorithm}{{5.1}{35}{Core Algorithm}{section.5.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{35}{section.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Backward pass.}{35}{section.5.1}\protected@file@percent }
+\newlabel{sec:derivative-parser}{{5}{36}{Derivative-Based Parser}{chapter.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Reading the Implementation's Traces}{36}{section.5.1}\protected@file@percent }
+\newlabel{sec:deriv-tracing}{{5.1}{36}{Reading the Implementation's Traces}{section.5.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{How traces are used in this chapter.}{37}{section.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.2}Core Algorithm}{37}{section.5.2}\protected@file@percent }
+\newlabel{sec:core-algorithm}{{5.2}{37}{Core Algorithm}{section.5.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces The direct construction on a two-character input. The forward pass takes one derivative per character; the backward pass turns the empty-word tree $v_2$ back into a tree of the original $r_0$, undoing one derivative per step. The whole forward sequence must be retained until the backward pass consumes it.}}{37}{figure.5.1}\protected@file@percent }
+\newlabel{fig:two-pass}{{5.1}{37}{The direct construction on a two-character input. The forward pass takes one derivative per character; the backward pass turns the empty-word tree $v_2$ back into a tree of the original $r_0$, undoing one derivative per step. The whole forward sequence must be retained until the backward pass consumes it}{figure.5.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{37}{figure.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Backward pass.}{38}{figure.5.1}\protected@file@percent }
+\newlabel{eq:mkeps}{{5.1}{38}{Backward pass}{equation.5.1}{}}
+\newlabel{eq:inj}{{5.2}{39}{Backward pass}{equation.5.2}{}}
+\newlabel{eq:parse}{{5.3}{39}{Backward pass}{equation.5.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{The worked example, one step at a time.}{39}{equation.5.3}\protected@file@percent }
+\newlabel{eq:dp-4}{{5.4}{39}{The worked example, one step at a time}{equation.5.4}{}}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {paragraph}{Worked example.}{36}{section.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.3}Correctness Properties}{40}{section.5.3}\protected@file@percent }
+\newlabel{sec:correctness-properties}{{5.3}{40}{Correctness Properties}{section.5.3}{}}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {section}{\numberline {5.2}Correctness Properties}{37}{section.5.2}\protected@file@percent }
-\newlabel{sec:correctness-properties}{{5.2}{37}{Correctness Properties}{section.5.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.3}Bit-Coded Optimization (Theory)}{37}{section.5.3}\protected@file@percent }
-\newlabel{sec:bitcoded-optimization-theory}{{5.3}{37}{Bit-Coded Optimization (Theory)}{section.5.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Bit-code representation.}{37}{section.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Annotated regular expressions.}{38}{section.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{The refined derivative.}{38}{section.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{mkEpsBC.}{38}{section.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Worked example.}{39}{section.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}Bit-Coded Optimization (Theory)}{41}{section.5.4}\protected@file@percent }
+\newlabel{sec:bitcoded-optimization-theory}{{5.4}{41}{Bit-Coded Optimization (Theory)}{section.5.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces The bit-coded construction on the same two-character input. Every arrow points forward: no intermediate $\mathit  {ri}_i$ is needed once its successor exists. The dashed arrow marks the one backward dependency that remains, namely that $\mathit  {decode}$ must be given the original, un-annotated $r$ to know what shape the bits describe.}}{41}{figure.5.2}\protected@file@percent }
+\newlabel{fig:single-pass}{{5.2}{41}{The bit-coded construction on the same two-character input. Every arrow points forward: no intermediate $\mathit {ri}_i$ is needed once its successor exists. The dashed arrow marks the one backward dependency that remains, namely that $\mathit {decode}$ must be given the original, un-annotated $r$ to know what shape the bits describe}{figure.5.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Bit-code representation.}{41}{figure.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Annotated regular expressions.}{42}{figure.5.2}\protected@file@percent }
+\newlabel{eq:aregex-grammar}{{5.5}{42}{Annotated regular expressions}{equation.5.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{The refined derivative.}{42}{equation.5.5}\protected@file@percent }
+\newlabel{eq:bderiv}{{5.6}{42}{The refined derivative}{equation.5.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{mkEpsBC.}{43}{equation.5.6}\protected@file@percent }
+\newlabel{eq:mkepsbc}{{5.7}{43}{mkEpsBC}{equation.5.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{The worked example, one step at a time.}{43}{equation.5.7}\protected@file@percent }
 \citation{sulzmannlu2014}
+\newlabel{eq:dp-7}{{5.8}{44}{The worked example, one step at a time}{equation.5.8}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.5}Simplification Rules}{44}{section.5.5}\protected@file@percent }
+\newlabel{sec:simplification-rules-theory}{{5.5}{44}{Simplification Rules}{section.5.5}{}}
+\newlabel{eq:dp-8}{{5.9}{44}{Simplification Rules}{equation.5.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{$\mathit  {simp}$ on the paper's own example.}{45}{equation.5.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Where $\mathit  {simp}$ does not bound the growth.}{45}{equation.5.9}\protected@file@percent }
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {section}{\numberline {5.4}Simplification Rules}{40}{section.5.4}\protected@file@percent }
-\newlabel{sec:simplification-rules-theory}{{5.4}{40}{Simplification Rules}{section.5.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.5}Rust Implementation: The \texttt  {deriv\_std} Parser}{40}{section.5.5}\protected@file@percent }
-\newlabel{sec:derivative-parser-inj-rust}{{5.5}{40}{Rust Implementation: The \texttt {deriv\_std} Parser}{section.5.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5.1}\texttt  {ParseTree} and \texttt  {flatten}}{41}{subsection.5.5.1}\protected@file@percent }
-\newlabel{sec:parsetree-and-flatten}{{5.5.1}{41}{\texttt {ParseTree} and \texttt {flatten}}{subsection.5.5.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5.2}\texttt  {mk\_eps}}{41}{subsection.5.5.2}\protected@file@percent }
-\newlabel{sec:mk-eps-impl}{{5.5.2}{41}{\texttt {mk\_eps}}{subsection.5.5.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5.3}\texttt  {inject}}{41}{subsection.5.5.3}\protected@file@percent }
-\newlabel{sec:inject-impl}{{5.5.3}{41}{\texttt {inject}}{subsection.5.5.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.5.4}\texttt  {parse\_recursive} vs.\ \texttt  {parse\_loop}}{41}{subsection.5.5.4}\protected@file@percent }
-\newlabel{sec:recursive-vs-loop}{{5.5.4}{41}{\texttt {parse\_recursive} vs.\ \texttt {parse\_loop}}{subsection.5.5.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.6}Rust Implementation: The Bit-Coded Version}{42}{section.5.6}\protected@file@percent }
-\newlabel{sec:derivative-parser-bitcoded-rust}{{5.6}{42}{Rust Implementation: The Bit-Coded Version}{section.5.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.1}\texttt  {ARegex} -- Bit-Annotated Regex}{42}{subsection.5.6.1}\protected@file@percent }
-\newlabel{sec:aregex-type}{{5.6.1}{42}{\texttt {ARegex} -- Bit-Annotated Regex}{subsection.5.6.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.2}\texttt  {internalize}/\texttt  {fuse}}{42}{subsection.5.6.2}\protected@file@percent }
-\newlabel{sec:internalize-fuse}{{5.6.2}{42}{\texttt {internalize}/\texttt {fuse}}{subsection.5.6.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.3}\texttt  {deriv\_bc}}{42}{subsection.5.6.3}\protected@file@percent }
-\newlabel{sec:deriv-bc}{{5.6.3}{42}{\texttt {deriv\_bc}}{subsection.5.6.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.4}\texttt  {mk\_eps\_bc}}{43}{subsection.5.6.4}\protected@file@percent }
-\newlabel{sec:mk-eps-bc}{{5.6.4}{43}{\texttt {mk\_eps\_bc}}{subsection.5.6.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.5}\texttt  {decode}}{43}{subsection.5.6.5}\protected@file@percent }
-\newlabel{sec:decode}{{5.6.5}{43}{\texttt {decode}}{subsection.5.6.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.7}Worked Example: \texttt  {paper\_r1} End to End}{43}{section.5.7}\protected@file@percent }
-\newlabel{sec:deriv-worked-example}{{5.7}{43}{Worked Example: \texttt {paper\_r1} End to End}{section.5.7}{}}
-\@writefile{toc}{\contentsline {paragraph}{Success: \texttt  {deriv\_std}.}{43}{section.5.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Success: \texttt  {deriv\_bc}.}{45}{section.5.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Failure: \texttt  {deriv\_std}.}{46}{section.5.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Failure: \texttt  {deriv\_bc}.}{47}{section.5.7}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Expression size per derivative step, logarithmic vertical scale. For $a^{*}$, \emph  {simp} holds the expression at two nodes while the unsimplified derivative grows linearly. For $(a+(b+ab))^{*}$ against $(\mathtt  {ab})^{n}$, \emph  {simp} reduces the expression substantially at every step and still leaves it growing exponentially: a straight line on this scale is exponential growth. Regenerate with \texttt  {cargo run -{}-release -{}-example thesis\_figures -{}- growth}; \texttt  {tests/test\_thesis\_figures.rs} pins these values.}}{46}{figure.5.3}\protected@file@percent }
+\newlabel{fig:simp-growth}{{5.3}{46}{Expression size per derivative step, logarithmic vertical scale. For $a^{*}$, \emph {simp} holds the expression at two nodes while the unsimplified derivative grows linearly. For $(a+(b+ab))^{*}$ against $(\mathtt {ab})^{n}$, \emph {simp} reduces the expression substantially at every step and still leaves it growing exponentially: a straight line on this scale is exponential growth. Regenerate with \texttt {cargo run -{}-release -{}-example thesis\_figures -{}- growth}; \texttt {tests/test\_thesis\_figures.rs} pins these values}{figure.5.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.6}Rust Implementation: The \texttt  {deriv\_std} Parser}{47}{section.5.6}\protected@file@percent }
+\newlabel{sec:derivative-parser-inj-rust}{{5.6}{47}{Rust Implementation: The \texttt {deriv\_std} Parser}{section.5.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.1}\texttt  {ParseTree} and \texttt  {flatten}}{47}{subsection.5.6.1}\protected@file@percent }
+\newlabel{sec:parsetree-and-flatten}{{5.6.1}{47}{\texttt {ParseTree} and \texttt {flatten}}{subsection.5.6.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.2}\texttt  {mk\_eps}}{47}{subsection.5.6.2}\protected@file@percent }
+\newlabel{sec:mk-eps-impl}{{5.6.2}{47}{\texttt {mk\_eps}}{subsection.5.6.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.3}\texttt  {inject}}{47}{subsection.5.6.3}\protected@file@percent }
+\newlabel{sec:inject-impl}{{5.6.3}{47}{\texttt {inject}}{subsection.5.6.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.6.4}\texttt  {parse\_deriv\_std\_rec} versus \texttt  {parse\_deriv\_std\_loop}}{48}{subsection.5.6.4}\protected@file@percent }
+\newlabel{sec:recursive-vs-loop}{{5.6.4}{48}{\texttt {parse\_deriv\_std\_rec} versus \texttt {parse\_deriv\_std\_loop}}{subsection.5.6.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.7}Rust Implementation: The Bit-Coded Version}{48}{section.5.7}\protected@file@percent }
+\newlabel{sec:derivative-parser-bitcoded-rust}{{5.7}{48}{Rust Implementation: The Bit-Coded Version}{section.5.7}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.1}\texttt  {ARegex}, the Bit-Annotated Regex}{49}{subsection.5.7.1}\protected@file@percent }
+\newlabel{sec:aregex-type}{{5.7.1}{49}{\texttt {ARegex}, the Bit-Annotated Regex}{subsection.5.7.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.2}\texttt  {internalize} and \texttt  {fuse}}{49}{subsection.5.7.2}\protected@file@percent }
+\newlabel{sec:internalize-fuse}{{5.7.2}{49}{\texttt {internalize} and \texttt {fuse}}{subsection.5.7.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.3}\texttt  {deriv\_bc}}{49}{subsection.5.7.3}\protected@file@percent }
+\newlabel{sec:deriv-bc}{{5.7.3}{49}{\texttt {deriv\_bc}}{subsection.5.7.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.4}\texttt  {mk\_eps\_bc}}{50}{subsection.5.7.4}\protected@file@percent }
+\newlabel{sec:mk-eps-bc}{{5.7.4}{50}{\texttt {mk\_eps\_bc}}{subsection.5.7.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.7.5}\texttt  {decode}}{50}{subsection.5.7.5}\protected@file@percent }
+\newlabel{sec:decode}{{5.7.5}{50}{\texttt {decode}}{subsection.5.7.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.8}Comparing the Two Constructions}{50}{section.5.8}\protected@file@percent }
+\newlabel{sec:deriv-worked-example}{{5.8}{50}{Comparing the Two Constructions}{section.5.8}{}}
+\@writefile{toc}{\contentsline {paragraph}{What happens on a failure.}{51}{section.5.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Agreement between the three POSIX entry points.}{52}{section.5.8}\protected@file@percent }
 \@setckpt{chapters/05_derivative_parser}{
-\setcounter{page}{50}
-\setcounter{equation}{0}
+\setcounter{page}{53}
+\setcounter{equation}{9}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}
@@ -64,12 +82,12 @@
 \setcounter{mpfootnote}{0}
 \setcounter{part}{0}
 \setcounter{chapter}{5}
-\setcounter{section}{7}
+\setcounter{section}{8}
 \setcounter{subsection}{0}
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{0}
+\setcounter{figure}{3}
 \setcounter{table}{0}
 \setcounter{parentequation}{0}
 \setcounter{lstnumber}{1}
@@ -77,6 +95,6 @@
 \setcounter{section@level}{0}
 \setcounter{Item}{6}
 \setcounter{Hfootnote}{3}
-\setcounter{bookmark@seq@number}{38}
+\setcounter{bookmark@seq@number}{39}
 \setcounter{lstlisting}{0}
 }

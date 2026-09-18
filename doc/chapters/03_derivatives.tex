@@ -4,10 +4,9 @@
 Chapter~\ref{sec:regular-expressions} introduced the syntax and semantics
 of regular expressions. The semantics provides a declarative definition of
 membership: a word $w$ matches an expression $r$ exactly when
-$w \in L(r)$. This chapter turns that definition into executable
-algorithms for deciding membership.
+$w \in L(r)$. This chapter introduces three algorithms for deciding membership.
 
-Three approaches are considered. The first is a direct recursive matcher
+The first is a direct "naive" recursive matcher
 that follows the structure of the semantic definition. The second uses
 Brzozowski derivatives to transform an expression as input symbols are
 consumed. The third uses Antimirov's partial derivatives, representing
@@ -17,9 +16,7 @@ common interface \texttt{fn(\&str, \&Regex) -> bool}.
 
 The three approaches decide the same membership problem, but they differ
 in how they represent and explore the remaining matching problem. The
-derivative-based approaches are particularly important for this thesis:
-the derivative operation introduced here forms the basis of the
-structured parsing algorithms developed in
+derivative-based approaches introduced here form the basis of the parsers developed in
 Chapters~\ref{sec:derivative-parser} and
 \ref{sec:partial-derivative-parser}.
 
@@ -54,9 +51,9 @@ $w[i:j] \in L(r)$ by following the structure of $r$:
 
 
 Membership of the whole word $w$ corresponds to $\operatorname{match}(w,
-0, |w|, r)$. This procedure is correct by construction: every case
-reproduces the corresponding case of $L(r)$ directly, so nothing beyond
-the semantic definition itself needs to be proved.
+0, |w|, r)$. Each matching case is a direct operational restatement 
+of the corresponding clause in the definition of $L(r)$, 
+meaning the correctness follows directly from the regular-expression semantics.
 
 It is also, in general, an expensive procedure. Concatenation and star
 both search over every split point in the current range rather than
@@ -77,14 +74,16 @@ call already tried.
 on a \texttt{Vec<char>} and a pair of \texttt{usize} bounds. Despite its
 cost, it remains useful: because it transcribes $L(r)$'s definition
 without any intervening transformation, it serves as an independent
-reference that the more efficient matchers introduced below can be
-checked against. The remainder of this chapter develops two such
-matchers, both based on a different idea: instead of searching for a
-decomposition of $w$ against a fixed $r$, \emph{transform} $r$ itself as
-each character of $w$ is consumed, so that membership of the remaining
-suffix is asked against a smaller, adjusted expression rather than
-re-asked against the same $r$ every time.
+reference that the more efficient derivative-based matchers introduced below can be
+checked against. 
 
+The derivative approach takes a different view of the same problem.
+Rather than searching for a decomposition of $w$ while keeping $r$ fixed,
+it \emph{transforms} $r$ as each character of $w$ is consumed. The
+resulting expression describes precisely the language that can still
+match the remaining suffix, allowing the matcher to continue with an
+adjusted expression rather than reconsidering the original $r$ at every
+step.
 
 %
 
@@ -95,43 +94,67 @@ Brzozowski's derivative of $r$ with respect to a symbol $x$, written
 $r \backslash x$, is the expression describing exactly what remains of
 $r$'s language once a leading $x$ has been removed \citep{brzozowski1964}:
 
-\[
+\begin{equation}\label{eq:der-23}
 L(r \backslash x) \;=\; \{\, w \mid x w \in L(r) \,\}.
-\]
+\end{equation}
 
-Deciding whether a word $x_1 x_2 \cdots x_n$ is in $L(r)$ then reduces to
-computing the chain $r \backslash x_1 \backslash x_2 \backslash \cdots
-\backslash x_n$ and checking whether the final expression accepts the
-empty word, i.e.\ whether it is \emph{nullable}. Both nullability and the
-derivative itself are defined by structural recursion directly on the
-syntax of $r$, with no reference back to $L(r)$ needed once the base
-cases are fixed:
+An expression is \emph{nullable} if it accepts the empty word
+$\varepsilon$. Let $n(r)$ denote the corresponding Boolean predicate, so
+that $n(r)$ is true exactly when $\varepsilon \in L(r)$. Deciding whether a
+word $x_1 x_2 \cdots x_n$ is in $L(r)$ then reduces to computing the chain
+$r \backslash x_1 \backslash x_2 \backslash \cdots \backslash x_n$ and
+checking whether the final expression is nullable. Both nullability and
+the derivative itself can be defined by structural recursion directly on
+the syntax of $r$, with no reference back to $L(r)$ needed once the base
+cases are fixed. Equation~\eqref{eq:nullability} gives nullability and
+Equation~\eqref{eq:derivative} the derivative:
 
 
-\begin{align*}
-n(\emptyset) &= \mathrm{false} &
-n(\varepsilon) &= \mathrm{true} &
-n(x) &= \mathrm{false} \\
-n(r + s) &= n(r) \lor n(s) &
-n(r \cdot s) &= n(r) \land n(s) &
-n(r^{*}) &= \mathrm{true}
-\end{align*}
-\begin{align*}
-\emptyset \backslash x &= \emptyset &
-\varepsilon \backslash x &= \emptyset &
+\begin{equation}\label{eq:nullability}
+\begin{aligned}
+n(\emptyset) &= \mathrm{false} &&(\mathsf{N}_{\emptyset}) &
+n(r + s) &= n(r) \lor n(s) &&(\mathsf{N}_{+}) \\
+n(\varepsilon) &= \mathrm{true} &&(\mathsf{N}_{\varepsilon}) &
+n(r \cdot s) &= n(r) \land n(s) &&(\mathsf{N}_{\mathrm{seq}}) \\
+n(x) &= \mathrm{false} &&(\mathsf{N}_{\mathrm{lit}}) &
+n(r^{*}) &= \mathrm{true} &&(\mathsf{N}_{*})
+\end{aligned}
+\end{equation}
+\begin{equation}\label{eq:derivative}
+\begin{aligned}
+\emptyset \backslash x &= \emptyset &&(\mathsf{D}_{\emptyset}) \\
+\varepsilon \backslash x &= \emptyset &&(\mathsf{D}_{\varepsilon}) \\
 y \backslash x &=
-  \begin{cases} \varepsilon & x = y \\ \emptyset & x \neq y \end{cases} \\
-(r + s) \backslash x &= r \backslash x + s \backslash x &
-r^{*} \backslash x &= (r \backslash x) \cdot r^{*} \\
+  \begin{cases} \varepsilon & x = y \\ \emptyset & x \neq y \end{cases}
+  &&(\mathsf{D}_{\mathrm{lit}}) \\
+(r + s) \backslash x &= (r \backslash x) + (s \backslash x) &&(\mathsf{D}_{+}) \\
+r^{*} \backslash x &= (r \backslash x) \cdot r^{*} &&(\mathsf{D}_{*}) \\
 (r \cdot s) \backslash x &=
   \begin{cases}
-    (r \backslash x) \cdot s \; + \; s \backslash x & n(r) \\
-    (r \backslash x) \cdot s & \text{otherwise}
+    (r \backslash x) \cdot s \; + \; s \backslash x & n(r) = \mathrm{true} \\
+    (r \backslash x) \cdot s & n(r) = \mathrm{false}
   \end{cases}
-\end{align*}
+  &&\begin{array}{l}(\mathsf{D}_{\mathrm{seq}}^{\,n}) \\ (\mathsf{D}_{\mathrm{seq}})\end{array}
+\end{aligned}
+\end{equation}
+
+Each rule carries a name in the right-hand column, and every derivation
+in this chapter and in
+Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}
+cites those names step by step. Two of them, $\mathsf{D}_{+}$ and
+$\mathsf{D}_{\mathrm{seq}}$, are stated over metavariables $r$ and $s$, so
+applying one to a concrete expression means first deciding which
+subexpression each metavariable stands for. Every application below
+states that binding explicitly before the rule is used, because for a
+left-associated expression such as
+$r_{01} = ((0+1)^{*} \cdot 0) \cdot 1$ the answer is not the one the
+written form suggests at a glance: the outer concatenation binds
+$r = (0+1)^{*} \cdot 0$ and $s = 1$, not $r = (0+1)^{*}$ and
+$s = 0 \cdot 1$.
 
 The only case that needs justification beyond direct case analysis on
-$L(r \cdot s)$ is concatenation: if $r$ is nullable, a word starting with
+$L(r \cdot s)$ is concatenation, the last line of
+Equation~\eqref{eq:derivative}: if $r$ is nullable, a word starting with
 $x$ can either continue matching $r$ (so the derivative goes into $r$
 while $s$ is left untouched) or arise from $r$ already being satisfied by
 $\varepsilon$, with $x$ belonging to $s$ instead. Hence the extra
@@ -146,44 +169,88 @@ consumed.
 Consider $x^{*}$ against the word $\mathtt{xx}$. Writing
 $r \xrightarrow{x} r \backslash x$ for one derivative step,
 
-\[
-x^{*} \xrightarrow{x} (x \backslash x) \cdot x^{*} = \varepsilon \cdot x^{*}
-\xrightarrow{x} (\varepsilon \backslash x) \cdot x^{*} + x^{*} \backslash x
-= \emptyset \cdot x^{*} + (x \backslash x) \cdot x^{*} = \emptyset \cdot x^{*} + \varepsilon \cdot x^{*}.
-\]
+\emph{Step 1.} The expression is a star, so $\mathsf{D}_{*}$ applies with
+body $r = x$:
 
-Checking nullability of the final expression by structural recursion,
+\begin{equation}\label{eq:der-3}
+\begin{aligned}
+x^{*} \backslash \mathtt{x}
+  &= (x \backslash \mathtt{x}) \cdot x^{*}
+  &&\mathsf{D}_{*},\ r = x \\
+  &= \varepsilon \cdot x^{*}
+  &&\mathsf{D}_{\mathrm{lit}},\ \text{since } \mathtt{x} = x
+\end{aligned}
+\end{equation}
 
-\begin{align*}
+\emph{Step 2.} The expression is now a concatenation, so the
+concatenation rule applies with $r = \varepsilon$ and $s = x^{*}$.
+Since $n(\varepsilon) = \mathrm{true}$ by $\mathsf{N}_{\varepsilon}$, it
+is the nullable case $\mathsf{D}_{\mathrm{seq}}^{\,n}$ that fires, and that is
+what introduces the $+$:
+
+\begin{equation}\label{eq:der-4}
+\begin{aligned}
+(\varepsilon \cdot x^{*}) \backslash \mathtt{x}
+  &= (\varepsilon \backslash \mathtt{x}) \cdot x^{*} \;+\; x^{*} \backslash \mathtt{x}
+  &&\mathsf{D}_{\mathrm{seq}}^{\,n},\ r = \varepsilon,\ s = x^{*} \\
+  &= \emptyset \cdot x^{*} \;+\; x^{*} \backslash \mathtt{x}
+  &&\mathsf{D}_{\varepsilon} \\
+  &= \emptyset \cdot x^{*} \;+\; (x \backslash \mathtt{x}) \cdot x^{*}
+  &&\mathsf{D}_{*},\ r = x \\
+  &= \emptyset \cdot x^{*} \;+\; \varepsilon \cdot x^{*}
+  &&\mathsf{D}_{\mathrm{lit}}
+\end{aligned}
+\end{equation}
+
+\emph{Nullability of the result}, by structural recursion:
+
+\begin{equation}\label{eq:der-5}
+\begin{aligned}
 n(\emptyset \cdot x^{*} + \varepsilon \cdot x^{*})
-&= n(\emptyset \cdot x^{*}) \lor n(\varepsilon \cdot x^{*}) \\
-&= (n(\emptyset) \land n(x^{*})) \lor (n(\varepsilon) \land n(x^{*})) \\
-&= (\mathrm{false} \land \mathrm{true}) \lor (\mathrm{true} \land \mathrm{true}) \;=\; \mathrm{true},
-\end{align*}
+&= n(\emptyset \cdot x^{*}) \lor n(\varepsilon \cdot x^{*})
+   &&\mathsf{N}_{+},\ r = \emptyset \cdot x^{*},\ s = \varepsilon \cdot x^{*} \\
+&= (n(\emptyset) \land n(x^{*})) \lor (n(\varepsilon) \land n(x^{*}))
+   &&\mathsf{N}_{\mathrm{seq}},\ \text{twice} \\
+&= (\mathrm{false} \land \mathrm{true}) \lor (\mathrm{true} \land \mathrm{true})
+   &&\mathsf{N}_{\emptyset},\ \mathsf{N}_{*},\ \mathsf{N}_{\varepsilon} \\
+&= \mathrm{true}
+\end{aligned}
+\end{equation}
 
 so $x^{*}$ matches $\mathtt{xx}$, correctly. This short trace makes two
-things visible. First, the expression has grown from one node to five
-across two steps, purely from the $+$ the concatenation rule introduces
-at each nullable-prefix step; nothing above bounds this growth, and a
-third derivative step would nest a further $+$ inside each existing
-summand. Second, the identities listed below collapse the final
-expression straight back down to $\varepsilon \cdot x^{*}$, which is exactly
-the expression reached after only \emph{one} derivative step, not two.
-Without them, a derivative sequence accumulates $\emptyset$'s and
-$\varepsilon$'s that never get removed; with them, the sequence for
-$x^{*}$ never grows past a single node.
+things visible. First, the expression has grown from two nodes to nine
+across two steps, purely from the $+$ that $\mathsf{D}_{\mathrm{seq}}^{\,n}$
+introduces at each nullable-prefix step; nothing above bounds this
+growth, and a third derivative step would nest a further $+$ inside each
+existing summand, reaching fourteen nodes. Second, the identities listed
+below collapse the result back to $x^{*}$ itself, the expression the
+trace started from, which is why applying them after every step keeps
+this particular sequence at a fixed size rather than letting it grow.
+The collapse takes three of the four identities in turn:
+
+\begin{equation}\label{eq:der-6}
+\begin{aligned}
+\emptyset \cdot x^{*} + \varepsilon \cdot x^{*}
+  &= \emptyset + \varepsilon \cdot x^{*} &&\mathsf{S}_{1},\ r = x^{*} \\
+  &= \varepsilon \cdot x^{*}             &&\mathsf{S}_{3},\ r = \varepsilon \cdot x^{*} \\
+  &= x^{*}                               &&\mathsf{S}_{2},\ r = x^{*}
+\end{aligned}
+\end{equation}
 
 
 \medskip
-\noindent Four identities do this collapsing, each a direct consequence
-of the semantics of Section~\ref{sec:regex-semantics}:
+\noindent Four identities do this collapsing,
+Equation~\eqref{eq:simp-identities}, each a direct consequence of the
+semantics of Section~\ref{sec:regex-semantics}:
 
-\begin{itemize}
-  \item $\emptyset \cdot r = \emptyset$
-  \item $\varepsilon \cdot r = r$
-  \item $\emptyset + r = r$
-  \item $r + r = r$ \quad (idempotent alternation)
-\end{itemize}
+\begin{equation}\label{eq:simp-identities}
+\begin{aligned}
+\emptyset \cdot r &= \emptyset &&(\mathsf{S}_{1}) &
+\emptyset + r &= r &&(\mathsf{S}_{3}) \\
+\varepsilon \cdot r &= r &&(\mathsf{S}_{2}) &
+r + r &= r &&(\mathsf{S}_{4}) \quad\text{(idempotent alternation)}
+\end{aligned}
+\end{equation}
 
 \texttt{src/regex/simplify.rs} implements exactly these four rules,
 applied to every subexpression; \texttt{match\_deriv}
@@ -209,86 +276,161 @@ $((0+1)^{*} \cdot 0) \cdot 1$. Derive it against $w = \mathtt{101}$ one
 symbol at a time.
 
 
+Because every rule below is applied to a concatenation, it is worth
+fixing the bindings once. $r_{01}$ has three concatenation nodes, and
+matching each against the pattern $r \cdot s$ gives:
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Node & $r$ & $s$ \\
+\hline
+$\big((0+1)^{*} \cdot 0\big) \cdot 1$ (the whole of $r_{01}$) & $(0+1)^{*} \cdot 0$ & $1$ \\
+$(0+1)^{*} \cdot 0$ & $(0+1)^{*}$ & $0$ \\
+inside $\mathsf{D}_{*}$: the star body & $0+1$ & \\
+\hline
+\end{tabular}
+\end{center}
+
+The first row is the one that is easy to get wrong. $r_{01}$ is
+left-associated (Section~\ref{sec:regex-syntax}), so its outermost
+operator is the concatenation with the trailing literal $1$, and the
+rule's $s$ is that single literal rather than $0 \cdot 1$.
+
 \begin{enumerate}
-  \item \textbf{Derive by $\mathtt{1}$.} The left operand
-  $(0+1)^{*} \cdot 0$ is not nullable (it still needs its trailing $0$),
-  so the concatenation rule's second case applies:
-  \[
-  r_{01} \backslash \mathtt{1} \;=\; \big( ((0+1)^{*} \cdot 0) \backslash
-  \mathtt{1} \big) \cdot 1.
-  \]
-  The inner star $(0+1)^{*}$ is nullable, so its own derivative needs
-  the concatenation rule's first case too:
-  \begin{align*}
-  (0+1)^{*} \backslash \mathtt{1}
-  &= \big( (0 \backslash \mathtt{1}) + (1 \backslash \mathtt{1}) \big) \cdot (0+1)^{*} \\
-  &= (\emptyset + \varepsilon) \cdot (0+1)^{*} \\
+  \item \textbf{Derive by $\mathtt{1}$.} At the outer node,
+  $r = (0+1)^{*} \cdot 0$ and $s = 1$. Testing $r$ for nullability,
+  $n\big((0+1)^{*} \cdot 0\big) = n\big((0+1)^{*}\big) \land n(0) =
+  \mathrm{true} \land \mathrm{false} = \mathrm{false}$ by
+  $\mathsf{N}_{\mathrm{seq}}$, $\mathsf{N}_{*}$ and $\mathsf{N}_{\mathrm{lit}}$:
+  it does not match the empty word, since it still owes its trailing
+  $0$. So the non-nullable case applies and no second summand appears:
+  \begin{equation}\label{eq:der-8}
+\begin{aligned}
+r_{01} \backslash \mathtt{1}
+  &= \big( ((0+1)^{*} \cdot 0) \backslash \mathtt{1} \big) \cdot 1
+  &&\mathsf{D}_{\mathrm{seq}},\ r = (0+1)^{*} \cdot 0,\ s = 1
+\end{aligned}
+\end{equation}
+
+  The inner derivative is taken at the middle node, where
+  $r = (0+1)^{*}$ and $s = 0$. That $r$ is a star, so working it out
+  needs $\mathsf{D}_{*}$ with star body $0+1$:
+  \begin{equation}\label{eq:der-9}
+\begin{aligned}
+(0+1)^{*} \backslash \mathtt{1}
+  &= \big( (0+1) \backslash \mathtt{1} \big) \cdot (0+1)^{*}
+  &&\mathsf{D}_{*},\ r = 0+1 \\
+  &= \big( (0 \backslash \mathtt{1}) + (1 \backslash \mathtt{1}) \big) \cdot (0+1)^{*}
+  &&\mathsf{D}_{+},\ r = 0,\ s = 1 \\
+  &= (\emptyset + \varepsilon) \cdot (0+1)^{*}
+  &&\mathsf{D}_{\mathrm{lit}},\ \text{twice} \\
+  &= \varepsilon \cdot (0+1)^{*}
+  &&\mathsf{S}_{3},\ r = \varepsilon \\
   &= (0+1)^{*}
-  \quad \text{(by $\emptyset+r=r$, $\varepsilon\cdot r=r$).}
-  \end{align*}
-  Substituting back, since $(0+1)^{*}$ is nullable:
-  \begin{align*}
-  ((0+1)^{*} \cdot 0) \backslash \mathtt{1}
-  &= \big( (0+1)^{*} \backslash \mathtt{1} \big) \cdot 0 \;+\; (0 \backslash \mathtt{1}) \\
-  &= (0+1)^{*} \cdot 0 \;+\; \emptyset \\
+  &&\mathsf{S}_{2},\ r = (0+1)^{*}
+\end{aligned}
+\end{equation}
+
+  Substituting back into the middle node. Here
+  $n\big((0+1)^{*}\big) = \mathrm{true}$ by $\mathsf{N}_{*}$, so this
+  time it \emph{is} the nullable case, and a second summand does appear:
+  \begin{equation}\label{eq:der-10}
+\begin{aligned}
+((0+1)^{*} \cdot 0) \backslash \mathtt{1}
+  &= \big( (0+1)^{*} \backslash \mathtt{1} \big) \cdot 0 \;+\; (0 \backslash \mathtt{1})
+  &&\mathsf{D}_{\mathrm{seq}}^{\,n},\ r = (0+1)^{*},\ s = 0 \\
+  &= (0+1)^{*} \cdot 0 \;+\; \emptyset
+  &&\text{previous block; } \mathsf{D}_{\mathrm{lit}} \\
   &= (0+1)^{*} \cdot 0
-  \quad \text{(by $\emptyset+r=r$).}
-  \end{align*}
-  So
-  \[
-  r_{01} \backslash \mathtt{1} \;=\; \big( (0+1)^{*} \cdot 0 \big) \cdot 1 \;=\; r_{01}.
-  \]
+  &&\mathsf{S}_{3},\ r = (0+1)^{*} \cdot 0
+\end{aligned}
+\end{equation}
+  Note that $\mathsf{S}_{3}$ is stated as $\emptyset + r = r$ while the
+  expression here is $r + \emptyset$; the identity is applied up to the
+  commutativity of $+$, which \texttt{simplify} implements as a separate
+  match arm for each side.
+
+  So, substituting once more into the outer node,
+  \begin{equation}\label{eq:der-24}
+r_{01} \backslash \mathtt{1} \;=\; \big( (0+1)^{*} \cdot 0 \big) \cdot 1 \;=\; r_{01}.
+\end{equation}
   A $\mathtt{1}$ that is not yet part of the final $\mathtt{01}$ loops
   back to the start, since $(0+1)^{*}$ can absorb it.
 
-  \item \textbf{Derive by $\mathtt{0}$.} The same computation, with $0$
-  and $1$ exchanged: $(0+1)^{*} \backslash \mathtt{0}$ again simplifies
-  to $(0+1)^{*}$, but this time $0 \backslash \mathtt{0} = \varepsilon$
-  rather than $\emptyset$, so
-  \[
-  ((0+1)^{*} \cdot 0) \backslash \mathtt{0} \;=\; (0+1)^{*} \cdot 0 \;+\; \varepsilon
-  \]
-  does \emph{not} collapse further and neither summand is $\emptyset$,
-  and the two are not identical. This gives
-  \[
-  r_{01} \backslash \mathtt{1} \backslash \mathtt{0} \;=\; \big( (0+1)^{*} \cdot 0 \;+\; \varepsilon \big) \cdot 1.
-  \]
+  \item \textbf{Derive by $\mathtt{0}$.} The bindings are the same as in
+  step~1, since the expression is unchanged. The computation is also the
+  same with $0$ and $1$ exchanged, so $(0+1)^{*} \backslash \mathtt{0}$
+  again reduces to $(0+1)^{*}$, this time via
+  $(\varepsilon + \emptyset)$ rather than $(\emptyset + \varepsilon)$.
+  The one substantive difference is at the middle node's second summand:
+  \begin{equation}\label{eq:der-11}
+\begin{aligned}
+((0+1)^{*} \cdot 0) \backslash \mathtt{0}
+  &= \big( (0+1)^{*} \backslash \mathtt{0} \big) \cdot 0 \;+\; (0 \backslash \mathtt{0})
+  &&\mathsf{D}_{\mathrm{seq}}^{\,n},\ r = (0+1)^{*},\ s = 0 \\
+  &= (0+1)^{*} \cdot 0 \;+\; \varepsilon
+  &&\mathsf{D}_{\mathrm{lit}},\ \text{since } \mathtt{0} = 0
+\end{aligned}
+\end{equation}
+  Here $\mathsf{D}_{\mathrm{lit}}$ takes its $x = y$ branch and yields
+  $\varepsilon$ where step~1 got $\emptyset$, so no simplification
+  applies: $\mathsf{S}_{3}$ needs an $\emptyset$ summand and
+  $\mathsf{S}_{4}$ needs two identical summands, and neither holds.
+  Substituting into the outer node, which is still the non-nullable
+  case:
+  \begin{equation}\label{eq:der-25}
+r_{01} \backslash \mathtt{1} \backslash \mathtt{0} \;=\; \big( (0+1)^{*} \cdot 0 \;+\; \varepsilon \big) \cdot 1.
+\end{equation}
   It reads exactly as it should: after \texttt{"10"}, either the
   trailing $\mathtt{01}$ is still owed in full (the $(0+1)^{*} \cdot 0$
   summand), or the just-consumed $\mathtt{0}$ was already the first half
   of it (the $\varepsilon$ summand); both possibilities stay open until
   the next symbol decides between them.
 
-  \item \textbf{Derive by $\mathtt{1}$.} $(0+1)^{*} \cdot 0 + \varepsilon$
-  is nullable (via its $\varepsilon$ summand), so the concatenation
-  rule's first case applies:
-  \[
-  \big( ((0+1)^{*} \cdot 0 + \varepsilon) \cdot 1 \big) \backslash \mathtt{1}
-  \;=\; \big( ((0+1)^{*} \cdot 0 + \varepsilon) \backslash \mathtt{1} \big) \cdot 1
-  \;+\; (1 \backslash \mathtt{1}).
-  \]
-  Working out the inner derivative, reusing step~1's result that
-  $((0+1)^{*} \cdot 0) \backslash \mathtt{1}$ simplifies to
-  $(0+1)^{*} \cdot 0$:
-  \begin{align*}
-  ((0+1)^{*} \cdot 0 + \varepsilon) \backslash \mathtt{1}
-  &= \big( ((0+1)^{*} \cdot 0) \backslash \mathtt{1} \big) + (\varepsilon \backslash \mathtt{1}) \\
-  &= (0+1)^{*} \cdot 0 \;+\; \emptyset \\
+  \item \textbf{Derive by $\mathtt{1}$.} The outer node's binding has
+  changed: $r$ is now $(0+1)^{*} \cdot 0 + \varepsilon$ and $s$ is still
+  $1$. This $r$ \emph{is} nullable, since
+  $n\big((0+1)^{*} \cdot 0 + \varepsilon\big) =
+  n\big((0+1)^{*} \cdot 0\big) \lor n(\varepsilon) =
+  \mathrm{false} \lor \mathrm{true} = \mathrm{true}$ by $\mathsf{N}_{+}$
+  and $\mathsf{N}_{\varepsilon}$, so for the first time the outer node
+  takes the nullable case:
+  \begin{equation}\label{eq:der-12}
+\begin{aligned}
+\big( ((0+1)^{*} \cdot 0 + \varepsilon) \cdot 1 \big) \backslash \mathtt{1}
+  &= \big( ((0+1)^{*} \cdot 0 + \varepsilon) \backslash \mathtt{1} \big) \cdot 1
+     \;+\; (1 \backslash \mathtt{1})
+  &&\mathsf{D}_{\mathrm{seq}}^{\,n}
+\end{aligned}
+\end{equation}
+  The inner derivative is now an alternation rather than a
+  concatenation, so $\mathsf{D}_{+}$ applies, and its left operand is
+  step~1's computation reused verbatim:
+  \begin{equation}\label{eq:der-13}
+\begin{aligned}
+((0+1)^{*} \cdot 0 + \varepsilon) \backslash \mathtt{1}
+  &= \big( ((0+1)^{*} \cdot 0) \backslash \mathtt{1} \big) + (\varepsilon \backslash \mathtt{1})
+  &&\mathsf{D}_{+},\ r = (0+1)^{*} \cdot 0,\ s = \varepsilon \\
+  &= (0+1)^{*} \cdot 0 \;+\; \emptyset
+  &&\text{step~1; } \mathsf{D}_{\varepsilon} \\
   &= (0+1)^{*} \cdot 0
-  \quad \text{(by $\emptyset+r=r$).}
-  \end{align*}
-  So
-  \[
-  r_{01} \backslash \mathtt{1} \backslash \mathtt{0} \backslash \mathtt{1}
+  &&\mathsf{S}_{3},\ r = (0+1)^{*} \cdot 0
+\end{aligned}
+\end{equation}
+  Substituting both parts back, and using
+  $1 \backslash \mathtt{1} = \varepsilon$ by $\mathsf{D}_{\mathrm{lit}}$:
+  \begin{equation}\label{eq:der-26}
+r_{01} \backslash \mathtt{1} \backslash \mathtt{0} \backslash \mathtt{1}
   \;=\; \big( (0+1)^{*} \cdot 0 \big) \cdot 1 \;+\; \varepsilon
   \;=\; r_{01} + \varepsilon.
-  \]
+\end{equation}
 \end{enumerate}
 
 
 $r_{01} + \varepsilon$ is nullable, since $n(r_{01} + \varepsilon) =
 n(r_{01}) \lor n(\varepsilon) = \mathrm{false} \lor \mathrm{true} =
-\mathrm{true}$, so $\mathtt{101} \in L(r_{01})$, correctly: $\mathtt{101}$
+\mathrm{true}$ by $\mathsf{N}_{+}$ and $\mathsf{N}_{\varepsilon}$, so $\mathtt{101} \in L(r_{01})$, correctly: $\mathtt{101}$
 ends in $\mathtt{01}$. The final $\varepsilon$ summand is exactly what
 witnesses this: it says the match was already complete the moment the
 third symbol was read, which is precisely what makes the whole
@@ -335,26 +477,41 @@ reached so far with $+$. Antimirov's partial derivatives take a
 different route to the same residual language: rather than combining the
 alternatives produced along the way, keep them apart as a \emph{set} of
 expressions, one per strand of nondeterminism \citep{antimirov1996}.
-Writing $pd(r,x)$ for this set,
+Writing $pd(r,x)$ for this set, Equation~\eqref{eq:pd} defines it:
 
-\begin{align*}
-pd(\emptyset, x) &= \{\} \\
-pd(\varepsilon, x) &= \{\} \\
+\begin{equation}\label{eq:pd}
+\begin{aligned}
+pd(\emptyset, x) &= \{\} &&(\mathsf{P}_{\emptyset}) \\
+pd(\varepsilon, x) &= \{\} &&(\mathsf{P}_{\varepsilon}) \\
 pd(y, x) &=
-  \begin{cases} \{\varepsilon\} & x = y \\ \{\} & x \neq y \end{cases} \\
-pd(r + s, x) &= pd(r,x) \cup pd(s,x) \\
-pd(r^{*}, x) &= \{\, \mathit{smartC}(r', r^{*}) \mid r' \in pd(r,x) \,\} \\
+  \begin{cases} \{\varepsilon\} & x = y \\ \{\} & x \neq y \end{cases}
+  &&(\mathsf{P}_{\mathrm{lit}}) \\
+pd(r + s, x) &= pd(r,x) \cup pd(s,x) &&(\mathsf{P}_{+}) \\
+pd(r^{*}, x) &= \{\, \mathit{smartC}(r', r^{*}) \mid r' \in pd(r,x) \,\}
+  &&(\mathsf{P}_{*}) \\
 pd(r \cdot s, x) &=
   \begin{cases}
-    \{\, \mathit{smartC}(r', s) \mid r' \in pd(r,x) \,\} \cup pd(s,x) & n(r) \\
-    \{\, \mathit{smartC}(r', s) \mid r' \in pd(r,x) \,\} & \text{otherwise}
+    \{\, \mathit{smartC}(r', s) \mid r' \in pd(r,x) \,\} \cup pd(s,x) & n(r) = \mathrm{true} \\
+    \{\, \mathit{smartC}(r', s) \mid r' \in pd(r,x) \,\} & n(r) = \mathrm{false}
   \end{cases}
-\end{align*}
+  &&\begin{array}{l}(\mathsf{P}_{\mathrm{seq}}^{\,n}) \\ (\mathsf{P}_{\mathrm{seq}})\end{array}
+\end{aligned}
+\end{equation}
 
-where the smart constructor $\mathit{smartC}(\varepsilon, s) = s$ and
-$\mathit{smartC}(r', s) = r' \cdot s$ otherwise avoids introducing a
-spurious $\varepsilon \cdot s$ whenever a partial derivative of $r$ is
-exactly $\varepsilon$. This keeps every partial derivative a
+where the smart constructor, named $\mathsf{SC}$ when cited below, is
+\begin{equation}\label{eq:smartc}
+\mathit{smartC}(r', s) =
+  \begin{cases}
+    s & r' = \varepsilon \\
+    r' \cdot s & \text{otherwise}
+  \end{cases}
+\end{equation}
+and avoids introducing a spurious $\varepsilon \cdot s$ whenever a
+partial derivative of $r$ is exactly $\varepsilon$. The rule names
+mirror Section~\ref{sec:brzozowski-derivatives}'s, so a $\mathsf{P}$
+rule and the $\mathsf{D}$ rule with the same subscript are the two
+readings of the same case, and the derivations below cite them the same
+way, binding $r$ and $s$ explicitly at each application. This keeps every partial derivative a
 subexpression of $r$ (up to the concatenations $\mathit{smartC}$
 builds), rather than an expression that could grow without bound the way
 plain $r \backslash x$ can.
@@ -367,12 +524,20 @@ Consider $x^{*}$ against $\mathtt{xx}$ again, this time under $pd$. The
 base case gives $pd(x,\mathtt{x}) = \{\varepsilon\}$, and the star rule
 applies the smart constructor to it:
 
-\[
-pd(x^{*},\mathtt{x}) \;=\; \{\, \mathit{smartC}(r', x^{*}) \mid r' \in pd(x,\mathtt{x}) \,\}
-\;=\; \{\mathit{smartC}(\varepsilon, x^{*})\} \;=\; \{x^{*}\},
-\]
+\begin{equation}\label{eq:der-15}
+\begin{aligned}
+pd(x^{*},\mathtt{x})
+  &= \{\, \mathit{smartC}(r', x^{*}) \mid r' \in pd(x,\mathtt{x}) \,\}
+  &&\mathsf{P}_{*},\ \text{star body } r = x \\
+  &= \{\, \mathit{smartC}(r', x^{*}) \mid r' \in \{\varepsilon\} \,\}
+  &&\mathsf{P}_{\mathrm{lit}},\ \text{since } \mathtt{x} = x \\
+  &= \{\mathit{smartC}(\varepsilon, x^{*})\} \\
+  &= \{x^{*}\}
+  &&\mathsf{SC},\ r' = \varepsilon,\ s = x^{*}
+\end{aligned}
+\end{equation}
 
-since $\mathit{smartC}(\varepsilon,s) = s$. Deriving again by $\mathtt{x}$
+Deriving again by $\mathtt{x}$
 repeats exactly the same computation, because the set to derive is still
 $\{x^{*}\}$: $pd(x^{*},\mathtt{x},\mathtt{x}) = \{x^{*}\}$. This set
 contains $x^{*}$, which is nullable, so $x^{*}$ matches $\mathtt{xx}$,
@@ -394,33 +559,59 @@ Derive $r_{01}$ against $w = \mathtt{101}$ again, this time tracking a
 set of residuals instead of one expression.
 
 \begin{enumerate}
-  \item \textbf{Derive by $\mathtt{1}$.} As in
-  Section~\ref{sec:brzozowski-derivatives}, finding
-  $pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big)$ needs the inner star first.
-  Since $(0+1)^{*}$ is nullable,
-
-  \[
-  pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big)
-  \;=\; \{\, \mathit{smartC}(r',0) \mid r' \in pd\big((0+1)^{*},\mathtt{1}\big) \,\} \;\cup\; pd(0,\mathtt{1}).
-  \]
-
-  Working out $pd\big((0+1)^{*},\mathtt{1}\big)$: $pd(0{+}1,\mathtt{1}) =
-  pd(0,\mathtt{1}) \cup pd(1,\mathtt{1}) = \{\} \cup \{\varepsilon\} =
-  \{\varepsilon\}$, so
-  $pd\big((0+1)^{*},\mathtt{1}\big) = \{\mathit{smartC}(\varepsilon,(0+1)^{*})\} = \{(0+1)^{*}\}$.
-  Substituting back, and since $pd(0,\mathtt{1}) = \{\}$:
-
-  \[
-  pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big) \;=\; \{\mathit{smartC}((0+1)^{*},0)\} \cup \{\} \;=\; \{(0+1)^{*}\cdot0\}.
-  \]
-
-  $(0+1)^{*}\cdot0$ is not nullable, so the outer concatenation rule
-  needs no union with $pd(1,\mathtt{1})$:
-
-  \[
-  pd(r_{01},\mathtt{1}) \;=\; \{\, \mathit{smartC}(r',1) \mid r' \in pd\big((0+1)^{*}\cdot0,\mathtt{1}\big) \,\}
-  \;=\; \{(0+1)^{*}\cdot0\cdot1\} \;=\; \{r_{01}\}.
-  \]
+  \item \textbf{Derive by $\mathtt{1}$.} The bindings are the same three
+  concatenation nodes as in
+  Section~\ref{sec:brzozowski-derivatives}'s table, and the work
+  proceeds innermost first. Start with the star body, where
+  $\mathsf{P}_{+}$ binds $r = 0$ and $s = 1$:
+  \begin{equation}\label{eq:der-16}
+\begin{aligned}
+pd(0{+}1,\ \mathtt{1})
+  &= pd(0,\mathtt{1}) \cup pd(1,\mathtt{1})
+  &&\mathsf{P}_{+},\ r = 0,\ s = 1 \\
+  &= \{\} \cup \{\varepsilon\}
+  &&\mathsf{P}_{\mathrm{lit}},\ \text{both branches} \\
+  &= \{\varepsilon\}
+\end{aligned}
+\end{equation}
+  Lifting that through the star, whose body is $r = 0+1$:
+  \begin{equation}\label{eq:der-17}
+\begin{aligned}
+pd\big((0+1)^{*},\ \mathtt{1}\big)
+  &= \{\, \mathit{smartC}(r',(0+1)^{*}) \mid r' \in \{\varepsilon\} \,\}
+  &&\mathsf{P}_{*},\ r = 0+1 \\
+  &= \{(0+1)^{*}\}
+  &&\mathsf{SC},\ r' = \varepsilon
+\end{aligned}
+\end{equation}
+  At the middle node $r = (0+1)^{*}$ and $s = 0$, and
+  $n\big((0+1)^{*}\big) = \mathrm{true}$ by $\mathsf{N}_{*}$, so the
+  nullable case applies and a union with $pd(s,x)$ appears:
+  \begin{equation}\label{eq:der-18}
+\begin{aligned}
+pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big)
+  &= \{\, \mathit{smartC}(r',0) \mid r' \in pd\big((0+1)^{*},\mathtt{1}\big) \,\}
+     \;\cup\; pd(0,\mathtt{1})
+  &&\mathsf{P}_{\mathrm{seq}}^{\,n} \\
+  &= \{\mathit{smartC}((0+1)^{*},0)\} \;\cup\; \{\}
+  &&\text{above; } \mathsf{P}_{\mathrm{lit}} \\
+  &= \{(0+1)^{*}\cdot0\}
+  &&\mathsf{SC},\ r' \neq \varepsilon
+\end{aligned}
+\end{equation}
+  Note that $\mathsf{SC}$ took its second branch here, building the
+  concatenation, because $r' = (0+1)^{*}$ is not $\varepsilon$.
+  Finally the outer node, where $r = (0+1)^{*}\cdot0$ and $s = 1$. That
+  $r$ is not nullable, so no union is added:
+  \begin{equation}\label{eq:der-19}
+\begin{aligned}
+pd(r_{01},\ \mathtt{1})
+  &= \{\, \mathit{smartC}(r',1) \mid r' \in \{(0+1)^{*}\cdot0\} \,\}
+  &&\mathsf{P}_{\mathrm{seq}},\ r = (0+1)^{*}\cdot0,\ s = 1 \\
+  &= \{(0+1)^{*}\cdot0\cdot1\} \;=\; \{r_{01}\}
+  &&\mathsf{SC}
+\end{aligned}
+\end{equation}
 
   A single residual, identical to $r_{01}$ itself: reading a $\mathtt{1}$
   that is not yet part of the final $\mathtt{01}$ loops back to the
@@ -428,23 +619,37 @@ set of residuals instead of one expression.
   set, rather than as one expression equal to $r_{01}$.
 
   \item \textbf{Derive by $\mathtt{0}$.} The set is still $\{r_{01}\}$,
-  so derive $r_{01}$ by $\mathtt{0}$. The same computation as step~1,
-  with $0$ and $1$ exchanged, again gives
-  $pd\big((0+1)^{*},\mathtt{0}\big) = \{(0+1)^{*}\}$, but now
-  $pd(0,\mathtt{0}) = \{\varepsilon\}$ rather than $\{\}$, so
-
-  \[
-  pd\big((0+1)^{*}\cdot0,\ \mathtt{0}\big) \;=\; \{\mathit{smartC}((0+1)^{*},0)\} \cup \{\varepsilon\}
-  \;=\; \{(0+1)^{*}\cdot0,\ \varepsilon\}.
-  \]
-
-  Substituting into the outer concatenation:
-
-  \begin{align*}
-  pd(r_{01},\mathtt{1},\mathtt{0})
-  &= \{\, \mathit{smartC}(r',1) \mid r' \in \{(0+1)^{*}\cdot0,\ \varepsilon\} \,\} \\
-  &= \{(0+1)^{*}\cdot0\cdot1,\ 1\} \;=\; \{r_{01},\ 1\}.
-  \end{align*}
+  so derive $r_{01}$ by $\mathtt{0}$ with the same three bindings. The
+  star computation runs as before and again gives
+  $pd\big((0+1)^{*},\mathtt{0}\big) = \{(0+1)^{*}\}$. The difference is
+  at the middle node's second operand, where $\mathsf{P}_{\mathrm{lit}}$
+  now takes its $x = y$ branch:
+  \begin{equation}\label{eq:der-20}
+\begin{aligned}
+pd\big((0+1)^{*}\cdot0,\ \mathtt{0}\big)
+  &= \{\mathit{smartC}((0+1)^{*},0)\} \;\cup\; pd(0,\mathtt{0})
+  &&\mathsf{P}_{\mathrm{seq}}^{\,n},\ r = (0+1)^{*},\ s = 0 \\
+  &= \{(0+1)^{*}\cdot0\} \;\cup\; \{\varepsilon\}
+  &&\mathsf{P}_{\mathrm{lit}},\ \text{since } \mathtt{0} = 0 \\
+  &= \{(0+1)^{*}\cdot0,\ \varepsilon\}
+\end{aligned}
+\end{equation}
+  Write $P = \{(0+1)^{*}\cdot0,\ \varepsilon\}$ for the set just
+  computed. Substituting it into the outer node, $\mathsf{SC}$ now takes
+  a different branch for each of its two elements:
+  \begin{equation}\label{eq:der-21}
+\begin{aligned}
+pd(r_{01},\mathtt{1},\mathtt{0})
+  &= \{\, \mathit{smartC}(r',1) \mid r' \in P \,\}
+  &&\mathsf{P}_{\mathrm{seq}},\ s = 1 \\
+  &= \{(0+1)^{*}\cdot0\cdot1,\ \ 1\}
+  &&\mathsf{SC}\text{: second branch, then first} \\
+  &= \{r_{01},\ 1\}
+\end{aligned}
+\end{equation}
+  The second element is the literal $1$ rather than $\varepsilon \cdot 1$
+  precisely because $\mathsf{SC}$ recognized $r' = \varepsilon$ and
+  returned $s$ untouched.
 
   This is the same information as $\big((0+1)^{*}\cdot0 + \varepsilon\big)\cdot1$
   from the derivative trace. Both say "either the trailing $\mathtt{01}$
@@ -458,12 +663,19 @@ set of residuals instead of one expression.
   encoding both strands internally.
 
   \item \textbf{Derive by $\mathtt{1}$.} Each element of $\{r_{01},\ 1\}$
-  is derived separately and the results unioned: $pd(r_{01},\mathtt{1}) =
-  \{r_{01}\}$, repeating step~1, and $pd(1,\mathtt{1}) = \{\varepsilon\}$.
-  So
-  \[
-  pd(r_{01},\mathtt{1},\mathtt{0},\mathtt{1}) \;=\; \{r_{01}\} \cup \{\varepsilon\} \;=\; \{r_{01},\ \varepsilon\}.
-  \]
+  is derived separately and the results unioned. The first repeats
+  step~1 exactly; the second is a bare literal, so only
+  $\mathsf{P}_{\mathrm{lit}}$ is needed:
+  \begin{equation}\label{eq:der-22}
+\begin{aligned}
+pd(r_{01},\mathtt{1},\mathtt{0},\mathtt{1})
+  &= pd(r_{01},\mathtt{1}) \;\cup\; pd(1,\mathtt{1})
+  &&\text{union over the frontier} \\
+  &= \{r_{01}\} \;\cup\; \{\varepsilon\}
+  &&\text{step~1; } \mathsf{P}_{\mathrm{lit}} \\
+  &= \{r_{01},\ \varepsilon\}
+\end{aligned}
+\end{equation}
 \end{enumerate}
 
 %
@@ -575,7 +787,8 @@ accepts $\mathtt{xx}$, $r_{01}$ accepts $\mathtt{101}$, and $r_{01}$
 rejects $\mathtt{10}$ and all three independently-written matchers
 reach each conclusion the same way. The same
 table-plus-CLI-invocation pattern is used again in
-Chapters~\ref{sec:derivative-parser} \ref{sec:partial-derivative-parser}
+Chapters~\ref{sec:derivative-parser}
+and~\ref{sec:partial-derivative-parser}
 to check the parsers' worked examples against the \texttt{parse}
 subcommand instead of \texttt{match}.
 

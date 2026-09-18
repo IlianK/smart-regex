@@ -5,71 +5,67 @@
 \section{Syntax}
 \label{sec:regex-syntax}
 
-Over an alphabet $\Sigma$, regular expressions are constructed from
-literal symbols, the expressions $\varepsilon$ and $\emptyset$, and the
-three operators alternation, concatenation, and Kleene star. The syntax
-is given by the following grammar:
-
-\[
-r, s \;::=\; x \mid \varepsilon \mid \emptyset \mid r + s \mid r \cdot s \mid r^{*}
-\qquad (x \in \Sigma)
-\]
+Over an alphabet $\Sigma$, regular expressions are defined inductively
+by the grammar
+\begin{equation}\label{eq:regex-grammar}
+r,s ::= x \mid \varepsilon \mid \emptyset
+      \mid r+s \mid r\cdot s \mid r^*
+\qquad (x\in\Sigma).
+\end{equation}
 
 Here $x$ denotes a literal symbol, $\varepsilon$ the expression matching
-only the empty word, and $\emptyset$ the expression matching no word at
-all. The operators $+$, $\cdot$, and $^{*}$ denote alternation,
-concatenation, and repetition (Kleene star), respectively. Concatenation
-is frequently left implicit, writing $rs$ for $r \cdot s$.
+only the empty word, and $\emptyset$ the expression matching no word.
+The operators $+$, $\cdot$, and $^*$ denote alternation, concatenation,
+and Kleene star, respectively. Concatenation is often written implicitly,
+so $rs$ denotes $r\cdot s$.
 
 Unless parentheses are shown explicitly, Kleene star binds most tightly,
 followed by concatenation, followed by alternation. Thus, for example,
 $ab^{*}c$ is parsed as $(a \cdot (b^{*})) \cdot c$, and $a + bc^{*}$ is
 parsed as $a + (b \cdot (c^{*}))$, not $(a+b) \cdot (c^{*})$.
 
-Both $+$ and $\cdot$ are associative as operations on languages: $L((r+s)+t)
-= L(r+(s+t))$ and $L((r \cdot s)\cdot t) = L(r \cdot (s \cdot t))$ follow
-directly from the semantics of Section~\ref{sec:regex-semantics}, so
-which of $r+s+t$'s two possible groupings the grammar above picks out
-never changes the language denoted. It does, however, fix a specific
-\emph{syntax tree}, and the algorithms of later chapters operate on that
-tree rather than on $L(r)$ directly, so the convention needs to be fixed
-unambiguously: both operators associate to the \emph{left}, so $r+s+t$
-means $(r+s)+t$ and $rst$ means $(rs)t$. Section~\ref{sec:regex-rust-implementation}
-makes this concrete for the running example $r_{01}$, whose concatenation
-$(0+1)^{*} \cdot 0 \cdot 1$ left-associates into the tree
-$((0+1)^{*} \cdot 0) \cdot 1$, the exact grouping
-Section~\ref{sec:brzozowski-derivatives} and
-Section~\ref{sec:antimirov-partial-derivatives} derive against, character
-by character.
+Both $+$ and $\cdot$ are associative at the language level, meaning that
+different groupings denote the same language. For example,
+$L((r+s)+t)=L(r+(s+t))$ and
+$L((r\cdot s)\cdot t)=L(r\cdot(s\cdot t))$. The grouping
+determines the \emph{syntax tree} on which the algorithms operate.
+Therefore, both operators associate to the \emph{left}:
+$r+s+t$ means $(r+s)+t$, while $rst$ means $(rs)t$.
 
-The grammar above deliberately has no one-or-more, optional, or bounded
-repetition operator ($r^{+}$, $r\,?$, $r^{\{m,n\}}$): every algorithm in
-this thesis is defined over exactly the six constructs above, and nothing
-else. This is not a limitation on what can be matched. Each of those
-convenience operators is equivalent to some expression already
-expressible here ($r^{+} = r \cdot r^{*}$, for instance) and only on what
-the core language needs to define recursion over directly.
-Chapter~\ref{sec:frontend} (Section~\ref{sec:frontend-translate}) gives
-the complete table of such desugarings, applied by the frontend before
-any of the matchers or parsers implemented ever see the result.
+The grammar deliberately omits convenience operators such as one-or-more,
+optional, and bounded repetition ($r^+$, $r\,?$, $r^{\{m,n\}}$). These
+can be expressed using the six core constructs. For example,
+$r^+=r\cdot r^*$, $r\,?=r+\varepsilon$, and
+\[
+r^{\{m,n\}} =
+\underbrace{r\cdot\ldots\cdot r}_{m\text{ times}}
+\cdot
+\underbrace{(r+\varepsilon)\cdot\ldots\cdot(r+\varepsilon)}_{n-m\text{ times}}.
+\]
+Thus, the omission does not restrict the expressiveness of the core
+syntax. Chapter~\ref{sec:frontend} (Section~\ref{sec:frontend-translate})
+goes into detail of the complete desugarings.
 
-%
 
 As a running example, consider the problem of recognizing binary strings
-that end in \texttt{"01"}, a small but non-trivial pattern that uses all
-three operators in the grammar above. Over $\Sigma = \{0,1\}$, this
-pattern is expressed as
+that end in \texttt{"01"}. Over $\Sigma=\{0,1\}$, this language is
+described by
+\begin{equation}\label{eq:r01-def}
+r_{01} = (0+1)^*\cdot0\cdot1.
+\end{equation}
 
-\[
-r_{01} \;=\; (0 + 1)^{*} \cdot 0 \cdot 1.
-\]
+Here $(0+1)$ is an alternation of the two literals $0$ and $1$, and
+$(0+1)^*$ permits any finite sequence of binary symbols. The expression
+then concatenates this sequence with $0$ and $1$, so the final two symbols
+must be \texttt{"01"}. For example, it matches \texttt{"01"},
+\texttt{"001"}, and \texttt{"1101"}, but not \texttt{"0"} or
+\texttt{"110"}. By the precedence and left-associativity rules above, its
+syntax tree is structured as $((0+1)^*\cdot0)\cdot1$. This tree, rather
+than the expression's textual representation, is the structure operated
+on by the algorithms.
 
-Reading this expression according to the grammar, $(0+1)$ is an
-alternation of two literals, $(0+1)^{*}$ applies Kleene star to that
-alternation, and the result is concatenated with the literals $0$ and
-$1$ in sequence.
 
-
+%
 
 \section{Semantics}
 \label{sec:regex-semantics}
@@ -79,31 +75,40 @@ semantics assigns each expression the \emph{language} it denotes. For a
 regular expression $r$, write $L(r)$ for the set of words it matches.
 The semantics is defined by structural recursion on $r$:
 
-\begin{align*}
+\begin{equation}\label{eq:semantics}
+\begin{aligned}
 L(x) &= \{x\} \\
 L(\varepsilon) &= \{\varepsilon\} \\
 L(\emptyset) &= \{\} \\
 L(r + s) &= L(r) \cup L(s) \\
 L(r \cdot s) &= \{v w \mid v \in L(r),\ w \in L(s)\} \\
 L(r^{*}) &= \{\varepsilon\} \cup \{w_1 \cdots w_n \mid w_1, \ldots, w_n \in L(r),\ n \geq 1\}
-\end{align*}
+\end{aligned}
+\end{equation}
 
-The following examples illustrate the distinction between an expression
-and the language it denotes. Different expressions may describe related
-or even identical sets of words, while the semantics assigns a precise
-language to each expression.
+Table~\ref{tab:lang-examples} illustrates the distinction between an
+expression and the language it denotes, applying
+Equation~\eqref{eq:semantics} to six small cases.
 
-\[
-\begin{array}{c|c}
-\text{Expression} & \text{Language} \\ \hline
-a & \{a\} \\
-\varepsilon & \{\varepsilon\} \\
-\emptyset & \emptyset \\
-a+b & \{a,b\} \\
-ab & \{ab\} \\
-a^* & \{\varepsilon,a,aa,aaa,\ldots\}
-\end{array}
-\]
+\begin{table}[ht]
+\centering
+\begin{tabular}{cc}
+\hline
+Expression & Language \\
+\hline
+$a$ & $\{a\}$ \\
+$\varepsilon$ & $\{\varepsilon\}$ \\
+$\emptyset$ & $\emptyset$ \\
+$a+b$ & $\{a,b\}$ \\
+$ab$ & $\{ab\}$ \\
+$a^{*}$ & $\{\varepsilon,a,aa,aaa,\ldots\}$ \\
+\hline
+\end{tabular}
+\caption{Six expressions and the languages Equation~\eqref{eq:semantics}
+assigns them. Different expressions may denote related or identical sets
+of words, while the semantics assigns a precise language to each.}
+\label{tab:lang-examples}
+\end{table}
 
 The distinction between an expression and its denoted language is
 important for the algorithms developed later. Derivative operations are
@@ -118,14 +123,27 @@ $L((0+1)^{*})$ is the set of all finite binary strings, including the
 empty string. Concatenating with $L(0) = \{0\}$ and then $L(1) = \{1\}$
 restricts this to
 
-\[
+\begin{equation}\label{eq:r01-language}
 L(r_{01}) = \{\, w \cdot 0 \cdot 1 \mid w \in \{0,1\}^{*} \,\},
-\]
+\end{equation}
 
 i.e.\ exactly the binary strings ending in \texttt{"01"} like \texttt{"01"},
 \texttt{"001"}, \texttt{"1101"}, and so on. In particular, the empty
 string is not matched, since every word in $L(r_{01})$ contains the final
 literal $0$ followed by the literal $1$.
+
+
+So an expression has both a syntactic structure and a meaning:
+the syntax determines how the expression is constructed, while its
+semantics, determines the language it
+denotes. Different syntax trees may therefore describe the same language.
+The distinction between an expression and its denoted language is
+important for the algorithms developed later. The derivative algorithms
+transform regular expressions themselves, rather than their denoted
+languages. For example, consuming $a$ from the expression $ab$ produces
+the residual expression $b$, whose language is $\{b\}$. Thus, the
+algorithms operate on expressions, while $L(r)$ describes the language
+represented by each resulting expression.
 
 
 
@@ -161,10 +179,10 @@ For example, the running example $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$
 is represented structurally by an expression tree whose root is a
 concatenation, with $(0+1)^{*} \cdot 0$ and $1$ as its subexpressions,
 the same left-associated grouping fixed in
-Section~\ref{sec:regex-syntax}. Its structure can be
-viewed schematically as
+Section~\ref{sec:regex-syntax}. Its structure is
+Equation~\eqref{eq:r01-tree}:
 
-\[
+\begin{equation}\label{eq:r01-tree}
 \operatorname{Seq}\bigl(
     \operatorname{Seq}(
         \operatorname{Star}(
@@ -174,7 +192,7 @@ viewed schematically as
     ),
     1
 \bigr).
-\]
+\end{equation}
 
 Thus, the Rust value is not merely a string representation of the regular
 expression; it is a tree that directly represents its syntactic

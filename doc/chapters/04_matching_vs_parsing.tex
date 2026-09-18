@@ -136,31 +136,38 @@ constructors used informally in Section~\ref{sec:regex-semantics}'s
 definition of $L(r)$: a pair for concatenation, a tagged left or right
 injection for alternation, and a list for repetition. A judgment
 $\vdash v : r$, defined by structural recursion on both $v$ and $r$,
-states that $v$ is a valid parse tree for $r$:
+states that $v$ is a valid parse tree for $r$, by the rules of
+Equation~\eqref{eq:typing-rules}:
 
-\[
+\begin{equation}\label{eq:typing-rules}
 \begin{array}{ll}
-\vdash () : \varepsilon &
-\dfrac{l \in \Sigma}{\vdash l : l} \\[1.2em]
+\vdash () : \varepsilon \quad (\mathsf{T}_{\varepsilon}) &
+\dfrac{l \in \Sigma}{\vdash l : l} \quad (\mathsf{T}_{\mathrm{lit}}) \\[1.2em]
 \dfrac{\vdash v_1 : r_1 \quad \vdash v_2 : r_2}
-      {\vdash (v_1,v_2) : r_1 r_2}
+      {\vdash (v_1,v_2) : r_1 r_2} \quad (\mathsf{T}_{\mathrm{seq}})
 &
 \dfrac{\vdash v_1 : r_1}
-      {\vdash \mathit{Left}\ v_1 : r_1 + r_2}
+      {\vdash \mathit{Left}\ v_1 : r_1 + r_2} \quad (\mathsf{T}_{+}^{L})
 \quad
 \dfrac{\vdash v_2 : r_2}
-      {\vdash \mathit{Right}\ v_2 : r_1 + r_2}
+      {\vdash \mathit{Right}\ v_2 : r_1 + r_2} \quad (\mathsf{T}_{+}^{R})
 \\[1.2em]
-\dfrac{}{\vdash [\,] : r^{*}} &
+\dfrac{}{\vdash [\,] : r^{*}} \quad (\mathsf{T}_{*}^{0}) &
 \dfrac{\vdash v : r \quad \vdash vs : r^{*}}
-      {\vdash (v:vs) : r^{*}}
+      {\vdash (v:vs) : r^{*}} \quad (\mathsf{T}_{*})
 \end{array}
-\]
+\end{equation}
+
+As with the derivative rules of
+Section~\ref{sec:brzozowski-derivatives}, each rule carries a name, and
+the derivations in this chapter cite those names together with the
+binding of each metavariable, so that it is always visible which
+subexpression of $r$ a given $r_1$ or $r_2$ refers to.
 
 A \emph{flattening} function $\lvert v\rvert$ reads the word represented
 by a parse tree by structural recursion:
 
-\[
+\begin{equation}\label{eq:flatten}
 \begin{aligned}
 \lvert ()\rvert &= \varepsilon, &
 \lvert l\rvert &= l, &
@@ -170,13 +177,13 @@ by a parse tree by structural recursion:
 \lvert \mathit{Right}\ v\rvert &= \lvert v\rvert, \\
 \lvert v:vs\rvert &= \lvert v\rvert\lvert vs\rvert. &&
 \end{aligned}
-\]
+\end{equation}
 
 The key property is that the parse trees characterize the language:
 
-\[
+\begin{equation}\label{eq:mvp-5}
 L(r) = \{\,\lvert v\rvert \mid \vdash v : r\,\}.
-\]
+\end{equation}
 
 Thus, a parse tree together with its derivation provides a structured
 \emph{witness} that $w \in L(r)$: it records not only that the match
@@ -189,23 +196,31 @@ $w$.
 \paragraph{Unambiguous example.}
 For an unambiguous match, this witness is unique. For
 $r = a \cdot b$ and $w = \mathtt{ab}$, only one derivation is possible.
-The \emph{Pair} rule requires $\vdash v_1 : a$ and $\vdash v_2 : b$, and
-the only parse tree for each literal is the literal itself. Hence
-$v_1 = a$ and $v_2 = b$, giving
+Matching $r$ against $\mathsf{T}_{\mathrm{seq}}$'s conclusion binds
+$r_1 = a$ and $r_2 = b$, so the rule requires $\vdash v_1 : a$ and
+$\vdash v_2 : b$. Each of those is a literal, and
+$\mathsf{T}_{\mathrm{lit}}$ is the only rule whose conclusion matches a
+literal, so $v_1 = a$ and $v_2 = b$ with no choice anywhere:
 
-\[
-\dfrac{\vdash a : a \quad \vdash b : b}
-      {\vdash (a,b) : ab}.
-\]
+\begin{equation}\label{eq:mvp-6}
+\dfrac{\dfrac{a \in \Sigma}{\vdash a : a}\ (\mathsf{T}_{\mathrm{lit}})
+ \quad
+ \dfrac{b \in \Sigma}{\vdash b : b}\ (\mathsf{T}_{\mathrm{lit}})}
+      {\vdash (a,b) : ab}\ (\mathsf{T}_{\mathrm{seq}})
+\end{equation}
 
-This is the only possible derivation, yielding $v = (a,b)$ with
+This is the only possible derivation, yielding $v = (a,b)$, and
+flattening it recovers the input:
 
-\[
-\lvert v\rvert
-= \lvert (a,b)\rvert
-= \lvert a\rvert\lvert b\rvert
-= \mathtt{ab}.
-\]
+\begin{equation}\label{eq:mvp-1}
+\begin{aligned}
+\lvert (a,b)\rvert
+  &= \lvert a\rvert\,\lvert b\rvert
+  &&\text{flattening of a pair,}\ v_1 = a,\ v_2 = b \\
+  &= \mathtt{ab}
+  &&\text{flattening of a literal, twice}
+\end{aligned}
+\end{equation}
 
 When the structure of the expression permits different choices, the
 witness itself can be ambiguous. The first two examples below are
@@ -226,7 +241,7 @@ One valid derivation chooses the second alternative of $a+ab$, which
 consumes both characters, and the empty alternative of
 $b+\varepsilon$:
 
-\[
+\begin{equation}\label{eq:mvp-7}
 \dfrac{
   \dfrac{\vdash a : a \quad \vdash b : b}
         {\vdash (a,b) : ab}
@@ -239,28 +254,28 @@ $b+\varepsilon$:
 }{
   \vdash \mathit{Right}() : b + \varepsilon
 }
-\]
+\end{equation}
 
 and therefore
 
-\[
+\begin{equation}\label{eq:mvp-8}
 \vdash
 \bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr)
 :
 (a+ab)(b+\varepsilon).
-\]
+\end{equation}
 
 The corresponding parse tree is
 
-\[
+\begin{equation}\label{eq:mvp-9}
 v
 =
 \bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr),
-\]
+\end{equation}
 
 with
 
-\[
+\begin{equation}\label{eq:mvp-10}
 \lvert v\rvert
 =
 \lvert (a,b)\rvert\,\lvert ()\rvert
@@ -268,13 +283,13 @@ with
 \mathtt{ab}\,\varepsilon
 =
 \mathtt{ab}.
-\]
+\end{equation}
 
 This is not the only witness. The first alternative of $a+ab$ can
 instead consume $\mathtt{a}$, leaving $\mathtt{b}$ for the first
 alternative of $b+\varepsilon$:
 
-\[
+\begin{equation}\label{eq:mvp-11}
 \dfrac{
   \vdash a : a
 }{
@@ -286,41 +301,41 @@ alternative of $b+\varepsilon$:
 }{
   \vdash \mathit{Left}\ b : b + \varepsilon
 }
-\]
+\end{equation}
 
 and therefore
 
-\[
+\begin{equation}\label{eq:mvp-12}
 \vdash
 \bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr)
 :
 (a+ab)(b+\varepsilon).
-\]
+\end{equation}
 
 The corresponding parse tree is
 
-\[
+\begin{equation}\label{eq:mvp-13}
 v'
 =
 \bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr),
-\]
+\end{equation}
 
 with
 
-\[
+\begin{equation}\label{eq:mvp-14}
 \lvert v'\rvert
 =
 \lvert a\rvert\,\lvert b\rvert
 =
 \mathtt{ab}.
-\]
+\end{equation}
 
 Thus the same expression $r_1$ and word $w$ have two distinct parse
 trees, $v$ and $v'$, satisfying
 
-\[
+\begin{equation}\label{eq:mvp-15}
 \lvert v\rvert = \lvert v'\rvert = \mathtt{ab}.
-\]
+\end{equation}
 
 %
 
@@ -332,7 +347,7 @@ nesting the alternation as $a+(b+ab)$
 $L(r)$ and to this example.} in the test suite). One derivation uses a
 single iteration, taking the \texttt{ab} alternative directly:
 
-\[
+\begin{equation}\label{eq:mvp-16}
 \dfrac{
   \dfrac{
     \dfrac{\vdash a : a \quad \vdash b : b}
@@ -343,26 +358,26 @@ single iteration, taking the \texttt{ab} alternative directly:
 }{
   \vdash \mathit{Right}\ \mathit{Right}(a,b) : a + (b+ab)
 }
-\]
+\end{equation}
 
 which becomes a one-element list via the star's constructor rule:
 
-\[
+\begin{equation}\label{eq:mvp-17}
 \vdash [\mathit{Right}\ \mathit{Right}(a,b)] : (a+(b+ab))^{*}.
-\]
+\end{equation}
 
 The corresponding parse tree is
 
-\[
+\begin{equation}\label{eq:mvp-18}
 v_2 = [\mathit{Right}\ \mathit{Right}(a,b)],
 \qquad
 \lvert v_2\rvert = \lvert (a,b)\rvert = \mathtt{ab}.
-\]
+\end{equation}
 
 A second derivation instead uses two iterations, matching $\mathtt{a}$
 and $\mathtt{b}$ through separate alternatives of the star's body:
 
-\[
+\begin{equation}\label{eq:mvp-19}
 \dfrac{\vdash a : a}
       {\vdash \mathit{Left}\ a : a+(b+ab)}
 \qquad
@@ -372,22 +387,22 @@ and $\mathtt{b}$ through separate alternatives of the star's body:
 }{
   \vdash \mathit{Right}\ \mathit{Left}\ b : a+(b+ab)
 }
-\]
+\end{equation}
 
 which combine, one iteration at a time, into
 
-\[
+\begin{equation}\label{eq:mvp-20}
 \vdash [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b] :
 (a+(b+ab))^{*}.
-\]
+\end{equation}
 
 The corresponding parse tree, with two iterations of the star, is
 
-\[
+\begin{equation}\label{eq:mvp-21}
 v_2' = [\mathit{Left}\ a,\ \mathit{Right}\ \mathit{Left}\ b],
 \qquad
 \lvert v_2'\rvert = \lvert a\rvert\,\lvert b\rvert = \mathtt{ab}.
-\]
+\end{equation}
 
 
 As with $r_1$, both $v_2$ and $v_2'$ witness the same match: ambiguity
@@ -411,12 +426,12 @@ independently be matched by either the left or the right copy of
 \texttt{a}, giving four distinct parse trees for this two-character
 input alone:
 
-\[
+\begin{equation}\label{eq:mvp-22}
 [\mathit{Left}\ a,\mathit{Left}\ a],\quad
 [\mathit{Left}\ a,\mathit{Right}\ a],\quad
 [\mathit{Right}\ a,\mathit{Left}\ a],\quad
 [\mathit{Right}\ a,\mathit{Right}\ a],
-\]
+\end{equation}
 
 all flattening to $\mathtt{aa}$. Nothing about $\mathit{Left}\ a$ and
 $\mathit{Right}\ a$ distinguishes them semantically; the ambiguity is
@@ -489,11 +504,11 @@ say which witness a parser should return. A \emph{disambiguation policy}
 adds this missing choice. Given a regular expression $r$ and word $w$, the
 policy selects one parse tree $v$ satisfying
 
-\[
+\begin{equation}\label{eq:mvp-23}
 \vdash v : r
 \qquad\text{and}\qquad
 \lvert v\rvert = w.
-\]
+\end{equation}
 
 The four ambiguous examples above illustrate why the policy matters, and
 in more than one way. For $r_1$ and $\mathtt{ab}$, one witness chooses
@@ -532,11 +547,11 @@ For alternatives, the defining preference is structural: the left
 alternative is preferred regardless of how much input the two
 alternatives consume. In an ordering notation, the essential rule is
 
-\[
+\begin{equation}\label{eq:mvp-24}
 \mathit{Left}\ v
 \succ_{r_1+r_2}
 \mathit{Right}\ v'.
-\]
+\end{equation}
 
 Every other comparison rule: (C1) and (C2) for concatenation, (A3)
 and (A4) for continuing a comparison once both alternatives already
@@ -559,11 +574,11 @@ first alternative of $b+\varepsilon$. Since the complete match succeeds,
 there is no need to try the \texttt{ab} alternative. The Greedy result is
 therefore
 
-\[
+\begin{equation}\label{eq:mvp-25}
 v'
 =
 \bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr).
-\]
+\end{equation}
 
 \paragraph{Applied to $r_2$.}
 Greedy similarly begins with the first alternative, matching $\mathtt{a}$.
@@ -571,11 +586,11 @@ The star then attempts another iteration, in which the first alternative
 fails on $\mathtt{b}$ and the second alternative succeeds. The resulting
 parse uses two iterations:
 
-\[
+\begin{equation}\label{eq:mvp-26}
 v_2'
 =
 [\mathit{Left}\ a,\mathit{Right}\ \mathit{Left}\ b].
-\]
+\end{equation}
 
 The Greedy result therefore depends directly on the order in which the
 regular expression presents its alternatives.
@@ -586,9 +601,9 @@ v'$ applies directly, regardless of length, since both alternatives
 consume the same single character. Greedy therefore selects the left
 alternative every time:
 
-\[
+\begin{equation}\label{eq:mvp-27}
 [\mathit{Left}\ a,\mathit{Left}\ a].
-\]
+\end{equation}
 
 Unlike $r_1$ and $r_2$, this result is not decided by which alternative
 matches more of the input; every alternative here matches exactly one
@@ -642,20 +657,20 @@ the repeated expression can match the empty word. Consider
 $\varepsilon^{*}$ against the empty input. The following parse trees are
 all valid:
 
-\[
+\begin{equation}\label{eq:mvp-28}
 v_0 = [\,],
 \qquad
 v_1 = [()],
 \qquad
 v_2 = [(),()],
 \qquad \ldots
-\]
+\end{equation}
 
 Each additional iteration still produces the same flattened word
 $\varepsilon$. Under the Greedy ordering, every additional iteration is
 preferred:
 
-\[
+\begin{equation}\label{eq:mvp-29}
 v_0
 \prec_{\varepsilon^{*}}
 v_1
@@ -663,7 +678,7 @@ v_1
 v_2
 \prec_{\varepsilon^{*}}
 \cdots.
-\]
+\end{equation}
 
 There is therefore no maximal parse tree. The problem is not that the
 language is ill-defined; $\varepsilon$ is clearly a valid match. The
@@ -673,14 +688,14 @@ when empty iterations can be added indefinitely.
 A slightly less degenerate example is
 $(\varepsilon+a)^{*}$ against $\mathtt{a}$. The parse trees
 
-\[
+\begin{equation}\label{eq:mvp-30}
 \begin{aligned}
 v_0 &= [\mathit{Right}\ a],\\
 v_1 &= [\mathit{Left}\ (),\mathit{Right}\ a],\\
 v_2 &= [\mathit{Left}\ (),\mathit{Left}\ (),\mathit{Right}\ a],\\
 &\quad\vdots
 \end{aligned}
-\]
+\end{equation}
 
 all flatten to $\mathtt{a}$. Greedy prefers each additional empty
 iteration, producing another infinite ascending chain.
@@ -691,7 +706,7 @@ against $\mathtt{aaa}$: since the inner $a^{*}$ can always match
 $\varepsilon$, an outer iteration contributing nothing is always
 available, and Greedy always prefers taking it:
 
-\[
+\begin{equation}\label{eq:mvp-31}
 [[a,a,a]]
 \;\prec_{(a^{*})^{*}}\;
 [[a,a,a],[\,]]
@@ -699,7 +714,7 @@ available, and Greedy always prefers taking it:
 [[a,a,a],[\,],[\,]]
 \;\prec_{(a^{*})^{*}}\;
 \cdots,
-\]
+\end{equation}
 
 another infinite ascending chain, this time built on top of an
 otherwise unambiguous inner match rather than on $\varepsilon$ itself.
@@ -733,9 +748,10 @@ shall match the longest possible string \citep{posix_ere}.
 
 Sulzmann and Lu formalize this policy as an ordering on parse trees
 \citep{sulzmannlu2014}. Let $\operatorname{len}(w)$ denote the number of
-characters in $w$. The ordering is defined by the following rules:
+characters in $w$. The ordering is defined by the rules of
+Equation~\eqref{eq:posix-order}:
 
-\[
+\begin{equation}\label{eq:posix-order}
 \begin{array}{ll}
 \text{(C1)} &
 \dfrac{
@@ -840,17 +856,17 @@ characters in $w$. The ordering is defined by the following rules:
   v_2:vs_2
 }
 \end{array}
-\]
+\end{equation}
 
 The corresponding non-strict relation $\succeq_r$ is defined by
 
-\[
+\begin{equation}\label{eq:mvp-33}
 v_1 \succeq_r v_2
 \quad\Longleftrightarrow\quad
 v_1 = v_2
 \quad\text{or}\quad
 v_1 \succ_r v_2.
-\]
+\end{equation}
 
 Rules (C1) and (C2) propagate comparisons through concatenation.
 Rule (C1) compares the second component when the first components are
@@ -876,63 +892,71 @@ first comparing their heads and then their tails.
 Return to
 $r_1=(a+ab)(b+\varepsilon)$ against $\mathtt{ab}$, with
 
-\[
+\begin{equation}\label{eq:mvp-34}
 v
 =
 \bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr)
-\]
+\end{equation}
 
 and
 
-\[
+\begin{equation}\label{eq:mvp-35}
 v'
 =
 \bigl(\mathit{Left}\ a,\mathit{Left}\ b\bigr).
-\]
+\end{equation}
 
-The two parse trees already choose different alternatives within
-$a+ab$, so rule (C2) applies directly, reducing the comparison to
-exactly those first components,
+Both trees are pairs, so the comparison starts at (C2), whose
+conclusion $(v_1,v_2) \succ_{r_1 r_2} (v_1',v_2')$ matches with
 
-\[
-\mathit{Right}(a,b)
-\quad\text{versus}\quad
-\mathit{Left}\ a
-\]
+\begin{equation}\label{eq:mvp-36}
+r_1 = a+ab, \quad r_2 = b+\varepsilon, \quad
+v_1 = \mathit{Right}(a,b), \quad v_1' = \mathit{Left}\ a .
+\end{equation}
 
-within $a+ab$. Rule (A1) applies because
+(C2) needs only its first components to differ, which they do, so it
+reduces the whole comparison to $v_1 \succ_{r_1} v_1'$, that is to
+$\mathit{Right}(a,b)$ against $\mathit{Left}\ a$ within $a+ab$. Both
+sides are now tagged injections of an alternation, so an $\mathsf{A}$
+rule applies, with
 
-\[
-\operatorname{len}(\lvert(a,b)\rvert)
-=
-2
->
-1
-=
-\operatorname{len}(\lvert a\rvert).
-\]
+\begin{equation}\label{eq:mvp-37}
+r_1 = a, \quad r_2 = ab, \quad v_1 = a, \quad v_2 = (a,b) .
+\end{equation}
 
-Hence
+Under that binding (A1)'s premise holds, since the right alternative
+consumes strictly more of the input:
 
-\[
+\begin{equation}\label{eq:mvp-2}
+\begin{aligned}
+\operatorname{len}(\lvert v_2\rvert)
+  &= \operatorname{len}(\lvert (a,b)\rvert) = 2 \\
+\operatorname{len}(\lvert v_1\rvert)
+  &= \operatorname{len}(\lvert a\rvert) = 1,
+  \qquad\text{so } 2 > 1 .
+\end{aligned}
+\end{equation}
+
+(A1) is the only rule that can fire here: (A2) would need
+$\operatorname{len}(\lvert v_1\rvert) \geq
+\operatorname{len}(\lvert v_2\rvert)$, which fails at $1 \geq 2$, and
+(A3) and (A4) both require the two sides to carry the \emph{same} tag,
+which they do not. So (A1) gives
+
+\begin{equation}\label{eq:mvp-38}
 \mathit{Right}(a,b)
 \succ_{a+ab}
 \mathit{Left}\ a,
-\]
+\end{equation}
 
-and therefore
-
-\[
-v \succeq_{r_1} v'.
-\]
-
+and discharging (C2)'s premise with it gives $v \succeq_{r_1} v'$.
 POSIX consequently selects
 
-\[
+\begin{equation}\label{eq:mvp-39}
 v
 =
 \bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr),
-\]
+\end{equation}
 
 which is the opposite of the Greedy result.
 
@@ -942,31 +966,40 @@ which is the opposite of the Greedy result.
 For
 $r_2=(a+b+ab)^{*}$ against $\mathtt{ab}$, consider
 
-\[
+\begin{equation}\label{eq:mvp-40}
 v_2 =
 [\mathit{Right}\ \mathit{Right}(a,b)]
-\]
+\end{equation}
 
 and
 
-\[
+\begin{equation}\label{eq:mvp-41}
 v_2' =
 [\mathit{Left}\ a,\mathit{Right}\ \mathit{Left}\ b].
-\]
+\end{equation}
 
-Rule (K3) compares the first iterations within the body
-$a+(b+ab)$:
+Both trees are non-empty iteration lists, so (K3) applies. Matching its
+conclusion, which is $v_1{:}vs_1 \succ_{r^{*}} v_2{:}vs_2$, gives
 
-\[
-\mathit{Right}\ \mathit{Right}(a,b)
-\quad\text{versus}\quad
-\mathit{Left}\ a.
-\]
+\begin{equation}\label{eq:mvp-42}
+r = a+(b+ab), \quad
+v_1 = \mathit{Right}\ \mathit{Right}(a,b), \quad
+v_2 = \mathit{Left}\ a,
+\end{equation}
 
-Again, (A1) applies because the first candidate consumes two
-characters while the second consumes one:
+and $vs_1 = [\,]$, $vs_2 = [\mathit{Right}\ \mathit{Left}\ b]$. (K3)
+compares only the first iterations and ignores the tails entirely, which
+is what reduces the question to $v_1 \succ_r v_2$ inside the star body.
+Within that body both sides are tagged injections, binding
 
-\[
+\begin{equation}\label{eq:mvp-43}
+r_1 = a, \quad r_2 = b+ab, \quad
+v_1 = a, \quad v_2 = \mathit{Right}(a,b),
+\end{equation}
+
+and (A1) fires again because the right alternative consumes more:
+
+\begin{equation}\label{eq:mvp-44}
 \operatorname{len}(\lvert\mathit{Right}(a,b)\rvert)
 =
 2
@@ -974,23 +1007,24 @@ characters while the second consumes one:
 1
 =
 \operatorname{len}(\lvert a\rvert).
-\]
+\end{equation}
 
 Thus
 
-\[
+\begin{equation}\label{eq:mvp-45}
 \mathit{Right}\ \mathit{Right}(a,b)
 \succ_{a+(b+ab)}
 \mathit{Left}\ a,
-\]
+\end{equation}
 
-and (K3) lifts this comparison to the star:
+and discharging (K3)'s premise with that lifts the comparison to the
+star itself:
 
-\[
+\begin{equation}\label{eq:mvp-46}
 v_2
 \succeq_{r_2}
 v_2'.
-\]
+\end{equation}
 
 POSIX therefore selects the single two-character iteration, whereas
 Greedy selects the two one-character iterations.
@@ -998,24 +1032,28 @@ Greedy selects the two one-character iterations.
 %
 
 \paragraph{Applied to $r_3$.}
-For $r_3=(a+a)^{*}$ against $\mathtt{aa}$, every candidate alternative at
-every position matches exactly one character, so (A1)'s strict
-inequality never holds and every comparison falls to (A2)'s tie-break:
+For $r_3=(a+a)^{*}$ against $\mathtt{aa}$, the star body binds
+$r_1 = a$ and $r_2 = a$, so both alternatives are the same literal and
+every candidate at every position matches exactly one character.
+(A1)'s premise $\operatorname{len}(\lvert v_2\rvert) >
+\operatorname{len}(\lvert v_1\rvert)$ therefore reads $1 > 1$ and never
+holds, so every comparison falls through to (A2), whose premise is the
+non-strict one:
 
-\[
+\begin{equation}\label{eq:mvp-47}
 \operatorname{len}(\lvert a\rvert)
 \geq
 \operatorname{len}(\lvert a\rvert)
 \quad\Longrightarrow\quad
 \mathit{Left}\ a \succ_{a+a} \mathit{Right}\ a.
-\]
+\end{equation}
 
 (K3) and (K4) lift this position by position, giving the same result as
 Greedy:
 
-\[
+\begin{equation}\label{eq:mvp-48}
 [\mathit{Left}\ a,\mathit{Left}\ a].
-\]
+\end{equation}
 
 Unlike $r_1$ and $r_2$, Greedy and POSIX agree here. This is not a
 coincidence: (A2) only ever overrules (A1) when both alternatives tie in
@@ -1035,13 +1073,13 @@ within $(A+B)+C$ of a tree choosing $A$ (further inside $A+B$) against
 one choosing $C$ directly. Since $A$ and $C$ both consume the full
 input,
 
-\[
+\begin{equation}\label{eq:mvp-49}
 \operatorname{len}(\lvert v_A\rvert)
 =
 3
 =
 \operatorname{len}(\lvert v_C\rvert),
-\]
+\end{equation}
 
 so (A1)'s strict inequality fails and (A2) resolves the tie in favor
 of the left-hand candidate, the one going through $A+B$ and ultimately
@@ -1057,21 +1095,21 @@ interchangeable.
 Rule (K1) resolves Section~\ref{sec:infinite-empty-chain}'s pathology
 directly: for $\varepsilon^{*}$ against $\varepsilon$, since
 
-\[
+\begin{equation}\label{eq:mvp-50}
 \lvert () : [\,]\rvert
 =
 \lvert ()\rvert\,\lvert [\,]\rvert
 =
 \varepsilon,
-\]
+\end{equation}
 
 (K1) gives
 
-\[
+\begin{equation}\label{eq:mvp-51}
 [\,]
 \succ_{\varepsilon^{*}}
 [()].
-\]
+\end{equation}
 
 The same rule applies to every longer list of empty iterations. Thus
 $[\,]$ is preferred to every parse tree obtained by repeatedly matching
@@ -1080,27 +1118,27 @@ $\varepsilon$.
 For $(\varepsilon+a)^{*}$ against $\mathtt{a}$, the relevant comparison
 is different. Consider
 
-\[
+\begin{equation}\label{eq:mvp-52}
 v_0=[\mathit{Right}\ a]
-\]
+\end{equation}
 
 and
 
-\[
+\begin{equation}\label{eq:mvp-53}
 v_1=[\mathit{Left}\ (),\mathit{Right}\ a].
-\]
+\end{equation}
 
 Rule (K3) compares their first iterations, reducing the comparison to
 
-\[
+\begin{equation}\label{eq:mvp-54}
 \mathit{Right}\ a
 \quad\text{versus}\quad
 \mathit{Left}\ ()
-\]
+\end{equation}
 
 within $\varepsilon+a$. Rule (A1) applies because
 
-\[
+\begin{equation}\label{eq:mvp-55}
 \operatorname{len}(\lvert a\rvert)
 =
 1
@@ -1108,23 +1146,23 @@ within $\varepsilon+a$. Rule (A1) applies because
 0
 =
 \operatorname{len}(\lvert ()\rvert).
-\]
+\end{equation}
 
 Therefore
 
-\[
+\begin{equation}\label{eq:mvp-56}
 \mathit{Right}\ a
 \succ_{\varepsilon+a}
 \mathit{Left}\ (),
-\]
+\end{equation}
 
 and hence
 
-\[
+\begin{equation}\label{eq:mvp-57}
 v_0
 \succ_{(\varepsilon+a)^{*}}
 v_1.
-\]
+\end{equation}
 
 The same comparison applies to every parse tree obtained by inserting
 additional empty iterations before the iteration matching
@@ -1133,28 +1171,28 @@ ordering admits the infinite ascending chain.
 
 Finally, for $(a^{*})^{*}$ against $\mathtt{aaa}$, compare
 
-\[
+\begin{equation}\label{eq:mvp-58}
 [[a,a,a]]
 \qquad\text{against}\qquad
 [[a,a,a],[\,]].
-\]
+\end{equation}
 
 Since $\lvert [\,]:[\,]\rvert = \varepsilon$, (K1) applies to the tail
 once the first (identical) iteration is matched by (K4), giving
 
-\[
+\begin{equation}\label{eq:mvp-59}
 [[a,a,a]]
 \succ_{(a^{*})^{*}}
 [[a,a,a],[\,]],
-\]
+\end{equation}
 
 and the same argument disposes of every list padded with further empty
 iterations after the first. POSIX therefore selects the single outer
 iteration whose inner star consumes all three characters directly,
 
-\[
+\begin{equation}\label{eq:mvp-60}
 [[a,a,a]],
-\]
+\end{equation}
 
 exactly the same tree the running implementation returns for
 \texttt{(a*)*} against \texttt{aaa} under \texttt{deriv\_std\_rec} and
