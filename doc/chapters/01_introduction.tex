@@ -91,6 +91,13 @@ As a systems programming language, Rust provides fine-grained control over
 memory allocation and data representation, allowing the derivative-based and
 partial-derivative-based parsers, including their bit-coded variants, to
 be evaluated in practice.
+
+The implementation also provides traced versions of the parsing
+algorithms that record intermediate derivative computations during
+matching. These traces show the transformations performed by the
+algorithms and help explain successful and unsuccessful matches.
+
+
 %
 
 \section{Contributions}
@@ -113,13 +120,6 @@ The following contributions are being made:
   RegexLib, following the source categories investigated by Mamouras
   et al.~\citep{mamouras2024}. They are also compared with Rust's
   \texttt{regex} crate and Google's RE2.
-
-  \item \textbf{Derivative-tracing diagnostics.}
-  The implementation provides traced versions of the parsing algorithms
-  that record intermediate derivative computations during matching.
-  These traces make the transformations performed by the algorithms
-  explicit and provide a basis for explaining successful and unsuccessful
-  matches.
 \end{itemize}
 
 %
