@@ -1,12 +1,21 @@
 //! regex-engine/examples/thesis_figures.rs
 //!
+//! Regenerates every measured number that appears in a figure or table of
+//! `doc/`. Each section below names the figure it feeds, and prints the data
+//! both as a readable table and as a pgfplots `coordinates {...}` line that
+//! can be pasted straight into the `.tex` source.
+//!
 //! Run:
 //!   cargo run --release --example thesis_figures
 //!   cargo run --release --example thesis_figures -- growth     (Figure 5.3)
 //!   cargo run --release --example thesis_figures -- branches   (Section 5.5 table)
 //!   cargo run --release --example thesis_figures -- frontier   (Figure 6.3)
 //!   cargo run --release --example thesis_figures -- lowered    (Figure 7.4)
-
+//!
+//! The numbers are deterministic: no randomness, no timing, no environment
+//! dependence. `tests/test_thesis_figures.rs` pins the key values so that a
+//! change in the implementation shows up as a failing test rather than as a
+//! figure that silently stops matching the code.
 
 use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
 use regex_engine::parsers::deriv_bc::{

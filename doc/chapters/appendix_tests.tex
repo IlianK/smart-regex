@@ -1,0 +1,256 @@
+\chapter{Tests}
+\label{app:test-case-catalogue}
+
+\section{Shared Fixtures}
+\label{app:tests-fixtures}
+
+\paragraph{\texttt{paper\_r1}}\ \\[-0.4em]
+\textit{\small tests/common/mod.rs}
+{\scriptsize\begin{verbatim}
+pub fn paper_r1() -> Regex {
+    Regex::seq(
+        Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b'))),
+        Regex::alt(Regex::lit('b'), Regex::Eps),
+    )
+}
+\end{verbatim}}
+
+\paragraph{\texttt{paper\_r2}}\ \\[-0.4em]
+\textit{\small tests/common/mod.rs}
+{\scriptsize\begin{verbatim}
+/// (a + (b + ab))* - POSIX star-preference example from flops14 p.1
+/// Structure: Star(Alt(a, Alt(b, ab))) - nested Alt, ab is Right(Right(...))
+pub fn paper_r2() -> Regex {
+    Regex::star(Regex::alt(
+        Regex::lit('a'),
+        Regex::alt(
+            Regex::lit('b'),
+            Regex::seq(Regex::lit('a'), Regex::lit('b')),
+        ),
+    ))
+}
+\end{verbatim}}
+
+\paragraph{\texttt{assert\_round\_trip}}\ \\[-0.4em]
+\textit{\small tests/common/mod.rs}
+{\scriptsize\begin{verbatim}
+#[allow(dead_code)]
+pub fn assert_round_trip(tree: &ParseTree, expected_word: &str) {
+    assert_eq!(
+        flatten(tree), expected_word,
+        "flatten(tree) should equal the matched word"
+    );
+}
+\end{verbatim}}
+
+\paragraph{\texttt{assert\_parsers\_agree}}\ \\[-0.4em]
+\textit{\small tests/common/mod.rs}
+{\scriptsize\begin{verbatim}
+#[allow(dead_code)]
+pub fn assert_parsers_agree(
+    label_a: &str,
+    tree_a: &Option<ParseTree>,
+    label_b: &str,
+    tree_b: &Option<ParseTree>,
+) {
+    assert_eq!(
+        tree_a, tree_b,
+        "{} and {} disagree:\n  {}: {:?}\n  {}: {:?}",
+        label_a, label_b, label_a, tree_a, label_b, tree_b
+    );
+}
+\end{verbatim}}
+
+\section{Paper Examples Reproduced}
+\label{app:tests-paper-examples}
+
+\paragraph{\texttt{parse\_recursive\_paper\_r1\_on\_ab}}\ \\[-0.4em]
+\textit{\small tests/test\_deriv\_std.rs}
+{\scriptsize\begin{verbatim}
+/// (a + ab)(b + eps) on "ab": A1 picks the longer "ab" branch on the left factor.
+#[test]
+fn parse_recursive_paper_r1_on_ab() {
+    let r = paper_r1();
+    let tree = parse_deriv_std_rec("ab", &r).expect("should match");
+    assert_round_trip(&tree, "ab");
+
+    assert!(
+        matches!(&tree, ParseTree::Pair(_, _)),
+        "outer should be Pair (regex is Seq), got {:?}", tree
+    );
+
+    if let ParseTree::Pair(left, right) = &tree {
+        assert!(
+            matches!(left.as_ref(), ParseTree::Right(_)),
+            "left factor should be Right (ab branch chosen by A1), got {:?}", left
+        );
+        assert!(
+            matches!(right.as_ref(), ParseTree::Right(_)),
+            "right factor should be Right (eps branch, only valid choice), got {:?}", right
+        );
+    }
+}
+\end{verbatim}}
+
+\paragraph{\texttt{parse\_recursive\_paper\_r2\_on\_ab}}\ \\[-0.4em]
+\textit{\small tests/test\_deriv\_std.rs}
+{\scriptsize\begin{verbatim}
+/// (a + b + ab)* on "ab": A1 picks one "ab" iteration over Greedy's two-iteration answer.
+#[test]
+fn parse_recursive_paper_r2_on_ab() {
+    let r = paper_r2();
+    let tree = parse_deriv_std_rec("ab", &r).expect("should match");
+    assert_round_trip(&tree, "ab");
+
+    if let ParseTree::Star(ref iters) = tree {
+        assert_eq!(iters.len(), 1,
+            "POSIX should pick 'ab' as one star iteration (A1), got {:?}", iters);
+
+        assert!(
+            matches!(&iters[0], ParseTree::Right(inner)
+                if matches!(inner.as_ref(), ParseTree::Right(innermost)
+                    if matches!(innermost.as_ref(), ParseTree::Pair(_, _)))),
+            "iteration should be Right(Right(Pair(a,b))), got {:?}", iters[0]
+        );
+    } else {
+        panic!("expected Star, got {:?}", tree);
+    }
+}
+\end{verbatim}}
+
+\paragraph{\texttt{paper\_r1\_computes\_greedy\_not\_posix}}\ \\[-0.4em]
+\textit{\small src/parsers/pderiv\_bc/parse.rs}
+{\scriptsize\begin{verbatim}
+    #[test]
+    fn paper_r1_computes_greedy_not_posix() {
+        // (a + ab)(b + eps) on "ab"
+        let r = Regex::seq(
+            Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b'))),
+            Regex::alt(Regex::lit('b'), Regex::Eps),
+        );
+
+        let posix = parse_deriv_std_rec("ab", &r);
+        let greedy = parse_pderiv_bc("ab", &r);
+
+        assert!(posix.is_some() && greedy.is_some(), "both should match");
+        assert_eq!(flatten(posix.as_ref().unwrap()), "ab");
+        assert_eq!(flatten(greedy.as_ref().unwrap()), "ab");
+
+        // POSIX: the longer "ab" alternative wins (rule A1)
+        assert_eq!(
+            posix,
+            Some(ParseTree::Pair(
+                Box::new(ParseTree::Right(Box::new(ParseTree::Pair(
+                    Box::new(ParseTree::Char('a')),
+                    Box::new(ParseTree::Char('b')),
+                )))),
+                Box::new(ParseTree::Right(Box::new(ParseTree::Empty))),
+            ))
+        );
+        // Greedy: the leftmost alternative 'a' wins, committed to immediately
+        assert_eq!(
+            greedy,
+            Some(ParseTree::Pair(
+                Box::new(ParseTree::Left(Box::new(ParseTree::Char('a')))),
+                Box::new(ParseTree::Left(Box::new(ParseTree::Char('b')))),
+            ))
+        );
+        assert_ne!(posix, greedy, "this is exactly the documented divergence");
+    }
+\end{verbatim}}
+
+\paragraph{\texttt{paper\_r2\_computes\_greedy\_not\_posix}}\ \\[-0.4em]
+\textit{\small src/parsers/pderiv\_bc/parse.rs}
+{\scriptsize\begin{verbatim}
+    #[test]
+    fn paper_r2_computes_greedy_not_posix() {
+        // (a + (b + ab))* on "ab"
+        let r = Regex::star(Regex::alt(
+            Regex::lit('a'),
+            Regex::alt(Regex::lit('b'), Regex::seq(Regex::lit('a'), Regex::lit('b'))),
+        ));
+
+        let posix = parse_deriv_std_rec("ab", &r);
+        let greedy = parse_pderiv_bc("ab", &r);
+
+        assert!(posix.is_some() && greedy.is_some(), "both should match");
+        assert_eq!(flatten(posix.as_ref().unwrap()), "ab");
+        assert_eq!(flatten(greedy.as_ref().unwrap()), "ab");
+
+        // POSIX: one iteration, the longer "ab" alternative wins (rule A1)
+        assert_eq!(
+            posix,
+            Some(ParseTree::Star(vec![ParseTree::Right(Box::new(ParseTree::Right(
+                Box::new(ParseTree::Pair(
+                    Box::new(ParseTree::Char('a')),
+                    Box::new(ParseTree::Char('b')),
+                ))
+            )))]))
+        );
+        // Greedy: two iterations, leftmost alternative wins at each step
+        assert_eq!(
+            greedy,
+            Some(ParseTree::Star(vec![
+                ParseTree::Left(Box::new(ParseTree::Char('a'))),
+                ParseTree::Right(Box::new(ParseTree::Left(Box::new(ParseTree::Char('b'))))),
+            ]))
+        );
+        assert_ne!(posix, greedy, "this is exactly the documented divergence");
+    }
+\end{verbatim}}
+
+\section{Cross-Implementation Equivalence}
+\label{app:tests-equivalence}
+
+\paragraph{\texttt{recursive\_traced\_and\_loop\_traced\_agree\_on\_all\_paper\_examples}}\ \\[-0.4em]
+\textit{\small tests/test\_deriv\_std.rs}
+{\scriptsize\begin{verbatim}
+#[test]
+fn recursive_traced_and_loop_traced_agree_on_all_paper_examples() {
+    use regex_engine::parsers::{parse_recursive_traced, parse_loop_traced};
+
+    let cases: Vec<(&str, Regex)> = vec![
+        ("aaa", Regex::star(Regex::lit('a'))),
+        ("aab", Regex::star(Regex::lit('a'))),
+        ("ab",  paper_r1()),
+        ("a",   paper_r1()),
+        ("ab",  paper_r2()),
+        ("",    Regex::star(Regex::lit('a'))),
+    ];
+
+    for (input, r) in &cases {
+        let (rec_tree, _)  = parse_recursive_traced(input, r);
+        let (loop_tree, _) = parse_loop_traced(input, r);
+        assert_eq!(
+            rec_tree, loop_tree,
+            "recursive_traced and loop_traced disagree on {:?}", input
+        );
+    }
+}
+\end{verbatim}}
+
+\paragraph{\texttt{bitcoded\_agrees\_with\_recursive}}\ \\[-0.4em]
+\textit{\small tests/test\_deriv\_bc.rs}
+{\scriptsize\begin{verbatim}
+fn bitcoded_agrees_with_recursive(input: &str, r: &Regex) {
+    let rec = parse_deriv_std_rec(input, r);
+    let bc  = parse_deriv_bc(input, r);
+    assert_parsers_agree("recursive", &rec, "bitcoded", &bc);
+}
+\end{verbatim}}
+
+\section{Frontend}
+\label{app:tests-frontend}
+
+\paragraph{\texttt{unanchored\_nullable\_pattern\_matches\_anything}}\ \\[-0.4em]
+\textit{\small src/frontend/mod.rs}
+{\scriptsize\begin{verbatim}
+    #[test]
+    fn unanchored_nullable_pattern_matches_anything() {
+        let r = parse_dataset_pattern("a*").expect("should parse");
+        assert!(parse_deriv_std_rec("", &r).is_some());
+        assert!(parse_deriv_std_rec("xyz", &r).is_some());
+        assert!(parse_deriv_std_rec("zzz999", &r).is_some());
+    }
+\end{verbatim}}
+

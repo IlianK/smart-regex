@@ -5,10 +5,6 @@ edition = "2021"
 
 [features]
 debug = []
-# Optional comparison against Rust's `regex` crate and Google's RE2 on the
-# same data as this crate's own parsers (benches/bench_external.rs). Off by
-# default: RE2 needs its system C++ library at build time. See
-# docs/EXTERNAL_ENGINES.md.
 external-engines = ["dep:regex"]
 
 
@@ -35,9 +31,6 @@ path = "examples/demo_crash.rs"
 name = "extract_dataset"
 path = "examples/extract_dataset.rs"
 
-# Regenerates the measured data behind the figures in doc/ (5.3, 6.3, 7.4 and
-# the branch-count table of Section 5.5). Deterministic; pinned by
-# tests/test_thesis_figures.rs.
 [[example]]
 name = "thesis_figures"
 path = "examples/thesis_figures.rs"

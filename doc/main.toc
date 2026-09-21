@@ -7,151 +7,187 @@
 \contentsline {section}{\numberline {2.1}Syntax}{7}{section.2.1}%
 \contentsline {section}{\numberline {2.2}Semantics}{8}{section.2.2}%
 \contentsline {section}{\numberline {2.3}Rust Implementation}{9}{section.2.3}%
-\contentsline {chapter}{\numberline {3}Derivatives and Partial Derivatives}{11}{chapter.3}%
-\contentsline {section}{\numberline {3.1}Deciding Membership}{11}{section.3.1}%
+\contentsline {chapter}{\numberline {3}Derivatives and Partial Derivatives}{10}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Naive Matching}{10}{section.3.1}%
 \contentsline {section}{\numberline {3.2}Brzozowski Derivatives}{12}{section.3.2}%
-\contentsline {paragraph}{Worked example: single-symbol matching.}{13}{equation.3.3}%
-\contentsline {paragraph}{Worked example: $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$}{14}{equation.3.8}%
+\contentsline {paragraph}{Why the case split.}{13}{equation.3.4}%
+\contentsline {paragraph}{Worked example: single-symbol matching.}{13}{equation.3.6}%
+\contentsline {paragraph}{Simplification.}{14}{equation.3.9}%
+\contentsline {paragraph}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath .}{15}{equation.3.12}%
 \contentsline {section}{\numberline {3.3}Antimirov Partial Derivatives}{16}{section.3.3}%
-\contentsline {paragraph}{Worked example: single-symbol matching.}{17}{equation.3.19}%
-\contentsline {paragraph}{Worked example: $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$}{18}{equation.3.20}%
-\contentsline {section}{\numberline {3.4}Matcher Selection}{20}{section.3.4}%
-\contentsline {chapter}{\numberline {4}Matching versus Parsing}{22}{chapter.4}%
-\contentsline {section}{\numberline {4.1}The Matching Problem}{22}{section.4.1}%
-\contentsline {paragraph}{Which alternative: lexing and schema validation.}{22}{section.4.1}%
-\contentsline {paragraph}{A pattern where the two readings genuinely compete.}{23}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Parse Trees as Matching Evidence}{24}{section.4.2}%
-\contentsline {paragraph}{Unambiguous example.}{24}{equation.4.3}%
-\contentsline {paragraph}{Ambiguous example 1: concatenation.}{25}{equation.4.5}%
-\contentsline {paragraph}{Ambiguous example 2: repetition.}{26}{equation.4.14}%
-\contentsline {paragraph}{Ambiguous example 3: duplicate alternatives.}{27}{equation.4.20}%
-\contentsline {paragraph}{Ambiguous example 4: an IPv4 pattern.}{27}{equation.4.21}%
-\contentsline {section}{\numberline {4.3}Disambiguation Policies}{28}{section.4.3}%
-\contentsline {subsection}{\numberline {4.3.1}Greedy Leftmost Matching}{28}{subsection.4.3.1}%
-\contentsline {paragraph}{Applied to $r_1$.}{28}{equation.4.23}%
-\contentsline {paragraph}{Applied to $r_2$.}{29}{equation.4.24}%
-\contentsline {paragraph}{Applied to $r_3$.}{29}{equation.4.25}%
-\contentsline {paragraph}{Applied to $O$.}{29}{equation.4.26}%
-\contentsline {paragraph}{Procedural versus declarative view.}{29}{equation.4.26}%
-\contentsline {subsection}{\numberline {4.3.2}The Infinite Empty-Match Chain Problem}{30}{subsection.4.3.2}%
-\contentsline {subsection}{\numberline {4.3.3}POSIX Longest-Leftmost Matching}{31}{subsection.4.3.3}%
-\contentsline {paragraph}{Applied to $r_1$.}{32}{equation.4.32}%
-\contentsline {paragraph}{Applied to $r_2$.}{33}{equation.4.39}%
-\contentsline {paragraph}{Applied to $r_3$.}{33}{equation.4.46}%
-\contentsline {paragraph}{Applied to $O$.}{34}{equation.4.48}%
-\contentsline {paragraph}{Applied to the infinite-chain examples.}{34}{equation.4.49}%
-\contentsline {chapter}{\numberline {5}Derivative-Based Parser}{36}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Reading the Implementation's Traces}{36}{section.5.1}%
-\contentsline {paragraph}{How traces are used in this chapter.}{37}{section.5.1}%
-\contentsline {section}{\numberline {5.2}Core Algorithm}{37}{section.5.2}%
-\contentsline {paragraph}{Forward pass.}{37}{figure.5.1}%
-\contentsline {paragraph}{Backward pass.}{38}{figure.5.1}%
-\contentsline {paragraph}{The worked example, one step at a time.}{39}{equation.5.3}%
-\contentsline {section}{\numberline {5.3}Correctness Properties}{40}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Bit-Coded Optimization (Theory)}{41}{section.5.4}%
-\contentsline {paragraph}{Bit-code representation.}{41}{figure.5.2}%
-\contentsline {paragraph}{Annotated regular expressions.}{42}{figure.5.2}%
-\contentsline {paragraph}{The refined derivative.}{42}{equation.5.5}%
-\contentsline {paragraph}{mkEpsBC.}{43}{equation.5.6}%
-\contentsline {paragraph}{The worked example, one step at a time.}{43}{equation.5.7}%
-\contentsline {section}{\numberline {5.5}Simplification Rules}{44}{section.5.5}%
-\contentsline {paragraph}{$\mathit {simp}$ on the paper's own example.}{45}{equation.5.9}%
-\contentsline {paragraph}{Where $\mathit {simp}$ does not bound the growth.}{45}{equation.5.9}%
-\contentsline {section}{\numberline {5.6}Rust Implementation: The \texttt {deriv\_std} Parser}{47}{section.5.6}%
-\contentsline {subsection}{\numberline {5.6.1}\texttt {ParseTree} and \texttt {flatten}}{47}{subsection.5.6.1}%
-\contentsline {subsection}{\numberline {5.6.2}\texttt {mk\_eps}}{47}{subsection.5.6.2}%
-\contentsline {subsection}{\numberline {5.6.3}\texttt {inject}}{47}{subsection.5.6.3}%
-\contentsline {subsection}{\numberline {5.6.4}\texttt {parse\_deriv\_std\_rec} versus \texttt {parse\_deriv\_std\_loop}}{48}{subsection.5.6.4}%
-\contentsline {section}{\numberline {5.7}Rust Implementation: The Bit-Coded Version}{48}{section.5.7}%
-\contentsline {subsection}{\numberline {5.7.1}\texttt {ARegex}, the Bit-Annotated Regex}{49}{subsection.5.7.1}%
-\contentsline {subsection}{\numberline {5.7.2}\texttt {internalize} and \texttt {fuse}}{49}{subsection.5.7.2}%
-\contentsline {subsection}{\numberline {5.7.3}\texttt {deriv\_bc}}{49}{subsection.5.7.3}%
-\contentsline {subsection}{\numberline {5.7.4}\texttt {mk\_eps\_bc}}{50}{subsection.5.7.4}%
-\contentsline {subsection}{\numberline {5.7.5}\texttt {decode}}{50}{subsection.5.7.5}%
-\contentsline {section}{\numberline {5.8}Comparing the Two Constructions}{50}{section.5.8}%
-\contentsline {paragraph}{What happens on a failure.}{51}{section.5.8}%
-\contentsline {paragraph}{Agreement between the three POSIX entry points.}{52}{section.5.8}%
-\contentsline {chapter}{\numberline {6}Partial-Derivative-Based Parser}{53}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Extending Derivatives to Partial Derivatives}{53}{section.6.1}%
-\contentsline {paragraph}{Why the result is Greedy, not POSIX.}{54}{figure.6.1}%
-\contentsline {paragraph}{A family of witnesses.}{55}{figure.6.1}%
-\contentsline {section}{\numberline {6.2}Bit-Coded Variant}{55}{section.6.2}%
-\contentsline {section}{\numberline {6.3}Rust Implementation: The \texttt {pderiv\_bc} Parser}{56}{section.6.3}%
-\contentsline {paragraph}{The worked example, one step at a time.}{56}{section.6.3}%
-\contentsline {paragraph}{Where \texttt {nub2} is and is not applied.}{58}{section.6.3}%
-\contentsline {section}{\numberline {6.4}Rust Implementation: The \texttt {pderiv\_std} Parser}{58}{section.6.4}%
-\contentsline {paragraph}{What each strand carries.}{58}{section.6.4}%
-\contentsline {paragraph}{\texttt {pderiv\_tree}.}{59}{figure.6.2}%
-\contentsline {paragraph}{Why the smart constructor cannot be used here.}{59}{figure.6.2}%
-\contentsline {paragraph}{Driving the frontier.}{60}{figure.6.2}%
-\contentsline {paragraph}{The same worked example, and what the trace cannot show.}{60}{figure.6.2}%
-\contentsline {section}{\numberline {6.5}Frontier Growth}{61}{section.6.5}%
-\contentsline {paragraph}{Deduplicating across the frontier.}{61}{figure.6.3}%
-\contentsline {section}{\numberline {6.6}Comparing the Two Policies}{62}{section.6.6}%
-\contentsline {paragraph}{Failure behaviour is shared.}{62}{figure.6.4}%
-\contentsline {paragraph}{All five entry points at once.}{63}{figure.6.4}%
-\contentsline {chapter}{\numberline {7}Frontend: Parsing External Regular Expression Syntax}{64}{chapter.7}%
-\contentsline {section}{\numberline {7.1}Two ASTs, One Lowering Step}{64}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{65}{section.7.2}%
-\contentsline {paragraph}{Bounds are parsed speculatively.}{67}{figure.7.2}%
-\contentsline {section}{\numberline {7.3}Translating \texttt {ExtPat} into \texttt {Regex}}{67}{section.7.3}%
-\contentsline {paragraph}{Character classes are ordinary alternation, not a primitive.}{68}{section.7.3}%
-\contentsline {paragraph}{Bounds unroll literally, capped against blowup.}{68}{section.7.3}%
-\contentsline {paragraph}{Greedy and lazy quantifier syntax is parsed but not honored.}{69}{section.7.3}%
-\contentsline {paragraph}{Case folding.}{69}{section.7.3}%
-\contentsline {section}{\numberline {7.4}Substring Search}{69}{section.7.4}%
-\contentsline {paragraph}{Edge case.}{70}{figure.7.3}%
-\contentsline {section}{\numberline {7.5}The Cost of Translation}{70}{section.7.5}%
-\contentsline {chapter}{\numberline {8}Evaluation}{73}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Compared Engines}{73}{section.8.1}%
-\contentsline {subsection}{\numberline {8.1.1}Rust's \texttt {regex} Crate}{73}{subsection.8.1.1}%
-\contentsline {subsection}{\numberline {8.1.2}RE2}{74}{subsection.8.1.2}%
-\contentsline {section}{\numberline {8.2}Testing Strategy}{74}{section.8.2}%
-\contentsline {section}{\numberline {8.3}Dataset Preparation}{74}{section.8.3}%
-\contentsline {paragraph}{Extraction.}{75}{section.8.3}%
-\contentsline {paragraph}{Filtering.}{75}{section.8.3}%
-\contentsline {paragraph}{Unanchored matching.}{75}{section.8.3}%
-\contentsline {paragraph}{What this dataset does not (yet) give.}{75}{section.8.3}%
-\contentsline {section}{\numberline {8.4}Correctness Verification}{76}{section.8.4}%
-\contentsline {subsection}{\numberline {8.4.1}Paper Examples Reproduced}{76}{subsection.8.4.1}%
-\contentsline {subsection}{\numberline {8.4.2}Cross-Implementation Equivalence}{76}{subsection.8.4.2}%
-\contentsline {section}{\numberline {8.5}Performance Analysis}{77}{section.8.5}%
-\contentsline {subsection}{\numberline {8.5.1}Stack Depth: Recursive vs.\ Iterative Construction}{77}{subsection.8.5.1}%
-\contentsline {subsection}{\numberline {8.5.2}Heap Allocation: \texttt {deriv\_std} vs.\ \texttt {deriv\_bc}}{77}{subsection.8.5.2}%
-\contentsline {subsection}{\numberline {8.5.3}Derivative-Based vs.\ Partial-Derivative-Based}{77}{subsection.8.5.3}%
-\contentsline {subsection}{\numberline {8.5.4}Pathological Inputs}{77}{subsection.8.5.4}%
-\contentsline {subsection}{\numberline {8.5.5}Benchmark Results}{78}{subsection.8.5.5}%
-\contentsline {section}{\numberline {8.6}Comparison with Existing Engines}{78}{section.8.6}%
-\contentsline {subsection}{\numberline {8.6.1}Performance}{78}{subsection.8.6.1}%
-\contentsline {subsection}{\numberline {8.6.2}Standardized Benchmarking via rebar}{78}{subsection.8.6.2}%
-\contentsline {chapter}{\numberline {9}Discussion}{79}{chapter.9}%
-\contentsline {section}{\numberline {9.1}Discussion of Evaluation Results}{79}{section.9.1}%
-\contentsline {section}{\numberline {9.2}Rust versus Haskell}{79}{section.9.2}%
-\contentsline {subsection}{\numberline {9.2.1}Language Characteristics of the Reference Implementation}{79}{subsection.9.2.1}%
-\contentsline {paragraph}{Algebraic data types with blanket \texttt {deriving}.}{79}{subsection.9.2.1}%
-\contentsline {paragraph}{GADT syntax used without a type index.}{79}{subsection.9.2.1}%
-\contentsline {subsection}{\numberline {9.2.2}What the Reference Provides vs. What It Leaves Open}{80}{subsection.9.2.2}%
-\contentsline {subsection}{\numberline {9.2.3}Translation Strategy}{80}{subsection.9.2.3}%
-\contentsline {subsection}{\numberline {9.2.4}Translation Insights}{80}{subsection.9.2.4}%
-\contentsline {section}{\numberline {9.3}Mismatch Analysis via Derivative Tracing}{80}{section.9.3}%
-\contentsline {subsection}{\numberline {9.3.1}The Gap}{80}{subsection.9.3.1}%
-\contentsline {subsection}{\numberline {9.3.2}Deriving Diagnostics for Free from the Algorithm Itself}{80}{subsection.9.3.2}%
-\contentsline {subsection}{\numberline {9.3.3}Design}{80}{subsection.9.3.3}%
-\contentsline {subsection}{\numberline {9.3.4}Scope and Limits}{81}{subsection.9.3.4}%
-\contentsline {section}{\numberline {9.4}Optimization Challenges and Insights}{81}{section.9.4}%
-\contentsline {section}{\numberline {9.5}Future Work}{81}{section.9.5}%
-\contentsline {subsection}{\numberline {9.5.1}Paper-Suggested Extensions}{81}{subsection.9.5.1}%
-\contentsline {subsubsection}{Tagged NFA for Submatching}{81}{subsection.9.5.1}%
-\contentsline {subsubsection}{Space-Efficient Parsing}{81}{subsection.9.5.1}%
-\contentsline {subsubsection}{DFA/NFA Hybrid Abstraction}{81}{subsection.9.5.1}%
-\contentsline {subsection}{\numberline {9.5.2}Further Performance Optimizations}{81}{subsection.9.5.2}%
-\contentsline {subsubsection}{Character Classes in Place of Literal Alternation}{81}{subsection.9.5.2}%
-\contentsline {subsubsection}{Structural Sharing via \texttt {Rc}}{81}{subsection.9.5.2}%
-\contentsline {subsubsection}{Memoizing \texttt {deriv}/\texttt {nullable}}{81}{subsection.9.5.2}%
-\contentsline {subsubsection}{Benchmarking the Matcher, Not the Parser, for Membership}{81}{subsection.9.5.2}%
-\contentsline {subsection}{\numberline {9.5.3}A Full Mismatch Diagnostics System}{81}{subsection.9.5.3}%
-\contentsline {chapter}{\numberline {10}Related Work and Conclusion}{82}{chapter.10}%
-\contentsline {chapter}{\numberline {A}Code Listings}{85}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Full Benchmark Results}{86}{appendix.B}%
-\contentsline {chapter}{\numberline {C}Test Case Catalogue}{87}{appendix.C}%
-\contentsline {chapter}{\numberline {D}CLI and ENV Reference}{88}{appendix.D}%
+\contentsline {paragraph}{The smart constructor.}{17}{equation.3.20}%
+\contentsline {paragraph}{Worked example: single-symbol matching.}{17}{equation.3.21}%
+\contentsline {paragraph}{Why no simplification is needed.}{17}{equation.3.22}%
+\contentsline {paragraph}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath .}{18}{equation.3.22}%
+\contentsline {paragraph}{Finiteness.}{19}{equation.3.29}%
+\contentsline {chapter}{\numberline {4}Matching versus Parsing}{20}{chapter.4}%
+\contentsline {section}{\numberline {4.1}The Matching Problem}{20}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Parse Trees as Matching Evidence}{21}{section.4.2}%
+\contentsline {paragraph}{Unambiguous example.}{22}{equation.4.3}%
+\contentsline {paragraph}{Ambiguous example 1: concatenation.}{22}{equation.4.5}%
+\contentsline {paragraph}{Ambiguous example 2: repetition.}{23}{equation.4.9}%
+\contentsline {paragraph}{Ambiguous example 3: duplicate alternatives.}{23}{equation.4.13}%
+\contentsline {paragraph}{Ambiguous example 4: nested repetition.}{24}{equation.4.15}%
+\contentsline {section}{\numberline {4.3}Disambiguation Policies}{24}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Greedy Leftmost Matching}{25}{subsection.4.3.1}%
+\contentsline {paragraph}{Applied to $r_1$.}{25}{subsection.4.3.1}%
+\contentsline {paragraph}{Applied to $r_2$.}{25}{equation.4.21}%
+\contentsline {paragraph}{Applied to $r_3$.}{25}{equation.4.22}%
+\contentsline {paragraph}{Applied to $r_4$.}{25}{equation.4.23}%
+\contentsline {paragraph}{Procedural versus declarative view.}{25}{equation.4.24}%
+\contentsline {subsection}{\numberline {4.3.2}The Infinite Empty-Match Chain Problem}{27}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}POSIX Longest-Leftmost Matching}{28}{subsection.4.3.3}%
+\contentsline {paragraph}{Applied to $r_1$.}{29}{equation.4.32}%
+\contentsline {paragraph}{Applied to $r_2$.}{29}{equation.4.35}%
+\contentsline {paragraph}{Applied to $r_3$.}{29}{equation.4.38}%
+\contentsline {paragraph}{Applied to $r_4$.}{30}{equation.4.40}%
+\contentsline {paragraph}{Applied to the infinite-chain examples.}{30}{equation.4.44}%
+\contentsline {chapter}{\numberline {5}Derivative-Based Parser}{32}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Reading the Implementation's Traces}{32}{section.5.1}%
+\contentsline {paragraph}{How traces are used in this chapter.}{33}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Core Algorithm}{33}{section.5.2}%
+\contentsline {paragraph}{Forward pass.}{33}{figure.5.1}%
+\contentsline {paragraph}{Backward pass.}{34}{figure.5.1}%
+\contentsline {paragraph}{The worked example, one step at a time.}{35}{equation.5.3}%
+\contentsline {section}{\numberline {5.3}Bit-Coded Optimization (Theory)}{36}{section.5.3}%
+\contentsline {paragraph}{Bit-code representation.}{37}{figure.5.2}%
+\contentsline {paragraph}{Annotated regular expressions.}{37}{figure.5.2}%
+\contentsline {paragraph}{The refined derivative.}{37}{equation.5.5}%
+\contentsline {paragraph}{mkEpsBC.}{38}{equation.5.6}%
+\contentsline {paragraph}{The worked example, one step at a time.}{38}{equation.5.7}%
+\contentsline {section}{\numberline {5.4}Simplification Rules}{39}{section.5.4}%
+\contentsline {paragraph}{$\mathit {simp}$ on the paper's own example.}{40}{equation.5.9}%
+\contentsline {paragraph}{Where $\mathit {simp}$ does not bound the growth.}{40}{equation.5.9}%
+\contentsline {section}{\numberline {5.5}Rust Implementation}{42}{section.5.5}%
+\contentsline {paragraph}{Partial functions become panics.}{42}{section.5.5}%
+\contentsline {paragraph}{Recursion or an explicit vector.}{42}{section.5.5}%
+\contentsline {paragraph}{Trees and their flattening.}{42}{section.5.5}%
+\contentsline {subsection}{\numberline {5.5.1}The Bit-Coded Parser}{43}{subsection.5.5.1}%
+\contentsline {paragraph}{One extra field, and the traits that come with it.}{43}{subsection.5.5.1}%
+\contentsline {paragraph}{Ownership makes the common case free.}{43}{subsection.5.5.1}%
+\contentsline {paragraph}{Decoding, and where a bad bit-string is caught.}{43}{subsection.5.5.1}%
+\contentsline {section}{\numberline {5.6}Comparing the Two Constructions}{43}{section.5.6}%
+\contentsline {paragraph}{What happens on a failure.}{44}{section.5.6}%
+\contentsline {paragraph}{Agreement between the three POSIX entry points.}{45}{section.5.6}%
+\contentsline {chapter}{\numberline {6}Partial-Derivative-Based Parser}{46}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Extending Derivatives to Partial Derivatives}{46}{section.6.1}%
+\contentsline {paragraph}{Where the choice is actually made.}{47}{figure.6.1}%
+\contentsline {paragraph}{A family of witnesses.}{48}{figure.6.1}%
+\contentsline {section}{\numberline {6.2}Bit-Coded Variant}{48}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Rust Implementation: The \texttt {pderiv\_bc} Parser}{49}{section.6.3}%
+\contentsline {paragraph}{The worked example, one step at a time.}{50}{section.6.3}%
+\contentsline {paragraph}{Where \texttt {nub2} is and is not applied.}{51}{section.6.3}%
+\contentsline {section}{\numberline {6.4}Rust Implementation: The \texttt {pderiv\_std} Parser}{51}{section.6.4}%
+\contentsline {paragraph}{What each strand carries.}{51}{section.6.4}%
+\contentsline {paragraph}{\texttt {pderiv\_tree}.}{52}{figure.6.2}%
+\contentsline {paragraph}{Why the smart constructor cannot be used here.}{53}{figure.6.2}%
+\contentsline {paragraph}{Driving the frontier.}{53}{figure.6.2}%
+\contentsline {paragraph}{The same worked example, and what the trace cannot show.}{53}{figure.6.2}%
+\contentsline {section}{\numberline {6.5}Frontier Growth}{54}{section.6.5}%
+\contentsline {paragraph}{Deduplicating across the frontier.}{55}{figure.6.3}%
+\contentsline {section}{\numberline {6.6}Comparing the Two Policies}{55}{section.6.6}%
+\contentsline {paragraph}{Failure behaviour is shared.}{56}{figure.6.4}%
+\contentsline {paragraph}{All five entry points at once.}{56}{figure.6.4}%
+\contentsline {chapter}{\numberline {7}External versus Internal Regex}{58}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Two ASTs, One Lowering Step}{58}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{59}{section.7.2}%
+\contentsline {paragraph}{Bounds are parsed speculatively.}{61}{figure.7.2}%
+\contentsline {section}{\numberline {7.3}Translating \texttt {ExtPat} into \texttt {Regex}}{61}{section.7.3}%
+\contentsline {paragraph}{Character classes are ordinary alternation, not a primitive.}{62}{section.7.3}%
+\contentsline {paragraph}{Bounds unroll literally, capped against blowup.}{62}{section.7.3}%
+\contentsline {paragraph}{Greedy and lazy quantifier syntax is parsed but not honored.}{63}{section.7.3}%
+\contentsline {paragraph}{Case folding.}{63}{section.7.3}%
+\contentsline {section}{\numberline {7.4}The Cost of Translation}{63}{section.7.4}%
+\contentsline {chapter}{\numberline {8}Evaluation}{66}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Compared Engines}{66}{section.8.1}%
+\contentsline {subsection}{\numberline {8.1.1}Rust's \texttt {regex} Crate}{66}{subsection.8.1.1}%
+\contentsline {subsection}{\numberline {8.1.2}RE2}{67}{subsection.8.1.2}%
+\contentsline {section}{\numberline {8.2}Testing Strategy}{67}{section.8.2}%
+\contentsline {section}{\numberline {8.3}Dataset Preparation}{67}{section.8.3}%
+\contentsline {paragraph}{Extraction.}{68}{section.8.3}%
+\contentsline {paragraph}{Filtering.}{68}{section.8.3}%
+\contentsline {paragraph}{Unanchored matching.}{68}{section.8.3}%
+\contentsline {subsection}{\numberline {8.3.1}Substring Search: How the Corpus Is Run}{69}{subsection.8.3.1}%
+\contentsline {paragraph}{Edge case.}{69}{figure.8.1}%
+\contentsline {paragraph}{Anchors are not a language feature here.}{70}{figure.8.1}%
+\contentsline {paragraph}{What this dataset does not (yet) give.}{70}{figure.8.1}%
+\contentsline {section}{\numberline {8.4}Correctness Verification}{70}{section.8.4}%
+\contentsline {subsection}{\numberline {8.4.1}Paper Examples Reproduced}{70}{subsection.8.4.1}%
+\contentsline {subsection}{\numberline {8.4.2}Cross-Implementation Equivalence}{71}{subsection.8.4.2}%
+\contentsline {section}{\numberline {8.5}Performance Analysis}{72}{section.8.5}%
+\contentsline {subsection}{\numberline {8.5.1}Stack Depth: Recursive vs.\ Iterative Construction}{72}{subsection.8.5.1}%
+\contentsline {subsection}{\numberline {8.5.2}Heap Allocation: \texttt {deriv\_std} vs.\ \texttt {deriv\_bc}}{72}{subsection.8.5.2}%
+\contentsline {subsection}{\numberline {8.5.3}Derivative-Based vs.\ Partial-Derivative-Based}{72}{subsection.8.5.3}%
+\contentsline {subsection}{\numberline {8.5.4}Pathological Inputs}{72}{subsection.8.5.4}%
+\contentsline {subsection}{\numberline {8.5.5}Benchmark Results}{72}{subsection.8.5.5}%
+\contentsline {section}{\numberline {8.6}Comparison with Existing Engines}{73}{section.8.6}%
+\contentsline {subsection}{\numberline {8.6.1}Performance}{73}{subsection.8.6.1}%
+\contentsline {subsection}{\numberline {8.6.2}Standardized Benchmarking via rebar}{73}{subsection.8.6.2}%
+\contentsline {section}{\numberline {8.7}Optimization Challenges and Insights}{73}{section.8.7}%
+\contentsline {paragraph}{Character classes in place of literal alternation.}{73}{section.8.7}%
+\contentsline {paragraph}{Frontier-wide deduplication.}{74}{section.8.7}%
+\contentsline {section}{\numberline {8.8}Discussion of Results}{74}{section.8.8}%
+\contentsline {chapter}{\numberline {9}Related Work and Conclusion}{75}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Related Work}{75}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Conclusion}{75}{section.9.2}%
+\contentsline {chapter}{\numberline {A}Code}{78}{appendix.A}%
+\contentsline {section}{\numberline {A.1}Core Types}{78}{section.A.1}%
+\contentsline {paragraph}{\texttt {Regex}}{78}{section.A.1}%
+\contentsline {paragraph}{\texttt {ARegex}}{78}{section.A.1}%
+\contentsline {paragraph}{\texttt {ParseTree}}{78}{section.A.1}%
+\contentsline {paragraph}{\texttt {flatten}}{79}{section.A.1}%
+\contentsline {section}{\numberline {A.2}Shared Algorithms}{79}{section.A.2}%
+\contentsline {paragraph}{\texttt {nullable}}{79}{section.A.2}%
+\contentsline {paragraph}{\texttt {deriv}}{79}{section.A.2}%
+\contentsline {paragraph}{\texttt {mk\_eps}}{80}{section.A.2}%
+\contentsline {paragraph}{\texttt {decode}}{80}{section.A.2}%
+\contentsline {paragraph}{\texttt {simplify}}{80}{section.A.2}%
+\contentsline {section}{\numberline {A.3}Matchers}{81}{section.A.3}%
+\contentsline {paragraph}{\texttt {match\_naive}}{81}{section.A.3}%
+\contentsline {paragraph}{\texttt {match\_deriv}}{81}{section.A.3}%
+\contentsline {paragraph}{\texttt {match\_pderiv}}{81}{section.A.3}%
+\contentsline {section}{\numberline {A.4}The \texttt {deriv\_std} Parser}{81}{section.A.4}%
+\contentsline {paragraph}{\texttt {inject}}{81}{section.A.4}%
+\contentsline {section}{\numberline {A.5}The \texttt {deriv\_bc} Parser}{82}{section.A.5}%
+\contentsline {paragraph}{\texttt {fuse}}{82}{section.A.5}%
+\contentsline {paragraph}{\texttt {deriv\_bc}}{83}{section.A.5}%
+\contentsline {paragraph}{\texttt {simp}}{83}{section.A.5}%
+\contentsline {section}{\numberline {A.6}The \texttt {pderiv\_bc} Parser}{83}{section.A.6}%
+\contentsline {paragraph}{\texttt {pderiv\_bc}}{83}{section.A.6}%
+\contentsline {paragraph}{\texttt {nub2}}{84}{section.A.6}%
+\contentsline {paragraph}{\texttt {step\_frontier}}{85}{section.A.6}%
+\contentsline {paragraph}{\texttt {select\_bits}}{85}{section.A.6}%
+\contentsline {paragraph}{\texttt {parse\_pderiv\_bc}}{85}{section.A.6}%
+\contentsline {section}{\numberline {A.7}The \texttt {pderiv\_std} Parser}{85}{section.A.7}%
+\contentsline {paragraph}{\texttt {Inj}}{85}{section.A.7}%
+\contentsline {paragraph}{\texttt {nub\_tree}}{86}{section.A.7}%
+\contentsline {paragraph}{\texttt {pderiv\_tree}}{86}{section.A.7}%
+\contentsline {paragraph}{\texttt {parse\_pderiv\_std}}{87}{section.A.7}%
+\contentsline {section}{\numberline {A.8}Frontend}{87}{section.A.8}%
+\contentsline {paragraph}{\texttt {ExtPat}}{87}{section.A.8}%
+\contentsline {paragraph}{\texttt {translate}}{88}{section.A.8}%
+\contentsline {chapter}{\numberline {B}Tests}{90}{appendix.B}%
+\contentsline {section}{\numberline {B.1}Shared Fixtures}{90}{section.B.1}%
+\contentsline {paragraph}{\texttt {paper\_r1}}{90}{section.B.1}%
+\contentsline {paragraph}{\texttt {paper\_r2}}{90}{section.B.1}%
+\contentsline {paragraph}{\texttt {assert\_round\_trip}}{90}{section.B.1}%
+\contentsline {paragraph}{\texttt {assert\_parsers\_agree}}{90}{section.B.1}%
+\contentsline {section}{\numberline {B.2}Paper Examples Reproduced}{91}{section.B.2}%
+\contentsline {paragraph}{\texttt {parse\_recursive\_paper\_r1\_on\_ab}}{91}{section.B.2}%
+\contentsline {paragraph}{\texttt {parse\_recursive\_paper\_r2\_on\_ab}}{91}{section.B.2}%
+\contentsline {paragraph}{\texttt {paper\_r1\_computes\_greedy\_not\_posix}}{91}{section.B.2}%
+\contentsline {paragraph}{\texttt {paper\_r2\_computes\_greedy\_not\_posix}}{92}{section.B.2}%
+\contentsline {section}{\numberline {B.3}Cross-Implementation Equivalence}{92}{section.B.3}%
+\contentsline {paragraph}{\texttt {recursive\_traced\_and\_loop\_traced\_agree\_on\_all\_paper\_examples}}{92}{section.B.3}%
+\contentsline {paragraph}{\texttt {bitcoded\_agrees\_with\_recursive}}{93}{section.B.3}%
+\contentsline {section}{\numberline {B.4}Frontend}{93}{section.B.4}%
+\contentsline {paragraph}{\texttt {unanchored\_nullable\_pattern\_matches\_anything}}{93}{section.B.4}%
+\contentsline {chapter}{\numberline {C}Diagnostics}{94}{appendix.C}%
+\contentsline {section}{\numberline {C.1}\texttt {deriv\_std\_rec}, match}{94}{section.C.1}%
+\contentsline {section}{\numberline {C.2}\texttt {deriv\_bc}, match}{96}{section.C.2}%
+\contentsline {section}{\numberline {C.3}\texttt {pderiv\_std}, match}{97}{section.C.3}%
+\contentsline {section}{\numberline {C.4}\texttt {pderiv\_bc}, match}{99}{section.C.4}%
+\contentsline {section}{\numberline {C.5}\texttt {deriv\_std\_rec}, no match}{100}{section.C.5}%
+\contentsline {section}{\numberline {C.6}\texttt {deriv\_bc}, no match}{101}{section.C.6}%
+\contentsline {section}{\numberline {C.7}\texttt {pderiv\_std}, no match}{102}{section.C.7}%
+\contentsline {section}{\numberline {C.8}\texttt {pderiv\_bc}, no match}{104}{section.C.8}%

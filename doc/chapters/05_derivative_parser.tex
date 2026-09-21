@@ -1,6 +1,3 @@
-% ----------------------------------------------------------------------
-% chapters/05_derivative_parser.tex
-% ----------------------------------------------------------------------
 \chapter{Derivative-Based Parser}
 \label{sec:derivative-parser}
 
@@ -240,9 +237,8 @@ not both applicable: the case split tests only $\varepsilon \in L(r_1)$,
 so $\mathsf{E}_{+}^{L}$ fires and $r_2$ is never examined.
 $\mathit{mkEps}$ does not compare the two; it takes the left one because
 it is nullable at all. Everything the backward pass produces downstream
-follows from that choice, and
-Section~\ref{sec:correctness-properties}'s Lemma~1 is the claim that
-making it this way is POSIX-correct.
+follows from that choice, and Sulzmann and Lu prove that making it this
+way is the POSIX-correct one \citep{sulzmannlu2014}.
 
 With $v_n$ in hand, the remaining task is to turn it back into a parse
 tree of the \emph{original} $r_0$, one derivative step in reverse at a
@@ -360,68 +356,6 @@ Section~\ref{sec:bitcoded-optimization-theory} removes.
 
 
 
-\section{Correctness Properties}
-\label{sec:correctness-properties}
-
-Sulzmann and Lu prove three results establishing that $\mathit{parse}$
-computes exactly the $\geq_r$-maximal tree of
-Section~\ref{sec:posix-longest-leftmost}, not merely \emph{a} valid one
-\citep{sulzmannlu2014}. This section states them; full proofs are in the
-reference and are not reproduced here, but the intuition behind each is
-worth making explicit, since it is what justifies trusting the Rust
-implementation of Section~\ref{sec:derivative-parser-inj-rust} beyond
-its agreement with the reference on the test cases actually tried.
-Chapter~\ref{sec:evaluation} verifies that agreement empirically; the
-proofs are the reason agreement on finitely many test cases is expected
-to generalize to inputs never tested.
-
-\begin{description}
-  \item[Lemma 1 (Empty POSIX Parse Tree).] For $r$ with
-  $\varepsilon \in L(r)$, $\mathit{mkEps}_r$ is the POSIX parse tree of
-  $r$ for the empty word. This grounds the base case of the induction
-  the other two results build on: at $\mathit{mkEps}$'s only interesting
-  case, alternation, both sides can only ever match length $0$, since
-  there is no remaining input to consume, so (A2)'s length comparison
-  always ties and reduces to left-preference, exactly the
-  $\varepsilon \in L(r_1)$ test $\mathit{mkEps}$ performs. The
-  \texttt{nullable(r1)=true -> Left(mkEps(r1))} line quoted in
-  Section~\ref{sec:core-algorithm} is this lemma applied once, at the
-  one point in the example where the choice is not forced.
-
-  \item[Lemma 2 (POSIX Preservation under Injection).] If $v$ is the
-  POSIX parse tree of $r \backslash x$, then $\mathit{inj}_{r
-  \backslash x}(v)$ is the POSIX parse tree of $r$. This is the result
-  doing the real work, and its proof is correspondingly the most
-  involved of the three. The informal argument: the derivative operation
-  always tries $r_1$ before falling through to $r_2$ at a concatenation
-  or alternation node (Section~\ref{sec:brzozowski-derivatives}'s
-  $(r_1 r_2) \backslash x$ case only reaches $r_2 \backslash x$ when
-  $r_1$ is nullable, and even then keeps the $r_1$-continuation branch
-  as the left disjunct of the resulting $+$). $\mathit{inj}$
-  reconstructing that exact same left-first bias at every backward step,
-  rather than an arbitrary one, is what carries POSIX-maximality from
-  the smaller expression $r \backslash x$ up to the original $r$.
-
-  \item[Theorem 1 (POSIX Parsing).] $\mathit{parse}$ computes POSIX
-  parse trees. This follows from Lemmas 1 and 2 by induction on the
-  input word: the base case is Lemma 1 applied to $r_n$, and each
-  inductive step is one application of Lemma 2, carrying
-  POSIX-maximality from $r \backslash x_1 \cdots x_n$ back up through
-  $n$ injections to $r$ itself.
-\end{description}
-
-The induction in Theorem~1 has the same shape as the backward pass
-itself, which is why a level-3 trace reads as an instance of the proof:
-the \texttt{mkEps} line is the base case, and each \texttt{inject} line
-is one inductive step. Theorem 1 is nonetheless a statement about the
-construction, not about any particular implementation of it, so it
-transfers to the Rust code only to the extent that the code really is a
-transcription of the construction.
-Section~\ref{sec:derivative-parser-inj-rust} therefore reads each Rust
-function back against the equation it implements, and
-Section~\ref{sec:deriv-worked-example} checks the end-to-end result
-against the tree derived by hand in
-Section~\ref{sec:disambiguation-problem}.
 
 
 
@@ -865,290 +799,129 @@ specifically.
 
 
 
-\section{Rust Implementation: The \texttt{deriv\_std} Parser}
+\section{Rust Implementation}
 \label{sec:derivative-parser-inj-rust}
 
-\texttt{deriv\_std} (\texttt{src/parsers/deriv\_std/}) is the Rust
-realization of Section~\ref{sec:core-algorithm}'s direct construction.
-It exposes two entry points computing the identical result by two
-different means, \texttt{parse\_deriv\_std\_rec} and
-\texttt{parse\_deriv\_std\_loop}, discussed together in
-Section~\ref{sec:recursive-vs-loop} below, after the shared machinery
-both call into.
+Both parsers of this chapter are transcriptions of the equations above.
+Each definition becomes one Rust function over the \texttt{Regex} or
+\texttt{ARegex} enum, the case split of the equation becomes the arms of
+a \texttt{match}, and the recursion becomes recursion; the mapping is
+mechanical enough that reading the code against the equation adds nothing
+the equation does not already say. Appendix~\ref{app:src-parsers} gives
+the file-by-file correspondence. What is worth setting out here is the
+short list of places where Rust forces a decision the specification does
+not make.
 
-\subsection{\texttt{ParseTree} and \texttt{flatten}}
-\label{sec:parsetree-and-flatten}
-
-The \texttt{ParseTree} type and its \texttt{flatten} function were
-already introduced in Section~\ref{sec:parse-trees-as-evidence}
-(\texttt{src/types/tree.rs}), with \texttt{Empty}, \texttt{Char},
-\texttt{Pair}, \texttt{Left}, \texttt{Right}, \texttt{Star}
-corresponding one to one with $()$, a literal, a pair, the two tagged
-injections, and a Kleene-star list. Nothing about the type itself is
-specific to \texttt{deriv\_std}: it is the one representation every
-parser in this and the following chapter ultimately produces, precisely
-so that the agreement tests of Chapter~\ref{sec:evaluation} can compare
-their outputs directly rather than through some intermediate
-translation.
-
-Keeping \texttt{flatten} separate from tree construction is what makes
-the round-trip check in those tests possible at all.
-\texttt{flatten(v)} discards every $\mathit{Left}$/$\mathit{Right}$ tag
-and every pair boundary, returning only the concatenated literals, so
-for any successful parse of $w$ it must return $w$ exactly. That is a
-property independent of disambiguation policy: POSIX and Greedy select
-different trees for $r_1$ against $\mathtt{ab}$, but both trees flatten
-back to \texttt{"ab"}. Every diagnostics report prints the flattened
-result next to the tree for precisely this reason, as a visible check
-that the tree returned really is a tree for the input given:
-\begin{verbatim}
-Parse tree:           (Right (a, b), Right ())
-Flattened:            "ab"
-\end{verbatim}
-
-\subsection{\texttt{mk\_eps}}
+\paragraph{Partial functions become panics.}
 \label{sec:mk-eps-impl}
-
-\texttt{mk\_eps} (\texttt{src/regex/mk\_eps.rs}) transcribes
-$\mathit{mkEps}$ case for case: \texttt{Eps} to \texttt{Empty},
-\texttt{Star} to an empty \texttt{Vec}, \texttt{Seq} to a \texttt{Pair}
-of the two recursive results, and \texttt{Alt} to
-\texttt{Left}/\texttt{Right} depending on \texttt{nullable(r1)} exactly
-as the theory prescribes. Called on \texttt{Lit} or \texttt{Phi}, which
-$\mathit{mkEps}$ has no case for since neither is ever nullable, it
-panics rather than silently returning a meaningless value. Every call
-site only ever reaches \texttt{mk\_eps} once nullability of its argument
-has already been established, so the panic is an assertion of an
-invariant the surrounding code maintains, not a reachable runtime error.
-
-This function lives in \texttt{regex/}, flat and outside
-\texttt{deriv\_std/} specifically, because
-Chapter~\ref{sec:partial-derivative-parser}'s \texttt{pderiv\_std} needs
-the identical function for the identical reason: both build a
-\texttt{ParseTree} directly rather than bit-codes, and both need the
-same "parse tree for a nullable expression matched against nothing"
-primitive to do it.
-
-\subsection{\texttt{inject}}
 \label{sec:inject-impl}
+$\mathit{mkEps}_r$ is defined only for nullable $r$: Equation~\eqref{eq:mkeps}
+has no clause for $\phi$ or for a literal, because neither is ever
+reached. Rust has no partial functions, so the transcription has to say
+something, and it says this:
 
-\texttt{inject} (\texttt{src/parsers/deriv\_std/inject.rs}) is the
-direct transcription of $\mathit{inj}$. Its \texttt{Seq} case is the one
-worth reading closely against the theory: when \texttt{r1} is not
-nullable, only a \texttt{Pair} is ever handed in, and injection recurses
-into its first component; when \texttt{r1} \emph{is} nullable, the
-incoming value is either \texttt{Left(Pair(v1, v2))}, the "continue
-\texttt{r1}" branch the derivative rule produces, or \texttt{Right(v2)},
-the "\texttt{r1} already matched empty" branch, and only the second case
-calls \texttt{mk\_eps(r1)} to synthesize the otherwise-absent left
-component. This is exactly the three-way split of
-Section~\ref{sec:core-algorithm}'s $\mathit{inj}_{(r_1 r_2) \backslash
-x}$.
-
-The trace prints each call with the expression being injected into,
-which is what makes it possible to check that the case taken really is
-the one the theory predicts:
 \begin{verbatim}
-inject(r1, 'b', v2):
-  inject(Seq(Alt(Eps, Seq(Eps, Lit('b'))), Alt(Lit('b'), Eps)),
-    'b', Left (Right Right (), Right ()))
-  -> (Right ((), b), Right ())
+Regex::Lit(c) => panic!("mk_eps called on Lit('{}')", c),
+Regex::Phi   => panic!("mk_eps called on Phi"),
 \end{verbatim}
-The expression is a \texttt{Seq}, so $r_1$ binds to
-\texttt{Alt(Eps, Seq(Eps, Lit('b')))} and $r_2$ to
-\texttt{Alt(Lit('b'), Eps)}. That $r_1$ is nullable, and the incoming
-value is \texttt{Left(...)}, so the case that fires is
-$\mathsf{I}_{\mathrm{seq}}^{L}$: continue into $r_1$, keep $v_2$ untouched. Had the value been \texttt{Right(...)} instead, the
-same call would have taken $\mathsf{I}_{\mathrm{seq}}^{R}$ and synthesized a
-left component through \texttt{mk\_eps}. Had $r_1$ not been nullable,
-neither tag would have been present at all and $\mathsf{I}_{\mathrm{seq}}$
-would have applied to a bare \texttt{Pair}.
 
-Every case that receives a value shaped differently from what the
-corresponding derivative rule could have produced panics rather than
-guessing. A bare \texttt{Pair} where a nullable \texttt{r1} demands a
-tagged \texttt{Left}/\texttt{Right} is the clearest example: such a
-mismatch can only mean the caller passed a tree that did not actually
-come from \texttt{r}'s own derivative sequence, which is the one
-precondition the whole backward pass depends on.
+The panic is an assertion about the caller, not error handling. Every
+call site establishes nullability before calling, so reaching either arm
+would mean the invariant the backward pass rests on has already been
+broken. \texttt{inject} makes the same move at a finer grain: a bare
+\texttt{Pair} arriving where a nullable $r_1$ requires a tagged
+\texttt{Left} or \texttt{Right} can only mean the tree handed in did not
+come from that expression's own derivative sequence. The alternative in
+both cases is to invent a plausible value and return it, and a wrong
+parse tree that looks well formed is precisely what the agreement tests
+of Chapter~\ref{sec:evaluation} could not detect: they would be comparing
+two parsers that had each guessed.
 
-\subsection{\texttt{parse\_deriv\_std\_rec} versus
-\texttt{parse\_deriv\_std\_loop}}
+\paragraph{Recursion or an explicit vector.}
 \label{sec:recursive-vs-loop}
+The two entry points of \texttt{deriv\_std} compute the same tree by
+different means. The recursive one descends to
+the end of the input and calls \texttt{inject} as the stack unwinds, so
+the call stack \emph{is} the derivative sequence of
+Figure~\ref{fig:two-pass}'s top row and nothing else stores it. The loop
+one builds that sequence as an explicit \texttt{Vec<Regex>} going
+forward, then walks it backward. The algorithm is identical; the two
+differ only in where the top row is kept while the bottom row consumes
+it. That is a resource decision, and in Rust it is a consequential one,
+because a thread's stack is a fixed allocation while the heap is not:
+the recursive entry point overflows on input the loop entry point
+handles without difficulty. Section~\ref{sec:stack-depth} measures where
+the difference begins.
 
-Both functions (\texttt{src/parsers/deriv\_std/parse.rs}) compute the
-identical result, shown empirically and not merely by construction
-(Chapter~\ref{sec:evaluation}), by two different means of implementing
-the same two-phase algorithm.
+\paragraph{Trees and their flattening.}
+\label{sec:parsetree-and-flatten}
+\texttt{ParseTree} (Section~\ref{sec:parse-trees-as-evidence}) is the one
+representation every parser in this thesis produces, which is what lets
+the agreement tests compare outputs directly. \texttt{flatten} is kept
+separate from tree construction so that it can serve as an independent
+check: it discards every tag and pair boundary and returns the
+concatenated literals, so a successful parse of $w$ must flatten back to
+$w$ whatever the disambiguation policy was. Every diagnostic report
+prints the two next to each other for that reason.
 
-\texttt{parse\_deriv\_std\_rec} recurses to the end of the input first,
-then calls \texttt{inject} on the way back up the call stack as the
-recursion unwinds. \texttt{deriv}'s "leading character removed" and
-\texttt{inject}'s "leading character re-inserted" mirror each other
-directly across the recursion, needing no explicit intermediate storage
-for the forward-pass sequence at all, since the call stack \emph{is}
-that sequence. \texttt{parse\_deriv\_std\_loop} makes the same sequence
-explicit as a \texttt{Vec<Regex>}, built by an ordinary forward
-\texttt{for} loop, then walks that vector backward with a second loop
-calling \texttt{inject} at each step.
-
-Both are Figure~\ref{fig:two-pass} realized; they differ only in where
-the top row is kept while the bottom row consumes it. That makes
-different resource trade-offs unrelated to the algorithm itself.
-\texttt{parse\_deriv\_std\_rec}'s call stack depth grows with the input
-length and can overflow it on sufficiently long input, where
-\texttt{parse\_deriv\_std\_loop}'s explicit \texttt{Vec} instead grows
-on the heap. Section~\ref{sec:stack-depth} measures exactly where that
-difference starts to matter.
-
-
-
-\section{Rust Implementation: The Bit-Coded Version}
+\subsection{The Bit-Coded Parser}
 \label{sec:derivative-parser-bitcoded-rust}
 
-\texttt{deriv\_bc} (\texttt{src/parsers/deriv\_bc/}) realizes
-Section~\ref{sec:bitcoded-optimization-theory}'s construction, one
-module per box in Figure~\ref{fig:single-pass}.
-
-\subsection{\texttt{ARegex}, the Bit-Annotated Regex}
+\paragraph{One extra field, and the traits that come with it.}
 \label{sec:aregex-type}
+\texttt{ARegex} is \texttt{Regex} with a \texttt{Vec<bool>} added to
+every variant but $\phi$, which has no annotation slot. This is the only
+point in the implementation where a plain \texttt{Regex} will not do,
+since the whole purpose of the construction is to thread partial
+parse-tree information through the expression as it is derived, and that
+needs somewhere on every node to put it.
 
-\texttt{ARegex} (\texttt{src/types/aregex.rs}) mirrors the annotated
-grammar $\mathit{ri}$ directly: every variant except \texttt{Phi}
-carries its own \texttt{Vec<bool>} bit-prefix alongside the same
-structural payload \texttt{Regex} already carries, a \texttt{char} for
-\texttt{Lit} and boxed sub-expressions for the recursive cases. This is
-the one point in the whole implementation where a plain \texttt{Regex}
-is not enough: \texttt{deriv\_bc}'s entire purpose is threading partial
-parse-tree information \emph{through} the tree as it is derived, and
-that requires a place on every node to put it, not only at the leaves.
+The two types then diverge in the traits they derive, and Rust makes
+that divergence explicit rather than incidental. \texttt{Regex} derives
+\texttt{Hash} because
+Chapter~\ref{sec:partial-derivative-parser}'s deduplication uses it as a
+\texttt{HashSet} key; \texttt{ARegex} does not, because
+\texttt{deriv\_bc} never hashes an annotated expression. Its own
+deduplication, inside \texttt{simp}, compares alternation branches
+pairwise instead. A language deriving a fixed bundle of instances at once
+would leave that difference implicit; here it is a visible fact about
+which operations each type is expected to support.
 
-One derived trait is deliberately absent. \texttt{Regex} derives
-\texttt{Hash} (Section~\ref{sec:regex-rust-implementation}) so that it
-can be used as a \texttt{HashSet} key, which
-Chapter~\ref{sec:partial-derivative-parser}'s deduplication depends on;
-\texttt{ARegex} derives only \texttt{Debug}, \texttt{Clone},
-\texttt{PartialEq} and \texttt{Eq}. Nothing in \texttt{deriv\_bc} ever
-needs to hash an annotated expression, because its own deduplication,
-inside \texttt{simp}, compares alternation branches pairwise rather than
-through a hash set. That is also why the quadratic \texttt{dedup\_first}
-in \texttt{simplify.rs} is acceptable: the branch lists it runs over are
-the ones counted in Section~\ref{sec:simplification-rules-theory}, and
-on the patterns where those lists grow large, the growth itself is the
-dominant cost rather than the comparison strategy.
-
-\subsection{\texttt{internalize} and \texttt{fuse}}
+\paragraph{Ownership makes the common case free.}
 \label{sec:internalize-fuse}
-
-Both live in \texttt{src/parsers/deriv\_bc/internalize.rs}.
-\texttt{internalize} converts a plain \texttt{Regex} into a freshly
-bit-annotated \texttt{ARegex} with every list empty, except
-\texttt{Alt}: the left branch is fused with a leading \texttt{false} and
-the right with a leading \texttt{true} at construction time, exactly as
-the theory's $\mathit{internalize}$ does, and exactly as the
-\texttt{INTERNALIZE} excerpt in
-Section~\ref{sec:bitcoded-optimization-theory} shows. \texttt{fuse(bs,
-ri)} prepends \texttt{bs} onto \texttt{ri}'s own top-level annotation
-and is the one primitive the rest of this section's functions are all
-built from, including the degenerate case \texttt{fuse(bs, Phi) = Phi},
-since there is no annotation slot on \texttt{Phi} to prepend anything
-to.
-
-\texttt{fuse} also short-circuits on an empty prefix, returning
-\texttt{ri} untouched rather than rebuilding it. This matters more than
-it looks: \texttt{fuse} is called on every \texttt{Seq} and
-\texttt{Star} step of every derivative, and the overwhelming majority of
-those calls carry an empty $bs$, so the check turns what would be a
-node rebuild into a move.
-
-\subsection{\texttt{deriv\_bc}}
 \label{sec:deriv-bc}
+\texttt{fuse(bs, ri)} prepends a bit-prefix to an expression's top-level
+annotation, and it opens by handing the expression straight back when
+there is nothing to prepend:
 
-\texttt{src/parsers/deriv\_bc/deriv.rs} transcribes $\backslash_b$ case
-for case. Its \texttt{Alt} case keeps the outer bit-list on the
-resulting \texttt{Alt} node itself, rather than pushing it into either
-recursive call. This looks like an arbitrary implementation choice here,
-and for \texttt{deriv\_bc} it largely is, since there is always a single
-combined node available to carry it. Chapter~\ref{sec:partial-derivative-parser}
-shows what happens to the same decision in a construction that has no
-such node, where the bits must instead be carried separately per
-residual.
+\begin{verbatim}
+pub fn fuse(bs: &[bool], ri: ARegex) -> ARegex {
+    if bs.is_empty() { return ri; }
+    // ... otherwise rebuild the node with bs in front of its prefix
+}
+\end{verbatim}
 
-Its \texttt{Seq} case implements the nullable-$r_1$ branch's two strands
-exactly as written above, continuing $r_1$'s own derivative or jumping
-into $r_2$'s with $r_1$'s empty-match bits fused on, which is the step
-the \texttt{[false, false]} prefix in
-Section~\ref{sec:bitcoded-optimization-theory}'s step-2 excerpt records.
-Its \texttt{Star} case attaches the leading "one more iteration" bit via
-\texttt{fuse(\&[false], ...)} before rewrapping the untouched star body,
-which is the step the growing \texttt{[false, ...]} prefix in
-Section~\ref{sec:simplification-rules-theory}'s $a^{*}$ excerpt records.
+Because \texttt{fuse} takes \texttt{ri} by value, that early return is a
+move and not a copy: the expression is handed on untouched. \texttt{fuse}
+runs on every \texttt{Seq} and \texttt{Star} step of every derivative and
+the overwhelming majority of those calls carry an empty prefix, so the
+check converts the common case from a node rebuild into nothing at all.
 
-Both entry points in that module's \texttt{parse.rs} call
-\texttt{deriv\_bc} in a loop, once per input character, applying
-\texttt{simp} after every step. They are named
-\texttt{parse\_bitcoded\_\allowbreak recursive} and
-\texttt{parse\_bitcoded\_\allowbreak loop}. \texttt{simp}, in the same directory's
-\texttt{simplify.rs}, is the Rust realization of
-Section~\ref{sec:simplification-rules-theory}'s simplification, and its
-cases match $\mathit{simp}$'s directly: Phi propagation via the
-\texttt{is\_phi} test, epsilon-elimination via \texttt{fuse}, and
-list-flattening with first-occurrence deduplication for nested
-alternations.
-
-Unlike \texttt{deriv\_std}'s two entry points, which differ in how the
-forward sequence is stored, these two differ only in recursion versus
-iteration over the input: neither retains the sequence, because the
-bit-coded construction never revisits it.
-
-\subsection{\texttt{mk\_eps\_bc}}
+\paragraph{Decoding, and where a bad bit-string is caught.}
 \label{sec:mk-eps-bc}
-
-\texttt{src/parsers/deriv\_bc/mk\_eps\_bc.rs} extracts the accumulated
-bit-string from a nullable \texttt{ARegex}, structurally identical to
-\texttt{mk\_eps} but returning bits instead of a tree. \texttt{Alt}
-prefers whichever branch is nullable, checking left first to match
-\texttt{mk\_eps}'s own left-preference; \texttt{Seq} concatenates both
-children's bits after its own prefix; and \texttt{Star} appends a final
-\texttt{true}, marking "no further iterations", onto whatever bits the
-completed iterations already accumulated. Like \texttt{mk\_eps}, it
-panics on \texttt{Phi} and \texttt{Lit}, for the same reason and under
-the same established precondition.
-
-\subsection{\texttt{decode}}
 \label{sec:decode}
-
-\texttt{src/regex/decode.rs} turns the plain, \emph{original}
-\texttt{Regex} plus a flat \texttt{Vec<bool>} bit-string back into an
-ordinary \texttt{ParseTree}. \texttt{Alt} consumes one leading bit to
-choose \texttt{Left}/\texttt{Right}, \texttt{Seq} decodes both children
-in sequence, and \texttt{Star} loops, consuming a \texttt{false} per
-iteration until a \texttt{true} ends it: the direct inverse of
-\texttt{encode}, which this implementation never needs to run itself,
-since nothing here starts from an already-built \texttt{ParseTree}
-needing to be re-encoded.
-
-\texttt{decode} takes only a plain \texttt{Regex}, not an
-\texttt{ARegex}, because by the time it is called the bit-string alone
-carries everything needed, decoded against the shape of the
-un-annotated original expression. That is the dashed dependency in
-Figure~\ref{fig:single-pass}. It is also why \texttt{decode} lives in
-flat \texttt{regex/} rather than inside \texttt{deriv\_bc/}
-specifically: Chapter~\ref{sec:partial-derivative-parser}'s
-\texttt{pderiv\_bc} produces the same \texttt{(Regex, bits)} pair by an
-entirely different route and needs the identical final step to turn it
-into a tree.
-
-The decoder is also where a bit-string that does not correspond to the
-expression it is decoded against is caught. \texttt{decode} asserts that
-no bits remain once the whole expression has been walked, and its
-\texttt{Alt} and \texttt{Star} cases panic on an unexpected end of bits.
-Both conditions are unreachable when the bits come from
-\texttt{mk\_eps\_bc} applied to a derivative of that same expression,
-which is the only way either parser calls it, so they serve the same
-role as the panics in \texttt{inject}: they turn a silent wrong answer
-into an immediate failure if the invariant is ever broken.
-
+\texttt{decode} turns the original plain \texttt{Regex} plus a flat
+\texttt{Vec<bool>} back into a \texttt{ParseTree}, consuming one bit per
+alternation and one per star iteration. It takes the un-annotated
+expression, not the derived one, which is the dashed dependency in
+Figure~\ref{fig:single-pass} and the reason it is shared with
+Chapter~\ref{sec:partial-derivative-parser}'s \texttt{pderiv\_bc}: that
+parser arrives at a \texttt{(Regex, bits)} pair by an entirely different
+route and needs the identical final step. \texttt{decode} asserts that no
+bits remain once the expression has been walked, and panics on an
+unexpected end of bits, which is the same invariant-assertion discipline
+as \texttt{mk\_eps} and \texttt{inject}, applied at the other end of the
+construction.
 
 
 \section{Comparing the Two Constructions}
@@ -1225,8 +998,7 @@ Expected:             'a'
   b
   ^
 \end{verbatim}
-The diagnostics layer's expected set
-(Section~\ref{sec:diagnostics-design}) is read directly off the
+The diagnostics layer's expected set is read directly off the
 first-literal set of the expression at the point of failure, so it does
 not depend on which construction produced that expression or on how much
 simplification was applied to it. This is the general pattern for
@@ -1238,8 +1010,8 @@ Appendix~\ref{app:report-deriv-bc-nomatch}.
 
 \paragraph{Agreement between the three POSIX entry points.} The two
 parsers of this chapter, together with \texttt{deriv\_std}'s loop
-variant, are three separate routes to the tree Theorem~1 specifies, so
-their outputs are directly comparable. Running all three over 300
+variant, are three separate routes to the same tree, so their outputs are
+directly comparable. Running all three over 300
 randomly generated expressions against 39 inputs each, 11\,700 cases in
 total, they agree on every one, both on whether the input matched and on
 the exact \texttt{ParseTree} returned when it did.

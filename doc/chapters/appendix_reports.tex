@@ -1,0 +1,569 @@
+\chapter{Diagnostics}
+\label{app:diagnostic-reports}
+
+\begin{verbatim}
+cargo run -- parse "(a|ab)(b|)" <INPUT> --parser <PARSER> --diag 3
+\end{verbatim}
+
+\begin{center}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{10.5cm}@{}}
+\hline
+Field & Value \\
+\hline
+Expression & \texttt{"(a|ab)(b|)"}, that is $(a+ab)(b+\varepsilon)$ \\
+Inputs & \texttt{"ab"} (match), \texttt{"b"} (no match) \\
+Parsers & \texttt{deriv\_std\_rec}, \texttt{deriv\_bc}, \texttt{pderiv\_std}, \texttt{pderiv\_bc} \\
+Output file & \texttt{reports/report.txt} \\
+\hline
+Omitted & the \texttt{Timestamp} line \\
+Wrapped & long lines \\
+$\partial$ & \texttt{d} \\
+$\cdot$ & \texttt{.} \\
+$\oplus$ & \texttt{(+)} \\
+$\varepsilon$ & \texttt{epsilon} \\
+$\phi$ & \texttt{phi} \\
+$\checkmark$ & \texttt{[OK]} \\
+\texttt{Policy} & the implementation's internal label, not a claim about
+                  disambiguation policy \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{\texttt{deriv\_std\_rec}, match}
+\label{app:report-deriv-std-match}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "ab" \
+    --parser deriv_std_rec --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 POSIX Standard (recursive parser)
+Regex:                (a|ab)(b|)
+Input:                "ab"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.012ms
+Expressions stored:   3 (r0 -> r1 -> r2)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+
+Step 1: d(r0, 'a')
+  rule: d(r1.r2, 'a')  [nullable(r1)=false]
+       = d(r1, 'a').r2
+r1 = Seq(Alt(Eps, Seq(Eps, Lit('b'))), Alt(Lit('b'), Eps))
+  nullable(r1) = true  [OK] position 1 matched
+
+Step 2: d(r1, 'b')
+  rule: d(r1.r2, 'b')  [nullable(r1)=true]
+       = d(r1, 'b').r2  +  d(r2, 'b')
+r2 = Alt(Seq(Alt(Phi, Alt(Seq(Phi, Lit('b')), Eps)), Alt(Lit('b'),
+  Eps)), Alt(Eps, Phi))
+  nullable(r2) = true  [OK] position 2 matched
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r2) = true -> proceed to backward pass
+-------------------------------====
+BACKWARD PASS (mkEps + inject)
+-------------------------------====
+mkEps(r2):
+  mkEps(r1 + r2): nullable(r1)=true -> Left(mkEps(r1))
+v2 = Left (Right Right (), Right ())
+
+inject(r1, 'b', v2):
+inject(Seq(Alt(Eps, Seq(Eps, Lit('b'))), Alt(Lit('b'), Eps)), 'b',
+    Left (Right Right (), Right ()))
+  -> (Right ((), b), Right ())
+v1 = (Right ((), b), Right ())
+
+inject(r0, 'a', v1):
+inject(Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'),
+    Eps)), 'a', (Right ((), b), Right ()))
+  -> (Right (a, b), Right ())
+v0 = (Right (a, b), Right ())
+
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           (Right (a, b), Right ())
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\section{\texttt{deriv\_bc}, match}
+\label{app:report-deriv-bc-match}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "ab" \
+    --parser deriv_bc --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 POSIX Bitcoded
+Regex:                (a|ab)(b|)
+Input:                "ab"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.015ms
+Derivative steps:     2
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize((a|ab)(b|))
+  rule: internalize(r1 . r2) = []@(internalize r1)(internalize r2)
+ri0 = []@([]@([false]@'a' (+) [true]@([]@'a' . []@'b')) .
+  []@([false]@'b' (+) [true]@epsilon))
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+ri0 = []@([]@([false]@'a' (+) [true]@([]@'a' . []@'b')) .
+    []@([false]@'b' (+) [true]@epsilon))
+  deriv_bc(ri0, 'a'):
+    rule: (bs@ri1.ri2) \ 'a'  [nullable_bc(ri1)=false]
+         = bs@(ri1\'a'.ri2)
+simp -> []@([]@([false]@epsilon (+) [true]@'b') . []@([false]@'b' (+)
+    [true]@epsilon))
+ri1 = []@([]@([false]@epsilon (+) [true]@'b') . []@([false]@'b' (+)
+    [true]@epsilon))
+  nullable_bc(ri1) = true  [OK]  bits accumulating
+
+Step 2 (char: 'b', position 2)
+ri1 = []@([]@([false]@epsilon (+) [true]@'b') . []@([false]@'b' (+)
+    [true]@epsilon))
+  deriv_bc(ri1, 'b'):
+    rule: (bs@ri1.ri2) \ 'b'  [nullable_bc(ri1)=true]
+         = bs@((ri1\'b'.ri2) (+) (fuse (mkEpsBC ri1) (ri2\'b')))
+simp -> []@([true]@([false]@'b' (+) [true]@epsilon) (+) [false,
+    false]@epsilon)
+ri2 = []@([true]@([false]@'b' (+) [true]@epsilon) (+) [false,
+    false]@epsilon)
+  nullable_bc(ri2) = true  [OK]  bits accumulating
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri2) = true -> proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+mkEpsBC(ri2) = [11]
+
+decode((a|ab)(b|), [11]):
+  = (Right (a, b), Right ())
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [11]
+Parse tree:           (Right (a, b), Right ())
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\section{\texttt{pderiv\_std}, match}
+\label{app:report-pderiv-std-match}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "ab" \
+    --parser pderiv_std --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                (a|ab)(b|)
+Input:                "ab"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.017ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+[0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+  pderiv_tree('a', .) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1.r2)  [nullable(r1)=false]
+= [(r1'.r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+-> Seq(Eps, Alt(Lit('b'), Eps))  (+ injection closure, not printable)
+-> Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))  (+ injection closure,
+        not printable)
+  frontier after (2 residual(s)):
+    [0] Seq(Eps, Alt(Lit('b'), Eps))
+    [1] Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))
+  a residual in this frontier is nullable  [OK]  parse tree available
+
+Step 2 (char: 'b', position 2)
+  frontier before (2 residual(s)):
+    [0] Seq(Eps, Alt(Lit('b'), Eps))
+    [1] Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))
+  pderiv_tree('b', .) applied to each:
+    from [0]:
+      rule: pderiv_tree('b', r1.r2)  [nullable(r1)=true]
+= nub_tree $ [(r1'.r2, inj: continue r1) | (r1',_) <-
+             pderiv_tree(c,r1)]
+++ [(r2', inj: mk_eps(r1) paired with r2's result) | (r2',_) <-
+                         pderiv_tree(c,r2)]
+      -> Eps  (+ injection closure, not printable)
+    from [1]:
+      rule: pderiv_tree('b', r1.r2)  [nullable(r1)=false]
+= [(r1'.r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+-> Seq(Eps, Alt(Lit('b'), Eps))  (+ injection closure, not printable)
+  frontier after (2 residual(s)):
+    [0] Eps
+    [1] Seq(Eps, Alt(Lit('b'), Eps))
+  a residual in this frontier is nullable  [OK]  parse tree available
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to injection
+  (already applied by select)
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           (Left a, Left b)
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\section{\texttt{pderiv\_bc}, match}
+\label{app:report-pderiv-bc-match}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "ab" \
+    --parser pderiv_bc --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (a|ab)(b|)
+Input:                "ab"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.012ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+[0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))  
+      bits-so-far = []
+  pDerivBC('a', .) applied to each:
+    from [0]:
+      rule: pDerivBC('a', r1.r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Alt(Lit('b'), Eps), [0])
+      -> (Seq(Lit('b'), Alt(Lit('b'), Eps)), [1])
+  frontier after (2 residual(s)):
+    [0] Alt(Lit('b'), Eps)   bits = [0]
+    [1] Seq(Lit('b'), Alt(Lit('b'), Eps))   bits = [1]
+  a residual in this frontier is nullable  [OK]  bits accumulating
+
+Step 2 (char: 'b', position 2)
+  frontier before (2 residual(s)):
+    [0] Alt(Lit('b'), Eps)   bits-so-far = [0]
+    [1] Seq(Lit('b'), Alt(Lit('b'), Eps))   bits-so-far = [1]
+  pDerivBC('b', .) applied to each:
+    from [0]:
+rule: pDerivBC('b', r1+r2) = tag(0, pDerivBC('b',r1)) ++ tag(1,
+        pDerivBC('b',r2)), nub2
+      -> (Eps, [0])
+    from [1]:
+      rule: pDerivBC('b', r1.r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Alt(Lit('b'), Eps), [])
+  frontier after (2 residual(s)):
+    [0] Eps   bits = [00]
+    [1] Alt(Lit('b'), Eps)   bits = [1]
+  a residual in this frontier is nullable  [OK]  bits accumulating
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to mkEpsBC +
+  decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+selected residual's accumulated bits ++ mkEpsBC(residual) = [00]
+
+decode((a|ab)(b|), [00]):
+  = (Left a, Left b)
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [00]
+Parse tree:           (Left a, Left b)
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\section{\texttt{deriv\_std\_rec}, no match}
+\label{app:report-deriv-std-nomatch}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "b" \
+    --parser deriv_std_rec --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 POSIX Standard (recursive parser)
+Regex:                (a|ab)(b|)
+Input:                "b"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.005ms
+Expressions stored:   2 (r0 -> r1)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+
+Step 1: d(r0, 'b')
+  rule: d(r1.r2, 'b')  [nullable(r1)=false]
+       = d(r1, 'b').r2
+r1 = Seq(Alt(Phi, Seq(Phi, Lit('b'))), Alt(Lit('b'), Eps))
+  nullable(r1) = false  [FAIL] position 1
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r1) = false -> no parse tree exists for full input
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\section{\texttt{deriv\_bc}, no match}
+\label{app:report-deriv-bc-nomatch}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "b" \
+    --parser deriv_bc --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 POSIX Bitcoded
+Regex:                (a|ab)(b|)
+Input:                "b"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.008ms
+Derivative steps:     1
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize((a|ab)(b|))
+  rule: internalize(r1 . r2) = []@(internalize r1)(internalize r2)
+ri0 = []@([]@([false]@'a' (+) [true]@([]@'a' . []@'b')) .
+  []@([false]@'b' (+) [true]@epsilon))
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'b', position 1)
+ri0 = []@([]@([false]@'a' (+) [true]@([]@'a' . []@'b')) .
+    []@([false]@'b' (+) [true]@epsilon))
+  deriv_bc(ri0, 'b'):
+    rule: (bs@ri1.ri2) \ 'b'  [nullable_bc(ri1)=false]
+         = bs@(ri1\'b'.ri2)
+  simp -> phi
+  ri1 = phi
+  nullable_bc(ri1) = false  [FAIL]
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri1) = false -> no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\section{\texttt{pderiv\_std}, no match}
+\label{app:report-pderiv-std-nomatch}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "b" \
+    --parser pderiv_std --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                (a|ab)(b|)
+Input:                "b"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.007ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'b', position 1)
+  frontier before (1 residual(s)):
+[0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+  pderiv_tree('b', .) applied to each:
+    from [0]:
+      rule: pderiv_tree('b', r1.r2)  [nullable(r1)=false]
+= [(r1'.r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+      -> []
+  frontier after (0 residual(s)):
+  no nullable residual in this frontier  [FAIL]
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse tree
+  exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
+\section{\texttt{pderiv\_bc}, no match}
+\label{app:report-pderiv-bc-nomatch}
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "b" \
+    --parser pderiv_bc --diag 3
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (a|ab)(b|)
+Input:                "b"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.006ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))),
+  Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'b', position 1)
+  frontier before (1 residual(s)):
+[0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))  
+      bits-so-far = []
+  pDerivBC('b', .) applied to each:
+    from [0]:
+      rule: pDerivBC('b', r1.r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> []
+  frontier after (0 residual(s)):
+  no nullable residual in this frontier  [FAIL]
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse tree
+  exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====
+\end{verbatim}
+
