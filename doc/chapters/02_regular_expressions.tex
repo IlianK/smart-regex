@@ -136,36 +136,55 @@ word in the language ends with the two symbols $0$ and $1$.
 An expression therefore has both a syntactic structure and a meaning:
 the syntax determines how the expression is constructed, while its
 semantics determines the language it denotes. Different syntax trees may
-denote the same language. This distinction is important for the
-algorithms developed later: the algorithms manipulate regular
-expressions and their syntax trees, while $L(r)$ gives the set of words
-represented by the expression.
+denote the same language, even when the expressions themselves are not
+syntactically identical. Thus, equality of regular expressions as syntax
+objects is distinct from equality of the languages they denote. This
+distinction is important for the algorithms developed later: the
+algorithms manipulate regular expressions and their syntax trees, while
+$L(r)$ gives the set of words represented by the expression.
 
 %
 
-\section{Rust Implementation}
+\paragraph{In Rust.}
 \label{sec:regex-rust-implementation}
-
 The grammar above is represented directly as a Rust enum
-\citep{rust-book-enums,rust-reference-enum}, with one variant for each
-syntactic construct:
+\citep{rust-book-enums,rust-reference-enum}, shown in
+Figure~\ref{fig:regex-enum}, with one variant for each syntactic
+construct.
 
+\begin{figure}[ht]
 \begin{verbatim}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Regex {
-    Phi,
-    Eps,
-    Lit(char),
-    Seq(Box<Regex>, Box<Regex>),
-    Alt(Box<Regex>, Box<Regex>),
-    Star(Box<Regex>),
+    Phi,                          // empty language
+    Eps,                          // empty word
+    Lit(char),                    // literal x
+    Seq(Box<Regex>, Box<Regex>),  // r . s
+    Alt(Box<Regex>, Box<Regex>),  // r + s
+    Star(Box<Regex>),             // r*
 }
 \end{verbatim}
+\caption{The internal regular-expression type, with one variant for
+each construct of Equation~\eqref{eq:regex-grammar}. This is the
+representation every algorithm in this thesis operates on.}
+\label{fig:regex-enum}
+\end{figure}
 
-The variants correspond directly to the grammar: \texttt{Phi},
-\texttt{Eps}, and \texttt{Lit} represent $\emptyset$, $\varepsilon$,
-and literals, while \texttt{Seq}, \texttt{Alt}, and \texttt{Star}
-represent concatenation, alternation, and Kleene star.
+The derived traits also support the operations used by the later
+algorithms. \texttt{Clone} allows expressions to be duplicated when a
+derivative needs to retain an existing subexpression, while
+\texttt{PartialEq} and \texttt{Eq} provide structural equality for
+comparing expression trees. \texttt{Hash} makes the same structural
+representation usable as a key in a \texttt{HashSet}, which is required
+by the partial-derivative matcher.
+
+The variants correspond one to one with the grammar: \texttt{Phi},
+\texttt{Eps} and \texttt{Lit} represent $\emptyset$, $\varepsilon$ and
+literals, while \texttt{Seq}, \texttt{Alt} and \texttt{Star} represent
+concatenation, alternation and Kleene star. The type carries no
+operator precedence and no associativity, because both were already
+resolved when the syntax tree was built: a \texttt{Seq} node holds two
+children and says nothing about how the original notation grouped them.
 
 For example, the running example
 $r_{01}=(0+1)^*\cdot0\cdot1$ is represented by an expression tree whose
@@ -208,17 +227,65 @@ compile time. The Rust representation therefore makes the heap-based
 structure of recursive expressions explicit, which is relevant to
 memory behaviour.
 
-The Rust representation also derives several standard traits.
-\texttt{Debug} supports inspection, \texttt{Clone} allows duplication,
-and \texttt{Eq} and \texttt{Hash} allow \texttt{Regex} to be used as a
-\texttt{HashSet} key. The latter are required by the partial-derivative
-implementation, which stores sets of residual expressions
-\citep{rust-book-derivable-traits,rust-hashmap,rust-hash}.
+%
 
-Rust's \texttt{match} expressions are checked for exhaustiveness by the
-compiler \citep{rust-book-match,rust-reference-match}. Thus, a function
-defined by matching on \texttt{Regex} must account for every syntactic
-construct of the grammar. This makes the Rust implementation closely
-follow the mathematical definition: each case of the grammar has a
-corresponding case in the implementation.
+\paragraph{Constructors.}
 
+Constructing recursive expressions directly requires explicit
+\texttt{Box::new} calls, so the implementation provides four constructors
+that encapsulate the boxing, shown in Figure~\ref{fig:regex-constructors}.
+All subsequent implementations in Chapter~\ref{sec:derivatives} use them
+to construct regular expressions.
+
+\begin{figure}[ht]
+\begin{verbatim}
+impl Regex {
+
+    pub fn seq(r: Regex, s: Regex) -> Regex {
+        Regex::Seq(Box::new(r), Box::new(s))
+    }
+
+    pub fn alt(r: Regex, s: Regex) -> Regex {
+        Regex::Alt(Box::new(r), Box::new(s))
+    }
+
+    pub fn star(r: Regex) -> Regex {
+        Regex::Star(Box::new(r))
+    }
+
+    pub fn lit(c: char) -> Regex {
+        Regex::Lit(c)
+    }
+
+}
+\end{verbatim}
+\caption{The four constructors. Each builds the corresponding
+\texttt{Regex} variant and performs the boxing required by the recursive
+representation.}
+\label{fig:regex-constructors}
+\end{figure}
+
+The constructors are structural: they perform no simplification or
+semantic transformation. For example,
+\texttt{Regex::seq(Regex::Eps, r)} constructs a \texttt{Seq} node with
+an \texttt{Eps} left child rather than simplifying to $r$. This differs
+from the \emph{*smart*} constructor introduced later, which can inspect
+its operands and avoid redundant expressions.
+
+The constructors take their arguments by value, so building an expression
+bottom-up moves its subexpressions into the boxes rather than copying
+them. The running example is constructed as follows:
+
+\begin{verbatim}
+Regex::seq(
+    Regex::seq(
+        Regex::star(Regex::alt(Regex::lit('0'), Regex::lit('1'))),
+        Regex::lit('0'),
+    ),
+    Regex::lit('1'),
+)
+\end{verbatim}
+
+This value has the structure of Equation~\eqref{eq:r01-tree} and is
+produced by the frontend of Chapter~\ref{sec:frontend} for the surface
+pattern \texttt{"(0|1)*01"}.

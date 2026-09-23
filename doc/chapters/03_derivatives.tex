@@ -10,7 +10,7 @@ regular-expression semantics. The second uses Brzozowski derivatives to
 transform a regular expression as input symbols are consumed. The third
 uses Antimirov's partial derivatives, representing the possible residual
 expressions as a set rather than combining them into a single expression.
-All three approaches are implemented in Rust. 
+All three approaches are implemented in Rust.
 
 All three matchers \texttt{match\_naive}, \texttt{match\_deriv}, and
 \texttt{match\_pderiv} share the signature
@@ -193,7 +193,7 @@ pub fn match_naive(input: &str, r: &Regex) -> bool {
 The two rules that require a search become the two arms shown in
 Figure~\ref{fig:match-naive-rust}.
 
-\begin{figure}[ht]
+\begin{figure}[H]
 \begin{verbatim}
 Regex::Seq(r, s) => {
     (i..=j).any(|k| {
@@ -295,6 +295,53 @@ concatenation when both components are.
 
 %
 
+\paragraph{In Rust.}
+The definition is transcribed one \texttt{Regex} variant at a time,
+using the enum of Figure~\ref{fig:regex-enum}. The case split of
+Equation~\eqref{eq:nullability} becomes the arms of a \texttt{match},
+shown in Figure~\ref{fig:nullable-rust}.
+
+\begin{figure}[H]
+\begin{verbatim}
+pub fn nullable(r: &Regex) -> bool {
+    match r {
+        Regex::Phi => false,
+        Regex::Eps => true,
+        Regex::Lit(_) => false,
+        Regex::Alt(r, s) => nullable(r) || nullable(s),
+        Regex::Seq(r, s) => nullable(r) && nullable(s),
+        Regex::Star(_) => true,
+    }
+}
+\end{verbatim}
+\caption{\texttt{nullable}, transcribing
+Equation~\eqref{eq:nullability}. The six arms are
+$\mathsf{N}_{\emptyset}$, $\mathsf{N}_{\varepsilon}$,
+$\mathsf{N}_{\mathrm{lit}}$, $\mathsf{N}_{+}$,
+$\mathsf{N}_{\mathrm{seq}}$ and $\mathsf{N}_{*}$.}
+\label{fig:nullable-rust}
+\end{figure}
+
+The correspondence is exact, and Rust's exhaustiveness check on
+\texttt{match} is what keeps it that way
+\citep{rust-book-match,rust-reference-match}: a function defined by
+matching on \texttt{Regex} must account for every construct of the
+grammar, so a missing nullability case is a compile error and not a
+silent gap.
+
+Three details are worth naming. The expression is borrowed, since
+\texttt{nullable} only asks a question about $r$ and every caller needs
+$r$ afterwards. The two underscores say that
+$\mathsf{N}_{\mathrm{lit}}$ and $\mathsf{N}_{*}$ ignore their operands:
+a literal is never nullable whatever character it holds, and a star is
+always nullable whatever its body. And \texttt{||} and \texttt{\&\&}
+short-circuit, so a nullable left disjunct means the right one is never
+visited. That does not change the answer, because the function is pure,
+but it does mean the cost of \texttt{nullable} depends on where the
+decisive subexpression sits.
+
+%
+
 The derivative rules specify the expression that remains after consuming $x$:
 
 \begin{equation}\label{eq:derivative}
@@ -337,13 +384,82 @@ For $r+s$, the symbol may come from either alternative, so both
 derivatives are preserved. For $r^{*}$, the symbol is consumed
 by one occurrence of $r$, after which $r^{*}$ may still match the remainder.
 
-Concatenation is the only derivative rule that depends on nullability. 
+Concatenation is the only derivative rule that depends on nullability.
 If $r$ is not nullable, $r$ must consume the leading $x$, leaving
 $r\backslash x$ as the remainder of $r$ while $s$ remains untouched.
-If $r$ is nullable, it may either consume $x$, as in the non-nullable case, 
-giving $(r\backslash x)\cdot s$, 
+If $r$ is nullable, it may either consume $x$, as in the non-nullable case,
+giving $(r\backslash x)\cdot s$,
 or $r$ matches $\varepsilon$ and is finished, so $s$ consumes $x$ and leaves $s\backslash x$.
 Hence the nullable case produces the alternation $(r\backslash x)\cdot s + s\backslash x$.
+
+%
+
+\paragraph{In Rust.}
+Figure~\ref{fig:deriv-rust} transcribes Equation~\eqref{eq:derivative}
+the same way, one variant at a time.
+
+\begin{figure}[H]
+\begin{verbatim}
+pub fn deriv(r: &Regex, x: char) -> Regex {
+    match r {
+        Regex::Phi => Regex::Phi,
+        Regex::Eps => Regex::Phi,
+        Regex::Lit(c) => {
+            if *c == x { Regex::Eps } else { Regex::Phi }
+        }
+        Regex::Alt(r1, r2) => {
+            Regex::alt(deriv(r1, x), deriv(r2, x))
+        }
+        Regex::Seq(r1, r2) => {
+            if nullable(r1) {
+                let dr1 = Regex::seq(deriv(r1, x), *r2.clone());
+                Regex::alt(dr1, deriv(r2, x))
+            } else {
+                Regex::seq(deriv(r1, x), *r2.clone())
+            }
+        }
+        Regex::Star(r1) => {
+            Regex::seq(deriv(r1, x), Regex::star(*r1.clone()))
+        }
+    }
+}
+\end{verbatim}
+\caption{\texttt{deriv}, transcribing Equation~\eqref{eq:derivative}.
+The six arms are $\mathsf{D}_{\emptyset}$,
+$\mathsf{D}_{\varepsilon}$, $\mathsf{D}_{\mathrm{lit}}$,
+$\mathsf{D}_{+}$, the
+$\mathsf{D}_{\mathrm{seq}}^{\,n}$/$\mathsf{D}_{\mathrm{seq}}$ pair, and
+$\mathsf{D}_{*}$.}
+\label{fig:deriv-rust}
+\end{figure}
+
+The signature is where \texttt{deriv} differs from \texttt{nullable}.
+It borrows its input and returns an owned \texttt{Regex}, because a
+derivative is a new expression and not a fact about an existing one.
+Every arm therefore builds, and it builds with the constructors of
+Figure~\ref{fig:regex-constructors}: \texttt{Regex::alt},
+\texttt{Regex::seq} and \texttt{Regex::star} do the boxing, so the arms
+read like the equation.
+
+The \texttt{if nullable(r1)} is the case split of
+Equation~\eqref{eq:derivative}, with the branches taken in the order
+$\mathsf{D}_{\mathrm{seq}}^{\,n}$ then $\mathsf{D}_{\mathrm{seq}}$.
+This is the only place a derivative rule consults nullability, and it is
+also the only place a derivative can produce a larger expression than it
+consumed, since the nullable branch returns an alternation where the
+other returns a concatenation.
+
+The expression \texttt{*r2.clone()} is the cost of that growth made
+explicit. In the arm, \texttt{r2} is a borrowed \texttt{Box<Regex>}, so
+\texttt{.clone()} duplicates the entire subtree it points at and
+\texttt{*} moves the copy out of its box. Both branches pay it once,
+because $s$ appears untouched in both, and the nullable branch pays for
+\texttt{deriv(r2, x)} on top. The star arm does the same with
+\texttt{*r1.clone()}, since $r^{*}$'s body appears both derived and
+underived in $\mathsf{D}_{*}$. Every derivative of a concatenation or a
+star therefore reproduces a subtree, which is the mechanism behind the
+growth of Equation~\eqref{eq:der-growth} below and the reason the matcher
+simplifies after every step.
 
 %
 
@@ -465,8 +581,7 @@ syntactically identical summands into one, which is what keeps repeated
 alternations from doubling. The implementation applies all four
 recursively over the expression tree, matching on both sides, and
 additionally reduces $\varepsilon^{*}$ and $\emptyset^{*}$ to
-$\varepsilon$; Figure~\ref{fig:simplify-rust} below gives it in full. 
-Applying them to Equation~\eqref{eq:der-4}:
+$\varepsilon$. Applying them to Equation~\eqref{eq:der-4}:
 
 \begin{equation}\label{eq:der-6}
 \begin{aligned}
@@ -527,6 +642,67 @@ $\varepsilon\cdot(x+y)^{*}$ to $(x+y)^{*}$, so the first derivative
 collapses back to the expression it started from. Under ``derive by
 $\mathtt{x}$, then simplify'', $(x+y)^{*}$ is a fixed point and the size
 stays at four at every step.
+
+%
+
+\paragraph{In Rust.}
+The simplification identities are implemented recursively in the same
+structural manner as \texttt{nullable} and \texttt{deriv} above.
+Figure~\ref{fig:simplify-rust} shows the complete simplifier.
+
+\begin{figure}[ht]
+\begin{verbatim}
+pub fn simplify(r: Regex) -> Regex {
+    match r {
+        Regex::Seq(r, s) => {
+            let r = simplify(*r);
+            let s = simplify(*s);
+            match (&r, &s) {
+                (Regex::Phi, _) | (_, Regex::Phi) => Regex::Phi,
+                (Regex::Eps, _) => s,
+                (_, Regex::Eps) => r,
+                _ => Regex::seq(r, s),
+            }
+        }
+        Regex::Alt(r, s) => {
+            let r = simplify(*r);
+            let s = simplify(*s);
+            match (&r, &s) {
+                (Regex::Phi, _) => s,
+                (_, Regex::Phi) => r,
+                _ if r == s => r,
+                _ => Regex::alt(r, s),
+            }
+        }
+        Regex::Star(r) => match simplify(*r) {
+            Regex::Eps | Regex::Phi => Regex::Eps,
+            r => Regex::star(r),
+        },
+        other => other,
+    }
+}
+\end{verbatim}
+\caption{Implementation of the simplification rules in
+Equation~\eqref{eq:simp-identities}.}
+\label{fig:simplify-rust}
+\end{figure}
+
+Each inner arm implements an identity from
+Equation~\eqref{eq:simp-identities}; the guard \texttt{\_ if r == s}
+implements $\mathsf{S}_{4}$ by structural equality via
+\texttt{PartialEq} (Section~\ref{sec:regex-rust-implementation}).
+Thus only syntactically identical summands are collapsed, while the
+recursive calls apply the identities bottom-up.
+
+The ownership distinction between \texttt{deriv} and \texttt{simplify}
+is visible where the two are composed, inside the matcher below:
+\begin{verbatim}
+current = simplify(deriv(&current, c));
+\end{verbatim}
+\texttt{deriv} borrows its input and constructs a new expression,
+whereas \texttt{simplify} takes ownership of that result. It can
+therefore return simplified subexpressions directly, as in
+\texttt{(Regex::Eps, \_) => s}, without copying them.
 
 %
 
@@ -648,117 +824,9 @@ nullable: $(0+1)^{*}\cdot0$ still requires a $0$, while
 $\varepsilon\cdot1$ still requires a $1$. Hence
 $\mathtt{10}\notin L(r_{01})$.
 
-% 
-
-\paragraph{In Rust.}
-The nullability and derivative rules are transcribed one
-\texttt{Regex} variant at a time. The \texttt{nullable} function
-implements Equation~\eqref{eq:nullability}, while
-Figure~\ref{fig:deriv-rust} shows the concatenation case of the
-derivative, where nullability determines whether the second term is
-included, together with the matcher that applies the derivatives.
-
-\begin{figure}[ht]
-\begin{verbatim}
-pub fn deriv(r: &Regex, x: char) -> Regex {
-    match r {
-        // ...
-        Regex::Seq(r1, r2) => {
-            if nullable(r1) {
-                let dr1 = Regex::seq(deriv(r1, x), *r2.clone());
-                Regex::alt(dr1, deriv(r2, x))
-            } else {
-                Regex::seq(deriv(r1, x), *r2.clone())
-            }
-        }
-        // ...
-    }
-}
-
-pub fn match_deriv(input: &str, r: &Regex) -> bool {
-    let mut current = r.clone();
-    for c in input.chars() {
-        current = simplify(deriv(&current, c));
-    }
-    nullable(&current)
-}
-\end{verbatim}
-\caption{The concatenation case of the derivative and the matcher that
-repeatedly derives and simplifies the current residual.}
-\label{fig:deriv-rust}
-\end{figure}
-
-The \texttt{if nullable(r1)} implements the case split of
-Equation~\eqref{eq:derivative}, with branches
-$\mathsf{D}_{\mathrm{seq}}^{\,n}$ and $\mathsf{D}_{\mathrm{seq}}$.
-The expression \texttt{*r2.clone()} copies the right operand, which
-appears unchanged in both branches; the nullable branch additionally
-derives it for the second term. Repeated derivative construction
-therefore reproduces these subexpressions, producing the growth
-described by Equation~\eqref{eq:der-growth}.
-
-The simplification identities are implemented recursively in the same
-structural manner. Figure~\ref{fig:simplify-rust} shows the complete
-simplifier.
-
-\begin{figure}[ht]
-\begin{verbatim}
-pub fn simplify(r: Regex) -> Regex {
-    match r {
-        Regex::Seq(r, s) => {
-            let r = simplify(*r);
-            let s = simplify(*s);
-            match (&r, &s) {
-                (Regex::Phi, _) | (_, Regex::Phi) => Regex::Phi,
-                (Regex::Eps, _) => s,
-                (_, Regex::Eps) => r,
-                _ => Regex::seq(r, s),
-            }
-        }
-        Regex::Alt(r, s) => {
-            let r = simplify(*r);
-            let s = simplify(*s);
-            match (&r, &s) {
-                (Regex::Phi, _) => s,
-                (_, Regex::Phi) => r,
-                _ if r == s => r,
-                _ => Regex::alt(r, s),
-            }
-        }
-        Regex::Star(r) => match simplify(*r) {
-            Regex::Eps | Regex::Phi => Regex::Eps,
-            r => Regex::star(r),
-        },
-        other => other,
-    }
-}
-\end{verbatim}
-\caption{Implementation of the simplification rules in
-Equation~\eqref{eq:simp-identities}.}
-\label{fig:simplify-rust}
-\end{figure}
-
-Each inner arm implements an identity from
-Equation~\eqref{eq:simp-identities}; the guard \texttt{\_ if r == s}
-implements $\mathsf{S}_{4}$ by structural equality via
-\texttt{PartialEq} (Section~\ref{sec:regex-rust-implementation}).
-Thus only syntactically identical summands are collapsed, while the
-recursive calls apply the identities bottom-up.
-
 %
 
-The ownership distinction between the two functions is visible in
-their composition:
-\begin{verbatim}
-current = simplify(deriv(&current, c));
-\end{verbatim}
-The function \texttt{deriv} borrows its input and constructs a new
-expression, whereas \texttt{simplify} takes ownership of that result.
-It can therefore return simplified subexpressions directly, as in
-\texttt{(Regex::Eps, \_) => s}, without copying them. The matcher
-maintains one current residual, replacing it after each input symbol
-and simplifying it before the next derivative.
-
+\paragraph{The matcher.}
 The implementation can be summarized by the sequence of residual
 expressions produced while consuming the input. For
 $w=x_1x_2\cdots x_n$, the initial residual is $r_0=r$, and each
@@ -786,6 +854,32 @@ expression represents a state, and
 $\xrightarrow{x}$ denotes the transition obtained by taking the
 derivative with respect to $x$. Acceptance is determined by whether the
 final residual is nullable.
+
+\paragraph{In Rust.}
+Figure~\ref{fig:match-deriv-rust} is Equation~\eqref{eq:derivative-residuals}
+composed out of the three functions above.
+
+\begin{figure}[H]
+\begin{verbatim}
+pub fn match_deriv(input: &str, r: &Regex) -> bool {
+    let mut current = r.clone();
+    for c in input.chars() {
+        current = simplify(deriv(&current, c));
+    }
+    nullable(&current)
+}
+\end{verbatim}
+\caption{\texttt{match\_deriv}: derive and simplify once per input
+character, then ask whether what remains is nullable.}
+\label{fig:match-deriv-rust}
+\end{figure}
+
+The loop is the residual sequence and nothing else. Only one
+expression is ever live, since \texttt{current} is reassigned in place
+and the previous residual is dropped, and that is what separates a
+matcher from the parsers of
+Chapter~\ref{sec:derivative-parser}: a Boolean answer needs only the
+last expression, so nothing earlier has to be kept.
 
 %
 
@@ -846,6 +940,49 @@ elements of one set.
 
 %
 
+\paragraph{In Rust.}
+Figure~\ref{fig:pderiv-rust} shows the concatenation case, the one that
+carries the case split of Equation~\eqref{eq:pd} over into code.
+
+\begin{figure}[H]
+\begin{verbatim}
+fn pderiv(r: &Regex, x: char) -> Vec<Regex> {
+    match r {
+        // ...
+        Regex::Seq(r, s) => {
+            let mut out: Vec<Regex> = pderiv(r, x)
+                .into_iter()
+                .map(|r_prime| smart_seq(r_prime, s))
+                .collect();
+            if nullable(r) {
+                out.extend(pderiv(s, x));
+            }
+            out
+        }
+        // ...
+    }
+}
+\end{verbatim}
+\caption{The concatenation case of $pd(r,x)$, corresponding to
+$\mathsf{P}_{\mathrm{seq}}^{\,n}$ and $\mathsf{P}_{\mathrm{seq}}$ of
+Equation~\eqref{eq:pd}.}
+\label{fig:pderiv-rust}
+\end{figure}
+
+The \texttt{map} implements the set comprehension of
+$\mathsf{P}_{\mathrm{seq}}$, applying $\mathit{smartC}$ to each residual
+of the left operand, and the guarded \texttt{out.extend(pderiv(s, x))}
+implements the additional $\cup\ pd(s,x)$ of
+$\mathsf{P}_{\mathrm{seq}}^{\,n}$. The union of the two rules is
+therefore an \texttt{extend} on a vector rather than a set operation.
+\texttt{pderiv} itself returns a \texttt{Vec<Regex>} rather than a set,
+so duplicate residuals reached by different strands are only merged
+where the results are later inserted into a \texttt{HashSet}, below.
+The empty-set cases $\mathsf{P}_{\emptyset}$ and $\mathsf{P}_{\varepsilon}$
+return \texttt{Vec::new()} and therefore contribute no residual.
+
+%
+
 \paragraph{The smart constructor.}
 The concatenation in the $\mathsf{P}_{\mathrm{seq}}$ rules is handled by
 the constructor $\mathit{smartC}$, written as $\mathsf{SC}$
@@ -874,6 +1011,30 @@ $\varepsilon$, that particular strand has finished the left operand and
 continues directly with $s$, while the other strands may still retain a
 non-empty residual in front of $s$.
 
+\paragraph{In Rust.}
+Figure~\ref{fig:smart-seq-rust} is $\mathit{smartC}$.
+
+\begin{figure}[H]
+\begin{verbatim}
+pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
+    match r {
+        Regex::Eps => s.clone(),
+        r => Regex::seq(r, s.clone()),
+    }
+}
+\end{verbatim}
+\caption{\texttt{smart\_seq}, the smart constructor $\mathit{smartC}$
+of Equation~\eqref{eq:smartc}.}
+\label{fig:smart-seq-rust}
+\end{figure}
+
+\texttt{smart\_seq} takes \texttt{r} by value and \texttt{s} by
+reference, reflecting the construction in Equation~\eqref{eq:smartc}.
+The residual $r'$ comes from the recursive derivative and is consumed,
+while the right operand $s$ must be retained in the resulting
+expression. The $r'=\varepsilon$ branch clones only \texttt{s} and
+omits the $\varepsilon$, avoiding the construction of
+$\varepsilon\cdot s$ altogether.
 
 %
 
@@ -1095,49 +1256,15 @@ directly to the partial-derivative set.
 
 %
 
+\paragraph{The matcher.}
+The residual sequence of Equation~\eqref{eq:derivative-residuals} has a
+direct counterpart here: a \emph{frontier} of residuals, updated one
+input symbol at a time by taking $pd$ of every element currently in it
+and unioning the results, with membership decided by whether any
+residual in the final frontier is nullable.
+
 \paragraph{In Rust.}
-Figure~\ref{fig:pderiv-rust} shows the partial-derivative function
-together with the smart constructor, and
-Figure~\ref{fig:pderiv-loop-rust} the frontier loop that drives them.
-
-\begin{figure}[ht]
-\begin{verbatim}
-fn pderiv(r: &Regex, x: char) -> Vec<Regex> {
-    match r {
-        // ...
-        Regex::Seq(r, s) => {
-            let mut out: Vec<Regex> = pderiv(r, x)
-                .into_iter()
-                .map(|r_prime| smart_seq(r_prime, s))
-                .collect();
-            if nullable(r) {
-                out.extend(pderiv(s, x));
-            }
-            out
-        }
-        // ...
-    }
-}
-
-pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
-    match r {
-        Regex::Eps => s.clone(),
-        r => Regex::seq(r, s.clone()),
-    }
-}
-\end{verbatim}
-\caption{The concatenation case of $pd(r,x)$ and the smart constructor
-$\mathit{smartC}$, corresponding to
-Equations~\eqref{eq:pd} and~\eqref{eq:smartc}.}
-\label{fig:pderiv-rust}
-\end{figure}
-
-The \texttt{map} implements the set comprehension of
-$\mathsf{P}_{\mathrm{seq}}$, applying $\mathit{smartC}$ to each residual
-of the left operand, and the guarded \texttt{out.extend(pderiv(s, x))}
-implements the additional $\cup\ pd(s,x)$ of
-$\mathsf{P}_{\mathrm{seq}}^{\,n}$. The union of the two rules is
-therefore an \texttt{extend} on a vector rather than a set operation.
+Figure~\ref{fig:pderiv-loop-rust} is that loop.
 
 \begin{figure}[ht]
 \begin{verbatim}
@@ -1173,26 +1300,12 @@ in the declarations: the Brzozowski matcher maintains one
 \texttt{Regex}, while the partial-derivative matcher maintains a set of
 them.
 
-\texttt{pderiv} itself returns a \texttt{Vec<Regex>} rather than a set,
-so the union across strands is formed only where the results are
-inserted into \texttt{next}. The empty-set cases
-$\mathsf{P}_{\emptyset}$ and $\mathsf{P}_{\varepsilon}$ return
-\texttt{Vec::new()} and therefore contribute no residual.
-
 The early \texttt{return false} follows from the construction: once the
 frontier is empty, no later derivative can produce a residual from it.
 The remaining input therefore cannot change the result. The final
 \texttt{states.iter().any(nullable)} is the acceptance condition:
 \emph{some} surviving residual must be nullable, whereas
 \texttt{match\_deriv} checks nullability of its single residual.
-
-\texttt{smart\_seq} takes \texttt{r} by value and \texttt{s} by
-reference, reflecting the construction in Equation~\eqref{eq:smartc}.
-The residual $r'$ comes from the recursive derivative and is consumed,
-while the right operand $s$ must be retained in the resulting
-expression. The $r'=\varepsilon$ branch clones only \texttt{s} and
-omits the $\varepsilon$, avoiding the construction of
-$\varepsilon\cdot s$ altogether.
 
 Thus, while the Brzozowski matcher follows one residual expression at a
 time, the partial-derivative matcher maintains all surviving residuals

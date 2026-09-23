@@ -1,77 +1,91 @@
 \relax 
 \providecommand\hyper@newdestlabel[2]{}
-\@writefile{toc}{\contentsline {chapter}{\numberline {3}Derivatives and Partial Derivatives}{10}{chapter.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {3}Derivatives and Partial Derivatives}{11}{chapter.3}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{sec:derivatives}{{3}{10}{Derivatives and Partial Derivatives}{chapter.3}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.1}Naive Matching}{10}{section.3.1}\protected@file@percent }
-\newlabel{sec:naive-matching}{{3.1}{10}{Naive Matching}{section.3.1}{}}
-\newlabel{eq:naive-matcher}{{3.1}{10}{Naive Matching}{equation.3.1}{}}
+\newlabel{sec:derivatives}{{3}{11}{Derivatives and Partial Derivatives}{chapter.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.1}Naive Matching}{11}{section.3.1}\protected@file@percent }
+\newlabel{sec:naive-matching}{{3.1}{11}{Naive Matching}{section.3.1}{}}
+\newlabel{eq:naive-matcher}{{3.1}{11}{Naive Matching}{equation.3.1}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{13}{equation.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces The searching arms of the naive matcher. The $\exists k$ of Equation~\eqref  {eq:naive-matcher} becomes a range and \texttt  {any}, which stops at the first $k$ that succeeds.}}{13}{figure.3.1}\protected@file@percent }
+\newlabel{fig:match-naive-rust}{{3.1}{13}{The searching arms of the naive matcher. The $\exists k$ of Equation~\eqref {eq:naive-matcher} becomes a range and \texttt {any}, which stops at the first $k$ that succeeds}{figure.3.1}{}}
 \citation{brzozowski1964}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{12}{equation.3.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces The searching arms of the naive matcher. The $\exists k$ of Equation~\eqref  {eq:naive-matcher} becomes a range and \texttt  {any}, which stops at the first $k$ that succeeds.}}{12}{figure.3.1}\protected@file@percent }
-\newlabel{fig:match-naive-rust}{{3.1}{12}{The searching arms of the naive matcher. The $\exists k$ of Equation~\eqref {eq:naive-matcher} becomes a range and \texttt {any}, which stops at the first $k$ that succeeds}{figure.3.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.2}Brzozowski Derivatives}{13}{section.3.2}\protected@file@percent }
-\newlabel{sec:brzozowski-derivatives}{{3.2}{13}{Brzozowski Derivatives}{section.3.2}{}}
-\newlabel{eq:der-23}{{3.2}{13}{Brzozowski Derivatives}{equation.3.2}{}}
-\newlabel{eq:nullability}{{3.3}{13}{Brzozowski Derivatives}{equation.3.3}{}}
-\newlabel{eq:derivative}{{3.4}{13}{Brzozowski Derivatives}{equation.3.4}{}}
+\citation{rust-book-match,rust-reference-match}
+\@writefile{toc}{\contentsline {section}{\numberline {3.2}Brzozowski Derivatives}{14}{section.3.2}\protected@file@percent }
+\newlabel{sec:brzozowski-derivatives}{{3.2}{14}{Brzozowski Derivatives}{section.3.2}{}}
+\newlabel{eq:der-23}{{3.2}{14}{Brzozowski Derivatives}{equation.3.2}{}}
+\newlabel{eq:nullability}{{3.3}{14}{Brzozowski Derivatives}{equation.3.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{14}{equation.3.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces \texttt  {nullable}, transcribing Equation~\eqref  {eq:nullability}. The six arms are $\mathsf  {N}_{\emptyset }$, $\mathsf  {N}_{\varepsilon }$, $\mathsf  {N}_{\mathrm  {lit}}$, $\mathsf  {N}_{+}$, $\mathsf  {N}_{\mathrm  {seq}}$ and $\mathsf  {N}_{*}$.}}{14}{figure.3.2}\protected@file@percent }
+\newlabel{fig:nullable-rust}{{3.2}{14}{\texttt {nullable}, transcribing Equation~\eqref {eq:nullability}. The six arms are $\mathsf {N}_{\emptyset }$, $\mathsf {N}_{\varepsilon }$, $\mathsf {N}_{\mathrm {lit}}$, $\mathsf {N}_{+}$, $\mathsf {N}_{\mathrm {seq}}$ and $\mathsf {N}_{*}$}{figure.3.2}{}}
+\newlabel{eq:derivative}{{3.4}{15}{In Rust}{equation.3.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{15}{equation.3.4}\protected@file@percent }
 \citation{antimirov1996}
 \citation{antimirov1996}
-\@writefile{toc}{\contentsline {paragraph}{Why the case split.}{14}{equation.3.4}\protected@file@percent }
-\newlabel{eq:brzozowski-seq}{{3.5}{14}{Why the case split}{equation.3.5}{}}
-\newlabel{eq:antimirov-seq}{{3.6}{14}{Why the case split}{equation.3.6}{}}
-\@writefile{toc}{\contentsline {paragraph}{Worked example: single-symbol matching.}{14}{equation.3.6}\protected@file@percent }
-\newlabel{eq:der-3}{{3.7}{14}{Worked example: single-symbol matching}{equation.3.7}{}}
-\newlabel{eq:der-4}{{3.8}{14}{Worked example: single-symbol matching}{equation.3.8}{}}
-\newlabel{eq:der-5}{{3.9}{14}{Worked example: single-symbol matching}{equation.3.9}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces \texttt  {deriv}, transcribing Equation~\eqref  {eq:derivative}. The six arms are $\mathsf  {D}_{\emptyset }$, $\mathsf  {D}_{\varepsilon }$, $\mathsf  {D}_{\mathrm  {lit}}$, $\mathsf  {D}_{+}$, the $\mathsf  {D}_{\mathrm  {seq}}^{\,n}$/$\mathsf  {D}_{\mathrm  {seq}}$ pair, and $\mathsf  {D}_{*}$.}}{16}{figure.3.3}\protected@file@percent }
+\newlabel{fig:deriv-rust}{{3.3}{16}{\texttt {deriv}, transcribing Equation~\eqref {eq:derivative}. The six arms are $\mathsf {D}_{\emptyset }$, $\mathsf {D}_{\varepsilon }$, $\mathsf {D}_{\mathrm {lit}}$, $\mathsf {D}_{+}$, the $\mathsf {D}_{\mathrm {seq}}^{\,n}$/$\mathsf {D}_{\mathrm {seq}}$ pair, and $\mathsf {D}_{*}$}{figure.3.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Why the case split.}{16}{figure.3.3}\protected@file@percent }
+\newlabel{eq:brzozowski-seq}{{3.5}{16}{Why the case split}{equation.3.5}{}}
+\newlabel{eq:antimirov-seq}{{3.6}{17}{Why the case split}{equation.3.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Worked example: single-symbol matching.}{17}{equation.3.6}\protected@file@percent }
+\newlabel{eq:der-3}{{3.7}{17}{Worked example: single-symbol matching}{equation.3.7}{}}
+\newlabel{eq:der-4}{{3.8}{17}{Worked example: single-symbol matching}{equation.3.8}{}}
+\newlabel{eq:der-5}{{3.9}{17}{Worked example: single-symbol matching}{equation.3.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{Simplification.}{17}{equation.3.9}\protected@file@percent }
 \citation{antimirov1996}
-\@writefile{toc}{\contentsline {paragraph}{Simplification.}{15}{equation.3.9}\protected@file@percent }
-\newlabel{eq:simp-identities}{{3.10}{15}{Simplification}{equation.3.10}{}}
-\newlabel{eq:der-6}{{3.11}{15}{Simplification}{equation.3.11}{}}
-\newlabel{eq:der-growth}{{3.12}{15}{Simplification}{equation.3.12}{}}
-\@writefile{toc}{\contentsline {paragraph}{Worked example: \boldmath  $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath  .}{16}{equation.3.12}\protected@file@percent }
-\newlabel{eq:der-9}{{3.13}{16}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.13}{}}
-\newlabel{eq:der-10}{{3.14}{16}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.14}{}}
-\newlabel{eq:der-24}{{3.15}{16}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.15}{}}
-\newlabel{eq:der-11}{{3.16}{16}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.16}{}}
-\newlabel{eq:der-25}{{3.17}{16}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.17}{}}
-\newlabel{eq:der-13}{{3.18}{16}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.18}{}}
-\newlabel{eq:der-26}{{3.19}{16}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.19}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{17}{equation.3.19}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces The concatenation case of the derivative and the matcher that repeatedly derives and simplifies the current residual.}}{17}{figure.3.2}\protected@file@percent }
-\newlabel{fig:deriv-rust}{{3.2}{17}{The concatenation case of the derivative and the matcher that repeatedly derives and simplifies the current residual}{figure.3.2}{}}
+\newlabel{eq:simp-identities}{{3.10}{18}{Simplification}{equation.3.10}{}}
+\newlabel{eq:der-6}{{3.11}{18}{Simplification}{equation.3.11}{}}
+\newlabel{eq:der-growth}{{3.12}{18}{Simplification}{equation.3.12}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{18}{equation.3.12}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces Implementation of the simplification rules in Equation~\eqref  {eq:simp-identities}.}}{19}{figure.3.4}\protected@file@percent }
+\newlabel{fig:simplify-rust}{{3.4}{19}{Implementation of the simplification rules in Equation~\eqref {eq:simp-identities}}{figure.3.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Worked example: \boldmath  $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath  .}{19}{figure.3.4}\protected@file@percent }
+\newlabel{eq:der-9}{{3.13}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.13}{}}
+\newlabel{eq:der-10}{{3.14}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.14}{}}
+\newlabel{eq:der-24}{{3.15}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.15}{}}
+\newlabel{eq:der-11}{{3.16}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.16}{}}
+\newlabel{eq:der-25}{{3.17}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.17}{}}
+\newlabel{eq:der-13}{{3.18}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.18}{}}
+\newlabel{eq:der-26}{{3.19}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.19}{}}
 \citation{antimirov1996}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces Implementation of the simplification rules in Equation~\eqref  {eq:simp-identities}.}}{18}{figure.3.3}\protected@file@percent }
-\newlabel{fig:simplify-rust}{{3.3}{18}{Implementation of the simplification rules in Equation~\eqref {eq:simp-identities}}{figure.3.3}{}}
-\newlabel{eq:derivative-residuals}{{3.20}{18}{In Rust}{equation.3.20}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.3}Antimirov Partial Derivatives}{19}{section.3.3}\protected@file@percent }
-\newlabel{sec:antimirov-partial-derivatives}{{3.3}{19}{Antimirov Partial Derivatives}{section.3.3}{}}
-\newlabel{eq:pd}{{3.21}{19}{Antimirov Partial Derivatives}{equation.3.21}{}}
-\@writefile{toc}{\contentsline {paragraph}{The smart constructor.}{19}{equation.3.21}\protected@file@percent }
-\newlabel{eq:smartc}{{3.22}{19}{The smart constructor}{equation.3.22}{}}
-\@writefile{toc}{\contentsline {paragraph}{Worked example: single-symbol matching.}{20}{equation.3.22}\protected@file@percent }
-\newlabel{eq:der-15}{{3.23}{20}{Worked example: single-symbol matching}{equation.3.23}{}}
-\@writefile{toc}{\contentsline {paragraph}{Why no simplification is needed.}{20}{equation.3.23}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Worked example: \boldmath  $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath  .}{20}{equation.3.23}\protected@file@percent }
-\newlabel{eq:der-16}{{3.24}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.24}{}}
-\newlabel{eq:der-17}{{3.25}{20}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.25}{}}
-\newlabel{eq:der-18}{{3.26}{21}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.26}{}}
-\newlabel{eq:der-19}{{3.27}{21}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.27}{}}
-\newlabel{eq:der-20}{{3.28}{21}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.28}{}}
-\newlabel{eq:der-21}{{3.29}{21}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.29}{}}
-\newlabel{eq:der-22}{{3.30}{21}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.30}{}}
+\@writefile{toc}{\contentsline {paragraph}{The matcher.}{21}{equation.3.19}\protected@file@percent }
+\newlabel{eq:derivative-residuals}{{3.20}{21}{The matcher}{equation.3.20}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{21}{equation.3.20}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces \texttt  {match\_deriv}: derive and simplify once per input character, then ask whether what remains is nullable.}}{21}{figure.3.5}\protected@file@percent }
+\newlabel{fig:match-deriv-rust}{{3.5}{21}{\texttt {match\_deriv}: derive and simplify once per input character, then ask whether what remains is nullable}{figure.3.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.3}Antimirov Partial Derivatives}{21}{section.3.3}\protected@file@percent }
+\newlabel{sec:antimirov-partial-derivatives}{{3.3}{21}{Antimirov Partial Derivatives}{section.3.3}{}}
+\newlabel{eq:pd}{{3.21}{22}{Antimirov Partial Derivatives}{equation.3.21}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{22}{equation.3.21}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.6}{\ignorespaces The concatenation case of $pd(r,x)$, corresponding to $\mathsf  {P}_{\mathrm  {seq}}^{\,n}$ and $\mathsf  {P}_{\mathrm  {seq}}$ of Equation~\eqref  {eq:pd}.}}{22}{figure.3.6}\protected@file@percent }
+\newlabel{fig:pderiv-rust}{{3.6}{22}{The concatenation case of $pd(r,x)$, corresponding to $\mathsf {P}_{\mathrm {seq}}^{\,n}$ and $\mathsf {P}_{\mathrm {seq}}$ of Equation~\eqref {eq:pd}}{figure.3.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{The smart constructor.}{23}{figure.3.6}\protected@file@percent }
+\newlabel{eq:smartc}{{3.22}{23}{The smart constructor}{equation.3.22}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{23}{equation.3.22}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.7}{\ignorespaces \texttt  {smart\_seq}, the smart constructor $\mathit  {smartC}$ of Equation~\eqref  {eq:smartc}.}}{23}{figure.3.7}\protected@file@percent }
+\newlabel{fig:smart-seq-rust}{{3.7}{23}{\texttt {smart\_seq}, the smart constructor $\mathit {smartC}$ of Equation~\eqref {eq:smartc}}{figure.3.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{Worked example: single-symbol matching.}{23}{figure.3.7}\protected@file@percent }
+\newlabel{eq:der-15}{{3.23}{24}{Worked example: single-symbol matching}{equation.3.23}{}}
+\@writefile{toc}{\contentsline {paragraph}{Why no simplification is needed.}{24}{equation.3.23}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Worked example: \boldmath  $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath  .}{24}{equation.3.23}\protected@file@percent }
+\newlabel{eq:der-16}{{3.24}{24}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.24}{}}
+\newlabel{eq:der-17}{{3.25}{24}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.25}{}}
+\newlabel{eq:der-18}{{3.26}{24}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.26}{}}
 \citation{antimirov1996}
+\newlabel{eq:der-19}{{3.27}{25}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.27}{}}
+\newlabel{eq:der-20}{{3.28}{25}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.28}{}}
+\newlabel{eq:der-21}{{3.29}{25}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.29}{}}
+\newlabel{eq:der-22}{{3.30}{25}{Worked example: \boldmath $r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath }{equation.3.30}{}}
 \citation{brzozowski1964}
-\@writefile{toc}{\contentsline {paragraph}{Finiteness.}{22}{equation.3.30}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{22}{equation.3.30}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces The concatenation case of $pd(r,x)$ and the smart constructor $\mathit  {smartC}$, corresponding to Equations~\eqref  {eq:pd} and~\eqref  {eq:smartc}.}}{22}{figure.3.4}\protected@file@percent }
-\newlabel{fig:pderiv-rust}{{3.4}{22}{The concatenation case of $pd(r,x)$ and the smart constructor $\mathit {smartC}$, corresponding to Equations~\eqref {eq:pd} and~\eqref {eq:smartc}}{figure.3.4}{}}
 \citation{rust-hashset,rust-hash}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces The partial-derivative matcher. The set of residuals is a \texttt  {HashSet<Regex>}, one entry per surviving strand.}}{23}{figure.3.5}\protected@file@percent }
-\newlabel{fig:pderiv-loop-rust}{{3.5}{23}{The partial-derivative matcher. The set of residuals is a \texttt {HashSet<Regex>}, one entry per surviving strand}{figure.3.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Finiteness.}{26}{equation.3.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The matcher.}{26}{equation.3.30}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{26}{equation.3.30}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.8}{\ignorespaces The partial-derivative matcher. The set of residuals is a \texttt  {HashSet<Regex>}, one entry per surviving strand.}}{26}{figure.3.8}\protected@file@percent }
+\newlabel{fig:pderiv-loop-rust}{{3.8}{26}{The partial-derivative matcher. The set of residuals is a \texttt {HashSet<Regex>}, one entry per surviving strand}{figure.3.8}{}}
 \@setckpt{chapters/03_derivatives}{
-\setcounter{page}{24}
+\setcounter{page}{28}
 \setcounter{equation}{30}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
@@ -86,14 +100,15 @@
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{5}
+\setcounter{figure}{8}
 \setcounter{table}{0}
 \setcounter{parentequation}{0}
+\setcounter{float@type}{8}
 \setcounter{lstnumber}{1}
 \setcounter{NAT@ctr}{0}
 \setcounter{section@level}{0}
 \setcounter{Item}{6}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{13}
+\setcounter{bookmark@seq@number}{12}
 \setcounter{lstlisting}{0}
 }

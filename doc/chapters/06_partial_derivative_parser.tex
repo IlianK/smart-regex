@@ -41,29 +41,8 @@ and with the two POSIX parsers on membership alone, in
 Chapter~\ref{sec:evaluation} and again in
 Section~\ref{sec:pderiv-worked-example}.
 
-Trace excerpts follow the conventions of
-Section~\ref{sec:deriv-tracing} and use the same running example. The
-two parsers' level-3 reports have their own section structure, since a
-frontier is not a single expression:
-
-\begin{center}
-\begin{tabular}{ll}
-\hline
-Report section & Construction phase \\
-\hline
-\texttt{INITIAL FRONTIER} & the one-strand starting state \\
-\texttt{FORWARD PASS} & one block per character: before, rule, after \\
-\texttt{SELECTION} & the first-nullable-strand decision \\
-\texttt{MKEEPSBC + DECODE} & bit-coded only; \texttt{pderiv\_std} injects in place \\
-\hline
-\end{tabular}
-\end{center}
-
-The four full reports are
-Appendices~\ref{app:report-pderiv-std-match},
-\ref{app:report-pderiv-bc-match},
-\ref{app:report-pderiv-std-nomatch}
-and~\ref{app:report-pderiv-bc-nomatch}.
+Trace excerpts below use the same running example, $r_1$ against
+$\mathtt{ab}$ and against $\mathtt{b}$.
 
 
 
@@ -310,10 +289,12 @@ constructors is not free at all.
 \subsection{The Running Example, Strand by Strand}
 
 Run $r_1 = (a+ab)(b+\varepsilon)$ against $\mathtt{ab}$ through this
-construction, so that it can be seen disagreeing with
-Chapter~\ref{sec:derivative-parser} on the same input, and not merely be
-asserted to do so. The frontier starts as one strand, the whole
-expression with no bits, which is the leftmost node of
+construction, checked against \texttt{cargo run -- parse "(a|ab)(b|)"
+"ab" --parser pderiv\_bc --diag 3}
+(Appendix~\ref{app:report-pderiv-bc-match}), so that it can be seen
+disagreeing with Chapter~\ref{sec:derivative-parser} on the same input,
+and not merely be asserted to do so. The frontier starts as one strand,
+the whole expression with no bits, which is the leftmost node of
 Figure~\ref{fig:frontier}.
 
 The first character binds $r = a+ab$ and $s = b+\varepsilon$ at the
@@ -648,8 +629,9 @@ the frontier becomes empty, since a frontier with no strands can never
 regain one. As with \texttt{pderiv\_bc}, no deduplication is applied
 across the flattened frontier, only within each strand's own expansion.
 
-Running $r_1$ against $\mathtt{ab}$ produces the same two-strand fork at
-step one and the same winner at step two. Two differences from
+Running $r_1$ against $\mathtt{ab}$ (\texttt{--parser pderiv\_std},
+Appendix~\ref{app:report-pderiv-std-match}) produces the same two-strand
+fork at step one and the same winner at step two. Two differences from
 \texttt{pderiv\_bc}'s trace are visible, and both were predicted by the
 smart-constructor argument above.
 
@@ -899,17 +881,17 @@ $ cargo run -- parse "(a|ab)(b|)" "ab" --parser all
 Regex: (a|ab)(b|)
 Input: "ab"
 
-Parser       | Policy | Result
--------------+--------+-------------------------------
-DERIV_REC    | POSIX  | (Right (a, b), Right ()) -> "ab"
-DERIV_LOOP   | POSIX  | (Right (a, b), Right ()) -> "ab"
-DERIV_BC     | POSIX  | (Right (a, b), Right ()) -> "ab"
-PDERIV_STD   | GREEDY | (Left a, Left b) -> "ab"
-PDERIV_BC    | GREEDY | (Left a, Left b) -> "ab"
+Parser       | Policy    | Result
+-------------+-----------+-------------------------------
+DERIV_REC    | POSIX     | (Right (a, b), Right ()) -> "ab"
+DERIV_LOOP   | POSIX     | (Right (a, b), Right ()) -> "ab"
+DERIV_BC     | POSIX     | (Right (a, b), Right ()) -> "ab"
+PDERIV_STD   | NON-POSIX | (Left a, Left b) -> "ab"
+PDERIV_BC    | NON-POSIX | (Left a, Left b) -> "ab"
 
 POSIX parsers agree
 PDERIV parsers agree
-GREEDY agrees with POSIX on membership
+NON-POSIX agrees with POSIX on membership
 \end{verbatim}
 
 The three closing lines are the invariants themselves, checked on this
@@ -934,4 +916,3 @@ It is a consequence of how this particular construction keeps its
 frontier finite, and Section~\ref{sec:partial-derivative-parser-theory}
 set out why a construction of this shape has little room to do
 otherwise.
-s

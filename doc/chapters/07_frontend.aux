@@ -2,31 +2,31 @@
 \providecommand\hyper@newdestlabel[2]{}
 \citation{sulzmannlu2012}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {chapter}{\numberline {7}External versus Internal Regex}{57}{chapter.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}External versus Internal Regex}{71}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{sec:frontend}{{7}{57}{External versus Internal Regex}{chapter.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.1}Two ASTs, One Lowering Step}{57}{section.7.1}\protected@file@percent }
-\newlabel{sec:frontend-two-asts}{{7.1}{57}{Two ASTs, One Lowering Step}{section.7.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.1}{\ignorespaces The frontend as a pipeline. The solid path is common to all three entry points; the dashed stages apply only where marked. \texttt  {parse\_pattern} stops at \texttt  {Regex} and means full-string equality, while \texttt  {parse\_dataset\_pattern} and \texttt  {parse\_pcre\_rule} continue into the padding of Section~\ref {sec:frontend-substring-search}.}}{58}{figure.7.1}\protected@file@percent }
-\newlabel{fig:frontend-pipeline}{{7.1}{58}{The frontend as a pipeline. The solid path is common to all three entry points; the dashed stages apply only where marked. \texttt {parse\_pattern} stops at \texttt {Regex} and means full-string equality, while \texttt {parse\_dataset\_pattern} and \texttt {parse\_pcre\_rule} continue into the padding of Section~\ref {sec:frontend-substring-search}}{figure.7.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{58}{section.7.2}\protected@file@percent }
-\newlabel{sec:frontend-parsing}{{7.2}{58}{Parsing Surface Syntax}{section.7.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces The recursive-descent ladder of \texttt  {frontend/parse.rs}. Each production strips one layer and delegates the rest downward, so precedence falls out of the call order. \texttt  {parse\_group} is the only production that climbs back to the top, which is why parentheses override precedence and why nesting is unbounded.}}{59}{figure.7.2}\protected@file@percent }
-\newlabel{fig:precedence-ladder}{{7.2}{59}{The recursive-descent ladder of \texttt {frontend/parse.rs}. Each production strips one layer and delegates the rest downward, so precedence falls out of the call order. \texttt {parse\_group} is the only production that climbs back to the top, which is why parentheses override precedence and why nesting is unbounded}{figure.7.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{Bounds are parsed speculatively.}{60}{figure.7.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7.3}Translating \texttt  {ExtPat} into \texttt  {Regex}}{60}{section.7.3}\protected@file@percent }
-\newlabel{sec:frontend-translate}{{7.3}{60}{Translating \texttt {ExtPat} into \texttt {Regex}}{section.7.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Character classes are ordinary alternation, not a primitive.}{61}{section.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Bounds unroll literally, capped against blowup.}{61}{section.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Greedy and lazy quantifier syntax is parsed but not honored.}{62}{section.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Case folding.}{62}{section.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7.4}The Cost of Translation}{62}{section.7.4}\protected@file@percent }
-\newlabel{sec:frontend-cost}{{7.4}{62}{The Cost of Translation}{section.7.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.3}{\ignorespaces Lowered node counts, logarithmic horizontal axis. The three smallest are plain structural desugarings, with no character class involved. Every entry from \texttt  {\textbackslash d} upward expands one, and the two \texttt  {search} entries additionally carry the padding of Figure~\ref {fig:padding}. A realistic corpus pattern therefore starts around 450 nodes before any input is read. Regenerate with \texttt  {cargo run -{}-release -{}-example thesis\_figures -{}- lowered}.}}{63}{figure.7.3}\protected@file@percent }
-\newlabel{fig:lowered-size}{{7.3}{63}{Lowered node counts, logarithmic horizontal axis. The three smallest are plain structural desugarings, with no character class involved. Every entry from \texttt {\textbackslash d} upward expands one, and the two \texttt {search} entries additionally carry the padding of Figure~\ref {fig:padding}. A realistic corpus pattern therefore starts around 450 nodes before any input is read. Regenerate with \texttt {cargo run -{}-release -{}-example thesis\_figures -{}- lowered}}{figure.7.3}{}}
+\newlabel{sec:frontend}{{7}{71}{External versus Internal Regex}{chapter.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.1}Two ASTs, One Lowering Step}{71}{section.7.1}\protected@file@percent }
+\newlabel{sec:frontend-two-asts}{{7.1}{71}{Two ASTs, One Lowering Step}{section.7.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.1}{\ignorespaces The frontend as a pipeline. The solid path is common to all three entry points; the dashed stages apply only where marked. \texttt  {parse\_pattern} stops at \texttt  {Regex} and means full-string equality, while \texttt  {parse\_dataset\_pattern} and \texttt  {parse\_pcre\_rule} continue into the padding of Section~\ref {sec:frontend-substring-search}.}}{72}{figure.7.1}\protected@file@percent }
+\newlabel{fig:frontend-pipeline}{{7.1}{72}{The frontend as a pipeline. The solid path is common to all three entry points; the dashed stages apply only where marked. \texttt {parse\_pattern} stops at \texttt {Regex} and means full-string equality, while \texttt {parse\_dataset\_pattern} and \texttt {parse\_pcre\_rule} continue into the padding of Section~\ref {sec:frontend-substring-search}}{figure.7.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{72}{section.7.2}\protected@file@percent }
+\newlabel{sec:frontend-parsing}{{7.2}{72}{Parsing Surface Syntax}{section.7.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces The recursive-descent ladder of \texttt  {frontend/parse.rs}. Each production strips one layer and delegates the rest downward, so precedence falls out of the call order. \texttt  {parse\_group} is the only production that climbs back to the top, which is why parentheses override precedence and why nesting is unbounded.}}{73}{figure.7.2}\protected@file@percent }
+\newlabel{fig:precedence-ladder}{{7.2}{73}{The recursive-descent ladder of \texttt {frontend/parse.rs}. Each production strips one layer and delegates the rest downward, so precedence falls out of the call order. \texttt {parse\_group} is the only production that climbs back to the top, which is why parentheses override precedence and why nesting is unbounded}{figure.7.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Bounds are parsed speculatively.}{74}{figure.7.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.3}Translating \texttt  {ExtPat} into \texttt  {Regex}}{74}{section.7.3}\protected@file@percent }
+\newlabel{sec:frontend-translate}{{7.3}{74}{Translating \texttt {ExtPat} into \texttt {Regex}}{section.7.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Character classes are ordinary alternation, not a primitive.}{75}{section.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Bounds unroll literally, capped against blowup.}{75}{section.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Greedy and lazy quantifier syntax is parsed but not honored.}{76}{section.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Case folding.}{76}{section.7.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.4}The Cost of Translation}{76}{section.7.4}\protected@file@percent }
+\newlabel{sec:frontend-cost}{{7.4}{76}{The Cost of Translation}{section.7.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.3}{\ignorespaces Lowered node counts, logarithmic horizontal axis. The three smallest are plain structural desugarings, with no character class involved. Every entry from \texttt  {\textbackslash d} upward expands one, and the two \texttt  {search} entries additionally carry the padding of Figure~\ref {fig:padding}. A realistic corpus pattern therefore starts around 450 nodes before any input is read. Regenerate with \texttt  {cargo run -{}-release -{}-example thesis\_figures -{}- lowered}.}}{77}{figure.7.3}\protected@file@percent }
+\newlabel{fig:lowered-size}{{7.3}{77}{Lowered node counts, logarithmic horizontal axis. The three smallest are plain structural desugarings, with no character class involved. Every entry from \texttt {\textbackslash d} upward expands one, and the two \texttt {search} entries additionally carry the padding of Figure~\ref {fig:padding}. A realistic corpus pattern therefore starts around 450 nodes before any input is read. Regenerate with \texttt {cargo run -{}-release -{}-example thesis\_figures -{}- lowered}}{figure.7.3}{}}
 \@setckpt{chapters/07_frontend}{
-\setcounter{page}{65}
+\setcounter{page}{79}
 \setcounter{equation}{0}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
@@ -44,11 +44,12 @@
 \setcounter{figure}{3}
 \setcounter{table}{0}
 \setcounter{parentequation}{0}
+\setcounter{float@type}{8}
 \setcounter{lstnumber}{1}
 \setcounter{NAT@ctr}{0}
 \setcounter{section@level}{0}
 \setcounter{Item}{6}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{54}
+\setcounter{bookmark@seq@number}{73}
 \setcounter{lstlisting}{0}
 }
