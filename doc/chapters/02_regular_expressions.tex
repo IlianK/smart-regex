@@ -7,80 +7,80 @@
 \label{sec:regex-syntax}
 
 Let $\Sigma$ be an alphabet. Regular expressions over $\Sigma$ are
-defined inductively by the grammar
+defined inductively by the grammar:
 \begin{equation}\label{eq:regex-grammar}
 r,s ::= x \mid \varepsilon \mid \emptyset
       \mid r+s \mid r\cdot s \mid r^*
 \qquad (x\in\Sigma).
 \end{equation}
 
-Here, $x$ denotes a literal symbol, $\varepsilon$ the expression matching
-only the empty word, and $\emptyset$ the expression matching no word.
-The operators $+$, $\cdot$, and $^*$ denote alternation, concatenation,
-and Kleene star, respectively. Concatenation is often written implicitly,
-so $rs$ denotes $r\cdot s$.
+In the grammar, $r$ and $s$ range over regular expressions, while $x$
+ranges over the alphabet $\Sigma$ and denotes an arbitrary symbol, for example
+$a$, $b$, or $c$. The expression $\varepsilon$ matches only the empty
+word, while $\emptyset$ matches no words. The operators $+$, $\cdot$,
+and $^*$ denote alternation, concatenation, and Kleene star,
+respectively. 
 
-Unless parentheses are shown explicitly, Kleene star binds most tightly,
-followed by concatenation, followed by alternation. Thus, for example,
-$ab^*c$ is parsed as $(a\cdot(b^*))\cdot c$, while $a+bc^*$ is parsed as
-$a+(b\cdot(c^*))$.
+Concatenation is written implicitly, so $rs$ denotes $r \cdot s$.
+Given this notation, we adopt the usual precedence and associativity
+conventions. Unless parentheses are shown explicitly, Kleene star binds
+most tightly, followed by concatenation, followed by alternation. Thus
+$ab^*c$ is parsed as $(a\cdot(b^*))\cdot c$, while $a+bc^*$ is parsed
+as $a+(b\cdot(c^*))$. For repeated operators we use left association, so
+$a+b+c$ means $(a+b)+c$, and $abc$ means $(ab)c$.
 
-At the language level, $+$ and $\cdot$ are associative: different
-groupings denote the same language. For example,
-$L((r+s)+t)=L(r+(s+t))$ and
-$L((r\cdot s)\cdot t)=L(r\cdot(s\cdot t))$. The grouping determines the
-\emph{syntax tree} on which the algorithms operate. We therefore use left
-association for both operators: $r+s+t$ means $(r+s)+t$, while $rst$
-means $(rs)t$.
-
-The grammar omits operators such as one-or-more, optional, and bounded
-repetition ($r^+$, $r?$, and $r^{\{m,n\}}$). These operators can be
-expressed using the six core constructs. For example,
-$r^+=r\cdot r^*$ and $r?=r+\varepsilon$. Bounded repetition can be
-expanded as
-
+The grammar above is the core syntax.
+It omits the convenience operators found in most regular
+expression libraries, such as one-or-more, optional, and bounded
+repetition ($r^+$, $r?$, and $r^{\{m,n\}}$). These operators do not add
+expressive power, since each can be expressed using the constructs of
+Equation~\eqref{eq:regex-grammar}. For example, $r^+=r\cdot r^*$ and
+$r?=r+\varepsilon$. Bounded repetition expands to:
 \[
 r^{\{m,n\}} =
 \underbrace{r\cdot\ldots\cdot r}_{m\text{ times}}
 \cdot
 \underbrace{(r+\varepsilon)\cdot\ldots\cdot(r+\varepsilon)}
-           _{n-m\text{ times}}.
+           _{n-m\text{ times}}
+\qquad (m\le n).
 \]
 
-Thus, these convenience operators do not add expressive power to the
-core syntax. In the implementation, expressions using such operators
-are translated into the six core constructs before they are processed
-by the parsing algorithms; the translation from external regular
-expression syntax to this internal representation is described in
-Chapter~\ref{sec:frontend}.
+In the implementation, expressions using such operators are translated
+into the core constructs before they reach the parsing algorithms. The
+translation from external regular expression syntax to this internal
+representation is described in Chapter~\ref{sec:frontend}.
 
-As a running example, consider the regular expression for binary strings
-ending in \texttt{"01"}. Over $\Sigma=\{0,1\}$, let
+As a running example, consider the regular expression over
+$\Sigma=\{0,1\}$
 \begin{equation}\label{eq:r01-def}
 r_{01} = (0+1)^*\cdot0\cdot1.
 \end{equation}
+By the conventions above, its syntax tree is
+$((0+1)^*\cdot0)\cdot1$. This tree captures how the expression is
+constructed: a Kleene star applied to the alternation $0+1$, followed by
+the concatenation with the literals $0$ and $1$.
 
-The expression consists of a Kleene star applied to the alternation
-$0+1$, followed by the literals $0$ and $1$. By the precedence and
-left-association rules, its syntax tree is
-$((0+1)^*\cdot0)\cdot1$. The algorithms operate on this syntax tree, with
-each node corresponding to one of the constructs in the grammar.
-
+To determine what the expression means, its syntactic structure must be
+given a semantic interpretation. The interpretation assigns a language
+to each part of the expression, with the meaning of a larger expression
+determined from the meanings of its subexpressions.
 
 %
 
 \section{Semantics}
 \label{sec:regex-semantics}
 
-The syntax above describes the \emph{shape} of a regular expression,
-while its semantics determines the language it denotes. A \emph{word}
-over $\Sigma$ is a finite sequence of symbols from $\Sigma$. The set of
-all words over $\Sigma$, including the empty word $\varepsilon$, is
-denoted by $\Sigma^*$.
+The syntax above describes the shape of a regular expression. A
+\emph{word} over $\Sigma$ is a finite sequence of symbols from
+$\Sigma$. The set of all words over $\Sigma$, including the empty word
+$\varepsilon$, is denoted by $\Sigma^*$. A \emph{language} over
+$\Sigma$ is a subset of $\Sigma^*$.
 
-For a regular expression $r$, write $L(r)$ for the language denoted by
-$r$, where $L(r)\subseteq\Sigma^*$. The semantics is defined by structural
-recursion on $r$:
+The \emph{semantics} of a regular expression assigns to its syntactic
+structure a language. For a regular expression $r$, we write $L(r)$ for
+the language denoted by $r$, where $L(r)\subseteq\Sigma^*$. The
+assignment follows the structure of the syntax tree by
+\emph{structural recursion} on $r$.
 
 \begin{equation}\label{eq:semantics}
 \begin{aligned}
@@ -96,7 +96,10 @@ L(r^*) &= \{\varepsilon\}
 \end{aligned}
 \end{equation}
 
-Some simple examples are shown in Table~\ref{tab:lang-examples}.
+Because $L(r+s)=L(r)\cup L(s)$ and set union is associative, the
+groupings $a+(b+c)$ and $(a+b)+c$ denote the same language, even though
+they correspond to different syntax trees. The same holds for $\cdot$,
+since concatenation of languages is associative.
 
 \begin{table}[ht]
 \centering
@@ -112,36 +115,26 @@ $ab$ & $\{ab\}$ \\
 $a^*$ & $\{\varepsilon,a,aa,aaa,\ldots\}$ \\
 \hline
 \end{tabular}
-\caption{Examples of regular expressions and their denoted languages.}
+\caption{Languages denoted by basic expressions; $L(\emptyset)$ is 
+the empty language, while $L(\varepsilon)$ contains the empty word.}
 \label{tab:lang-examples}
 \end{table}
 
-A word $w$ \emph{matches} a regular expression $r$ when
-$w\in L(r)$. Determining whether this holds is the \emph{membership
-problem}.
+A word $w$ \emph{matches} a regular expression $r$ if $w\in L(r)$.
+Determining whether this holds is the \emph{membership problem}.
 
-For the running example, $L(0+1)=\{0,1\}$, so
-$L((0+1)^*)=\{0,1\}^*$. Concatenating this language with
-$L(0)=\{0\}$ and $L(1)=\{1\}$ gives
-
+For the running example, $L(0+1)={0,1}$, and hence
+$L((0+1)^*)={0,1}^*$. Concatenating this language with
+$L(0)={0}$ and $L(1)={1}$ gives
 \begin{equation}\label{eq:r01-language}
-L(r_{01}) = \{\, w\cdot0\cdot1 \mid w\in\{0,1\}^* \,\}.
+L(r_{01}) = {, w\cdot0\cdot1 \mid w\in{0,1}^* ,}.
 \end{equation}
-
 Thus, $L(r_{01})$ is exactly the set of binary strings ending in
 \texttt{"01"}, including \texttt{"01"}, \texttt{"001"}, and
-\texttt{"1101"}. The empty string is not in $L(r_{01})$, since every
-word in the language ends with the two symbols $0$ and $1$.
+\texttt{"1101"}, but not the empty string.
 
-An expression therefore has both a syntactic structure and a meaning:
-the syntax determines how the expression is constructed, while its
-semantics determines the language it denotes. Different syntax trees may
-denote the same language, even when the expressions themselves are not
-syntactically identical. Thus, equality of regular expressions as syntax
-objects is distinct from equality of the languages they denote. This
-distinction is important for the algorithms developed later: the
-algorithms manipulate regular expressions and their syntax trees, while
-$L(r)$ gives the set of words represented by the expression.
+
+
 
 %
 
