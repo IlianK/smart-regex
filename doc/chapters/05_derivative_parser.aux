@@ -6,49 +6,43 @@
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
 \newlabel{sec:derivative-parser}{{5}{28}{Derivative-Based Parser}{chapter.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}From Answer to Evidence}{28}{section.5.1}\protected@file@percent }
-\newlabel{sec:deriv-parser-motivation}{{5.1}{28}{From Answer to Evidence}{section.5.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces The direct construction on $a\cdot b$ against \texttt  {"ab"}. The top row is the derivative sequence of Section~\ref {sec:brzozowski-derivatives}. $\mathit  {mkEps}$ builds a tree for the empty word at the end; each $\mathit  {inj}$ step then undoes one derivative and puts the consumed character back. Every top-row expression must stay in memory until the step below it has run.}}{28}{figure.caption.15}\protected@file@percent }
-\newlabel{fig:two-pass}{{5.1}{28}{The direct construction on $a\cdot b$ against \texttt {"ab"}. The top row is the derivative sequence of Section~\ref {sec:brzozowski-derivatives}. $\mathit {mkEps}$ builds a tree for the empty word at the end; each $\mathit {inj}$ step then undoes one derivative and puts the consumed character back. Every top-row expression must stay in memory until the step below it has run}{figure.caption.15}{}}
-\citation{posix_ere}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}The Two-Pass Approach}{28}{section.5.1}\protected@file@percent }
+\newlabel{sec:deriv-parser-motivation}{{5.1}{28}{The Two-Pass Approach}{section.5.1}{}}
+\newlabel{eq:deriv-std-example}{{5.1}{28}{The Two-Pass Approach}{equation.5.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Direct construction with forward and backwards pass: Forward derivative sequence (top row), Backward parse-tree reconstruction via $\mathit  {mkEps}$ and $\mathit  {inj}$ (bottom row)}}{28}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:two-pass}{{5.1}{28}{Direct construction with forward and backwards pass: Forward derivative sequence (top row), Backward parse-tree reconstruction via $\mathit {mkEps}$ and $\mathit {inj}$ (bottom row)}{figure.caption.15}{}}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {paragraph}{Which tree.}{29}{figure.caption.15}\protected@file@percent }
-\newlabel{sec:posix-longest-leftmost}{{5.1}{29}{Which tree}{figure.caption.15}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5.2}The Direct Construction}{29}{section.5.2}\protected@file@percent }
 \newlabel{sec:core-algorithm}{{5.2}{29}{The Direct Construction}{section.5.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{The empty-word tree.}{29}{section.5.2}\protected@file@percent }
-\newlabel{sec:mkeps-theory}{{5.2}{29}{The empty-word tree}{section.5.2}{}}
-\newlabel{eq:mkeps}{{5.1}{29}{The empty-word tree}{equation.5.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust: \texttt  {mk\_eps}.}{29}{equation.5.1}\protected@file@percent }
-\newlabel{sec:mk-eps-impl}{{5.2}{29}{In Rust: \texttt {mk\_eps}}{equation.5.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces \texttt  {mk\_eps}, transcribing Equation~\eqref  {eq:mkeps}.}}{30}{figure.caption.16}\protected@file@percent }
-\newlabel{fig:mkeps-rust}{{5.2}{30}{\texttt {mk\_eps}, transcribing Equation~\eqref {eq:mkeps}}{figure.caption.16}{}}
-\@writefile{toc}{\contentsline {paragraph}{Reinserting a character.}{30}{figure.caption.16}\protected@file@percent }
-\newlabel{sec:inj-theory}{{5.2}{30}{Reinserting a character}{figure.caption.16}{}}
-\newlabel{eq:inj}{{5.2}{30}{Reinserting a character}{equation.5.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust: \texttt  {inject}.}{31}{equation.5.2}\protected@file@percent }
-\newlabel{sec:inject-impl}{{5.2}{31}{In Rust: \texttt {inject}}{equation.5.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces \texttt  {inject}, transcribing Equation~\eqref  {eq:inj} arm for arm; the \texttt  {Seq} arm's inner \texttt  {if} is the side condition $n(r_1)$, and its inner \texttt  {match} then reads the tag the derivative left behind, in the order of the table above.}}{31}{figure.caption.17}\protected@file@percent }
-\newlabel{fig:inject-rust}{{5.3}{31}{\texttt {inject}, transcribing Equation~\eqref {eq:inj} arm for arm; the \texttt {Seq} arm's inner \texttt {if} is the side condition $n(r_1)$, and its inner \texttt {match} then reads the tag the derivative left behind, in the order of the table above}{figure.caption.17}{}}
-\newlabel{fig:inject-seq-rust}{{5.3}{31}{\texttt {inject}, transcribing Equation~\eqref {eq:inj} arm for arm; the \texttt {Seq} arm's inner \texttt {if} is the side condition $n(r_1)$, and its inner \texttt {match} then reads the tag the derivative left behind, in the order of the table above}{figure.caption.17}{}}
-\@writefile{toc}{\contentsline {paragraph}{The parser, its driver, and why it cannot simplify.}{32}{figure.caption.17}\protected@file@percent }
-\newlabel{sec:deriv-parse-theory}{{5.2}{32}{The parser, its driver, and why it cannot simplify}{figure.caption.17}{}}
-\newlabel{sec:deriv-no-simp}{{5.2}{32}{The parser, its driver, and why it cannot simplify}{figure.caption.17}{}}
-\newlabel{sec:recursive-vs-loop}{{5.2}{32}{The parser, its driver, and why it cannot simplify}{figure.caption.17}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces The loop driver: forward pass into \texttt  {expressions}, then one \texttt  {inject} per character walking it back.}}{32}{figure.caption.18}\protected@file@percent }
-\newlabel{fig:deriv-std-drivers-rust}{{5.4}{32}{The loop driver: forward pass into \texttt {expressions}, then one \texttt {inject} per character walking it back}{figure.caption.18}{}}
-\newlabel{sec:parsetree-and-flatten}{{5.2}{32}{The parser, its driver, and why it cannot simplify}{figure.caption.18}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.1}Building the Empty-Word Tree}{29}{subsection.5.2.1}\protected@file@percent }
+\newlabel{sec:mkeps-theory}{{5.2.1}{29}{Building the Empty-Word Tree}{subsection.5.2.1}{}}
+\newlabel{eq:mkeps}{{5.2}{29}{Building the Empty-Word Tree}{equation.5.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{30}{equation.5.2}\protected@file@percent }
+\newlabel{sec:mk-eps-impl}{{5.2.1}{30}{In Rust}{equation.5.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces \texttt  {mk\_eps}: construct a parse tree for the empty word.}}{30}{figure.caption.16}\protected@file@percent }
+\newlabel{fig:mkeps-rust}{{5.2}{30}{\texttt {mk\_eps}: construct a parse tree for the empty word}{figure.caption.16}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.2}Reinserting Characters}{30}{subsection.5.2.2}\protected@file@percent }
+\newlabel{sec:inj-theory}{{5.2.2}{30}{Reinserting Characters}{subsection.5.2.2}{}}
+\newlabel{eq:inj}{{5.3}{30}{Reinserting Characters}{equation.5.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{31}{equation.5.3}\protected@file@percent }
+\newlabel{sec:inject-impl}{{5.2.2}{31}{In Rust}{equation.5.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces \texttt  {inject}: reinsert a character into a parse tree.}}{31}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:inject-rust}{{5.3}{31}{\texttt {inject}: reinsert a character into a parse tree}{figure.caption.17}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.3}The Standard Derivative-Based Parser }{32}{subsection.5.2.3}\protected@file@percent }
+\newlabel{sec:deriv-std-parser}{{5.2.3}{32}{The Standard Derivative-Based Parser }{subsection.5.2.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Standard derivative-based parser. Forward pass builds the expression sequence; Backward pass reconstructs the parse tree via \texttt  {mkEps} and \texttt  {inject}.}}{32}{figure.caption.18}\protected@file@percent }
+\newlabel{fig:deriv-std-drivers-rust}{{5.4}{32}{Standard derivative-based parser. Forward pass builds the expression sequence; Backward pass reconstructs the parse tree via \texttt {mkEps} and \texttt {inject}}{figure.caption.18}{}}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {paragraph}{Worked example.}{33}{figure.caption.18}\protected@file@percent }
-\newlabel{sec:deriv-std-worked}{{5.2}{33}{Worked example}{figure.caption.18}{}}
-\newlabel{eq:dp-4}{{5.3}{33}{Worked example}{equation.5.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.4}Worked Example}{33}{subsection.5.2.4}\protected@file@percent }
+\newlabel{sec:deriv-std-worked}{{5.2.4}{33}{Worked Example}{subsection.5.2.4}{}}
+\newlabel{eq:dp-4}{{5.4}{33}{Worked Example}{equation.5.4}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {5.3}The Bit-Coded Construction}{33}{section.5.3}\protected@file@percent }
 \newlabel{sec:bitcoded-optimization-theory}{{5.3}{33}{The Bit-Coded Construction}{section.5.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces The bit-coded construction on $a^{*}$ against \texttt  {"aaa"}. Every arrow points forward; no $\mathit  {ri}_i$ is needed once its successor exists. The dashed arrow is the one backward dependency left: $\mathit  {decode}$ needs the original $r$ to know what shape the bits describe.}}{33}{figure.caption.19}\protected@file@percent }
-\newlabel{fig:single-pass}{{5.5}{33}{The bit-coded construction on $a^{*}$ against \texttt {"aaa"}. Every arrow points forward; no $\mathit {ri}_i$ is needed once its successor exists. The dashed arrow is the one backward dependency left: $\mathit {decode}$ needs the original $r$ to know what shape the bits describe}{figure.caption.19}{}}
 \@writefile{toc}{\contentsline {paragraph}{Bits, and annotated expressions.}{33}{figure.caption.19}\protected@file@percent }
 \newlabel{sec:bitcodes}{{5.3}{33}{Bits, and annotated expressions}{figure.caption.19}{}}
 \newlabel{sec:annotated-expressions}{{5.3}{33}{Bits, and annotated expressions}{figure.caption.19}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces The bit-coded construction on $a^{*}$ against \texttt  {"aaa"}. Every arrow points forward; no $\mathit  {ri}_i$ is needed once its successor exists. The dashed arrow is the one backward dependency left: $\mathit  {decode}$ needs the original $r$ to know what shape the bits describe.}}{34}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:single-pass}{{5.5}{34}{The bit-coded construction on $a^{*}$ against \texttt {"aaa"}. Every arrow points forward; no $\mathit {ri}_i$ is needed once its successor exists. The dashed arrow is the one backward dependency left: $\mathit {decode}$ needs the original $r$ to know what shape the bits describe}{figure.caption.19}{}}
 \@writefile{toc}{\contentsline {paragraph}{In Rust.}{34}{figure.caption.19}\protected@file@percent }
 \newlabel{sec:aregex-type}{{5.3}{34}{In Rust}{figure.caption.19}{}}
 \newlabel{sec:internalize-fuse}{{5.3}{34}{In Rust}{figure.caption.19}{}}
@@ -59,7 +53,7 @@
 \@writefile{toc}{\contentsline {paragraph}{The annotated derivative, in Rust.}{35}{figure.caption.21}\protected@file@percent }
 \newlabel{sec:bderiv-theory}{{5.3}{35}{The annotated derivative, in Rust}{figure.caption.21}{}}
 \newlabel{sec:deriv-bc}{{5.3}{35}{The annotated derivative, in Rust}{figure.caption.21}{}}
-\newlabel{eq:bderiv}{{5.4}{35}{The annotated derivative, in Rust}{equation.5.4}{}}
+\newlabel{eq:bderiv}{{5.5}{35}{The annotated derivative, in Rust}{equation.5.5}{}}
 \citation{sulzmannlu2014}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces The concatenation and star arms of \texttt  {deriv\_bc}, transcribing Equation~\eqref  {eq:bderiv}. \texttt  {r2.clone()} and \texttt  {r.clone()} pay for the body appearing both derived and underived in $\mathsf  {B}_{\mathrm  {seq}}^{\,n}$ and $\mathsf  {B}_{*}$.}}{36}{figure.caption.22}\protected@file@percent }
 \newlabel{fig:derivbc-rust}{{5.8}{36}{The concatenation and star arms of \texttt {deriv\_bc}, transcribing Equation~\eqref {eq:bderiv}. \texttt {r2.clone()} and \texttt {r.clone()} pay for the body appearing both derived and underived in $\mathsf {B}_{\mathrm {seq}}^{\,n}$ and $\mathsf {B}_{*}$}{figure.caption.22}{}}
@@ -68,7 +62,7 @@
 \newlabel{sec:simplification-rules-theory}{{5.3}{36}{Extracting the bits, and simplification}{figure.caption.22}{}}
 \newlabel{sec:mk-eps-bc}{{5.3}{36}{Extracting the bits, and simplification}{figure.caption.22}{}}
 \newlabel{sec:decode}{{5.3}{36}{Extracting the bits, and simplification}{figure.caption.22}{}}
-\newlabel{eq:mkepsbc}{{5.5}{36}{Extracting the bits, and simplification}{equation.5.5}{}}
+\newlabel{eq:mkepsbc}{{5.6}{36}{Extracting the bits, and simplification}{equation.5.6}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces Expression size per derivative step, log scale. \emph  {simp} holds $a^{*}$ at two nodes but $(a+(b+ab))^{*}$ still grows $\Theta (2^{n/2})$: a straight line on this axis is exponential growth, because at every step the surviving alternation branches are distinct only in their bit annotations, so $\mathsf  {S}_4$ never collapses them. Regenerate with \texttt  {cargo run -{}-release -{}-example thesis\_figures -{}- growth}; \texttt  {tests/test\_thesis\_figures.rs} pins these values.}}{37}{figure.caption.23}\protected@file@percent }
 \newlabel{fig:simp-growth}{{5.9}{37}{Expression size per derivative step, log scale. \emph {simp} holds $a^{*}$ at two nodes but $(a+(b+ab))^{*}$ still grows $\Theta (2^{n/2})$: a straight line on this axis is exponential growth, because at every step the surviving alternation branches are distinct only in their bit annotations, so $\mathsf {S}_4$ never collapses them. Regenerate with \texttt {cargo run -{}-release -{}-example thesis\_figures -{}- growth}; \texttt {tests/test\_thesis\_figures.rs} pins these values}{figure.caption.23}{}}
 \newlabel{sec:deriv-bc-driver}{{5.3}{37}{Extracting the bits, and simplification}{figure.caption.23}{}}
@@ -78,7 +72,7 @@
 \@writefile{toc}{\contentsline {paragraph}{Comparison, and where this leaves the next chapter.}{38}{figure.caption.23}\protected@file@percent }
 \@setckpt{chapters/05_derivative_parser}{
 \setcounter{page}{39}
-\setcounter{equation}{5}
+\setcounter{equation}{6}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}
@@ -108,6 +102,6 @@
 \setcounter{section@level}{0}
 \setcounter{Item}{6}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{21}
+\setcounter{bookmark@seq@number}{25}
 \setcounter{lstlisting}{0}
 }

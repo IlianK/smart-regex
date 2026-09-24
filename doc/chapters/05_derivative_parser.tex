@@ -1,40 +1,47 @@
 \chapter{Derivative-Based Parser}
 \label{sec:derivative-parser}
+Chapter~\ref{sec:derivatives} showed how a Brzozowski-derivative matcher
+determines whether $w \in L(r)$ and Chapter~
+\ref{sec:matching-vs-parsing} showed that a matching word may admit multiple
+valid parse trees. A parser must therefore select a single parse tree
+according to a disambiguation policy.
 
-Chapter~\ref{sec:derivatives} built a matcher on the Brzozowski
-derivative. It returns a Boolean. Chapter~\ref{sec:matching-vs-parsing}
-showed that a Boolean is not enough: one expression and one word can
-admit several parse trees, and a parser has to return exactly one of
-them.
-
-This chapter closes that gap twice, following Sulzmann and Lu
-\citep{sulzmannlu2014}. The \emph{direct} construction runs the
-derivative sequence forward and rebuilds a tree from it backward. The
-\emph{bit-coded} construction builds the tree during the forward pass
-and needs no backward pass at all. Both return the POSIX tree, and both
-return the same tree. Each rule is followed immediately by the Rust
-that transcribes it, and each construction closes with a worked example
-checked against the running program's own diagnostic output.
+Following Sulzmann and Lu \citep{sulzmannlu2014}, this chapter presents two
+methods for constructing POSIX parse trees from regular expression
+derivatives. The direct construction performs a forward derivative pass
+followed by backward tree reconstruction, while the bit-coded construction
+records parse-tree information during the forward pass and reconstructs the
+tree without a separate backward pass. Both methods produce identical POSIX
+trees, and each algorithmic step is accompanied by its Rust implementation.
 
 %
+%
+%
 
-\section{From Answer to Evidence}
+\section{The Two-Pass Approach}
 \label{sec:deriv-parser-motivation}
+Consider $r = a\cdot b$ with input $w = \mathtt{ab}$. This expression is unambigious 
+and has exactly one parse tree, so the question is 
+whether it can be recovered from the derivation sequence:
 
-Take the smallest expression that has a tree worth rebuilding:
-$r = a\cdot b$ against $w = \mathtt{ab}$, chosen because it has exactly
-\emph{one} parse tree, so the question is only whether a tree can be
-recovered at all and not yet which one. Deriving $a\cdot b$ by
-$\mathtt{a}$ and then $\mathtt{b}$ gives $\varepsilon\cdot b$ and then
-$\phi\cdot b+\varepsilon$, which is nullable: the word matches. That is
-where Chapter~\ref{sec:derivatives} stopped, and what it discarded on
-the way is the problem. The first step turned $a$ into $\varepsilon$;
-the second turned that $\varepsilon$ into $\phi$ and $b$ into
-$\varepsilon$. No consumed character survives in the final expression,
-so the tree $(a,b)$ cannot be read out of it.
+\begin{equation}\label{eq:deriv-std-example}
+\begin{aligned}
+a\cdot b &\xrightarrow{\ a\ } \varepsilon\cdot b \\
+\varepsilon\cdot b &\xrightarrow{\ b\ } \phi\cdot b+\varepsilon.
+\end{aligned}
+\end{equation}
 
-It can be recovered by walking the same sequence backward.
-Figure~\ref{fig:two-pass} is the whole idea of the direct construction.
+The final expression is nullable, confirming $w \in L(r)$, as
+established by the derivative construction in Chapter~\ref{sec:derivatives}.
+However, no consumed character survives in the final expression, so the parse
+tree $(a,b)$ cannot be recovered directly from $\phi\cdot b+\varepsilon$.
+
+The derivation sequence itself already contains the information needed to reconstruct
+the tree. Each step transforms the expression by consuming one character.
+Reversing these steps reinserts the characters into a parse tree, so it can be
+recovered by walking the same sequence backward. Figure~\ref{fig:two-pass}
+shows this process, with the forward pass showing the derivation
+sequence and the backward pass showing the corresponding tree reconstruction.
 
 \begin{figure}[ht]
 \centering
@@ -62,59 +69,57 @@ Figure~\ref{fig:two-pass} is the whole idea of the direct construction.
 \node[lbl, anchor=east, align=right] at (-0.8,1.8) {forward\\pass};
 \node[lbl, anchor=east, align=right] at (-0.8,0)   {backward\\pass};
 \end{tikzpicture}
-\caption{The direct construction on $a\cdot b$ against \texttt{"ab"}.
-The top row is the derivative sequence of
-Section~\ref{sec:brzozowski-derivatives}. $\mathit{mkEps}$ builds a tree
-for the empty word at the end; each $\mathit{inj}$ step then undoes one
-derivative and puts the consumed character back. Every top-row
-expression must stay in memory until the step below it has run.}
+\caption{Direct construction with forward and backwards pass:
+Forward derivative sequence (top row), Backward parse-tree reconstruction via $\mathit{mkEps}$ and
+$\mathit{inj}$ (bottom row)}
 \label{fig:two-pass}
 \end{figure}
 
-$\mathit{mkEps}$ builds a tree for the empty word, all the final
-expression can justify. Each $\mathit{inj}$ step then reinserts one
-character, moving right to left: after the first the tree is
-$((\,),b)$, with $(\,)$ holding open the position where $a$ belongs;
-after the second that placeholder is $a$ and the tree is complete. The
-forward row is unchanged from Chapter~\ref{sec:derivatives}; this
-chapter adds only the bottom row.
+The backward pass reconstructs the parse tree by walking the derivation
+sequence in reverse. $\mathit{mkEps}$ builds a parse tree for the empty word
+from the final nullable expression. Each injection step $\mathit{inj}$ then reinserts
+one character, moving right to left. After the first injection, the tree is
+$((\,),b)$, where $(\,)$ holds the position for $a$. After the second
+injection, that position receives $a$ and the tree $(a,b)$ is complete.
 
-\paragraph{Which tree.} The $a\cdot b$ example has one tree, so it does
-not say which tree a parser should return when there are several. The
-chapter's running example does: $r_1 = (a+ab)(b+\varepsilon)$ against
-$w=\mathtt{ab}$, from Section~\ref{sec:disambiguation-problem}, with
-candidates $v_1 = (\mathit{Right}(a,b), \mathit{Right}(\,))$ and
-$v_1' = (\mathit{Left}\ a, \mathit{Left}\ b)$. Both parsers in this
-chapter return $v_1$: POSIX requires each subpattern, left to right, to
-match the longest possible string \citep[Section~9.1]{posix_ere}. The
-leftmost subpattern $a+ab$ can only reach two characters through its
-right alternative, so it takes $\mathtt{ab}$ whole, leaving
-$b+\varepsilon$ to take $\varepsilon$, also its right alternative. Two
-right choices give $v_1$. Greedy, the other policy of
-Section~\ref{sec:disambiguation-problem}, prefers the earlier
-alternative at each choice and selects $v_1'$ instead. Neither
-construction below ever builds both candidates and compares them; each
-makes one local decision, and the two sections that follow say exactly
-where.
-\label{sec:posix-longest-leftmost}
+The example above is unambiguous and therefore does not address the
+disambiguation problem. The following section presents the standard
+derivative-based parser with its reconstruction operations,
+including $\mathit{mkEps}$ and $\mathit{inj}$, while showing how
+ambiguity is resolved using the POSIX disambiguation policy.
 
+%
+%
 %
 
 \section{The Direct Construction}
 \label{sec:core-algorithm}
 
-Two functions build the tree, $\mathit{mkEps}$ and $\mathit{inj}$, and a
-third assembles them into the parser; \texttt{nullable} and
-\texttt{deriv} are unchanged from Chapter~\ref{sec:derivatives}.
-\texttt{simplify} is deliberately absent: the direct parser does not
-import it, so no forward step can simplify by accident, unlike the two
-matchers of Chapter~\ref{sec:derivatives}. The paragraph on
-no-simplification below explains why that omission is required.
+The direct construction uses two passes. The forward pass applies
+\texttt{deriv} ~\ref{fig:deriv-rust} and \texttt{nullable} ~\ref{fig:nullable-rust} 
+from Chapter~\ref{sec:derivatives} to process the input. 
+The backward pass applies two new functions,
+$\mathit{mkEps}$ and $\mathit{inj}$, 
+to reconstruct a parse tree ~\ref{fig:parsetree-enum} 
+from the derivation sequence. 
 
-\paragraph{The empty-word tree.}
+Unlike the matcher from Section~\ref{sec:derivative-matcher}, the direct
+construction does not simplify expressions during the forward pass.
+Simplification is deliberately omitted because the backward reconstruction
+depends on the explicit structure of the expressions. Removing nodes during
+simplification would discard information required for tree reconstruction.
+
+%
+
+\subsection{Building the Empty-Word Tree}
 \label{sec:mkeps-theory}
-$\mathit{mkEps}$ takes a nullable expression and returns a parse tree
-for the empty word, recursing on its structure:
+
+The function $\mathit{mkEps}$ takes a nullable expression and constructs a
+parse tree for the empty word by recursively traversing the expression's
+structure. This function serves as the base case for the backward pass. Once
+all input has been consumed and the final expression is known to be nullable,
+$\mathit{mkEps}$ produces the initial parse tree that subsequent injection
+steps will extend and refine.
 
 \begin{equation}\label{eq:mkeps}
 \begin{aligned}
@@ -131,20 +136,28 @@ for the empty word, recursing on its structure:
 \end{aligned}
 \end{equation}
 
-Three of the four rules are forced: $\varepsilon$ has one tree, a star
-matching empty took zero iterations, and a concatenation matches empty
-only when both factors do. There is no rule for $\emptyset$ or a
-literal, since neither is ever nullable. The fourth rule is the one
-decision this function makes: when both disjuncts of $r_1+r_2$ are
-nullable, "longest possible string" cannot separate them, so POSIX
-falls back on position and prefers the left, the $\varepsilon\in L(r_1)$
-guard. Sulzmann and Lu prove that deciding this way yields the POSIX
-tree \citep{sulzmannlu2014}.
+The first three rules follow directly from the structure of the expression.
+The expression $\varepsilon$ has a single parse tree, a star matching the
+empty word represents zero iterations, and a concatenation matches
+$\varepsilon$ only when both factors do. No rules are required for
+$\emptyset$ or literals, since neither can match the empty word.
 
-\paragraph{In Rust: \texttt{mk\_eps}.}
+The alternation rule incorporates the POSIX disambiguation policy. If both
+$r_1$ and $r_2$ are nullable, both alternatives match the empty word, so the
+longest-match criterion does not distinguish them. The left alternative is
+therefore selected by the guard $\varepsilon \in L(r_1)$. This corresponds to
+the left-to-right priority required by the POSIX policy when the alternatives
+have equal match length. Sulzmann and Lu show that this local choice leads to
+the POSIX parse tree globally \citep{sulzmannlu2014}.
+
+%
+
+\paragraph{In Rust.}
 \label{sec:mk-eps-impl}
-Figure~\ref{fig:mkeps-rust} is Equation~\eqref{eq:mkeps} one variant at
-a time.
+
+The recursive definition of $\mathit{mkEps}$ ~\eqref{eq:mkeps} is implemented directly in
+Rust, as shown in Figure~\ref{fig:mkeps-rust} 
+and follows the same cases for each expression form.
 
 \begin{figure}[H]
 \small
@@ -165,25 +178,26 @@ pub fn mk_eps(r: &Regex) -> ParseTree {
     }
 }
 \end{verbatim}
-\caption{\texttt{mk\_eps}, transcribing Equation~\eqref{eq:mkeps}.}
+\caption{\texttt{mk\_eps}: construct a parse tree for the empty word.}
 \label{fig:mkeps-rust}
 \end{figure}
 
-$r$ is borrowed, not consumed, because \texttt{inject} reads it again
-later in the backward pass. The \texttt{Alt} arm is the whole POSIX
-decision and is one \texttt{if}: \texttt{r2} is touched only when
-\texttt{nullable(r1)} is false, with no appeal to lengths, since at the
-empty word there are none to compare. The last two arms encode a
-precondition Equation~\eqref{eq:mkeps} leaves implicit, that neither
-$\phi$ nor a literal is ever nullable; \texttt{panic!} states that
-precondition rather than inventing a tree that would be wrong and well
-formed at once, which the agreement tests of Chapter~\ref{sec:evaluation}
-cannot detect on their own.
+The expression $r$ is borrowed rather than consumed because the backward pass
+reads it again during injection. The alternation arm encodes the POSIX
+decision as a conditional. \texttt{r2} is examined only when
+\texttt{nullable(r1)} is false. Since the input is the empty word, there are
+no lengths to compare, so the longest-match criterion does not apply.
+The final two arms panic rather than return arbitrary trees, encoding the
+precondition that neither $\phi$ nor a literal is nullable. 
 
-\paragraph{Reinserting a character.}
+%
+
+\subsection{Reinserting Characters}
 \label{sec:inj-theory}
-$\mathit{inj}$ inverts one derivative step: given a tree for
-$r\backslash x$, it returns a tree for $r$ with $x$ put back.
+
+The function $\mathit{inj}$ reverses a single derivation step. Given a parse
+tree for $r\backslash x$, it reconstructs a parse tree for $r$ by reinserting
+the consumed character $x$.
 
 \begin{equation}\label{eq:inj}
 \begin{aligned}
@@ -209,25 +223,25 @@ $r\backslash x$, it returns a tree for $r$ with $x$ put back.
 \end{aligned}
 \end{equation}
 
-The first four rules are direct: a literal was derived to $\varepsilon$
-and the character goes back; an alternation's incoming tag says which
-side to descend into; a star's incoming tree is a pair whose first
-component is the iteration in progress. The three concatenation rules
-invert the two cases of $\mathsf{D}_{\mathrm{seq}}$: when $r_1$ is not
-nullable no fresh $+$ was introduced and the tree is a plain pair
-($\mathsf{I}_{\mathrm{seq}}$); when it is, the fresh $+$'s tag says
-whether the derivative continued inside $r_1$ ($\mathsf{I}_{\mathrm{seq}}^{L}$)
-or skipped it entirely, in which case $r_1$'s half of the pair was never
-derived and has to be synthesized by $\mathit{mkEps}_{r_1}$
-($\mathsf{I}_{\mathrm{seq}}^{R}$). That second $\mathit{mkEps}$ call,
-in the middle of the backward pass, is what
-Section~\ref{sec:bitcoded-optimization-theory} removes.
+The first four rules follow directly from the corresponding expression
+constructors. A literal derived to $\varepsilon$ is reconstructed as its
+consumed character. For an alternation, the incoming tag identifies the
+branch containing the derived expression. For a star, the first component of
+the incoming tree represents the current iteration, which is reconstructed
+and prepended to the remaining iterations.
 
-\paragraph{In Rust: \texttt{inject}.}
+The concatenation rules cover the two cases of $\mathsf{D}_{\mathrm{seq}}$.
+When $r_1$ is not nullable, no alternation is introduced, and the character
+is reconstructed within the left component. When $r_1$ is nullable, the
+derivative introduces an alternation whose tag records whether the character
+was consumed by $r_1$ or passed to $r_2$. In the latter case, $r_1$ is absent
+from the derivation sequence, so its parse tree is reconstructed using
+$\mathit{mkEps}_{r_1}$.
+
+%
+
+\paragraph{In Rust.}
 \label{sec:inject-impl}
-\texttt{inject(r, l, v)} carries three arguments because $\mathit{inj}$
-is indexed by an expression and a character, not by the tree alone.
-Figure~\ref{fig:inject-rust} is the whole function.
 
 \begin{figure}[H]
 \small
@@ -274,53 +288,48 @@ pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
     }
 }
 \end{verbatim}
-\caption{\texttt{inject}, transcribing Equation~\eqref{eq:inj} arm for
-arm; the \texttt{Seq} arm's inner \texttt{if} is the side condition
-$n(r_1)$, and its inner \texttt{match} then reads the tag the
-derivative left behind, in the order of the table above.}
+\caption{\texttt{inject}: reinsert a character into a parse tree.}
 \label{fig:inject-rust}
-\label{fig:inject-seq-rust}
 \end{figure}
 
-The function matches on \texttt{r} first and \texttt{v} inside each arm,
-because Equation~\eqref{eq:inj} indexes every rule by the expression
-first; a \texttt{Left} tag means one thing under an alternation and
-another under a nullable concatenation, so \texttt{v} cannot be matched
-first. Ownership follows the data flow: \texttt{r} is borrowed and only
-read, \texttt{v} is taken by value and taken apart. That is what lets
-\texttt{v2} move straight into a new \texttt{Pair} with no copy in the
-two matching \texttt{Seq} arms, where Equation~\eqref{eq:inj} leaves
-$v_2$ unchanged. The \texttt{Right} arm of \texttt{Seq} is the only one
-that builds something new: the derivative skipped $r_1$ entirely, so
-nothing exists to reuse for its half of the pair, and
-\texttt{mk\_eps(r1)} synthesizes it, the same second \texttt{mk\_eps}
-call $\mathsf{I}_{\mathrm{seq}}^{R}$ requires. Calling
-\texttt{nullable(r1)} here recomputes what the forward pass already
-decided when it chose $\mathsf{D}_{\mathrm{seq}}^{\,n}$; caching it
-would mean carrying a second structure alongside the expression
-sequence, the bookkeeping Section~\ref{sec:bitcoded-optimization-theory}
-avoids by not having a backward pass at all.
+\texttt{inject(r, l, v)} takes three arguments because $\mathit{inj}$ is 
+indexed by both an expression and a character. Figure~\ref{fig:inject-rust} 
+shows the complete implementation.
 
-\paragraph{The parser, its driver, and why it cannot simplify.}
-\label{sec:deriv-parse-theory}
-\label{sec:deriv-no-simp}
-The two functions compose into one recursion, applying $\mathit{mkEps}$
-once at the end of the input and $\mathit{inj}$ once per character on
-the way back:
-\[
-\mathit{parse}(r, \varepsilon) = \mathit{mkEps}_r\ (\text{if } \varepsilon \in L(r)),
-\qquad
-\mathit{parse}(r, xw) = \mathit{inj}_{r \backslash x}(\mathit{parse}(r \backslash x, w)).
-\]
-If the expression reached at the end is not nullable, parsing fails.
-Figure~\ref{fig:deriv-std-drivers-rust} materializes the top row of
-Figure~\ref{fig:two-pass} as a \texttt{Vec<Regex>} and walks it
-backward; a purely recursive driver is possible too, with the call
-stack standing in for that \texttt{Vec}, but a thread's stack is a
-fixed allocation where a \texttt{Vec} grows on the heap, and the
-recursive form overflows on input the loop form handles without
-difficulty (Section~\ref{sec:stack-depth}).
-\label{sec:recursive-vs-loop}
+The function matches on \texttt{r} first, then \texttt{v}, because 
+~\eqref{eq:inj} indexes every rule by expression first. A tag like 
+\texttt{Left} means different things depending on context. Under an alternation, 
+it selects the left disjunct. Under a nullable concatenation, it indicates that 
+the derivative continued inside the left operand rather than skipping to the right. 
+Matching \texttt{v} before \texttt{r} would lose this context.
+
+The expression \texttt{r} is borrowed 
+and read only, as the tree \texttt{v} is consumed and decomposed. In the 
+concatenation arms where the right operand was not derived, \texttt{v2} moves 
+directly into the new pair with no copy, since ~\eqref{eq:inj} leaves 
+$v_2$ unchanged. Only the \texttt{Right} arm of concatenation builds new content: 
+the derivative skipped $r_1$ entirely, so nothing from the forward pass exists 
+for its half of the pair. Therefore, \texttt{mk\_eps(r1)} synthesizes it.
+
+Calling \texttt{nullable(r1)} here recomputes what the forward pass already 
+decided when choosing between $\mathsf{D}_{\mathrm{seq}}$ and 
+$\mathsf{D}_{\mathrm{seq}}^{\,n}$. Caching this information would require 
+storing a separate data structure alongside the expression sequence, adding 
+overhead that the bit-coded construction of 
+~\ref{sec:bitcoded-optimization-theory} avoids by eliminating the 
+backward pass entirely.
+
+%
+
+\subsection{The Standard Derivative-Based Parser }
+\label{sec:deriv-std-parser}
+The parser composes \texttt{mkEps} and \texttt{inject} by storing all 
+expressions from the forward pass, then reconstructing the tree by walking 
+backward. Figure~\ref{fig:deriv-std-drivers-rust} implements this 
+loop-based. A recursive implementation would use the call stack to 
+hold the expression sequence, but stacks have fixed size while a \texttt{Vec} 
+grows dynamically on the heap, allowing the loop form to handle longer inputs 
+without overflow.
 
 \begin{figure}[H]
 \small
@@ -342,70 +351,69 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex)
     Some(tree)
 }
 \end{verbatim}
-\caption{The loop driver: forward pass into \texttt{expressions}, then
-one \texttt{inject} per character walking it back.}
+\caption{Standard derivative-based parser. Forward pass builds the expression sequence; 
+Backward pass reconstructs the parse tree via \texttt{mkEps} and \texttt{inject}.}
 \label{fig:deriv-std-drivers-rust}
 \end{figure}
 
-One rule constrains the forward pass: it must not simplify. Section
-\ref{sec:brzozowski-derivatives} simplified after every step because a
-Boolean answer depends only on language equivalence, but
-$\mathit{inj}_{r\backslash x}$'s case split reads $r$'s shape, and
-$\mathsf{S}_{2}$ ($\varepsilon\cdot r\to r$) deletes exactly the node
-the backward pass would need. So the direct construction pays for the
-tree in expression size; \texttt{simplify} is not imported by this
-module, and the two matchers of Chapter~\ref{sec:derivatives} are the
-only callers that do import it. Both drivers return an
-\texttt{Option<ParseTree>}, the one type every parser in this thesis
-produces, letting agreement tests compare outputs directly;
-\texttt{flatten} is kept separate from construction as an independent
-check that a successful parse of $w$ still reads back as $w$.
-\label{sec:parsetree-and-flatten}
+Every parser presented returns \texttt{Option<ParseTree>}, which allows direct 
+comparison of outputs. The \texttt{flatten} function ~\ref{fig:flatten-rust}, 
+is kept separate from tree construction and provides an independent correctness check: a successful parse of 
+$w$ must satisfy $\mathit{flatten}(v) = w$.
 
-\paragraph{Worked example.}
+%
+
+\subsection{Worked Example}
 \label{sec:deriv-std-worked}
-Run $r_1=(a+ab)(b+\varepsilon)$ against $\mathtt{ab}$, checked against
-\texttt{--parser deriv\_std\_rec --diag 3}
-(Appendix~\ref{app:report-deriv-std-match}). Two derivative steps
-consume the input:
+
+This section traces the direct construction on the running example 
+$r_1=(a+ab)(b+\varepsilon)$ against input $\mathtt{ab}$, as verified by 
+running the tool with \texttt{--parser deriv\_std\_rec --diag 3} 
+(Appendix~\ref{app:report-deriv-std-match}).
+
+The forward pass derives twice to consume the input:
+
 \begin{equation}\label{eq:dp-4}
 r_1 \xrightarrow{\ a\ } (\varepsilon+\varepsilon b)(b+\varepsilon)
     \xrightarrow{\ b\ } \underbrace{(\phi+(\phi b+\varepsilon))(b+\varepsilon)}_{X}
        + \underbrace{(\varepsilon+\phi)}_{Y}.
 \end{equation}
-The first step takes $\mathsf{D}_{\mathrm{seq}}$, since $a+ab$ is not
-nullable; the second takes $\mathsf{D}_{\mathrm{seq}}^{\,n}$, since
-$\varepsilon+\varepsilon b$ now is, which is what introduces the
-summand $Y$ that makes the whole expression nullable. Note that the
-\texttt{Eps} inside $\varepsilon b$, printed by the tool as
-\texttt{Seq(Eps, Lit('b'))}, is exactly the node $\mathsf{S}_2$ would
-delete; it survives because Section~\ref{sec:deriv-no-simp} forbids
-simplification here, and the backward pass needs it below.
 
-Both disjuncts $X,Y$ of the final expression are nullable, so
-$\mathit{mkEps}$ takes its one decision, $\mathsf{E}_{+}^{L}$, and works
-inward through $\mathsf{E}_{\mathrm{seq}}$ and two applications of
-$\mathsf{E}_{+}^{R}$ (neither $\phi$ nor $b$ is nullable) to reach
-$v_2=\mathit{Left}(\mathit{Right}\,\mathit{Right}\,(), \mathit{Right}\,())$,
-confirmed by the report as
-\texttt{mkEps(r1 + r2): nullable(r1)=true -> Left(mkEps(r1))}. Injecting
-back undoes the two steps in reverse. Undoing $\mathtt{b}$ applies
-$\mathsf{I}_{\mathrm{seq}}^{L}$ then $\mathsf{I}_{+}^{R}$ then
-$\mathsf{I}_{\mathrm{seq}}^{R}$, synthesizing $\varepsilon$'s half with
-$\mathit{mkEps}$ since the derivative had skipped it, giving
-$v_1=(\mathit{Right}((\,),b), \mathit{Right}(\,))$. Undoing $\mathtt{a}$
-applies $\mathsf{I}_{\mathrm{seq}}$, $\mathsf{I}_{+}^{R}$ and
-$\mathsf{I}_{\mathrm{lit}}$ to replace the placeholder $(\,)$ with $a$,
-reaching
+The first step applies $\mathsf{D}_{\mathrm{seq}}$ because $a+ab$ is not 
+nullable. The second applies $\mathsf{D}_{\mathrm{seq}}^{\,n}$ because 
+$\varepsilon+\varepsilon b$ now is, introducing summand $Y$. The entire 
+expression becomes nullable due to $Y$. The \texttt{Eps} inside $\varepsilon b$, 
+printed as \texttt{Seq(Eps, Lit('b'))}, is the node that simplification rule 
+$\mathsf{S}_2$ would delete. It survives here because simplification is 
+forbidden, and the backward pass requires it.
+
+Both disjuncts $X$ and $Y$ of the final expression are nullable. Applying 
+$\mathit{mkEps}$ makes the POSIX choice via rule $\mathsf{E}_{+}^{L}$, 
+descending through $\mathsf{E}_{\mathrm{seq}}$ and two applications of 
+$\mathsf{E}_{+}^{R}$ to reach the tree 
+$v_2=\mathit{Left}(\mathit{Right}\,\mathit{Right}\,(), \mathit{Right}\,())$. 
+The tool confirms this as \texttt{mkEps: nullable(r1)=true -> Left(mkEps(r1))}.
+
+The backward pass undoes both derivatives. Undoing the second character 
+applies rules $\mathsf{I}_{\mathrm{seq}}^{L}$, $\mathsf{I}_{+}^{R}$, and 
+$\mathsf{I}_{\mathrm{seq}}^{R}$ in sequence. Rule $\mathsf{I}_{\mathrm{seq}}^{R}$ 
+requires $\mathit{mkEps}$ to synthesize the left half of the pair, yielding 
+$v_1=(\mathit{Right}((\,),b), \mathit{Right}(\,))$. Undoing the first character 
+applies $\mathsf{I}_{\mathrm{seq}}$, $\mathsf{I}_{+}^{R}$, and 
+$\mathsf{I}_{\mathrm{lit}}$ to produce the final tree
+
 \[
-v_0=(\mathit{Right}(a,b),\mathit{Right}(\,)) = v_1,
+v_0=(\mathit{Right}(a,b),\mathit{Right}(\,)),
 \]
-the report's own final injection, and the POSIX tree of
-Section~\ref{sec:posix-longest-leftmost}. The header records what this
-cost: \texttt{Expressions stored: 3 (r0 -> r1 -> r2)}, one per input
-character plus the original, each held live until the backward pass
-consumes it. The next section removes that requirement.
 
+which matches the POSIX tree from Section~\ref{sec:posix-longest-leftmost}. 
+The tool output records that three expressions were stored: \texttt{r0 -> r1 
+-> r2}. Each is retained until its backward pass step completes. The next 
+section shows how the bit-coded construction eliminates this storage 
+requirement entirely.
+
+%
+%
 %
 
 \section{The Bit-Coded Construction}
