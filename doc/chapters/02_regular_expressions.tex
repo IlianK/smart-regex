@@ -15,73 +15,67 @@ r,s ::= x \mid \varepsilon \mid \emptyset
 \end{equation}
 
 In the grammar, $r$ and $s$ range over regular expressions, while $x$
-ranges over the alphabet $\Sigma$ and denotes an arbitrary symbol, for example
-$a$, $b$, or $c$. The expression $\varepsilon$ matches only the empty
-word, while $\emptyset$ matches no words. The operators $+$, $\cdot$,
+ranges over the alphabet $\Sigma$ and denotes an arbitrary symbol, such as
+$a$, $b$, or $c$. The constants $\varepsilon$ and $\emptyset$ represent the 
+\emph{empty-word} and \emph{empty-language} expressions. The operators $+$, $\cdot$,
 and $^*$ denote alternation, concatenation, and Kleene star,
-respectively. 
+respectively.
 
 Concatenation is written implicitly, so $rs$ denotes $r \cdot s$.
-Given this notation, we adopt the usual precedence and associativity
+Given this notation, we adopt the precedence and associativity
 conventions. Unless parentheses are shown explicitly, Kleene star binds
-most tightly, followed by concatenation, followed by alternation. Thus
-$ab^*c$ is parsed as $(a\cdot(b^*))\cdot c$, while $a+bc^*$ is parsed
-as $a+(b\cdot(c^*))$. For repeated operators we use left association, so
-$a+b+c$ means $(a+b)+c$, and $abc$ means $(ab)c$.
+most tightly, followed by concatenation, followed by alternation. For example,
+\begin{align*}
+ab^*c &= (a\cdot(b^*))\cdot c, \\
+a+bc^* &= a+(b\cdot(c^*)).
+\end{align*}
+For repeated operators we use left association, so
+\begin{align*}
+a+b+c &= (a+b)+c, \\
+abc &= (ab)c.
+\end{align*}
 
-The grammar above is the core syntax.
-It omits the convenience operators found in most regular
-expression libraries, such as one-or-more, optional, and bounded
-repetition ($r^+$, $r?$, and $r^{\{m,n\}}$). These operators do not add
-expressive power, since each can be expressed using the constructs of
-Equation~\eqref{eq:regex-grammar}. For example, $r^+=r\cdot r^*$ and
-$r?=r+\varepsilon$. Bounded repetition expands to:
+The grammar above is the core syntax. Most regular expression libraries 
+also offer one-or-more, optional, and bounded repetition ($r^+$, $r?$, 
+$r^{\{m,n\}}$), but these add no expressive power since each can be defined 
+by the core constructs: $r^+ = r\cdot r^*$, $r? = r+\varepsilon$, and
 \[
-r^{\{m,n\}} =
-\underbrace{r\cdot\ldots\cdot r}_{m\text{ times}}
+r^{\{m,n\}} = \underbrace{r\cdot\ldots\cdot r}_{m\text{ times}}
 \cdot
-\underbrace{(r+\varepsilon)\cdot\ldots\cdot(r+\varepsilon)}
-           _{n-m\text{ times}}
-\qquad (m\le n).
+\underbrace{(r+\varepsilon)\cdot\ldots\cdot(r+\varepsilon)}_{n-m\text{ times}}.
 \]
 
 In the implementation, expressions using such operators are translated
-into the core constructs before they reach the parsing algorithms. The
-translation from external regular expression syntax to this internal
-representation is described in Chapter~\ref{sec:frontend}.
+into the core constructs before they reach the parsing algorithms.
 
 As a running example, consider the regular expression over
 $\Sigma=\{0,1\}$
 \begin{equation}\label{eq:r01-def}
 r_{01} = (0+1)^*\cdot0\cdot1.
 \end{equation}
-By the conventions above, its syntax tree is
-$((0+1)^*\cdot0)\cdot1$. This tree captures how the expression is
-constructed: a Kleene star applied to the alternation $0+1$, followed by
-the concatenation with the literals $0$ and $1$.
 
-To determine what the expression means, its syntactic structure must be
-given a semantic interpretation. The interpretation assigns a language
-to each part of the expression, with the meaning of a larger expression
-determined from the meanings of its subexpressions.
+By the conventions above, its syntax tree is
+$((0+1)^*\cdot0)\cdot1$. This tree represents the hierarchical structure
+of the expression: a Kleene star applied to the alternation $0+1$, followed by
+concatenation with the literals $0$ and $1$.
+
+The syntactic structure must be given a semantic interpretation.
 
 %
 
 \section{Semantics}
 \label{sec:regex-semantics}
 
-The syntax above describes the shape of a regular expression. A
+A semantic interpretation assigns a language to each regular expression. A
 \emph{word} over $\Sigma$ is a finite sequence of symbols from
 $\Sigma$. The set of all words over $\Sigma$, including the empty word
 $\varepsilon$, is denoted by $\Sigma^*$. A \emph{language} over
 $\Sigma$ is a subset of $\Sigma^*$.
 
-The \emph{semantics} of a regular expression assigns to its syntactic
-structure a language. For a regular expression $r$, we write $L(r)$ for
-the language denoted by $r$, where $L(r)\subseteq\Sigma^*$. The
-assignment follows the structure of the syntax tree by
-\emph{structural recursion} on $r$.
-
+For a regular expression $r$, we write $L(r)$ for the language it denotes,
+where $L(r) \subseteq \Sigma^*$. The definition follows the structure of the syntax tree by
+\emph{structural recursion}. Each case corresponds to one production of
+the grammar in \eqref{eq:regex-grammar}:
 \begin{equation}\label{eq:semantics}
 \begin{aligned}
 L(x) &= \{x\}, \\
@@ -96,16 +90,19 @@ L(r^*) &= \{\varepsilon\}
 \end{aligned}
 \end{equation}
 
-Because $L(r+s)=L(r)\cup L(s)$ and set union is associative, the
-groupings $a+(b+c)$ and $(a+b)+c$ denote the same language, even though
-they correspond to different syntax trees. The same holds for $\cdot$,
-since concatenation of languages is associative.
-
+Table~\ref{tab:lang-examples} applies these definitions to small expressions. 
+The literal $a$ denotes the language containing only the word $a$. The expression 
+$\varepsilon$ denotes the language containing only the empty word, while $\emptyset$ 
+denotes the language containing no words. The alternation $a+b$ combines the languages of $a$ and 
+$b$ to give $\{a,b\}$, and concatenation $ab$ combines words from the languages of 
+$a$ and $b$ to give $\{ab\}$. 
+The Kleene star $a^*$ allows zero or more concatenations of words from
+the language of $a$, giving $\{\varepsilon,a,aa,aaa,\ldots\}$.
 \begin{table}[ht]
 \centering
 \begin{tabular}{cc}
 \hline
-Expression & Language \\
+Expression $r$ & Language $L(r)$\\
 \hline
 $a$ & $\{a\}$ \\
 $\varepsilon$ & $\{\varepsilon\}$ \\
@@ -115,170 +112,102 @@ $ab$ & $\{ab\}$ \\
 $a^*$ & $\{\varepsilon,a,aa,aaa,\ldots\}$ \\
 \hline
 \end{tabular}
-\caption{Languages denoted by basic expressions; $L(\emptyset)$ is 
-the empty language, while $L(\varepsilon)$ contains the empty word.}
+\caption{Languages denoted by basic expressions.}
 \label{tab:lang-examples}
 \end{table}
 
-A word $w$ \emph{matches} a regular expression $r$ if $w\in L(r)$.
-Determining whether this holds is the \emph{membership problem}.
-
-For the running example, $L(0+1)={0,1}$, and hence
-$L((0+1)^*)={0,1}^*$. Concatenating this language with
-$L(0)={0}$ and $L(1)={1}$ gives
+For example $r_{01} = (0+1)^*\cdot0\cdot1$ from \eqref{eq:r01-def}, we compute 
+its language step by step:
 \begin{equation}\label{eq:r01-language}
-L(r_{01}) = {, w\cdot0\cdot1 \mid w\in{0,1}^* ,}.
+\begin{aligned}
+L(0) &= \{0\}, \\
+L(1) &= \{1\}, \\
+L(0+1) &= L(0) \cup L(1) = \{0,1\}, \\
+L((0+1)^*) &= \{0,1\}^*, \\
+L(r_{01}) &= L((0+1)^*) \cdot L(0) \cdot L(1) = \{\, w \cdot 0 \cdot 1 \mid w\in\{0,1\}^* \,\}.
+\end{aligned}
 \end{equation}
-Thus, $L(r_{01})$ is exactly the set of binary strings ending in
-\texttt{"01"}, including \texttt{"01"}, \texttt{"001"}, and
-\texttt{"1101"}, but not the empty string.
 
+This is the set of binary words ending in $01$. For example, the words
+$01$, $001$, and $1101$ belong to $L(r_{01})$, whereas $\varepsilon$,
+$0$, and $010$ do not.
 
-
+This is the question of whether a word \emph{matches} a regular
+expression: $w$ \emph{matches} $r$ if $w\in L(r)$. Determining this is
+the \emph{membership problem}.
 
 %
 
-\paragraph{In Rust.}
+\section{Rust Representation}
 \label{sec:regex-rust-implementation}
-The grammar above is represented directly as a Rust enum
-\citep{rust-book-enums,rust-reference-enum}, shown in
-Figure~\ref{fig:regex-enum}, with one variant for each syntactic
-construct.
 
+The grammar from ~\eqref{eq:regex-grammar} is represented 
+directly as a Rust enum with one variant for 
+each syntactic construct, as shown in Figure~\ref{fig:regex-enum}:
 \begin{figure}[ht]
+\small
 \begin{verbatim}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Regex {
-    Phi,                          // empty language
-    Eps,                          // empty word
-    Lit(char),                    // literal x
+    Phi, Eps, Lit(char),
     Seq(Box<Regex>, Box<Regex>),  // r . s
     Alt(Box<Regex>, Box<Regex>),  // r + s
-    Star(Box<Regex>),             // r*
+    Star(Box<Regex>),              // r*
+}
+
+impl Regex {
+    pub fn seq(r: Regex, s: Regex) -> Regex {
+        Regex::Seq(Box::new(r), Box::new(s))
+    }
+    pub fn alt(r: Regex, s: Regex) -> Regex {
+        Regex::Alt(Box::new(r), Box::new(s))
+    }
+    pub fn star(r: Regex) -> Regex { Regex::Star(Box::new(r)) }
+    pub fn lit(c: char) -> Regex { Regex::Lit(c) }
 }
 \end{verbatim}
-\caption{The internal regular-expression type, with one variant for
-each construct of Equation~\eqref{eq:regex-grammar}. This is the
-representation every algorithm in this thesis operates on.}
+\caption{The \texttt{Regex} enum and constructors. Derived traits support
+operations needed by parsing: \texttt{Clone} for duplication,
+\texttt{PartialEq}/\texttt{Eq} for comparison, \texttt{Hash} for collections.}
 \label{fig:regex-enum}
 \end{figure}
 
-The derived traits also support the operations used by the later
-algorithms. \texttt{Clone} allows expressions to be duplicated when a
-derivative needs to retain an existing subexpression, while
-\texttt{PartialEq} and \texttt{Eq} provide structural equality for
-comparing expression trees. \texttt{Hash} makes the same structural
-representation usable as a key in a \texttt{HashSet}, which is required
-by the partial-derivative matcher.
+The type carries no precedence or associativity information, as these
+are determined by the syntax tree. Recursive variants use \texttt{Box<Regex>}
+because a direct definition \texttt{Seq(Regex, Regex)} would have infinite
+size and \texttt{Box} stores these recursive values separately, providing finite
+size~\citep{rust-book-box,rust-reference-recursive-types}. This differs from
+Haskell's heap-allocated data types. Rust requires explicit indirection since
+the enum sizes must be known at compile time.
 
-The variants correspond one to one with the grammar: \texttt{Phi},
-\texttt{Eps} and \texttt{Lit} represent $\emptyset$, $\varepsilon$ and
-literals, while \texttt{Seq}, \texttt{Alt} and \texttt{Star} represent
-concatenation, alternation and Kleene star. The type carries no
-operator precedence and no associativity, because both were already
-resolved when the syntax tree was built: a \texttt{Seq} node holds two
-children and says nothing about how the original notation grouped them.
+Constructors encapsulate the boxing and are purely structural: they perform
+no simplification, and \texttt{Regex::seq(Regex::Eps, r)} yields a \texttt{Seq}
+node, not $r$. They take arguments by value, moving subexpressions into boxes.
 
-For example, the running example
-$r_{01}=(0+1)^*\cdot0\cdot1$ is represented by an expression tree whose
-root is the concatenation of $(0+1)^*\cdot0$ and $1$, following the
-left-associated grouping from Section~\ref{sec:regex-syntax}. Its
-structure is:
-
+The running example $r_{01}=(0+1)^*\cdot0\cdot1$ from ~\eqref{eq:r01-def}
+is represented by the syntax tree:
 \begin{equation}\label{eq:r01-tree}
 \operatorname{Seq}\bigl(
     \operatorname{Seq}(
-        \operatorname{Star}(
-            \operatorname{Alt}(0,1)
-        ),
+        \operatorname{Star}(\operatorname{Alt}(0,1)),
         0
     ),
     1
 \bigr).
 \end{equation}
-
-The same structure is represented in Rust by nested enum values. The
-outermost \texttt{Seq} represents the final concatenation with $1$, and
-its left child represents $(0+1)^*\cdot0$. Thus, the Rust value stores
-the parsed structure of the expression directly, rather than only its
-textual notation such as $(0+1)^*\cdot0\cdot1$. Since a regular
-expression can contain other regular expressions, these nested values
-allow functions on \texttt{Regex} to be defined recursively as well.
-
-The recursive variants use \texttt{Box<Regex>} because Rust requires
-recursive types to have a finite size. A definition such as
-\texttt{Seq(Regex, Regex)} would have no finite size, since each
-\texttt{Regex} could contain another recursively. \texttt{Box<Regex>}
-provides the required indirection by storing the recursive value
-separately \citep{rust-book-box,rust-reference-recursive-types}.
-
-This explicit indirection differs from the Haskell specification on
-which the implementation is based. Haskell allows recursive algebraic
-data types without an explicit \texttt{Box}-like constructor, whereas
-Rust requires the indirection because enum sizes must be known at
-compile time. The Rust representation therefore makes the heap-based
-structure of recursive expressions explicit, which is relevant to
-memory behaviour.
-
-%
-
-\paragraph{Constructors.}
-
-Constructing recursive expressions directly requires explicit
-\texttt{Box::new} calls, so the implementation provides four constructors
-that encapsulate the boxing, shown in Figure~\ref{fig:regex-constructors}.
-All subsequent implementations in Chapter~\ref{sec:derivatives} use them
-to construct regular expressions.
+In Rust, this is represented as shown in Figure~\ref{fig:r01-rust}, with the
+outermost \texttt{Seq} containing \texttt{Lit('1')} and 
+\texttt{Seq(Star(Alt(0,1)), 0)} as its right and left children.
 
 \begin{figure}[ht]
-\begin{verbatim}
-impl Regex {
-
-    pub fn seq(r: Regex, s: Regex) -> Regex {
-        Regex::Seq(Box::new(r), Box::new(s))
-    }
-
-    pub fn alt(r: Regex, s: Regex) -> Regex {
-        Regex::Alt(Box::new(r), Box::new(s))
-    }
-
-    pub fn star(r: Regex) -> Regex {
-        Regex::Star(Box::new(r))
-    }
-
-    pub fn lit(c: char) -> Regex {
-        Regex::Lit(c)
-    }
-
-}
-\end{verbatim}
-\caption{The four constructors. Each builds the corresponding
-\texttt{Regex} variant and performs the boxing required by the recursive
-representation.}
-\label{fig:regex-constructors}
-\end{figure}
-
-The constructors are structural: they perform no simplification or
-semantic transformation. For example,
-\texttt{Regex::seq(Regex::Eps, r)} constructs a \texttt{Seq} node with
-an \texttt{Eps} left child rather than simplifying to $r$. This differs
-from the \emph{*smart*} constructor introduced later, which can inspect
-its operands and avoid redundant expressions.
-
-The constructors take their arguments by value, so building an expression
-bottom-up moves its subexpressions into the boxes rather than copying
-them. The running example is constructed as follows:
-
+\small
 \begin{verbatim}
 Regex::seq(
     Regex::seq(
         Regex::star(Regex::alt(Regex::lit('0'), Regex::lit('1'))),
-        Regex::lit('0'),
-    ),
-    Regex::lit('1'),
-)
+        Regex::lit('0')),
+    Regex::lit('1'))
 \end{verbatim}
-
-This value has the structure of Equation~\eqref{eq:r01-tree} and is
-produced by the frontend of Chapter~\ref{sec:frontend} for the surface
-pattern \texttt{"(0|1)*01"}.
+\caption{Rust representation of $r_{01}$.}
+\label{fig:r01-rust}
+\end{figure}

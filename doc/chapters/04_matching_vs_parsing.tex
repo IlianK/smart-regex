@@ -118,7 +118,7 @@ records its iterations as a list.
 \paragraph{In Rust.}
 The definitions above translate directly to Rust. Figure~\ref{fig:parsetree-enum}
 shows the parse-tree type, with one variant for each constructor in
-Equation~\eqref{eq:typing-rules}. The two star rules share a single
+~\eqref{eq:typing-rules}. The two star rules share a single
 \texttt{Star} variant, represented by a \texttt{Vec}.
 
 \begin{figure}[H]
@@ -134,7 +134,7 @@ pub enum ParseTree {
 }
 \end{verbatim}
 \caption{The parse-tree type (\texttt{types/tree.rs}). The variants
-correspond to the constructors of Equation~\eqref{eq:typing-rules};
+correspond to the constructors of ~\eqref{eq:typing-rules};
 the two star rules share the \texttt{Star} variant.}
 \label{fig:parsetree-enum}
 \end{figure}
@@ -210,7 +210,13 @@ choices by which $r$ produces the word.
 %
 
 \paragraph{In Rust.}
-Flattening is implemented directly from Equation~\eqref{eq:flatten}:
+The function takes \texttt{\&ParseTree} rather than consuming the tree,
+so it can be inspected, printed, and compared after flattening. The star
+case similarly borrows its elements through \texttt{vs.iter()}. Keeping
+flattening separate from tree construction also provides an independent
+parse validation. A tree for $w$ must satisfy
+$\lvert v\rvert=w$, as required by ~\eqref{eq:mvp-26}.
+Flattening is implemented directly from ~\eqref{eq:flatten}:
 
 \begin{figure}[H]
 \begin{verbatim}
@@ -226,19 +232,9 @@ pub fn flatten(v: &ParseTree) -> String {
     }
 }
 \end{verbatim}
-\caption{Flattening (\texttt{types/tree.rs}), corresponding to
-Equation~\eqref{eq:flatten}.}
+\caption{The \texttt{flatten} function: extract the matched word from a parse tree.}
 \label{fig:flatten-rust}
 \end{figure}
-
-The function takes \texttt{\&ParseTree} rather than consuming the tree,
-so the same parse tree can be inspected, printed, and compared after
-flattening. The star case similarly borrows its elements through
-\texttt{vs.iter()}.
-
-Keeping flattening separate from tree construction provides an
-independent validation of a parse: a tree for $w$ must satisfy
-$\lvert v\rvert=w$, as required by Equation~\eqref{eq:mvp-26}.
 
 %
 
@@ -265,7 +261,7 @@ $\lvert (a,b)\rvert = \lvert a\rvert\,\lvert b\rvert
 
 %
 
-\section{Disambiguation Problem}
+\section{Disambiguation}
 \label{sec:disambiguation-problem}
 
 The typing judgment identifies all valid parse trees for a given regular
