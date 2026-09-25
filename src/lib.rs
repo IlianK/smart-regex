@@ -3,6 +3,9 @@
 // Core data types
 pub mod types;
 
+// Dataset preparation 
+pub mod data;
+
 // Trace structs 
 pub mod trace;
 
@@ -14,9 +17,6 @@ pub mod diagnostics;
 
 // Surface syntax
 pub mod frontend;
-
-#[cfg(feature = "external-engines")]
-pub mod external;
 
 // Re-export core types
 pub use types::{Regex, ARegex, ParseTree, flatten};

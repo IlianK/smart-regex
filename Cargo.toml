@@ -32,8 +32,33 @@ name = "extract_dataset"
 path = "examples/extract_dataset.rs"
 
 [[example]]
-name = "thesis_figures"
-path = "examples/thesis_figures.rs"
+name = "prepare_dataset"
+path = "examples/prepare_dataset.rs"
+
+[[example]]
+name = "filter_dataset"
+path = "examples/filter_dataset.rs"
+
+# Figure 5.3
+[[example]]
+name = "demo_growth"
+path = "examples/demo_growth.rs"
+
+# Section 5.5 table.
+[[example]]
+name = "demo_branches"
+path = "examples/demo_branches.rs"
+
+# Figure 6.3
+[[example]]
+name = "demo_frontier"
+path = "examples/demo_frontier.rs"
+
+# Figure 7.4
+[[example]]
+name = "demo_lowered"
+path = "examples/demo_lowered.rs"
+
 
 
 # Benchmarks
@@ -59,9 +84,12 @@ required-features = ["external-engines"]
 
 # Dependencies
 [dependencies]
-clap   = { version = "4.5", features = ["derive"] }
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-regex  = { version = "1", optional = true }
+clap        = { version = "4.5", features = ["derive"] }
+chrono      = { version = "0.4", default-features = false, features = ["clock"] }
+regex       = { version = "1", optional = true }
+rand        = "0.8"
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

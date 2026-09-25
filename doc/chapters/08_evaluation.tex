@@ -7,25 +7,27 @@ loop variants), \texttt{deriv\_bc}, \texttt{pderiv\_std} and
 \texttt{pderiv\_bc}, each claimed to compute either the POSIX or the
 leftmost-first parse tree, by four structurally different constructions.
 This chapter evaluates those four parsers against each other, first for
-correctness and then for performance, on two kinds of input: the small,
-hand-constructed patterns used throughout this thesis to isolate one
-algorithmic property at a time, and a corpus of real-world regular
-expressions assembled from the same three sources, Snort/Suricata,
+correctness and then for performance, on two kinds of input: 1. Small,
+constructed patterns taken from the source paper to isolate one
+algorithmic property at a time; 2. A corpus of real-world regular
+expressions assembled from three sources: Snort/Suricata,
 SpamAssassin and RegexLib, that Mamouras et al.'s disambiguation-robustness
-study \citep{mamouras2024} draws on. That paper studies exactly the
+study \citep{mamouras2024} uses. 
+
+That paper studies exactly the
 POSIX-versus-Greedy question this thesis studies, via real intrusion-detection
 signatures, and finds concrete real-world patterns where the two policies
-visibly diverge; it provides no public dataset artifact of its own, so
-Section~\ref{sec:dataset-preparation} describes how this thesis's own
-corpus was independently assembled to occupy the same role.
+visibly diverge. It provides no public dataset artifact of its own, so
+Section~\ref{sec:dataset-preparation} describes how the 
+corpus was independently assembled and prepared.
 
 Section~\ref{sec:correctness-verification} checks the four parsers, and
 the three Boolean matchers of Chapter~\ref{sec:derivatives}, against each
 other and against the paper's own worked examples.
-Section~\ref{sec:dataset-preparation} describes both input sources in
-detail: the project's own synthetic patterns and the real-world corpus.
+Section~\ref{sec:dataset-preparation} describes both input sources:
+synthetic patterns and the real-world corpus.
 Section~\ref{sec:performance-analysis} measures where the four parsers'
-costs diverge on each. Section~\ref{sec:results-discussion} draws the
+costs diverge on each and the final Section~\ref{sec:results-discussion} draws the
 two together.
 
 %
@@ -35,10 +37,12 @@ two together.
 \section{Parser Agreement}
 \label{sec:correctness-verification}
 
-Running the same expression through every parser at once, rather than
-the two the test above picks, shows the full pattern the test's single
-comparison is a slice of:
+\paragraph{Paper A1 Example:.} 
+$r_1 = (a + ab)(b + \varepsilon)$ and $w = \mathtt{ab}$,
 
+\begin{figure}[htbp]
+\small
+\centering
 \begin{verbatim}
 $ cargo run -- parse "(a|ab)(b|)" "ab" --parser all
 Parser       | Policy    | Result
@@ -53,8 +57,13 @@ POSIX parsers agree
 PDERIV parsers agree
 NON-POSIX agrees with POSIX on membership
 \end{verbatim}
+\caption{Comparison of the parser results for the regular expression $(a|ab)(b|)$.}
+\label{fig:parser-comparison}
+\end{figure}
 
 
+\paragraph{Paper A2 Example:.} 
+$r_2 = (a+b+ab)^{\ast}$ against $w=\mathtt{ab}$,
 
 %
 %
@@ -96,6 +105,10 @@ on the regular expressions people actually write, which is what
 Section~\ref{sec:mamouras-dataset} closes the gap on; kept separate,
 each still isolates one variable the mixed real-world corpus cannot.
 
+%
+%
+%
+
 \subsection{The Mamouras Regex Dataset}
 \label{sec:mamouras-dataset}
 
@@ -118,46 +131,9 @@ thing:
   hardest of the three.
 \end{itemize}
 
-\paragraph{Extraction.} Each source embeds its patterns in a different
-surrounding syntax that has nothing to do with the pattern itself and
-has to be stripped away before the pattern can be parsed at all.
-Figure~\ref{fig:extraction-pipeline} shows the three formats side by
-side: Suricata's rule lines carry a \texttt{pcre:"/PATTERN/FLAGS";}
-option; SpamAssassin's carry a bare
-\texttt{body}/\texttt{header NAME =~ /PATTERN/FLAGS} without
-Suricata's trailing-quote convention; RegexLib's sample file lists plain
-patterns directly, one (possibly multi-line) entry per
-blank-line-delimited block. A separate extraction routine reads each
-format's own surrounding syntax and reduces it to the pattern text
-underneath; despite three different starting shapes, all three converge
-on one common \texttt{/PATTERN/FLAGS} PCRE delimiter convention once
-extracted, and it is only that common form which is ever handed to the
-frontend parser, including the case-insensitive \texttt{i} flag, applied
-by case-folding every literal character in the translated
-\texttt{ExtPat} to an \texttt{Any} of both cases (Chapter~\ref{sec:frontend}'s
-frontend) rather than as a runtime matching option, since
-\texttt{Regex} itself has no case-insensitivity concept.
+\paragraph{Extraction.} 
 
-
-\paragraph{Filtering.} Filtering is not a separate step run over
-already-extracted patterns; it is what happens when the frontend parser
-itself rejects one. A regular-expression engine built on the
-six-constructor \texttt{Regex} of Section~\ref{sec:regex-rust-implementation}
-cannot represent every construct a real, PCRE-authored rule may use.
-Backreferences and lookaround assertions in particular describe
-languages that are not regular in the formal sense this thesis's entire
-construction depends on, so \texttt{parse\_pcre\_rule} rejects both
-outright with a descriptive error rather than silently mis-parsing them
-into something weaker than what the rule author wrote. Every rejection
-is recorded by cause rather than discarded: \texttt{backreference} and
-\texttt{lookaround} each name themselves, and \texttt{other} covers
-everything else that still fails to parse, chiefly bound expressions
-such as \texttt{\{1586,\}} that would unroll past this frontend's
-repetition cap, and a handful of unsupported \texttt{(?...)}~group
-syntaxes. Re-running this pipeline against the tracked raw sources
-gives the current triage, read a row at a time: of 231 Suricata rules,
-209 parse and 22 are rejected, split 5/11/6 across the three causes, and
-so on for the other two formats.
+\paragraph{Filtering.} 
 
 \begin{center}
 \begin{tabular}{lrrrrr}
@@ -173,25 +149,7 @@ RegexLib & 499 & 407 (81.6\%) & 8 & 55 & 29 \\
 \end{tabular}
 \end{center}
 
-Lookaround dominates the rejections and is concentrated almost entirely
-in RegexLib, matching that family's idiomatic use of chained
-assertions; Suricata and SpamAssassin reject mostly on the same handful
-of negative-lookahead idioms (guarding against one specific following
-word). The accepted 685 patterns, deduplicated across all three formats
-into \texttt{data/corpus\_patterns.txt} (663 lines after deduplication),
-are what Section~\ref{sec:mamouras-benchmark-results}'s dataset
-benchmark actually runs against.
-
-Real rules are \emph{written} as search patterns, fired on seeing a
-match anywhere in a packet payload or message body, not on the payload
-being exactly that pattern, so they are parsed through the frontend's
-search entry points rather than through plain full-string equality.
-Section~\ref{sec:frontend-substring-search} already gives the mechanism
-that implements this, padding an unanchored side with $\Sigma^{*}$; the
-practical effect on this corpus specifically is that a real dataset
-pattern, run the way it has to be run, is measurably bigger than its
-own text suggests, which Section~\ref{sec:mamouras-benchmark-results}
-returns to.
+\paragraph{Generating Input.} 
 
 %
 %
@@ -203,11 +161,39 @@ returns to.
 \subsection{Performance on Synthetic Patterns}
 \label{sec:synthetic-performance}
 
+\paragraph{Comparing The Three Matchers.}
+\label{sec:pathological-inputs}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+  width=13cm, height=7.5cm,
+  xlabel={input length}, ylabel={mean time (ns)},
+  xmode=log, ymode=log,
+  legend pos=north west, legend cell align=left,
+  grid=major,
+]
+\addplot coordinates {(5,438.9) (8,736.1) (10,929.6) (12,1139) (15,1472)};
+\addlegendentry{\texttt{match\_naive} (stops at 15)}
+\addplot coordinates {(5,2024) (10,4363) (50,21653) (100,44934) (500,219540) (1000,471765)};
+\addlegendentry{\texttt{match\_deriv}}
+\addplot coordinates {(5,2189) (10,4495) (50,22518) (100,44276) (500,222756) (1000,476212)};
+\addlegendentry{\texttt{match\_pderiv}}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+%
+
 \paragraph{Stack depth: recursive vs.\ iterative construction.}
 \label{sec:stack-depth}
+Comparing recursive and loop-based standard derivative parser.
+
+%
 
 \paragraph{Heap allocation: \texttt{deriv\_std} vs.\ \texttt{deriv\_bc}.}
-\label{sec:heap-allocation}
+\label{sec:heap-allocation} 
+Savings without backward pass.
 
 %
 
@@ -237,29 +223,7 @@ returns to.
 \end{tikzpicture}
 \end{center}
 
-
-\paragraph{Pathological inputs.}
-\label{sec:pathological-inputs}
-
-\begin{center}
-\begin{tikzpicture}
-\begin{axis}[
-  width=13cm, height=7.5cm,
-  xlabel={input length}, ylabel={mean time (ns)},
-  xmode=log, ymode=log,
-  legend pos=north west, legend cell align=left,
-  grid=major,
-]
-\addplot coordinates {(5,438.9) (8,736.1) (10,929.6) (12,1139) (15,1472)};
-\addlegendentry{\texttt{match\_naive} (stops at 15)}
-\addplot coordinates {(5,2024) (10,4363) (50,21653) (100,44934) (500,219540) (1000,471765)};
-\addlegendentry{\texttt{match\_deriv}}
-\addplot coordinates {(5,2189) (10,4495) (50,22518) (100,44276) (500,222756) (1000,476212)};
-\addlegendentry{\texttt{match\_pderiv}}
-\end{axis}
-\end{tikzpicture}
-\end{center}
-
+%
 
 \paragraph{Benchmark results.}
 \label{sec:benchmark-results}
@@ -277,6 +241,9 @@ Parser & $n{=}5$ & $n{=}10$ & $n{=}15$ & $n{=}18$ \\
 \end{tabular}
 \end{center}
 
+%
+%
+%
 
 \subsection{Evaluation on the Mamouras Regex Dataset}
 \label{sec:mamouras-benchmark-results}

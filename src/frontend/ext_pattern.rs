@@ -43,6 +43,9 @@ pub enum ExtPat {
     Escape(char),
     /// An ordinary, unescaped literal character.
     Char(char),
+    /// `\b` (`true`) / `\B` (`false`): word boundary / non-boundary.
+    /// Rejected by `translate` (position-dependent).
+    WordBoundary(bool),
 }
 
 /// Case-fold an `ExtPat`: every literal letter becomes "either case"
@@ -66,6 +69,7 @@ pub fn case_fold(ep: &ExtPat) -> ExtPat {
         ExtPat::Any(cs) => ExtPat::Any(both_cases(cs)),
         ExtPat::NoneOf(cs) => ExtPat::NoneOf(both_cases(cs)),
         ExtPat::Escape(c) => ExtPat::Escape(*c),
+        ExtPat::WordBoundary(b) => ExtPat::WordBoundary(*b),
         ExtPat::Char(c) => {
             let (lo, up) = (c.to_ascii_lowercase(), c.to_ascii_uppercase());
             if lo != up {

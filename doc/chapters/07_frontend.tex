@@ -37,7 +37,7 @@ substring-search padding scheme.
 %
 %
 
-\section{Two ASTs, One Lowering Step}
+\section{Two ASTs}
 \label{sec:frontend-two-asts}
 
 The frontend separates surface syntax from the internal regular-expression
@@ -116,11 +116,11 @@ The implementation differs from the reference parser in several respects.
 
   \item \textbf{Backreferences and lookaround are rejected.}
   Constructs such as \texttt{\textbackslash{}1}--\texttt{\textbackslash{}9}
-  and lookaround assertions result in parse errors. Backreferences and 
-  lookaround are not represented by the regular-expression algebra used by 
-  the derivative constructions. Rejecting them explicitly prevents constructs 
-  outside the supported formal model from being silently misinterpreted. This 
-  is important for corpus extraction described in Section~\ref{sec:dataset-preparation}, 
+  and lookaround assertions result in parse errors. Backreferences and
+  lookaround are not represented by the regular-expression algebra used by
+  the derivative constructions. Rejecting them explicitly prevents constructs
+  outside the supported formal model from being silently misinterpreted. This
+  is important for corpus extraction described in Section~\ref{sec:dataset-preparation},
   where unsupported constructs must be identified explicitly.
 
   \item \textbf{Named groups are accepted.}
@@ -184,7 +184,7 @@ a corresponding match arm that either maps directly to a
   & \texttt{Star(translate(r))} \\
 \texttt{Carat}, \texttt{Dollar}
   & \texttt{Eps} \\
-\texttt{Any(cs)}, \texttt{NoneOf(cs)}
+\texttt{Dot}, \texttt{Any(cs)}, \texttt{NoneOf(cs)}
   & \text{sorted, deduplicated } \texttt{Alt} \text{ of } \texttt{Lit} \\
 \texttt{Bound(r, lo, hi)}
   & \text{unrolled exact/optional repetition} \\
@@ -200,17 +200,16 @@ the supported constructs.
 
 \texttt{Any}, \texttt{NoneOf}, \texttt{Dot}, and class shorthands
 are translated via \texttt{alt\_of\_chars}, which sorts and deduplicates
-the character set into a left-folded \texttt{Alt} chain. The file 
-\texttt{alphabet.rs} provides 98 characters (printable ASCII, tab, newline, 
-carriage return). The functions \texttt{digit\_chars}, \texttt{word\_chars}, 
-and \texttt{space\_chars} define sets for \texttt{\textbackslash{}d}, 
-\texttt{\textbackslash{}w}, and \texttt{\textbackslash{}s}, with negated 
+the character set into a left-folded \texttt{Alt} chain. The file
+\texttt{alphabet.rs} provides 98 characters (printable ASCII, tab, newline,
+carriage return). The functions \texttt{digit\_chars}, \texttt{word\_chars},
+and \texttt{space\_chars} define sets for \texttt{\textbackslash{}d},
+\texttt{\textbackslash{}w}, and \texttt{\textbackslash{}s}, with negated
 forms via \texttt{complement}.
 
 The \texttt{Regex} representation contains no dedicated character-class
 constructor. Consequently, every character class is reduced to the six
-constructors of the core algebra. Section~\ref{sec:char-class-optimization}
-considers the resulting representation cost. For example, a
+constructors of the core algebra. For example, a
 \texttt{\textbackslash{}d} shorthand is represented as an alternation over
 its ten characters, which the derivative implementations subsequently
 process through the ordinary \texttt{Alt} structure.
@@ -306,13 +305,67 @@ for when determining the padding.
 This behaviour applies to the search-oriented entry points
 \texttt{parse\_dataset\_pattern} and \texttt{parse\_pcre\_rule}. The
 function \texttt{parse\_pattern}, used for full-string examples throughout
-the thesis, does not introduce padding and retains ordinary full-string 
+the thesis, does not introduce padding and retains ordinary full-string
 matching semantics.
 
-\paragraph{Edge case.}
+\paragraph{\texttt{parse\_pcre\_rule} additionally unwraps PCRE delimiters
+and case-folds on the \texttt{i} flag.}
 
-An unanchored pattern that is already nullable, such as \texttt{a*}, is
-still surrounded by wildcard runs on both sides. Since the wildcard runs
-are themselves nullable, the resulting expression can match an arbitrary
-input through the empty substring. This follows from the substring-search
-semantics: an empty substring is a substring of every input string.
+Suricata and SpamAssassin rule text is not a bare pattern: it carries its
+own \texttt{/PATTERN/FLAGS} wrapper, the same convention PCRE tools use to
+separate the pattern from modifiers such as case-insensitivity.
+\texttt{parse\_pcre\_rule} strips this wrapper with
+\texttt{strip\_pcre\_delimiters} before parsing, and, if the \texttt{i}
+flag is present, applies \texttt{case\_fold} to the resulting
+\texttt{ExtPat} before translation. \texttt{case\_fold} rewrites every
+literal character into an \texttt{Any} of both cases, so \texttt{a}
+becomes \texttt{Any(['a','A'])}; the fold happens at the \texttt{ExtPat}
+level rather than at match time because \texttt{Regex} itself has no
+case-insensitivity concept for a parser to consult. \texttt{parse\_dataset\_pattern}
+has no such flag to inspect and is always case-sensitive.
+\texttt{parse\_pattern} passes any input through unchanged if it is not
+\texttt{/}-delimited, so a bare pattern with no wrapper is accepted by
+either search entry point exactly as written.
+
+\paragraph{Search finds \emph{a} match, not necessarily the first one.}
+\label{sec:search-first-occurrence}
+Padding turns "found somewhere in this input" into an ordinary
+full-match question over a larger expression, and that substitution is
+not free: it inherits whichever iteration count a $\mathtt{Star}$
+prefers under the policy in force, and both policies this thesis
+implements prefer \emph{more} iterations of the leading $\Sigma^{*}$
+when the rest of the input can still be consumed, exactly as either
+would prefer more iterations of any other $\mathtt{Star}$.
+
+At every character, the leading $\Sigma^{*}$ faces the same fork any
+nullable first factor of a $\mathtt{Seq}$ produces: keep deriving into
+the $\mathtt{Star}$ itself (treat this character as filler), or also
+derive into what follows starting here (try to begin the core pattern
+at this position). Both survive as one $\mathtt{Alt}$; whichever
+survives to the end is read off by the disambiguation policy in force.
+The following uses a reduced three-letter alphabet $\{a,b,c\}$ in
+place of the real 98-character $\Sigma$, purely so the resulting parse
+tree stays short enough to display; the mechanism is identical either
+way. With $r = \Sigma^{*}\,ab\,\Sigma^{*}$ against \texttt{"cabc"},
+which contains \texttt{ab} once, at position~1:
+
+\begin{equation}\label{eq:search-single}
+v_1 = \big(\big((\mathit{Star}[\mathit{Right}(c)],\,a),\,b\big),\,\mathit{Star}[\mathit{Right}(c)]\big)
+\end{equation}
+
+the leading $\Sigma^{*}$ takes one iteration ($c$), the literal $ab$
+matches, and the trailing $\Sigma^{*}$ takes one iteration ($c$) —
+exactly where \texttt{ab} sits. Against \texttt{"abcab"}, which
+contains \texttt{ab} \emph{twice}, at position~0 and position~3:
+
+\begin{equation}\label{eq:search-multi}
+v_2 = \big(\big((\mathit{Star}[\mathit{Left}(\mathit{Left}(a)),\,\mathit{Left}(\mathit{Right}(b)),\,\mathit{Right}(c)],\,a),\,b\big),\,\mathit{Star}[\,]\big)
+\end{equation}
+
+the leading $\Sigma^{*}$ instead runs \emph{three} iterations
+($a$, $b$, $c$) before yielding to the literal $ab$, and the trailing
+$\Sigma^{*}$ is empty: at position~0, consuming $a$ as filler and
+finding $ab$ later is a complete, valid parse, so the policy takes it,
+and \eqref{eq:search-multi} reports the \emph{second} occurrence, not
+the first.
+

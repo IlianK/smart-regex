@@ -1,96 +1,50 @@
 \relax 
 \providecommand\zref@newlabel[2]{}
 \providecommand\hyper@newdestlabel[2]{}
-\citation{sulzmannlu2014}
 \citation{sulzmann_slides}
-\@writefile{toc}{\contentsline {chapter}{\numberline {6}Partial-Derivative-Based Parser}{48}{chapter.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {6}Partial-Derivative-Based Parser}{46}{chapter.6}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{sec:partial-derivative-parser}{{6}{48}{Partial-Derivative-Based Parser}{chapter.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.1}The Frontier Approach}{48}{section.6.1}\protected@file@percent }
-\newlabel{sec:partial-derivative-parser-theory}{{6.1}{48}{The Frontier Approach}{section.6.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces The frontier for $r_0 = (a+ab)(b+\varepsilon )$ against \texttt  {"ab"}, with \texttt  {pderiv\_bc}'s bits as the per-strand extra and the rule producing each strand on its arrow. One character advances every strand independently. At the end \emph  {both} strands are nullable, and selection takes the first in list order without comparing them, which is where the construction settles on one tree and not the other.}}{49}{figure.caption.32}\protected@file@percent }
-\newlabel{fig:frontier}{{6.1}{49}{The frontier for $r_0 = (a+ab)(b+\varepsilon )$ against \texttt {"ab"}, with \texttt {pderiv\_bc}'s bits as the per-strand extra and the rule producing each strand on its arrow. One character advances every strand independently. At the end \emph {both} strands are nullable, and selection takes the first in list order without comparing them, which is where the construction settles on one tree and not the other}{figure.caption.32}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.2}The Standard Partial-Derivative-Based Parser}{49}{section.6.2}\protected@file@percent }
-\newlabel{sec:pderiv-std-theory-rust}{{6.2}{49}{The Standard Partial-Derivative-Based Parser}{section.6.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.2}{\ignorespaces The same frontier as Figure~\ref {fig:frontier}, with each strand's extra payload an injection closure $\iota $ instead of a bit prefix; Figure~\ref {fig:strand-state} shows what one such closure chain is built from. The winning residual at the end is $\varepsilon $, exactly as in Figure~\ref {fig:frontier}, but the intermediate residuals differ: where \texttt  {pderiv\_bc} reaches \texttt  {Alt(Lit('b'), Eps)} after $\mathtt  {a}$, this construction reaches \texttt  {Seq(Eps, Alt(Lit('b'), Eps))}, retaining the $\varepsilon $ node \texttt  {smart\_seq} would collapse. This section explains why.}}{49}{figure.caption.33}\protected@file@percent }
-\newlabel{fig:pderiv-std-frontier}{{6.2}{49}{The same frontier as Figure~\ref {fig:frontier}, with each strand's extra payload an injection closure $\iota $ instead of a bit prefix; Figure~\ref {fig:strand-state} shows what one such closure chain is built from. The winning residual at the end is $\varepsilon $, exactly as in Figure~\ref {fig:frontier}, but the intermediate residuals differ: where \texttt {pderiv\_bc} reaches \texttt {Alt(Lit('b'), Eps)} after $\mathtt {a}$, this construction reaches \texttt {Seq(Eps, Alt(Lit('b'), Eps))}, retaining the $\varepsilon $ node \texttt {smart\_seq} would collapse. This section explains why}{figure.caption.33}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}What Each Strand Carries}{50}{subsection.6.2.1}\protected@file@percent }
-\newlabel{sec:pderiv-std-strand-theory}{{6.2.1}{50}{What Each Strand Carries}{subsection.6.2.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.3}{\ignorespaces What one strand holds after two derivative steps, for the winning strand of Figure~\ref {fig:frontier}. The bit-coded strand accumulates into a flat buffer; the tree-building strand accumulates a chain of heap-allocated closures, one link per step, each holding the next. Both are consumed exactly once, on the winning strand, at the end of the input.}}{50}{figure.caption.34}\protected@file@percent }
-\newlabel{fig:strand-state}{{6.3}{50}{What one strand holds after two derivative steps, for the winning strand of Figure~\ref {fig:frontier}. The bit-coded strand accumulates into a flat buffer; the tree-building strand accumulates a chain of heap-allocated closures, one link per step, each holding the next. Both are consumed exactly once, on the winning strand, at the end of the input}{figure.caption.34}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{50}{figure.caption.34}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.4}{\ignorespaces \texttt  {Inj}, its identity value, and \texttt  {nub\_tree}. \texttt  {nub\_tree} is \texttt  {nub2} (Figure~\ref {fig:nub2-rust}) with \texttt  {Vec<bool>} replaced by \texttt  {Inj}; the deduplication logic itself, keep the first strand to reach a given residual, is unchanged.}}{51}{figure.caption.35}\protected@file@percent }
-\newlabel{fig:inj-type-rust}{{6.4}{51}{\texttt {Inj}, its identity value, and \texttt {nub\_tree}. \texttt {nub\_tree} is \texttt {nub2} (Figure~\ref {fig:nub2-rust}) with \texttt {Vec<bool>} replaced by \texttt {Inj}; the deduplication logic itself, keep the first strand to reach a given residual, is unchanged}{figure.caption.35}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Building the Frontier}{51}{subsection.6.2.2}\protected@file@percent }
-\newlabel{sec:pderiv-tree-theory}{{6.2.2}{51}{Building the Frontier}{subsection.6.2.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{51}{subsection.6.2.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.5}{\ignorespaces The alternation arm of \texttt  {pderiv\_tree}, building the table's third and fourth rows.}}{52}{figure.caption.36}\protected@file@percent }
-\newlabel{fig:pderiv-tree-alt-rust}{{6.5}{52}{The alternation arm of \texttt {pderiv\_tree}, building the table's third and fourth rows}{figure.caption.36}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.6}{\ignorespaces The sequence arm of \texttt  {pderiv\_tree}, built from the same case split as Figure~\ref {fig:pderivbc-rust}'s \texttt  {Seq} arm with \texttt  {Inj} closures in place of bit prefixes.}}{53}{figure.caption.37}\protected@file@percent }
-\newlabel{fig:pderiv-tree-rust}{{6.6}{53}{The sequence arm of \texttt {pderiv\_tree}, built from the same case split as Figure~\ref {fig:pderivbc-rust}'s \texttt {Seq} arm with \texttt {Inj} closures in place of bit prefixes}{figure.caption.37}{}}
-\@writefile{toc}{\contentsline {paragraph}{Why the Smart Constructor Cannot Be Used Here.}{54}{figure.caption.37}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}Parser}{54}{subsection.6.2.3}\protected@file@percent }
-\newlabel{sec:partial-derivative-parser-rust}{{6.2.3}{54}{Parser}{subsection.6.2.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.7}{\ignorespaces \texttt  {step\_frontier} expands every strand and composes injections; \texttt  {select} scans in list order and returns \texttt  {inj(mk\_eps(r))} for the first nullable residual.}}{55}{figure.caption.38}\protected@file@percent }
-\newlabel{fig:pderiv-std-driver-rust}{{6.7}{55}{\texttt {step\_frontier} expands every strand and composes injections; \texttt {select} scans in list order and returns \texttt {inj(mk\_eps(r))} for the first nullable residual}{figure.caption.38}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}Worked Example}{56}{subsection.6.2.4}\protected@file@percent }
-\newlabel{sec:pderiv-std-worked}{{6.2.4}{56}{Worked Example}{subsection.6.2.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{56}{subsection.6.2.4}\protected@file@percent }
-\newlabel{eq:pdstd-forward}{{6.1}{56}{Forward pass}{equation.6.1}{}}
+\newlabel{sec:partial-derivative-parser}{{6}{46}{Partial-Derivative-Based Parser}{chapter.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}The Frontier Approach}{46}{section.6.1}\protected@file@percent }
+\newlabel{sec:partial-derivative-parser-theory}{{6.1}{46}{The Frontier Approach}{section.6.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces Frontier for $r_0 = (a+ab)(b+\varepsilon )$ on \texttt  {"ab"}, using \texttt  {pderiv\_bc}'s bits as per-strand payload. Both final strands are nullable; the first in list order is selected.}}{46}{figure.caption.31}\protected@file@percent }
+\newlabel{fig:frontier}{{6.1}{46}{Frontier for $r_0 = (a+ab)(b+\varepsilon )$ on \texttt {"ab"}, using \texttt {pderiv\_bc}'s bits as per-strand payload. Both final strands are nullable; the first in list order is selected}{figure.caption.31}{}}
 \citation{sulzmann_slides}
-\@writefile{toc}{\contentsline {paragraph}{Selection and result.}{57}{equation.6.1}\protected@file@percent }
-\newlabel{eq:pdstd-select}{{6.2}{57}{Selection and result}{equation.6.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.3}The Bit-Coded Approach}{57}{section.6.3}\protected@file@percent }
-\newlabel{sec:pderiv-bc-overview}{{6.3}{57}{The Bit-Coded Approach}{section.6.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Comparison with the standard construction.}{57}{section.6.3}\protected@file@percent }
-\citation{sulzmann_slides}
-\@writefile{toc}{\contentsline {section}{\numberline {6.4}The Bit-Coded Partial-Derivative-Based Parser}{58}{section.6.4}\protected@file@percent }
-\newlabel{sec:pderiv-bc-theory}{{6.4}{58}{The Bit-Coded Partial-Derivative-Based Parser}{section.6.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.1}The Bit-Coded Partial Derivative}{58}{subsection.6.4.1}\protected@file@percent }
-\newlabel{sec:pderivbc-rules-theory}{{6.4.1}{58}{The Bit-Coded Partial Derivative}{subsection.6.4.1}{}}
-\newlabel{eq:pderivbc}{{6.3}{58}{The Bit-Coded Partial Derivative}{equation.6.3}{}}
-\newlabel{eq:pderivbc-seq}{{6.4}{58}{The Bit-Coded Partial Derivative}{equation.6.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{59}{equation.6.4}\protected@file@percent }
-\newlabel{sec:pderiv-bc-theory-rust}{{6.4.1}{59}{In Rust}{equation.6.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.8}{\ignorespaces \texttt  {nub2}: stable deduplication on the residual alone. \texttt  {HashSet::insert} returns \texttt  {true} the first time a value is seen and \texttt  {false} on every repeat, so the loop keeps a pair exactly when its residual has not been seen before, in the order the input \texttt  {Vec} presents them.}}{59}{figure.caption.39}\protected@file@percent }
-\newlabel{fig:nub2-rust}{{6.8}{59}{\texttt {nub2}: stable deduplication on the residual alone. \texttt {HashSet::insert} returns \texttt {true} the first time a value is seen and \texttt {false} on every repeat, so the loop keeps a pair exactly when its residual has not been seen before, in the order the input \texttt {Vec} presents them}{figure.caption.39}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.9}{\ignorespaces The alternation and sequence arms of \texttt  {pderiv\_bc}, transcribing $\mathsf  {PB}_{+}$, $\mathsf  {PB}_{\mathrm  {seq}}$ and $\mathsf  {PB}_{\mathrm  {seq}}^{\,n}$.}}{60}{figure.caption.40}\protected@file@percent }
-\newlabel{fig:pderivbc-rust}{{6.9}{60}{The alternation and sequence arms of \texttt {pderiv\_bc}, transcribing $\mathsf {PB}_{+}$, $\mathsf {PB}_{\mathrm {seq}}$ and $\mathsf {PB}_{\mathrm {seq}}^{\,n}$}{figure.caption.40}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.2}Comparing the Two Constructions}{61}{subsection.6.4.2}\protected@file@percent }
-\newlabel{sec:pderiv-bc-comparison}{{6.4.2}{61}{Comparing the Two Constructions}{subsection.6.4.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{Where \texttt  {nub2} is and is not applied.}{61}{subsection.6.4.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.3}Parser}{61}{subsection.6.4.3}\protected@file@percent }
-\newlabel{sec:pderiv-bc-driver}{{6.4.3}{61}{Parser}{subsection.6.4.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.10}{\ignorespaces The frontier loop and its entry point. \texttt  {step\_frontier} replaces every \texttt  {(residual, bits)} pair with the union of \texttt  {pderiv\_bc} applied to it, concatenating each result's bits onto that strand's accumulated prefix. \texttt  {select\_bits} scans in list order and returns the first nullable strand's \texttt  {bits ++ mk\_eps\_bits(residual)}.}}{62}{figure.caption.41}\protected@file@percent }
-\newlabel{fig:pderivbc-driver-rust}{{6.10}{62}{The frontier loop and its entry point. \texttt {step\_frontier} replaces every \texttt {(residual, bits)} pair with the union of \texttt {pderiv\_bc} applied to it, concatenating each result's bits onto that strand's accumulated prefix. \texttt {select\_bits} scans in list order and returns the first nullable strand's \texttt {bits ++ mk\_eps\_bits(residual)}}{figure.caption.41}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.4}Worked Example}{63}{subsection.6.4.4}\protected@file@percent }
-\newlabel{sec:pderiv-bc-worked}{{6.4.4}{63}{Worked Example}{subsection.6.4.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{63}{subsection.6.4.4}\protected@file@percent }
-\newlabel{eq:pd-step1}{{6.5}{63}{Forward pass}{equation.6.5}{}}
-\newlabel{eq:pd-step2}{{6.6}{63}{Forward pass}{equation.6.6}{}}
-\@writefile{toc}{\contentsline {paragraph}{Selection and result.}{64}{equation.6.6}\protected@file@percent }
-\newlabel{eq:pdbc-decode}{{6.7}{64}{Selection and result}{equation.6.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.5}Frontier Growth}{65}{section.6.5}\protected@file@percent }
-\newlabel{sec:frontier-growth}{{6.5}{65}{Frontier Growth}{section.6.5}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.11}{\ignorespaces Frontier size against distinct residual count for $(a+(b+ab))^{*}$ on $(\mathtt  {ab})^{n}$, logarithmic vertical scale. The frontier doubles every two characters while the number of distinct residuals never exceeds two: every strand beyond the second is a duplicate carrying different accumulated state. Regenerate with \texttt  {cargo run -{}-release -{}-example thesis\_figures -{}- frontier}; \texttt  {tests/test\_thesis\_figures.rs} pins these values.}}{65}{figure.caption.42}\protected@file@percent }
-\newlabel{fig:frontier-growth}{{6.11}{65}{Frontier size against distinct residual count for $(a+(b+ab))^{*}$ on $(\mathtt {ab})^{n}$, logarithmic vertical scale. The frontier doubles every two characters while the number of distinct residuals never exceeds two: every strand beyond the second is a duplicate carrying different accumulated state. Regenerate with \texttt {cargo run -{}-release -{}-example thesis\_figures -{}- frontier}; \texttt {tests/test\_thesis\_figures.rs} pins these values}{figure.caption.42}{}}
-\@writefile{toc}{\contentsline {paragraph}{Deduplicating across the frontier.}{65}{figure.caption.42}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {6.6}The Two Policies Compared}{66}{section.6.6}\protected@file@percent }
-\newlabel{sec:pderiv-worked-example}{{6.6}{66}{The Two Policies Compared}{section.6.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.1}Where the Choice Is Actually Made}{66}{subsection.6.6.1}\protected@file@percent }
-\newlabel{sec:pderiv-choice-theory}{{6.6.1}{66}{Where the Choice Is Actually Made}{subsection.6.6.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.6.2}A Family of Witnesses}{67}{subsection.6.6.2}\protected@file@percent }
-\newlabel{sec:posix-vs-greedy-example}{{6.6.2}{67}{A Family of Witnesses}{subsection.6.6.2}{}}
-\@writefile{toc}{\contentsline {paragraph}{The running example, side by side.}{67}{subsection.6.6.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Failure behaviour is shared.}{67}{figure.caption.43}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {6.12}{\ignorespaces The two parse trees for $(a+ab)(b+\varepsilon )$ against \texttt  {"ab"}. Both flatten to \texttt  {"ab"} and both are valid. The derivative parsers take the second alternative of $a+ab$, consuming both characters at once and leaving $b+\varepsilon $ to match empty; the partial-derivative parsers take the first, leaving $b+\varepsilon $ to consume the $\mathtt  {b}$.}}{68}{figure.caption.43}\protected@file@percent }
-\newlabel{fig:posix-vs-greedy}{{6.12}{68}{The two parse trees for $(a+ab)(b+\varepsilon )$ against \texttt {"ab"}. Both flatten to \texttt {"ab"} and both are valid. The derivative parsers take the second alternative of $a+ab$, consuming both characters at once and leaving $b+\varepsilon $ to match empty; the partial-derivative parsers take the first, leaving $b+\varepsilon $ to consume the $\mathtt {b}$}{figure.caption.43}{}}
-\@writefile{toc}{\contentsline {paragraph}{All five entry points at once.}{68}{figure.caption.43}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{What the substitution cost.}{69}{figure.caption.43}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}The Standard Partial-Derivative-Based Parser}{47}{section.6.2}\protected@file@percent }
+\newlabel{sec:pderiv-std-theory-rust}{{6.2}{47}{The Standard Partial-Derivative-Based Parser}{section.6.2}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.3}The Bit-Coded Approach}{47}{section.6.3}\protected@file@percent }
+\newlabel{sec:pderiv-bc-overview}{{6.3}{47}{The Bit-Coded Approach}{section.6.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{Comparison with the standard construction.}{47}{section.6.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.4}The Bit-Coded Partial-Derivative-Based Parser}{47}{section.6.4}\protected@file@percent }
+\newlabel{sec:pderiv-bc-theory}{{6.4}{47}{The Bit-Coded Partial-Derivative-Based Parser}{section.6.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.1}The Bit-Coded Partial Derivative}{47}{subsection.6.4.1}\protected@file@percent }
+\newlabel{sec:pderivbc-rules-theory}{{6.4.1}{47}{The Bit-Coded Partial Derivative}{subsection.6.4.1}{}}
+\newlabel{eq:pderivbc}{{6.1}{48}{The Bit-Coded Partial Derivative}{equation.6.1}{}}
+\newlabel{eq:pderivbc-seq}{{6.2}{48}{The Bit-Coded Partial Derivative}{equation.6.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{48}{equation.6.2}\protected@file@percent }
+\newlabel{sec:pderiv-bc-theory-rust}{{6.4.1}{48}{In Rust}{equation.6.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.2}{\ignorespaces \texttt  {nub2}: stable deduplication on the residual alone. \texttt  {HashSet::insert} returns \texttt  {true} the first time a value is seen and \texttt  {false} on every repeat, so the loop keeps a pair exactly when its residual has not been seen before, in the order the input \texttt  {Vec} presents them.}}{49}{figure.caption.32}\protected@file@percent }
+\newlabel{fig:nub2-rust}{{6.2}{49}{\texttt {nub2}: stable deduplication on the residual alone. \texttt {HashSet::insert} returns \texttt {true} the first time a value is seen and \texttt {false} on every repeat, so the loop keeps a pair exactly when its residual has not been seen before, in the order the input \texttt {Vec} presents them}{figure.caption.32}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.3}{\ignorespaces The alternation and sequence arms of \texttt  {pderiv\_bc}, transcribing $\mathsf  {PB}_{+}$, $\mathsf  {PB}_{\mathrm  {seq}}$ and $\mathsf  {PB}_{\mathrm  {seq}}^{\,n}$.}}{50}{figure.caption.33}\protected@file@percent }
+\newlabel{fig:pderivbc-rust}{{6.3}{50}{The alternation and sequence arms of \texttt {pderiv\_bc}, transcribing $\mathsf {PB}_{+}$, $\mathsf {PB}_{\mathrm {seq}}$ and $\mathsf {PB}_{\mathrm {seq}}^{\,n}$}{figure.caption.33}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.2}Comparing the Two Constructions}{51}{subsection.6.4.2}\protected@file@percent }
+\newlabel{sec:pderiv-bc-comparison}{{6.4.2}{51}{Comparing the Two Constructions}{subsection.6.4.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{Where \texttt  {nub2} is and is not applied.}{51}{subsection.6.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.3}Parser}{51}{subsection.6.4.3}\protected@file@percent }
+\newlabel{sec:pderiv-bc-driver}{{6.4.3}{51}{Parser}{subsection.6.4.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.4}{\ignorespaces The frontier loop and its entry point. \texttt  {step\_frontier} replaces every \texttt  {(residual, bits)} pair with the union of \texttt  {pderiv\_bc} applied to it, concatenating each result's bits onto that strand's accumulated prefix. \texttt  {select\_bits} scans in list order and returns the first nullable strand's \texttt  {bits ++ mk\_eps\_bits(residual)}.}}{52}{figure.caption.34}\protected@file@percent }
+\newlabel{fig:pderivbc-driver-rust}{{6.4}{52}{The frontier loop and its entry point. \texttt {step\_frontier} replaces every \texttt {(residual, bits)} pair with the union of \texttt {pderiv\_bc} applied to it, concatenating each result's bits onto that strand's accumulated prefix. \texttt {select\_bits} scans in list order and returns the first nullable strand's \texttt {bits ++ mk\_eps\_bits(residual)}}{figure.caption.34}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.4.4}Worked Example}{53}{subsection.6.4.4}\protected@file@percent }
+\newlabel{sec:pderiv-bc-worked}{{6.4.4}{53}{Worked Example}{subsection.6.4.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{53}{subsection.6.4.4}\protected@file@percent }
+\newlabel{eq:pd-step1}{{6.3}{53}{Forward pass}{equation.6.3}{}}
+\newlabel{eq:pd-step2}{{6.4}{53}{Forward pass}{equation.6.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Selection and result.}{54}{equation.6.4}\protected@file@percent }
+\newlabel{eq:pdbc-decode}{{6.5}{54}{Selection and result}{equation.6.5}{}}
 \@setckpt{chapters/06_partial_derivative_parser}{
-\setcounter{page}{70}
-\setcounter{equation}{7}
+\setcounter{page}{55}
+\setcounter{equation}{5}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}
@@ -99,12 +53,12 @@
 \setcounter{mpfootnote}{0}
 \setcounter{part}{0}
 \setcounter{chapter}{6}
-\setcounter{section}{6}
-\setcounter{subsection}{2}
+\setcounter{section}{4}
+\setcounter{subsection}{4}
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{12}
+\setcounter{figure}{4}
 \setcounter{table}{0}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
@@ -120,6 +74,6 @@
 \setcounter{section@level}{0}
 \setcounter{Item}{6}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{52}
+\setcounter{bookmark@seq@number}{44}
 \setcounter{lstlisting}{0}
 }

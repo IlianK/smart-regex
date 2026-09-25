@@ -584,7 +584,6 @@ choice point.
 %
 %
 %
-
 \section{The Bit-Coded Derivative-Based Parser}
 \label{sec:bitcoded-construction-formal}
 
@@ -701,15 +700,7 @@ information:
 \begin{verbatim}
 pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
     match ri {
-        ARegex::Phi => ARegex::Phi,
-        ARegex::Eps(_) => ARegex::Phi,
-        ARegex::Lit(bs, c) => {
-            if c == l {
-                ARegex::Eps(bs)
-            } else {
-                ARegex::Phi
-            }
-        }
+        // Phi, Eps, Lit: unchanged from plain deriv (Figure~5.?)
         ARegex::Alt(bs, r1, r2) => {
             let d1 = deriv_bc(*r1, l);
             let d2 = deriv_bc(*r2, l);
@@ -737,7 +728,11 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
     }
 }
 \end{verbatim}
-\caption{\texttt{deriv\_bc}: annotated derivative.}
+\caption{\texttt{deriv\_bc} (excerpt): the \texttt{Alt}, \texttt{Seq}, and
+\texttt{Star} arms implementing $\mathsf{B}_{+}$,
+$\mathsf{B}_{\mathrm{seq}}/\mathsf{B}_{\mathrm{seq}}^{\,n}$, and
+$\mathsf{B}_{*}$; the \texttt{Phi}/\texttt{Eps}/\texttt{Lit} base cases,
+unchanged from plain \texttt{deriv}, are omitted.}
 \label{fig:derivbc-rust}
 \end{figure}
 
@@ -745,12 +740,7 @@ Each arm follows the same case structure as the plain \texttt{deriv}
 (Figure~\ref{fig:deriv-rust}), with annotations threaded through the
 constructors and modified only where required by ~\eqref{eq:bderiv}.
 
-The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} arms retain the behaviour
-of plain \texttt{deriv}. \texttt{Phi} and \texttt{Eps} derive to
-\texttt{Phi}, while \texttt{Lit} compares its character with
-\texttt{l}. On a match, its \texttt{bs} is transferred to the resulting
-\texttt{Eps} and on a mismatch, the annotation is discarded with the
-non-contributing branch. The \texttt{Alt} arm derives both operands and
+The \texttt{Alt} arm derives both operands and
 preserves the outer \texttt{bs}, since deriving does not change the
 choice already recorded for that alternation.
 
@@ -952,17 +942,15 @@ Compared with \texttt{mk\_eps} (Figure~\ref{fig:mkeps-rust}), the case
 structure is unchanged; only the result differs, with \texttt{ParseTree}
 construction replaced by bit-list concatenation. The \texttt{Star} case
 does not recurse because a star is always nullable, so only the closing
-\texttt{true} is appended. The \texttt{Phi} and \texttt{Lit} cases panic
-because neither is nullable; \texttt{mk\_eps\_bc} is called only after
-\texttt{nullable\_bc(\&ri)} establishes this precondition.
+\texttt{true} is appended.
 
 \begin{figure}[H]
 \small
 \begin{verbatim}
 pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
     match ri {
-        ARegex::Phi => panic!("mk_eps_bc called on Phi"),
-        ARegex::Lit(_, c) => panic!("mk_eps_bc called on Lit('{}')", c),
+        // Phi, Lit: unreachable, mk_eps_bc is called only once
+        // nullable_bc(&ri) holds, and neither is ever nullable
         ARegex::Eps(bs) => bs.clone(),
         ARegex::Alt(bs, r1, r2) => {
             let mut result = bs.clone();
@@ -987,15 +975,17 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
     }
 }
 \end{verbatim}
-\caption{\texttt{mk\_eps\_bc}: extract the bit-string a nullable
-\texttt{ARegex} has already committed to.}
+\caption{\texttt{mk\_eps\_bc} (excerpt): the \texttt{Eps}, \texttt{Alt},
+\texttt{Seq}, and \texttt{Star} arms implement
+Equation~\eqref{eq:mkepsbc}'s four cases directly; \texttt{Phi} and
+\texttt{Lit} only \texttt{panic!} on the (unreachable) precondition
+violation and are omitted.}
 \label{fig:mkepsbc-rust}
 \end{figure}
 
 %
 %
 %
-
 
 \subsection{Decoding Bits}
 \label{sec:decode}
@@ -1107,12 +1097,14 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
             }
             (ParseTree::Star(iterations), remaining)
         }
-        Regex::Phi => panic!("decode: called on Phi"),
+        // Phi: unreachable, decode never runs against a failed match
     }
 }
 \end{verbatim}
 \caption{\texttt{decode} and its recursive worker
-\texttt{decode\_inner}.}
+\texttt{decode\_inner} (excerpt): every arm implements one of
+Equation~\eqref{eq:decode}'s cases; the \texttt{Phi} precondition-panic
+arm is omitted.}
 \label{fig:decode-rust}
 \end{figure}
 
@@ -1188,100 +1180,6 @@ $\emptyset$; with one survivor it returns that expression, and otherwise it
 rebuilds an alternation.
 
 %
-
-\paragraph{In Rust.}
-Figure~\ref{fig:simp-rust} implements $\mathit{simp}$ together with the
-helpers for flattening and rebuilding alternatives. The \texttt{Seq} and
-\texttt{Star} arms implement the local rules, while the \texttt{Alt} arm
-collects nested branches, simplifies them, removes $\texttt{Phi}$ branches
-and duplicates, and rebuilds the result according to the number of
-surviving branches.
-
-
-\begin{figure}[H]
-\scriptsize
-\begin{verbatim}
-fn simp_once(ri: ARegex) -> ARegex {
-    match ri {
-        ARegex::Phi => ARegex::Phi,
-        ARegex::Eps(_) => ri,
-        ARegex::Lit(_, _) => ri,
-
-        ARegex::Seq(bs, r1, r2) => {
-            let r1s = simp_once(*r1);
-            let r2s = simp_once(*r2);
-
-            if is_phi(&r1s) || is_phi(&r2s) {
-                return ARegex::Phi;
-            }
-
-            if let ARegex::Eps(bs2) = r1s {
-                let mut combined = bs;
-                combined.extend(bs2);
-                return fuse(&combined, r2s);
-            }
-
-            ARegex::Seq(bs, Box::new(r1s), Box::new(r2s))
-        }
-
-        ARegex::Alt(bs, r1, r2) => {
-            let branches_raw = collect_alt_branches(*r1, *r2);
-            let branches_simped: Vec<ARegex> = branches_raw
-                .into_iter()
-                .map(simp_once)
-                .collect();
-
-            let mut branches: Vec<ARegex> = branches_simped
-                .into_iter()
-                .filter(|b| !is_phi(b))
-                .collect();
-
-            dedup_first(&mut branches);
-
-            match branches.len() {
-                0 => ARegex::Phi,
-                1 => fuse(&bs, branches.remove(0)),
-                _ => {
-                    let folded = fold_alt(branches);
-                    fuse(&bs, folded)
-                }
-            }
-        }
-
-        ARegex::Star(bs, r) => {
-            ARegex::Star(bs, Box::new(simp_once(*r)))
-        }
-    }
-}
-
-fn push_branches(ri: ARegex, out: &mut Vec<ARegex>) {
-    match ri {
-        ARegex::Alt(bs, r1, r2) => {
-            if bs.is_empty() {
-                push_branches(*r1, out);
-                push_branches(*r2, out);
-            } else {
-                let r1f = fuse(&bs, *r1);
-                let r2f = fuse(&bs, *r2);
-                push_branches(r1f, out);
-                push_branches(r2f, out);
-            }
-        }
-        other => out.push(other),
-    }
-}
-\end{verbatim}
-\caption{\texttt{simp\_once} and \texttt{push\_branches}, the helper
-doing $\mathit{flatten}$'s bit-fusing work.}
-\label{fig:simp-rust}
-\end{figure}
-
-The \texttt{Seq} arm checks the $\mathsf{S}_1$ condition before
-$\mathsf{S}_2$, matching the rule order. The \texttt{Alt} arm first
-collects and simplifies the branches, then filters $\texttt{Phi}$,
-deduplicates complete annotated expressions, and uses the number of
-survivors to implement $\mathit{collapse}$. The outer annotation is fused
-only after rebuilding the result.
 
 Because annotations are part of the expression, simplification does not
 merge branches solely on their underlying regex structure. Distinct bits

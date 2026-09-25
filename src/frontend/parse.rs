@@ -8,9 +8,12 @@
 //! - `\d`/`\w`/`\s`/`\D`/`\W`/`\S` are read as PCRE character-class shorthands
 //!   (`Translate.hs`reads a bare `EEscape c` as the literal character `c`)
 //! 
-//! - Backreferences (`\1`..`\9`) & Lookaround `(?=`, `(?!`, `(?<=`, `(?<!` are rejected
-//!   (not read as the reference's 3-digit octal-ASCII escape (`p_oct_ascii`) or literal digit
-//! 
+//! - Backreferences (`\1`..`\9`) and lookaround (`(?=`, `(?!`, `(?<=`, `(?<!`) are
+//!   rejected here (not read as the reference's 3-digit octal-ASCII escape
+//!   (`p_oct_ascii`) or literal digit). `\b`/`\B` parse into `ExtPat::WordBoundary`;
+//!   `translate` rejects it, since a plain `Regex` can't represent a
+//!   position-dependent assertion.
+//!
 //! - Named groups `(?<name>...)` / `(?P<name>...)` are accepted 
 //! 
 //! - `\xHH` (2-digit hex escape) is accepted
@@ -281,6 +284,12 @@ fn parse_escape(chars: &mut Chars) -> Result<ExtPat, String> {
             "backreference '\\{}' is not a regular-language construct -- unsupported",
             c
         )),
+        // Word boundary / non-boundary. `translate` rejects these, since a plain
+        // `Regex` can't represent a position-dependent assertion. Only outside a
+        // character class: `[\b]` is parsed by `parse_charclass`'s own escape
+        // handling, unaffected by this.
+        'b' => Ok(ExtPat::WordBoundary(true)),
+        'B' => Ok(ExtPat::WordBoundary(false)),
         _ => Ok(ExtPat::Escape(c)),
     }
 }
@@ -471,6 +480,12 @@ mod tests {
     #[test]
     fn negative_lookbehind_is_rejected() {
         assert!(parse_ext_pattern("(?<!a)b").is_err());
+    }
+
+    #[test]
+    fn word_boundary_parses() {
+        assert_eq!(p(r"\b"), ExtPat::WordBoundary(true));
+        assert_eq!(p(r"\B"), ExtPat::WordBoundary(false));
     }
 
     #[test]

@@ -46,6 +46,10 @@ pub fn translate(ep: &ExtPat) -> Result<Regex, String> {
         ExtPat::NoneOf(cs) => alt_of_chars(alphabet::complement(cs)),
         ExtPat::Escape(c) => translate_escape(*c),
         ExtPat::Char(c) => Ok(Regex::lit(*c)),
+        ExtPat::WordBoundary(_) => {
+            Err("word boundary '\\b'/'\\B' is position-dependent, not a regular-language \
+                 construct -- unsupported".to_string())
+        }
     }
 }
 
@@ -268,6 +272,15 @@ mod tests {
         assert!(parse_deriv_std_rec("q", &r).is_some());
         assert!(parse_deriv_std_rec("!", &r).is_some());
         assert!(parse_deriv_std_rec(" ", &r).is_some());
+    }
+
+    // \b/\B parse into ExtPat (see parse.rs's tests) but a plain Regex can't
+    // represent their position-dependence, so translate() rejects them.
+
+    #[test]
+    fn word_boundary_is_rejected() {
+        assert!(translate(&ExtPat::WordBoundary(true)).is_err());
+        assert!(translate(&ExtPat::WordBoundary(false)).is_err());
     }
 
     // Round trip: a translated ExtPat's parse tree flattens back to the original input
