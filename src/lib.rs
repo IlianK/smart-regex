@@ -15,6 +15,9 @@ pub mod matchers;
 pub mod parsers;
 pub mod diagnostics;
 
+#[cfg(feature = "external-engines")]
+pub mod external;
+
 // Surface syntax
 pub mod frontend;
 

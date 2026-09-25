@@ -140,7 +140,6 @@ the \emph{membership problem}.
 
 \section{Rust Representation}
 \label{sec:regex-rust-implementation}
-
 The grammar from ~\eqref{eq:regex-grammar} is represented 
 directly as a Rust enum with one variant for 
 each syntactic construct, as shown in Figure~\ref{fig:regex-enum}:
@@ -172,17 +171,14 @@ operations needed by parsing: \texttt{Clone} for duplication,
 \label{fig:regex-enum}
 \end{figure}
 
-The type carries no precedence or associativity information, as these
-are determined by the syntax tree. Recursive variants use \texttt{Box<Regex>}
-because a direct definition \texttt{Seq(Regex, Regex)} would have infinite
-size and \texttt{Box} stores these recursive values separately, providing finite
-size~\citep{rust-book-box,rust-reference-recursive-types}. This differs from
-Haskell's heap-allocated data types. Rust requires explicit indirection since
-the enum sizes must be known at compile time.
-
-Constructors encapsulate the boxing and are purely structural: they perform
-no simplification, and \texttt{Regex::seq(Regex::Eps, r)} yields a \texttt{Seq}
-node, not $r$. They take arguments by value, moving subexpressions into boxes.
+The type carries no precedence or associativity information, as these are
+determined by the syntax tree. Rust requires explicit indirection because
+enum sizes must be known at compile time. Recursive variants therefore use
+\texttt{Box<Regex>}. A direct definition such as
+\texttt{Seq(Regex, Regex)} would have infinite size, whereas \texttt{Box}
+stores recursive values separately, providing finite size
+~\citep{rust-book-box,rust-reference-recursive-types}. This differs from
+Haskell's heap-allocated data types.
 
 The running example $r_{01}=(0+1)^*\cdot0\cdot1$ from ~\eqref{eq:r01-def}
 is represented by the syntax tree:
@@ -198,7 +194,6 @@ is represented by the syntax tree:
 In Rust, this is represented as shown in Figure~\ref{fig:r01-rust}, with the
 outermost \texttt{Seq} containing \texttt{Lit('1')} and 
 \texttt{Seq(Star(Alt(0,1)), 0)} as its right and left children.
-
 \begin{figure}[ht]
 \small
 \begin{verbatim}
