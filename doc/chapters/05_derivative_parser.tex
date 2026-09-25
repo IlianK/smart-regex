@@ -6,11 +6,11 @@ determines whether $w \in L(r)$ and Chapter~
 valid parse trees. A parser must therefore select a single parse tree
 according to a disambiguation policy.
 
-Following Sulzmann and Lu \citep{sulzmannlu2014}, this chapter presents two
-methods for constructing POSIX parse trees from regular expression
-derivatives. The direct construction performs a forward derivative pass
-followed by backward tree reconstruction, while the bit-coded construction
-records parse-tree information during the forward pass and reconstructs the
+Following Sulzmann and Lu \citep{sulzmannlu2014}, this chapter shows two
+methods for constructing POSIX parse trees using derivatives. 
+The direct construction performs a forward derivative pass
+followed by backward tree reconstruction. Meanwhile, the bit-coded construction
+records parse-tree information during the forward pass and can reconstruct the
 tree without a separate backward pass. Both methods produce identical POSIX
 trees, and each algorithmic step is accompanied by its Rust implementation.
 
@@ -19,8 +19,8 @@ trees, and each algorithmic step is accompanied by its Rust implementation.
 %
 
 \section{The Two-Pass Approach}
-\label{sec:deriv-parser-motivation}
-Consider $r = a\cdot b$ with input $w = \mathtt{ab}$. This expression is unambigious 
+\label{sec:deriv-std-overview}
+Consider $r = a\cdot b$ with input $w = \mathtt{ab}$. This expression is unambiguous 
 and has exactly one parse tree, so the question is 
 whether it can be recovered from the derivation sequence:
 
@@ -69,12 +69,13 @@ sequence and the backward pass showing the corresponding tree reconstruction.
 \node[lbl, anchor=east, align=right] at (-0.8,1.8) {forward\\pass};
 \node[lbl, anchor=east, align=right] at (-0.8,0)   {backward\\pass};
 \end{tikzpicture}
-\caption{Direct construction with forward and backwards pass:
+\caption{Direct construction with forward and backward pass:
 Forward derivative sequence (top row), Backward parse-tree reconstruction via $\mathit{mkEps}$ and
 $\mathit{inj}$ (bottom row)}
 \label{fig:two-pass}
 \end{figure}
 
+\paragraph{The two-pass pipeline.}
 The backward pass reconstructs the parse tree by walking the derivation
 sequence in reverse. $\mathit{mkEps}$ builds a parse tree for the empty word
 from the final nullable expression. Each injection step $\mathit{inj}$ then reinserts
@@ -92,7 +93,7 @@ ambiguity is resolved using the POSIX disambiguation policy.
 %
 %
 
-\section{The Direct Construction}
+\section{The Standard Derivative-Based Parser}
 \label{sec:core-algorithm}
 
 The direct construction uses two passes. The forward pass applies
@@ -192,7 +193,7 @@ precondition that neither $\phi$ nor a literal is nullable.
 
 %
 
-\subsection{Reinserting Characters}
+\subsection{Reinserting Characters via Injection}
 \label{sec:inj-theory}
 
 The function $\mathit{inj}$ reverses a single derivation step. Given a parse
@@ -315,18 +316,16 @@ Calling \texttt{nullable(r1)} here recomputes what the forward pass already
 decided when choosing between $\mathsf{D}_{\mathrm{seq}}$ and 
 $\mathsf{D}_{\mathrm{seq}}^{\,n}$. Caching this information would require 
 storing a separate data structure alongside the expression sequence, adding 
-overhead that the bit-coded construction of 
-~\ref{sec:bitcoded-optimization-theory} avoids by eliminating the 
-backward pass entirely.
+overhead.
 
 %
 
-\subsection{The Standard Derivative-Based Parser }
+\subsection{Parser}
 \label{sec:deriv-std-parser}
 The parser composes \texttt{mkEps} and \texttt{inject} by storing all 
 expressions from the forward pass, then reconstructing the tree by walking 
 backward. Figure~\ref{fig:deriv-std-drivers-rust} implements this 
-loop-based. A recursive implementation would use the call stack to 
+in a loop. A recursive implementation would use the call stack to 
 hold the expression sequence, but stacks have fixed size while a \texttt{Vec} 
 grows dynamically on the heap, allowing the loop form to handle longer inputs 
 without overflow.
@@ -357,76 +356,171 @@ Backward pass reconstructs the parse tree via \texttt{mkEps} and \texttt{inject}
 \end{figure}
 
 Every parser presented returns \texttt{Option<ParseTree>}, which allows direct 
-comparison of outputs. The \texttt{flatten} function ~\ref{fig:flatten-rust}, 
-is kept separate from tree construction and provides an independent correctness check: a successful parse of 
-$w$ must satisfy $\mathit{flatten}(v) = w$.
+comparison of outputs. The \texttt{flatten} function ~\ref{fig:flatten-rust} 
+provides an independent correctness check. As shown in 
+Section~\ref{sec:parse-trees-as-evidence}, a parse tree is a valid witness for 
+membership only if $\mathit{flatten}(v) = w$.
 
 %
 
 \subsection{Worked Example}
-\label{sec:deriv-std-worked}
+\label{sec:worked-example}
+Consider input $\texttt{ab}$ and the regular expression $r_0=(a\mid ab)(b\mid\varepsilon)$.
 
-This section traces the direct construction on the running example 
-$r_1=(a+ab)(b+\varepsilon)$ against input $\mathtt{ab}$, as verified by 
-running the tool with \texttt{--parser deriv\_std\_rec --diag 3} 
-(Appendix~\ref{app:report-deriv-std-match}).
+%
 
-The forward pass derives twice to consume the input:
-
+\paragraph{Forward pass.}
+The two input symbols are consumed by successive derivatives:
 \begin{equation}\label{eq:dp-4}
-r_1 \xrightarrow{\ a\ } (\varepsilon+\varepsilon b)(b+\varepsilon)
-    \xrightarrow{\ b\ } \underbrace{(\phi+(\phi b+\varepsilon))(b+\varepsilon)}_{X}
+\begin{aligned}
+r_0 = (a+ab)(b+\varepsilon)
+  &\xrightarrow[\mathsf{D}_{\mathrm{seq}}]{a}
+    r_1 = (\varepsilon+\varepsilon b)(b+\varepsilon) \\
+  &\xrightarrow[\mathsf{D}_{\mathrm{seq}}^{\,n}]{b}
+    r_2 = \underbrace{(\phi+(\phi b+\varepsilon))(b+\varepsilon)}_{X}
        + \underbrace{(\varepsilon+\phi)}_{Y}.
+\end{aligned}
 \end{equation}
 
-The first step applies $\mathsf{D}_{\mathrm{seq}}$ because $a+ab$ is not 
-nullable. The second applies $\mathsf{D}_{\mathrm{seq}}^{\,n}$ because 
-$\varepsilon+\varepsilon b$ now is, introducing summand $Y$. The entire 
-expression becomes nullable due to $Y$. The \texttt{Eps} inside $\varepsilon b$, 
-printed as \texttt{Seq(Eps, Lit('b'))}, is the node that simplification rule 
-$\mathsf{S}_2$ would delete. It survives here because simplification is 
-forbidden, and the backward pass requires it.
+Both $X$ and $Y$ are nullable. So $\mathit{mkEps}$ chooses the left
+disjunct by $\mathsf{E}_{+}^{L}$, which 
+causes the first factor to match $\mathtt{ab}$ rather than
+$\mathtt{a}$, implementing POSIX's leftmost-longest rule:
+\begin{equation}\label{eq:dp-mkeps}
+\mathit{mkEps}(r_2) = \mathit{mkEps}(X+Y)
+  \xrightarrow{\mathsf{E}_{+}^{L}} \mathit{Left}\ \mathit{mkEps}(X).
+\end{equation}
 
-Both disjuncts $X$ and $Y$ of the final expression are nullable. Applying 
-$\mathit{mkEps}$ makes the POSIX choice via rule $\mathsf{E}_{+}^{L}$, 
-descending through $\mathsf{E}_{\mathrm{seq}}$ and two applications of 
-$\mathsf{E}_{+}^{R}$ to reach the tree 
-$v_2=\mathit{Left}(\mathit{Right}\,\mathit{Right}\,(), \mathit{Right}\,())$. 
-The tool confirms this as \texttt{mkEps: nullable(r1)=true -> Left(mkEps(r1))}.
+%
 
-The backward pass undoes both derivatives. Undoing the second character 
-applies rules $\mathsf{I}_{\mathrm{seq}}^{L}$, $\mathsf{I}_{+}^{R}$, and 
-$\mathsf{I}_{\mathrm{seq}}^{R}$ in sequence. Rule $\mathsf{I}_{\mathrm{seq}}^{R}$ 
-requires $\mathit{mkEps}$ to synthesize the left half of the pair, yielding 
-$v_1=(\mathit{Right}((\,),b), \mathit{Right}(\,))$. Undoing the first character 
-applies $\mathsf{I}_{\mathrm{seq}}$, $\mathsf{I}_{+}^{R}$, and 
-$\mathsf{I}_{\mathrm{lit}}$ to produce the final tree
+\paragraph{Backward pass.}
+Injection reverses both derivatives. Starting from
+$\mathit{mkEps}(r_2)$, undoing $\mathtt{b}$ applies
+$\mathsf{I}_{\mathrm{seq}}^{L}$, $\mathsf{I}_{+}^{R}$, and
+$\mathsf{I}_{\mathrm{seq}}^{R}$; undoing $\mathtt{a}$ then applies
+$\mathsf{I}_{\mathrm{seq}}$ twice:
+\begin{equation}\label{eq:dp-backward}
+\begin{aligned}
+v_2 &= \mathit{mkEps}(r_2)
+     = \mathit{Left}(\mathit{Right}\,\mathit{Right}\,(),\mathit{Right}\,()) \\
+v_1 &= \mathit{inj}_{r_1\backslash b}(v_2)
+     = (\mathit{Right}((),b),\mathit{Right}\,()) \\
+v_0 &= \mathit{inj}_{r_0\backslash a}(v_1)
+     = (\mathit{Right}(a,b),\mathit{Right}\,()).
+\end{aligned}
+\end{equation}
 
-\[
-v_0=(\mathit{Right}(a,b),\mathit{Right}(\,)),
-\]
+The diagnostic trace ~\ref{fig:deriv-std-trace} corresponds to the derivation
+above and is generated by traced variants of \texttt{deriv} ~\ref{fig:deriv-rust},
+\texttt{nullable} ~\ref{fig:nullable-rust}, $\operatorname{mkEps}$ ~\ref{fig:mkeps-rust},
+and $\operatorname{inj}$ ~\ref{fig:inject-rust}.
 
-which matches the POSIX tree from Section~\ref{sec:posix-longest-leftmost}. 
-The tool output records that three expressions were stored: \texttt{r0 -> r1 
--> r2}. Each is retained until its backward pass step completes. The next 
-section shows how the bit-coded construction eliminates this storage 
-requirement entirely.
+\begin{figure}[H]
+\fontsize{9.5}{11}\selectfont
+\begin{minipage}[t]{0.48\textwidth}
+\begin{verbatim}
+FORWARD PASS (Derivatives)
+--------------------------
+r0 = Seq(Alt(Lit('a'),
+     Seq(Lit('a'), Lit('b'))),
+     Alt(Lit('b'), Eps))
+
+Step 1: d(r0, 'a')
+  rule: d(r1*r2, 'a')
+        [nullable(r1)=false]
+       = d(r1, 'a')*r2
+r1 = Seq(Alt(Eps,
+     Seq(Eps, Lit('b'))),
+     Alt(Lit('b'), Eps))
+  nullable(r1) = true [OK]
+
+Step 2: d(r1, 'b')
+  rule: d(r1*r2, 'b')
+        [nullable(r1)=true]
+       = d(r1, 'b')*r2
+         + d(r2, 'b')
+r2 = Alt(Seq(Alt(Phi,
+     Alt(Seq(Phi, Lit('b')), Eps)),
+     Alt(Lit('b'), Eps)),
+     Alt(Eps, Phi))
+  nullable(r2) = true [OK]
+\end{verbatim}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{verbatim}
+NULLABILITY CHECK
+--------------------------
+nullable(r2) = true
+-> proceed to backward pass
+
+
+BACKWARD PASS
+(mkEps + inject)
+--------------------------
+mkEps(r2):
+  mkEps(r1 + r2):
+  nullable(r1)=true
+  -> Left(mkEps(r1))
+
+v2 = Left (Right Right (),
+           Right ())
+
+inject(r1, 'b', v2):
+  -> (Right ((), b), Right ())
+v1 = (Right ((), b), Right ())
+
+inject(r0, 'a', v1):
+  -> (Right (a, b), Right ())
+v0 = (Right (a, b), Right ())
+\end{verbatim}
+\end{minipage}
+\caption{Diagnostic trace of the two-pass construction.}
+\label{fig:deriv-std-trace}
+\end{figure}
+
+The final tree represents the $ab$ alternative and $\varepsilon$.
+The function \texttt{flatten} ~\ref{fig:flatten-rust} validates it:
+\begin{equation}\label{eq:dp-flatten}
+\mathit{flatten}(v_0)
+= a \cdot b \cdot \varepsilon
+= \mathtt{ab}.
+\end{equation}
+
+\begin{figure}[H]
+\fontsize{9.5}{11}\selectfont
+\begin{verbatim}
+RESULT
+-------------------------------
+Parse tree:           (Right (a, b), Right ())
+Flattened:            "ab"
+Expressions stored:   3 (r0 -> r1 -> r2)
+\end{verbatim}
+\caption{Final parse tree and validation via \texttt{flatten}.}
+\label{fig:deriv-std-result}
+\end{figure}
+
+This construction stores three intermediate expressions. The next section
+presents an alternative implementation that avoids storing these expressions.
 
 %
 %
 %
+%
+%
 
-\section{The Bit-Coded Construction}
-\label{sec:bitcoded-optimization-theory}
+\section{The Bit-Coded Approach}
+\label{sec:deriv-bitcoded-overview}
 
-The direct construction cannot start building the tree until the input
-is exhausted, because $\mathit{inj}$ needs each $r_{i-1}$ to reconstruct
-against. Sulzmann and Lu's bit-coded construction (their
-Section~3.2) \citep{sulzmannlu2014} removes that dependency by building
-the tree during the forward pass. Figure~\ref{fig:single-pass} shows the
-result on $a^{*}$ against \texttt{"aaa"}, the bit-coded analogue of
-Figure~\ref{fig:two-pass}: no bottom row, and the expression stays two
-nodes wide while a bit-prefix carries the tree.
+The direct construction cannot reconstruct the parse tree until the input
+has been exhausted, because $\mathit{inj}$ requires each preceding
+expression $r_{i-1}$. Sulzmann and Lu's bit-coded construction
+\citep{sulzmannlu2014} removes this dependency by recording the information
+needed for reconstruction during the forward pass. Figure~\ref{fig:single-pass}
+shows this on pattern $a^{*}$ and input \texttt{"aaa"}. Unlike
+Figure~\ref{fig:two-pass}, the derivation remains a single forward sequence,
+while a growing bit-prefix records the choices needed to reconstruct the
+parse tree.
 
 \begin{figure}[ht]
 \centering
@@ -446,11 +540,11 @@ nodes wide while a bit-prefix carries the tree.
 \node[bits] (v)   at (9.0,-1.9)  {$[a,a,a]$};
 
 \draw[->] (r)   -- node[lbl, above] {$\mathit{internalize}$} (ri0);
-\draw[->] (ri0) -- node[lbl, above] {$\backslash_b \mathtt{a}$}
+\draw[->] (ri0) -- node[lbl, above] {$\backslash_b \mathtt{a},\ \mathit{fuse}$}
                    node[lbl, below] {$\mathit{simp}$} (ri1);
-\draw[->] (ri1) -- node[lbl, above] {$\backslash_b \mathtt{a}$}
+\draw[->] (ri1) -- node[lbl, above] {$\backslash_b \mathtt{a},\ \mathit{fuse}$}
                    node[lbl, below] {$\mathit{simp}$} (ri2);
-\draw[->] (ri2) -- node[lbl, above] {$\backslash_b \mathtt{a}$}
+\draw[->] (ri2) -- node[lbl, above] {$\backslash_b \mathtt{a},\ \mathit{fuse}$}
                    node[lbl, below] {$\mathit{simp}$} (ri3);
 \draw[->] (ri3.south) to[out=-90, in=25]
   node[lbl, right, pos=0.45] {$\mathit{mkEpsBC}$} (bs.east);
@@ -458,44 +552,78 @@ nodes wide while a bit-prefix carries the tree.
 \draw[->, dashed] (r.south) to[out=-90, in=180]
   node[lbl, below, pos=0.6] {the original $r$} (bs.west);
 \end{tikzpicture}
-\caption{The bit-coded construction on $a^{*}$ against \texttt{"aaa"}.
-Every arrow points forward; no $\mathit{ri}_i$ is needed once its
-successor exists. The dashed arrow is the one backward dependency left:
-$\mathit{decode}$ needs the original $r$ to know what shape the bits
-describe.}
+\caption{The bit-coded construction on $a^{*}$ and input \texttt{"aaa"}.
+The bit-prefix records reconstruction choices, while
+$\mathit{decode}_r$ uses the original $r$ to recover the parse tree.}
 \label{fig:single-pass}
 \end{figure}
 
-\paragraph{Bits, and annotated expressions.}
-\label{sec:bitcodes}
+\paragraph{The bit-coded pipeline.}
+Figure~\ref{fig:single-pass} shows the four main operations of the bit-coded
+method. $\mathit{internalize}$ converts the input pattern $r$
+into an annotated expression, tagging each alternation branch with an initial
+bit. $\mathit{fuse}$ prepends the bit-lists to the annotations of
+existing nodes, to allow this information to be carried between subexpressions.
+At each character, the annotated expression is derived using a bit-threaded
+derivative operation, then simplified by $\mathit{simp}$.
+
+Unlike the direct construction, which forbids simplification to preserve
+nodes that backward reconstruction requires, the bit-coded method allows it
+because the bits carry the information a backward pass would need. It is
+applied after each derivative step to control expression growth.
+
+Once the input is consumed, $\mathit{mkEpsBC}$ extracts the accumulated bits
+from the final expression, using the same left-preference rule at alternations
+as $\mathit{mkEps}$ does in the direct construction. The function
+$\mathit{decode}_r$ then interprets these bits using the original pattern $r$
+to reconstruct the parse tree, reading off which branch was taken at each
+choice point.
+
+%
+%
+%
+%
+%
+
+\section{The Bit-Coded Derivative-Based Parser}
+\label{sec:bitcoded-construction-formal}
+
+Building the parse tree information during the forward pass extends the
+derivative computation with annotations that carry bit-lists through each
+derivation step. The bit-threaded derivative
+$\mathit{ri}\backslash_b l$ propagates these annotations, while
+$\mathit{mkEpsBC}$ and $\mathit{decode}_r$ use the final bit-list to
+reconstruct the \texttt{ParseTree}. 
+
+%
+%
+%
+
+\subsection{Annotated Expressions}
 \label{sec:annotated-expressions}
-A parse tree becomes a flat bit-sequence: at an alternation, $0$ marks
-$\mathit{Left}$ and $1$ marks $\mathit{Right}$; inside a star, $0$
-marks "one more iteration" and $1$ marks "stop", so $\mathtt{aaa}$
-under $a^{*}$ encodes as $[0,0,0,1]$ and $\varepsilon$ as $[1]$. The
-bits alone are not a tree, only which branch was taken, so reading them
-back needs $r$. The construction gets there by annotating the
-derivative's \emph{input}: an annotated expression $\mathit{ri}$ extends
-$r$ with a bit-list $bs$ at every node except $\emptyset$, which has no
-parse tree to annotate,
+
+An annotated expression $\mathit{ri}$ extends $r$ by associating a bit-list
+$bs$ with every node except $\emptyset$. The bit-list records the
+reconstruction choices made during the forward pass, such as which branch
+of an alternation or which iteration of a star is selected.
+
 \[
 \mathit{ri} ::= \emptyset \mid (bs@\varepsilon) \mid (bs@x) \mid
-(bs@\mathit{ri}_1 \oplus \mathit{ri}_2) \mid (bs@\mathit{ri}_1\, \mathit{ri}_2)
-\mid (bs@\mathit{ri}^{*}),
+(bs@\mathit{ri}_1 \oplus \mathit{ri}_2) \mid
+(bs@\mathit{ri}_1\,\mathit{ri}_2) \mid
+(bs@\mathit{ri}^{*}).
 \]
-so that by the time a subexpression has become $\varepsilon$, its
-accumulated annotation already is the relevant slice of the bit-string.
-$\mathit{internalize}$ converts $r$ into $\mathit{ri}$ with every
-bit-list empty except at an alternation, where the left operand is
-tagged with a leading $0$ and the right with a leading $1$;
-$\mathit{fuse}(bs,\mathit{ri})$ prepends a bit-list onto whatever
-annotation $\mathit{ri}$'s top node already carries, and every other
-operation here is built from it.
+
+%
 
 \paragraph{In Rust.}
 \label{sec:aregex-type}
-\label{sec:internalize-fuse}
-Figure~\ref{fig:aregex-enum} is a second enum alongside \texttt{Regex}.
+
+Figure~\ref{fig:aregex-enum} defines \texttt{ARegex} as the annotated
+counterpart of \texttt{Regex}. Every variant except \texttt{Phi} carries a
+leading \texttt{Vec<bool>} corresponding to the theoretical bit-list $bs$.
+The \texttt{Phi} variant has no annotation because it cannot contribute to a
+successful parse.
 
 \begin{figure}[H]
 \small
@@ -508,22 +636,257 @@ pub enum ARegex {
     Star(Vec<bool>, Box<ARegex>),
 }
 \end{verbatim}
-\caption{The annotated-expression type. \texttt{Phi} is the one variant
-with no \texttt{Vec<bool>}, matching the grammar's omission.}
+\caption{The annotated-expression type.}
 \label{fig:aregex-enum}
 \end{figure}
 
-Comparing this with Figure~\ref{fig:regex-enum} shows the one place a
-plain \texttt{Regex} will not do: threading parse-tree information
-through the expression needs somewhere on every node to put it.
-\texttt{fuse} and \texttt{internalize} (Figure~\ref{fig:internalize-rust})
-implement the two operations above; \texttt{fuse} rebuilds a node one
-arm per variant since no field is common to all of them, with an early
-return that makes the (very common) empty-prefix case a move and not a
-rebuild, and \texttt{internalize}'s \texttt{Alt} arm is the only place
-in the whole construction that introduces a bit from nothing, tagging
-each side exactly once.
+Comparing this with Figure~\ref{fig:regex-enum} shows the additional
+storage required for threading parse-tree information through the
+expression. Every variant except \texttt{Phi} therefore gains a leading
+\texttt{Vec<bool>} field. \texttt{Vec<bool>} mirrors the theoretical
+$bs$ list directly, with one \texttt{bool} per bit, for a simple
+representation aligned with ~\eqref{eq:bderiv}.
 
+%
+%
+%
+
+\subsection{Annotated Derivatives}
+\label{sec:deriv-bc-theory}
+
+$\mathit{ri}\backslash_b l$ has the same case structure of
+~\eqref{eq:derivative}, with bits threaded through instead of
+discarded:
+\begin{equation}\label{eq:bderiv}
+\begin{aligned}
+(bs@\mathit{ri}_1 \oplus \mathit{ri}_2) \backslash_b l &=
+  (bs@(\mathit{ri}_1 \backslash_b l) \oplus (\mathit{ri}_2 \backslash_b l))
+  &&(\mathsf{B}_{+}) \\
+(bs@\mathit{ri}_1\,\mathit{ri}_2) \backslash_b l &=
+  (bs@(\mathit{ri}_1 \backslash_b l)\,\mathit{ri}_2)
+  &&(\mathsf{B}_{\mathrm{seq}}),\ \varepsilon \notin L(\mathit{ri}_1) \\
+(bs@\mathit{ri}_1\,\mathit{ri}_2) \backslash_b l &=
+  (bs@(\mathit{ri}_1 \backslash_b l)\,\mathit{ri}_2)
+  \oplus
+  \mathit{fuse}(\mathit{mkEpsBC}_{\mathit{ri}_1},
+                 \mathit{ri}_2 \backslash_b l)
+  &&(\mathsf{B}_{\mathrm{seq}}^{\,n}),\ \varepsilon \in L(\mathit{ri}_1) \\
+(bs@\mathit{ri}^{*}) \backslash_b l &=
+  (bs@\mathit{fuse}([0],\mathit{ri} \backslash_b l)\,
+  ([\,]@\mathit{ri}^{*}))
+  &&(\mathsf{B}_{*}).
+\end{aligned}
+\end{equation}
+
+The $\mathsf{B}_{\mathrm{seq}}^{\,n}$ branch proceeds directly into
+$\mathit{ri}_2$, so the bits produced by the empty match of
+$\mathit{ri}_1$ are fused into the derivative of $\mathit{ri}_2$. This
+performs during the forward pass the reconstruction step that
+$\mathsf{I}_{\mathrm{seq}}^{R}$ would otherwise perform during
+$\mathit{inj}$.
+
+%
+
+\paragraph{In Rust.}
+\label{sec:deriv-bc-impl}
+
+Figure~\ref{fig:derivbc-rust} implements the rules in
+~\eqref{eq:bderiv}. The base cases follow the ordinary derivative,
+while the nullable \texttt{Seq} and \texttt{Star} cases additionally use
+\texttt{mk\_eps\_bc} and \texttt{fuse} to preserve reconstruction
+information:
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
+    match ri {
+        ARegex::Phi => ARegex::Phi,
+        ARegex::Eps(_) => ARegex::Phi,
+        ARegex::Lit(bs, c) => {
+            if c == l {
+                ARegex::Eps(bs)
+            } else {
+                ARegex::Phi
+            }
+        }
+        ARegex::Alt(bs, r1, r2) => {
+            let d1 = deriv_bc(*r1, l);
+            let d2 = deriv_bc(*r2, l);
+            ARegex::Alt(bs, Box::new(d1), Box::new(d2))
+        }
+        ARegex::Seq(bs, r1, r2) => {
+            if nullable_bc(&r1) {
+                let eps_bits = mk_eps_bc(&r1);
+                let d1 = deriv_bc(*r1, l);
+                let d2 = deriv_bc(*r2.clone(), l);
+                let left_branch = ARegex::Seq(vec![], Box::new(d1), r2);
+                let right_branch = fuse(&eps_bits, d2);
+                ARegex::Alt(bs, Box::new(left_branch), Box::new(right_branch))
+            } else {
+                let d1 = deriv_bc(*r1, l);
+                ARegex::Seq(bs, Box::new(d1), r2)
+            }
+        }
+        ARegex::Star(bs, r) => {
+            let d = deriv_bc(*r.clone(), l);
+            let fused = fuse(&[false], d);
+            let new_star = ARegex::Star(vec![], r);
+            ARegex::Seq(bs, Box::new(fused), Box::new(new_star))
+        }
+    }
+}
+\end{verbatim}
+\caption{\texttt{deriv\_bc}: annotated derivative.}
+\label{fig:derivbc-rust}
+\end{figure}
+
+Each arm follows the same case structure as the plain \texttt{deriv}
+(Figure~\ref{fig:deriv-rust}), with annotations threaded through the
+constructors and modified only where required by ~\eqref{eq:bderiv}.
+
+The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} arms retain the behaviour
+of plain \texttt{deriv}. \texttt{Phi} and \texttt{Eps} derive to
+\texttt{Phi}, while \texttt{Lit} compares its character with
+\texttt{l}. On a match, its \texttt{bs} is transferred to the resulting
+\texttt{Eps} and on a mismatch, the annotation is discarded with the
+non-contributing branch. The \texttt{Alt} arm derives both operands and
+preserves the outer \texttt{bs}, since deriving does not change the
+choice already recorded for that alternation.
+
+The \texttt{Seq} arm reflects $\mathsf{B}_{\mathrm{seq}}$ and
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$. In the non-nullable case, \texttt{r2}
+is moved directly into the rebuilt sequence. In the nullable case,
+\texttt{r2} is needed both unchanged in \texttt{left\_branch} and for its
+derivative, so \texttt{r2.clone()} provides the second copy. Similarly,
+\texttt{r1} is borrowed by \texttt{nullable\_bc} before being consumed.
+
+The \texttt{Star} arm follows the same pattern. Its body is needed both for
+the derivative and the reconstructed star, so \texttt{r.clone()} provides
+the second copy. So both clones correspond to duplicated subexpressions
+in the corresponding derivative rules.
+
+%
+%
+%
+
+\subsection{Internalizing Expressions}
+\label{sec:internalize}
+
+$\mathit{internalize}$ recursively converts a plain expression $r$ into an
+annotated expression $\mathit{ri}$. All nodes receive an empty bit-list
+except the two branches of an alternation, which are tagged with
+$0{=}\mathit{Left}$ and $1{=}\mathit{Right}$:
+\begin{equation}\label{eq:internalize}
+\begin{aligned}
+\mathit{internalize}(\emptyset) &= \emptyset \\
+\mathit{internalize}(\varepsilon) &= [\,]@\varepsilon \\
+\mathit{internalize}(x) &= [\,]@x \\
+\mathit{internalize}(r_1+r_2) &=
+  [\,]@\big(\mathit{fuse}([0],\mathit{internalize}(r_1))
+  \oplus \mathit{fuse}([1],\mathit{internalize}(r_2))\big) \\
+\mathit{internalize}(r_1\,r_2) &=
+  [\,]@\big(\mathit{internalize}(r_1)\,\mathit{internalize}(r_2)\big) \\
+\mathit{internalize}(r^{*}) &= [\,]@\mathit{internalize}(r)^{*}.
+\end{aligned}
+\end{equation}
+
+The $[0]$/$[1]$ tags on the two sides of $r_1+r_2$ follow the
+$0{=}\mathit{Left}/1{=}\mathit{Right}$ convention. Every other case
+introduces no new bit and uses only the empty list $[\,]$. The two
+calls to $\mathit{fuse}$ in ~\eqref{eq:internalize} are the only
+points in the construction where new bits are introduced.
+
+%
+
+\paragraph{In Rust.}
+\label{sec:internalize-impl}
+
+Figure~\ref{fig:internalize-rust} directly maps the constructors of
+\texttt{Regex} to their annotated counterparts, showing only the \texttt{Alt} case
+introduces non-empty annotations.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn internalize(r: &Regex) -> ARegex {
+    match r {
+        Regex::Phi => ARegex::Phi,
+        Regex::Eps => ARegex::Eps(vec![]),
+        Regex::Lit(c) => ARegex::Lit(vec![], *c),
+        Regex::Alt(r1, r2) => {
+            let ri1 = fuse(&[false], internalize(r1));
+            let ri2 = fuse(&[true], internalize(r2));
+            ARegex::Alt(vec![], Box::new(ri1), Box::new(ri2))
+        }
+        Regex::Seq(r1, r2) => ARegex::Seq(vec![],
+            Box::new(internalize(r1)), Box::new(internalize(r2))),
+        Regex::Star(r1) => ARegex::Star(vec![], Box::new(internalize(r1))),
+    }
+}
+\end{verbatim}
+\caption{\texttt{internalize}: convert a \texttt{Regex} into an
+\texttt{ARegex}.}
+\label{fig:internalize-rust}
+\end{figure}
+
+The structure directly mirrors the six constructors of \texttt{Regex}, with
+one match arm for each constructor and each recursive call wrapped in the
+corresponding \texttt{ARegex} constructor.
+
+The \texttt{Phi}, \texttt{Eps}, \texttt{Lit}, \texttt{Seq}, and
+\texttt{Star} cases use an empty bit-list, since they introduce no
+disambiguation choice at this stage. Star iteration choices are instead
+determined during derivative computation by $\mathsf{B}_{*}$.
+
+Only the \texttt{Alt} case calls \texttt{fuse} with a non-empty bit-list,
+tagging the left operand with \texttt{[false]} and the right with
+\texttt{[true]} before wrapping them in a fresh \texttt{Alt} with an empty
+outer bit-list. These are the only points where new bits are introduced;
+all later bits originate from these two tags and are propagated during
+derivation.
+
+%
+%
+%
+
+\subsection{Fusing Bit-Lists}
+\label{sec:fuse}
+
+$\mathit{fuse}$ modifies only the top node's bit-list and prepends $bs$ to
+its existing list $bs'$. It does not descend into the children, leaving the
+recursively constructed subexpressions unchanged.
+
+\begin{equation}\label{eq:fuse}
+\begin{aligned}
+\mathit{fuse}(bs, \emptyset) &= \emptyset \\
+\mathit{fuse}(bs, (bs'@\varepsilon)) &= (bs \mathbin{+\!\!+} bs')@\varepsilon \\
+\mathit{fuse}(bs, (bs'@x)) &= (bs \mathbin{+\!\!+} bs')@x \\
+\mathit{fuse}(bs, (bs'@\mathit{ri}_1 \oplus \mathit{ri}_2))
+  &= (bs \mathbin{+\!\!+} bs')@(\mathit{ri}_1 \oplus \mathit{ri}_2) \\
+\mathit{fuse}(bs, (bs'@\mathit{ri}_1\,\mathit{ri}_2))
+  &= (bs \mathbin{+\!\!+} bs')@(\mathit{ri}_1\,\mathit{ri}_2) \\
+\mathit{fuse}(bs, (bs'@\mathit{ri}^{*}))
+  &= (bs \mathbin{+\!\!+} bs')@\mathit{ri}^{*}.
+\end{aligned}
+\end{equation}
+
+The $\emptyset$ case is unchanged, while all other cases prepend $bs$,
+which allows $\mathit{fuse}$ to add branch information without inspecting the
+subexpression below the annotated node.
+
+%
+
+\paragraph{In Rust.}
+\label{sec:fuse-impl}
+
+Figure~\ref{fig:fuse-rust} implements this operation. The helper
+\texttt{combine} concatenates the bit-lists, while \texttt{fuse} preserves
+the structure below the top node. An empty \texttt{bs} returns the node
+unchanged, avoiding unnecessary rebuilding; otherwise only the top node is
+rebuilt. The \texttt{Phi} case is unchanged because it carries no annotation.
+The same operation later propagates bits from sub-derivations in
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$ and $\mathsf{B}_{*}$.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -538,89 +901,29 @@ pub fn fuse(bs: &[bool], ri: ARegex) -> ARegex {
         ARegex::Star(p, r) => ARegex::Star(combine(bs, p), r),
     }
 }
-pub fn internalize(r: &Regex) -> ARegex {
-    match r {
-        Regex::Phi => ARegex::Phi,
-        Regex::Eps => ARegex::Eps(vec![]),
-        Regex::Lit(c) => ARegex::Lit(vec![], *c),
-        Regex::Alt(r1, r2) => ARegex::Alt(vec![],
-            Box::new(fuse(&[false], internalize(r1))),
-            Box::new(fuse(&[true], internalize(r2)))),
-        Regex::Seq(r1, r2) => ARegex::Seq(vec![],
-            Box::new(internalize(r1)), Box::new(internalize(r2))),
-        Regex::Star(r1) => ARegex::Star(vec![], Box::new(internalize(r1))),
-    }
+
+fn combine(bs: &[bool], p: Vec<bool>) -> Vec<bool> {
+    let mut new = bs.to_vec();
+    new.extend(p);
+    new
 }
 \end{verbatim}
-\caption{\texttt{fuse} prepends a bit-prefix; \texttt{internalize}
-converts a \texttt{Regex}, tagging the two sides of every alternation.
-\texttt{combine} concatenates two bit-lists.}
-\label{fig:internalize-rust}
+\caption{\texttt{fuse}: prepend a bit-list to the annotation of the
+top node.}
+\label{fig:fuse-rust}
 \end{figure}
 
-\paragraph{The annotated derivative, in Rust.}
-\label{sec:bderiv-theory}
-\label{sec:deriv-bc}
-$\mathit{ri}\backslash_b l$ has the case structure of
-Equation~\eqref{eq:derivative}, bits threaded through instead of
-discarded:
-\begin{equation}\label{eq:bderiv}
-\begin{aligned}
-(bs@\mathit{ri}_1 \oplus \mathit{ri}_2) \backslash_b l &=
-  (bs@(\mathit{ri}_1 \backslash_b l) \oplus (\mathit{ri}_2 \backslash_b l))
-  &&(\mathsf{B}_{+}) \\
-(bs@\mathit{ri}_1\, \mathit{ri}_2) \backslash_b l &=
-  (bs@(\mathit{ri}_1 \backslash_b l)\, \mathit{ri}_2)
-  &&(\mathsf{B}_{\mathrm{seq}}),\ \varepsilon \notin L(\mathit{ri}_1) \\
-(bs@\mathit{ri}_1\, \mathit{ri}_2) \backslash_b l &=
-  (bs@(\mathit{ri}_1 \backslash_b l)\, \mathit{ri}_2) \oplus
-  \mathit{fuse}(\mathit{mkEpsBC}_{\mathit{ri}_1}, \mathit{ri}_2 \backslash_b l)
-  &&(\mathsf{B}_{\mathrm{seq}}^{\,n}),\ \varepsilon \in L(\mathit{ri}_1) \\
-(bs@\mathit{ri}^{*}) \backslash_b l &=
-  (bs@\mathit{fuse}([0], \mathit{ri} \backslash_b l)\; ([\,]@\mathit{ri}^{*}))
-  &&(\mathsf{B}_{*})
-\end{aligned}
-\end{equation}
-On the branch where the derivative abandons $\mathit{ri}_1$ and jumps
-into $\mathit{ri}_2$, the bits $\mathit{ri}_1$ would contribute to an
-empty match are fused onto $\mathit{ri}_2$'s derivative: this is the
-entire optimization, doing during the forward pass what
-$\mathsf{I}_{\mathrm{seq}}^{R}$ postponed into $\mathit{inj}$.
+%
+%
+%
 
-\begin{figure}[H]
-\small
-\begin{verbatim}
-ARegex::Seq(bs, r1, r2) => {
-    if nullable_bc(&r1) {
-        let eps_bits = mk_eps_bc(&r1);
-        let d1 = deriv_bc(*r1, l);
-        let right_branch = fuse(&eps_bits, deriv_bc(*r2.clone(), l));
-        ARegex::Alt(bs, Box::new(ARegex::Seq(vec![], Box::new(d1), r2)),
-                        Box::new(right_branch))
-    } else {
-        ARegex::Seq(bs, Box::new(deriv_bc(*r1, l)), r2)
-    }
-}
-ARegex::Star(bs, r) => {
-    let fused = fuse(&[false], deriv_bc(*r.clone(), l));
-    ARegex::Seq(bs, Box::new(fused), Box::new(ARegex::Star(vec![], r)))
-}
-\end{verbatim}
-\caption{The concatenation and star arms of \texttt{deriv\_bc},
-transcribing Equation~\eqref{eq:bderiv}. \texttt{r2.clone()} and
-\texttt{r.clone()} pay for the body appearing both derived and
-underived in $\mathsf{B}_{\mathrm{seq}}^{\,n}$ and $\mathsf{B}_{*}$.}
-\label{fig:derivbc-rust}
-\end{figure}
-
-\paragraph{Extracting the bits, and simplification.}
+\subsection{Extracting Bits}
 \label{sec:mkepsbc-theory}
-\label{sec:simplification-rules-theory}
-\label{sec:mk-eps-bc}
-\label{sec:decode}
+
 $\mathit{mkEpsBC}$ mirrors $\mathit{mkEps}$ but returns bits, with the
 same left-preference guard at an alternation and a closing $1$ at a
 star:
+
 \begin{equation}\label{eq:mkepsbc}
 \begin{aligned}
 \mathit{mkEpsBC}_{(bs@\varepsilon)} &= bs,
@@ -636,85 +939,369 @@ star:
   \end{cases}
 \end{aligned}
 \end{equation}
-$\mathit{decode}_r$ then turns the bit-string into an ordinary parse
-tree, using slice patterns on the conventions above: \texttt{[false,
-rest @ ..]} means \texttt{Left} at an alternation and one more
-iteration at a star, \texttt{[true, ..]} the opposite. It takes the
-\emph{original}, un-annotated $r$, since $\mathit{ri}$ no longer
-describes the shape once its own annotations are consumed, the dashed
-arrow in Figure~\ref{fig:single-pass}. \texttt{decode} is the one
-function this chapter shares with Chapter~\ref{sec:partial-derivative-parser}'s
-\texttt{pderiv\_bc}, which reaches an identical \texttt{(Regex, bits)}
-pair by an entirely different route.
 
-Section~\ref{sec:deriv-no-simp} forbade simplification in the direct
-construction; the bit-coded one is free to simplify, since the
-information a backward pass would need is already carried on the
-expression as bits, and it needs to: \citet{sulzmannlu2014} show
-$a^{*}$ doubling in size at every step without it,
-$a^{*}\to\varepsilon a^{*}\to\phi a^{*}+\varepsilon a^{*}\to\cdots$. A
-function $\mathit{simp}$, applied after every step, propagates $\phi$
-through $\mathit{Seq}$/$\mathit{Alt}$, deduplicates nested alternations
-keeping the first syntactic duplicate, and folds an eliminated
-$\varepsilon$'s bits forward with \texttt{fuse} rather than dropping
-them; an explicit \emph{isPhi} test recognizes an empty-language
-expression built up from these rules, not only the literal $\emptyset$.
-Figure~\ref{fig:simp-growth} shows where the bound this buys holds and
-where it does not.
+Where $\mathit{mkEps}$ builds a \texttt{ParseTree} node by node,
+$\mathit{mkEpsBC}$ only concatenates bit-lists. Each rule prepends the
+bits already present to those produced by the corresponding recursive call,
+without constructing a parse-tree node of its own.
 
-\begin{figure}[ht]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  width=12cm, height=5.8cm,
-  xlabel={derivative step}, ylabel={nodes in expression},
-  ymode=log, log basis y=10,
-  legend style={at={(0.5,-0.22)}, anchor=north, legend columns=2,
-                font=\footnotesize, draw=none, column sep=2.5mm},
-  legend cell align=left,
-  grid=major, xmin=0, xmax=16, ymax=6000,
-]
-\addplot[mark=*, mark size=1.2pt] coordinates {(0,8) (1,12) (2,17) (3,25)
-  (4,35) (5,51) (6,71) (7,103) (8,143) (9,207) (10,287) (11,415) (12,575)
-  (13,831) (14,1151) (15,1663) (16,2303)};
-\addlegendentry{$(a+(b+ab))^{*}$, with \emph{simp}}
-\addplot[mark=square*, mark size=1.2pt, dashed] coordinates {(0,8) (1,16)
-  (2,35) (3,69) (4,107) (5,175) (6,251) (7,387) (8,539) (9,811) (10,1115)
-  (11,1659) (12,2267)};
-\addlegendentry{$(a+(b+ab))^{*}$, unsimplified}
-\addplot[mark=triangle*, mark size=1.4pt] coordinates {(0,2) (1,2) (2,2)
-  (3,2) (4,2) (5,2) (6,2) (7,2) (8,2) (9,2) (10,2) (11,2) (12,2) (13,2)
-  (14,2) (15,2) (16,2)};
-\addlegendentry{$a^{*}$, with \emph{simp}}
-\addplot[mark=o, mark size=1.2pt, dashed] coordinates {(0,2) (1,4) (2,9)
-  (3,14) (4,19) (5,24) (6,29) (7,34) (8,39) (9,44) (10,49) (11,54)
-  (12,59) (13,64) (14,69) (15,74) (16,79)};
-\addlegendentry{$a^{*}$, unsimplified}
-\end{axis}
-\end{tikzpicture}
-\caption{Expression size per derivative step, log scale.
-\emph{simp} holds $a^{*}$ at two nodes but $(a+(b+ab))^{*}$ still grows
-$\Theta(2^{n/2})$: a straight line on this axis is exponential growth,
-because at every step the surviving alternation branches are distinct
-only in their bit annotations, so $\mathsf{S}_4$ never collapses them.
-Regenerate with \texttt{cargo run -{}-release -{}-example
-thesis\_figures -{}- growth}; \texttt{tests/test\_thesis\_figures.rs}
-pins these values.}
-\label{fig:simp-growth}
+%
+
+\paragraph{In Rust.}
+Compared with \texttt{mk\_eps} (Figure~\ref{fig:mkeps-rust}), the case
+structure is unchanged; only the result differs, with \texttt{ParseTree}
+construction replaced by bit-list concatenation. The \texttt{Star} case
+does not recurse because a star is always nullable, so only the closing
+\texttt{true} is appended. The \texttt{Phi} and \texttt{Lit} cases panic
+because neither is nullable; \texttt{mk\_eps\_bc} is called only after
+\texttt{nullable\_bc(\&ri)} establishes this precondition.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
+    match ri {
+        ARegex::Phi => panic!("mk_eps_bc called on Phi"),
+        ARegex::Lit(_, c) => panic!("mk_eps_bc called on Lit('{}')", c),
+        ARegex::Eps(bs) => bs.clone(),
+        ARegex::Alt(bs, r1, r2) => {
+            let mut result = bs.clone();
+            if nullable_bc(r1) {
+                result.extend(mk_eps_bc(r1));
+            } else {
+                result.extend(mk_eps_bc(r2));
+            }
+            result
+        }
+        ARegex::Seq(bs, r1, r2) => {
+            let mut result = bs.clone();
+            result.extend(mk_eps_bc(r1));
+            result.extend(mk_eps_bc(r2));
+            result
+        }
+        ARegex::Star(bs, _) => {
+            let mut result = bs.clone();
+            result.push(true);
+            result
+        }
+    }
+}
+\end{verbatim}
+\caption{\texttt{mk\_eps\_bc}: extract the bit-string a nullable
+\texttt{ARegex} has already committed to.}
+\label{fig:mkepsbc-rust}
 \end{figure}
 
-The bits are not redundant duplicates to be pruned on shape alone:
-each branch's annotation is a different candidate parse tree, and
-dropping duplicates that ignore bits would change which tree
-$\mathit{mkEpsBC}$'s left-preference selects, not merely shrink the
-expression. Sulzmann and Lu claim, without fully proving, that the
-construction runs in time linear in the input, on the premise that
-\emph{simp} keeps the expression small; Figure~\ref{fig:simp-growth} is
-one concrete case where that premise holds ($a^{*}$) and one where it
-fails ($(a+(b+ab))^{*}$). Chapter~\ref{sec:evaluation} measures the
-wall-clock consequence.
+%
+%
+%
 
-The driver is four lines of loop and three of finish:
+
+\subsection{Decoding Bits}
+\label{sec:decode}
+
+$\mathit{decode}_r$ reconstructs a \texttt{ParseTree} from the bit-string
+produced by $\mathit{mkEpsBC}$. It traverses the original, unannotated $r$,
+since the annotated expression has been now reduced to bits.
+The recursive worker threads the remaining bit-list through the structure
+of $r$:
+\begin{equation}\label{eq:decode}
+\begin{aligned}
+\mathit{decodeInner}_{\varepsilon}(bs)
+  &= (\mathit{Empty}, bs) \\
+\mathit{decodeInner}_{x}(bs)
+  &= (\mathit{Char}(x), bs) \\
+\mathit{decodeInner}_{r_1+r_2}(0{:}bs)
+  &= (\mathit{Left}(v), bs_1),
+  & (v,bs_1) &= \mathit{decodeInner}_{r_1}(bs) \\
+\mathit{decodeInner}_{r_1+r_2}(1{:}bs)
+  &= (\mathit{Right}(v), bs_1),
+  & (v,bs_1) &= \mathit{decodeInner}_{r_2}(bs) \\
+\mathit{decodeInner}_{r_1r_2}(bs)
+  &= (\mathit{Pair}(v_1,v_2), bs_2), \\
+  && (v_1,bs_1) &= \mathit{decodeInner}_{r_1}(bs), \\
+  && (v_2,bs_2) &= \mathit{decodeInner}_{r_2}(bs_1) \\
+\mathit{decodeInner}_{r^{*}}(1{:}bs)
+  &= (\mathit{Star}([\,]), bs) \\
+\mathit{decodeInner}_{r^{*}}(0{:}bs)
+  &= (\mathit{Star}(v{:}vs), bs_2), \\
+  && (v,bs_1) &= \mathit{decodeInner}_{r}(bs), \\
+  && (\mathit{Star}(vs),bs_2)
+     &= \mathit{decodeInner}_{r^{*}}(bs_1).
+\end{aligned}
+\end{equation}
+
+The outer function is
+$\mathit{decode}_r(bs)=v$ where
+$(v,[\,])=\mathit{decodeInner}_r(bs)$, and is undefined if bits remain.
+The $\mathit{Alt}$ case reads the $0{=}\mathit{Left}/1{=}\mathit{Right}$
+tags introduced by $\mathit{internalize}$. The $\mathit{Star}$ case consumes
+one $0$ per iteration until the trailing $1$ inserted by
+$\mathit{mkEpsBC}$ terminates the sequence.
+
+%
+
+\paragraph{In Rust.}
+
+Figure~\ref{fig:decode-rust} implements ~\eqref{eq:decode}
+directly, with \texttt{decode\_inner} matching its rules and
+\texttt{decode} providing the top-level wrapper.
+
+Where \texttt{mk\_eps\_bc} creates bits by concatenation, \texttt{decode}
+consumes the flat bit-string from left to right while recursively
+traversing the tree-shaped $r$. The function \texttt{decode\_inner} returns
+\texttt{(ParseTree, \&[bool])}, producing the tree for the current
+subexpression together with the remaining bits. Rust's slice patterns make
+the leading-bit cases direct, with \texttt{[false, rest @ ..]} and
+\texttt{[true, rest @ ..]} selecting an \texttt{Alt} branch or terminating
+a \texttt{Star}. \texttt{Seq} recurses once per factor, while \texttt{Star}
+uses a loop because its number of iterations is determined by the bits.
+
+The outer \texttt{decode} asserts that no bits remain after decoding,
+enforcing the side condition in ~\eqref{eq:decode} and preventing
+leftover bits from being silently discarded.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn decode(r: &Regex, bs: &[bool]) -> ParseTree {
+    let (v, rest) = decode_inner(r, bs);
+    assert!(rest.is_empty(),
+        "decode: {} leftover bit(s) after decoding {:?}", rest.len(), r);
+    v
+}
+
+fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
+    match r {
+        Regex::Eps => (ParseTree::Empty, bs),
+        Regex::Lit(c) => (ParseTree::Char(*c), bs),
+        Regex::Alt(r1, r2) => match bs {
+            [false, rest @ ..] => {
+                let (v, remaining) = decode_inner(r1, rest);
+                (ParseTree::Left(Box::new(v)), remaining)
+            }
+            [true, rest @ ..] => {
+                let (v, remaining) = decode_inner(r2, rest);
+                (ParseTree::Right(Box::new(v)), remaining)
+            }
+            [] => panic!("decode: unexpected end of bits at Alt"),
+        },
+        Regex::Seq(r1, r2) => {
+            let (v1, after_r1) = decode_inner(r1, bs);
+            let (v2, after_r2) = decode_inner(r2, after_r1);
+            (ParseTree::Pair(Box::new(v1), Box::new(v2)), after_r2)
+        }
+        Regex::Star(r1) => {
+            let mut iterations = Vec::new();
+            let mut remaining = bs;
+            loop {
+                match remaining {
+                    [true, rest @ ..] => { remaining = rest; break; }
+                    [false, rest @ ..] => {
+                        let (v, after) = decode_inner(r1, rest);
+                        iterations.push(v);
+                        remaining = after;
+                    }
+                    [] => panic!("decode: unexpected end of bits inside Star"),
+                }
+            }
+            (ParseTree::Star(iterations), remaining)
+        }
+        Regex::Phi => panic!("decode: called on Phi"),
+    }
+}
+\end{verbatim}
+\caption{\texttt{decode} and its recursive worker
+\texttt{decode\_inner}.}
+\label{fig:decode-rust}
+\end{figure}
+
+%
+%
+%
+
+\subsection{Simplification}
+\label{sec:simplification-rules-theory}
+
+Unlike the direct construction the
+bit-coded method must simplify: Sulzmann and Lu show that $a^{*}$ doubles
+in size at every derivative step without simplification. Simplification is
+safe here because the information required for reconstruction is encoded in
+the bits rather than in the unsimplified expression. The function
+$\mathit{simp}$ is applied after every derivative step.
+
+\paragraph{Sequence and star.}
+The local simplification rules handle sequences and stars. A sequence
+propagates $\emptyset$, eliminates a leading $\varepsilon$ while preserving
+its bits with $\mathit{fuse}$, and otherwise retains its structure. A star
+simplifies only its body:
+
+
+{\small
+\begin{equation}\label{eq:simp}
+\begin{aligned}
+\mathit{simp}(\emptyset) &= \emptyset \\
+\mathit{simp}((bs@\varepsilon)) &= (bs@\varepsilon) \\
+\mathit{simp}((bs@x)) &= (bs@x) \\[2pt]
+\mathit{simp}((bs@\mathit{ri}_1\,\mathit{ri}_2)) &=
+  \begin{cases}
+    \emptyset
+      & \mathit{isPhi}(\mathit{simp}(\mathit{ri}_1)) \lor \mathit{isPhi}(\mathit{simp}(\mathit{ri}_2)) \\
+    \mathit{fuse}(bs\mathbin{+\!\!+} bs_1,\mathit{simp}(\mathit{ri}_2))
+      & \mathit{simp}(\mathit{ri}_1) = (bs_1@\varepsilon) \\
+    (bs@\mathit{simp}(\mathit{ri}_1)\,\mathit{simp}(\mathit{ri}_2)) & \text{otherwise}
+  \end{cases}\\[4pt]
+\mathit{simp}((bs@\mathit{ri}_1\oplus\mathit{ri}_2)) &=
+  \mathit{fuse}(bs,\ \mathit{prune}(\mathit{flatten}(\mathit{ri}_1,\mathit{ri}_2)))\\[2pt]
+\mathit{simp}((bs@\mathit{ri}^{*})) &= (bs@\mathit{simp}(\mathit{ri})^{*})
+\end{aligned}
+\end{equation}
+}
+
+The first case propagates the empty language through a sequence, while the
+second removes a leading $\varepsilon$ and transfers its bits to the
+remaining expression. The $\mathit{isPhi}$ test also recognizes expressions
+equivalent to $\emptyset$ beyond the literal $\emptyset$.
+
+\paragraph{Alternation.}
+Alternation requires additional restructuring. $\mathit{flatten}$ collects
+nested alternatives that carry no bit-tag of their own into a single branch
+list. When descending through a tagged alternative, it first fuses its bits
+into both branches so that no recorded choice is lost. $\mathit{prune}$
+then simplifies each branch, removes branches equivalent to $\emptyset$,
+and removes duplicate annotated expressions while retaining the first
+occurrence. Finally, $\mathit{collapse}$ rebuilds the remaining branches
+and applies the outer $bs$ once:
+
+\begin{equation}\label{eq:simp-alt}
+\mathit{simp}(bs@(r_1\oplus r_2))
+  =
+  \mathit{fuse}\bigl(bs,\,
+    \mathit{prune}(\mathit{flatten}(r_1,r_2))\bigr).
+\end{equation}
+
+The pruning step compares complete annotated expressions, including their
+bit-lists. Thus, branches with identical underlying expressions but
+different annotations remain distinct because they represent different
+reconstruction choices. If no branch survives, $\mathit{collapse}$ produces
+$\emptyset$; with one survivor it returns that expression, and otherwise it
+rebuilds an alternation.
+
+%
+
+\paragraph{In Rust.}
+Figure~\ref{fig:simp-rust} implements $\mathit{simp}$ together with the
+helpers for flattening and rebuilding alternatives. The \texttt{Seq} and
+\texttt{Star} arms implement the local rules, while the \texttt{Alt} arm
+collects nested branches, simplifies them, removes $\texttt{Phi}$ branches
+and duplicates, and rebuilds the result according to the number of
+surviving branches.
+
+
+\begin{figure}[H]
+\scriptsize
+\begin{verbatim}
+fn simp_once(ri: ARegex) -> ARegex {
+    match ri {
+        ARegex::Phi => ARegex::Phi,
+        ARegex::Eps(_) => ri,
+        ARegex::Lit(_, _) => ri,
+
+        ARegex::Seq(bs, r1, r2) => {
+            let r1s = simp_once(*r1);
+            let r2s = simp_once(*r2);
+
+            if is_phi(&r1s) || is_phi(&r2s) {
+                return ARegex::Phi;
+            }
+
+            if let ARegex::Eps(bs2) = r1s {
+                let mut combined = bs;
+                combined.extend(bs2);
+                return fuse(&combined, r2s);
+            }
+
+            ARegex::Seq(bs, Box::new(r1s), Box::new(r2s))
+        }
+
+        ARegex::Alt(bs, r1, r2) => {
+            let branches_raw = collect_alt_branches(*r1, *r2);
+            let branches_simped: Vec<ARegex> = branches_raw
+                .into_iter()
+                .map(simp_once)
+                .collect();
+
+            let mut branches: Vec<ARegex> = branches_simped
+                .into_iter()
+                .filter(|b| !is_phi(b))
+                .collect();
+
+            dedup_first(&mut branches);
+
+            match branches.len() {
+                0 => ARegex::Phi,
+                1 => fuse(&bs, branches.remove(0)),
+                _ => {
+                    let folded = fold_alt(branches);
+                    fuse(&bs, folded)
+                }
+            }
+        }
+
+        ARegex::Star(bs, r) => {
+            ARegex::Star(bs, Box::new(simp_once(*r)))
+        }
+    }
+}
+
+fn push_branches(ri: ARegex, out: &mut Vec<ARegex>) {
+    match ri {
+        ARegex::Alt(bs, r1, r2) => {
+            if bs.is_empty() {
+                push_branches(*r1, out);
+                push_branches(*r2, out);
+            } else {
+                let r1f = fuse(&bs, *r1);
+                let r2f = fuse(&bs, *r2);
+                push_branches(r1f, out);
+                push_branches(r2f, out);
+            }
+        }
+        other => out.push(other),
+    }
+}
+\end{verbatim}
+\caption{\texttt{simp\_once} and \texttt{push\_branches}, the helper
+doing $\mathit{flatten}$'s bit-fusing work.}
+\label{fig:simp-rust}
+\end{figure}
+
+The \texttt{Seq} arm checks the $\mathsf{S}_1$ condition before
+$\mathsf{S}_2$, matching the rule order. The \texttt{Alt} arm first
+collects and simplifies the branches, then filters $\texttt{Phi}$,
+deduplicates complete annotated expressions, and uses the number of
+survivors to implement $\mathit{collapse}$. The outer annotation is fused
+only after rebuilding the result.
+
+Because annotations are part of the expression, simplification does not
+merge branches solely on their underlying regex structure. Distinct bits
+can therefore keep branches separate even when their shapes coincide.
+This preserves the parse-tree choices encoded by the derivative, but also
+means that simplification does not guarantee bounded expression growth in
+every case.
+
+%
+
+\subsection{Parser}
+\label{sec:deriv-bc-driver}
+
+Figure~\ref{fig:deriv-bc-loop-rust} implements the bit-coded driver.
+It internalizes $r$, applies \texttt{deriv\_bc} and \texttt{simp} to each
+input character, checks nullability and, if successful, calls
+\texttt{mk\_eps\_bc} and \texttt{decode}.
+
+\begin{figure}[H]
+\small
 \begin{verbatim}
 pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
     let mut ri = internalize(r);
@@ -723,87 +1310,197 @@ pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
     Some(decode(r, &mk_eps_bc(&ri)))
 }
 \end{verbatim}
-Compare with Figure~\ref{fig:deriv-std-drivers-rust}: no
-\texttt{Vec<Regex>} and no backward loop, \texttt{ri} reassigned in
-place so only one annotated expression is ever live, and \texttt{r}
-itself still borrowed at the last line, the dashed dependency of
-Figure~\ref{fig:single-pass} made visible in the signature.
-\label{sec:deriv-bc-driver}
+\caption{\texttt{parse\_bitcoded\_loop}: the bit-coded parser implementation.}
+\label{fig:deriv-bc-loop-rust}
+\end{figure}
 
-\paragraph{Worked example.}
+Unlike the direct implementation, which has a growing
+\texttt{Vec<Regex>} for backward reconstruction, the bit-coded implementation
+needs only the current \texttt{ri}. The recursive entry point has the same
+three-step computation but differs only in how intermediate expressions
+are stored.
+
+%
+
+\subsection{Worked Example}
 \label{sec:deriv-bc-worked}
 \label{sec:deriv-worked-example}
-The same $r_1$ against $\mathtt{ab}$, checked against
-\texttt{--parser deriv\_bc --diag 3}
-(Appendix~\ref{app:report-deriv-bc-match}). \texttt{internalize} tags
-the two alternatives of $a+ab$ with
-$[\mathrm{false}]$/$[\mathrm{true}]$ and likewise for $b+\varepsilon$;
-those four tags are the only bits this run will ever produce, since
-\texttt{internalize} is the only source of new bits. The first
-character takes $\mathsf{B}_{\mathrm{seq}}$ and moves no bit, only
-turning \texttt{'a'} to \texttt{epsilon}. The second takes
-$\mathsf{B}_{\mathrm{seq}}^{\,n}$: two bits move, and both are traceable.
-A \texttt{[false, false]} prefix appears on the right disjunct, which is
-\texttt{fuse(mkEpsBC ri1)}, $a+ab$'s own left-alternative bit followed by
-$(b+\varepsilon)$'s; and a \texttt{[true]} tags the left disjunct,
-recording that the derivative continued into it, the same tagging
-$\mathit{inj}$ discovered on the way back in
-Section~\ref{sec:deriv-std-worked} but here committed immediately.
-Both disjuncts are now nullable, and $\mathit{mkEpsBC}$ faces the same
-choice $\mathit{mkEps}$ faced above: $\mathsf{EB}_{+}^{L}$ then
-$\mathsf{EB}_{+}^{R}$ give $[1,1]$, and the report confirms
-\texttt{decode((a|ab)(b|), [11]): = (Right (a, b), Right ())}, the same
-$v_1$ Section~\ref{sec:deriv-std-worked} reached through an explicit
-backward pass, read here off the forward pass alone.
 
-$r_1$ has no star; running $a^{*}$ against \texttt{"aaa"} exercises
-$\mathsf{B}_{*}$ instead, and is exactly Figure~\ref{fig:single-pass}:
-the expression stays $([\,]@\mathtt{a})^{*}$ at every step while the
-prefix grows by one \texttt{false} per character, and
-\texttt{mkEpsBC(ri3) = [0001]} decodes to \texttt{[a, a, a]}, three
-iterations and a stop.
+Consider the same input $\texttt{ab}$ and regular expression
+$r_0=(a\mid ab)(b\mid\varepsilon)$.
 
-\paragraph{Comparison, and where this leaves the next chapter.}
-\begin{center}
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.7cm}%
-                  >{\raggedright\arraybackslash}p{4.1cm}@{}}
-\hline
-& \texttt{deriv\_std} & \texttt{deriv\_bc} \\
-\hline
-Named intermediates & \texttt{r0 -> r1 -> r2} & \texttt{ri0 -> ri1 -> ri2} \\
-Retained at the end & all three & the last one only \\
-Tree-building calls & 1 \texttt{mkEps} + 2 \texttt{inject} & 1 \texttt{mkEpsBC} + 1 \texttt{decode} \\
-Simplification & none, by necessity & \texttt{simp} after every step \\
-\hline
-\end{tabular}
-\end{center}
-\texttt{deriv\_std} needs one \texttt{inject} per character;
-\texttt{deriv\_bc} needs exactly one \texttt{mkEpsBC} and one
-\texttt{decode}, however long the input is: the whole content of the
-optimization. Against $\mathtt{b}$, neither parser reaches a
-tree-building phase; \texttt{deriv\_std} holds a \texttt{Seq} whose
-left operand has both alternatives dead, while \texttt{deriv\_bc}'s
-\texttt{simp} collapses the same expression to \texttt{phi} outright,
-the clearest illustration of what \emph{isPhi} adds over plain
-\texttt{simplify}. Both then report the identical failure, character
-for character (Appendices~\ref{app:report-deriv-std-nomatch},
-\ref{app:report-deriv-bc-nomatch}), since the diagnostics layer reads
-its expected set off the expression at the point of failure regardless
-of which construction produced it. Running both parsers, plus
-\texttt{deriv\_std}'s loop driver, over 300 generated expressions
-against 39 inputs each, 11\,700 cases total
-(Section~\ref{sec:cross-implementation-equivalence}), all three agree
-on every one, on membership and on the exact tree, despite the
-bit-coded and inject routes sharing no code beyond \texttt{Regex} and
-\texttt{nullable}.
+%
 
-Both constructions compute the POSIX tree by the same move: consume the
-input with $r\backslash x$, then resolve the one remaining choice, an
-alternation whose two sides both match the empty word, by preferring
-the left. $\mathit{mkEps}$ makes that choice on the way back;
-$\mathit{mkEpsBC}$ makes it at the end of the way out.
-Chapter~\ref{sec:partial-derivative-parser} keeps this shape and
-replaces $r\backslash x$ with Antimirov's $pd(r,x)$, which returns a
-\emph{set}. With a set there is no single expression to be nullable and
-no single alternation to prefer the left of, which changes not only the
-machinery but the answer.
+\paragraph{Internalize.}
+Before consuming any input, \texttt{internalize} tags each alternative with
+$[0]$ for the left branch and $[1]$ for the right branch. These initial tags
+record the disambiguation choices that can later be propagated by
+$\mathit{fuse}$:
+
+\begin{equation}\label{eq:dpbc-internalize}
+\mathit{internalize}(r_0) = \mathit{ri}_0 =
+[\,]@\big(
+  [\,]@([0]@a \oplus [1]@(a\,b))
+  \cdot
+  [\,]@([0]@b \oplus [1]@\varepsilon)
+\big).
+\end{equation}
+
+%
+
+\paragraph{Forward pass.}
+The two input symbols are consumed by successive bit-threaded derivatives,
+with $\mathit{simp}$ applied after each step. The first derivative uses
+$\mathsf{B}_{\mathrm{seq}}$. After consuming $\mathtt{a}$, the first factor
+becomes nullable. The second derivative therefore uses
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$, which propagates the bits of the empty
+match of the first factor into the derivative of the second factor:
+
+\begin{equation}\label{eq:dpbc-forward}
+\begin{aligned}
+\mathit{ri}_0
+  &\xrightarrow[\mathsf{B}_{\mathrm{seq}}]{\ a\ }
+  \mathit{ri}_1 =
+  [\,]@\big(
+    [\,]@([0]@\varepsilon \oplus [1]@b)
+    \cdot
+    [\,]@([0]@b \oplus [1]@\varepsilon)
+  \big) \\
+\mathit{ri}_1
+  &\xrightarrow[\mathsf{B}_{\mathrm{seq}}^{\,n}]{\ b\ }
+  \mathit{ri}_2 =
+  [\,]@\big(
+    [1]@([0]@b \oplus [1]@\varepsilon)
+    \oplus
+    [0,0]@\varepsilon
+  \big).
+\end{aligned}
+\end{equation}
+
+The $[1]$ on the first surviving branch records the right alternative
+$ab$ of the first factor. The $[0,0]$ on the second branch results from
+fusing the bits of the empty match of the first factor into the derivative
+of $b+\varepsilon$. Thus, the information that would be recovered later by
+$\mathit{inj}$ in the direct construction has already been propagated
+during the forward pass.
+
+\begin{figure}[H]
+\fontsize{9.5}{11}\selectfont
+\begin{minipage}[t]{0.48\textwidth}
+\begin{verbatim}
+INTERNALIZE
+--------------------------
+ri0 =
+[]@(
+  []@([0]@'a' (+) [1]@('a'.'b'))
+  .
+  []@([0]@'b' (+) [1]@epsilon)
+)
+
+FORWARD PASS
+--------------------------
+Step 1: deriv_bc(ri0, 'a')
+  rule: B_seq
+        [nullable_bc(r1)=false]
+  simp -> []@([]@([0]@epsilon (+) [1]@'b')
+      . []@([0]@'b' (+) [1]@epsilon))
+  nullable_bc(ri1) = true [OK]
+
+Step 2: deriv_bc(ri1, 'b')
+  rule: B_seq^n
+        [nullable_bc(r1)=true]
+  simp -> []@([1]@([0]@'b' (+) [1]@epsilon)
+      (+) [0,0]@epsilon)
+  nullable_bc(ri2) = true [OK]
+\end{verbatim}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\begin{verbatim}
+NULLABILITY CHECK
+--------------------------
+nullable_bc(ri2) = true
+-> proceed to mkEpsBC + decode
+
+
+MKEPSBC
+--------------------------
+mkEpsBC(ri2):
+  left disjunct is nullable
+  -> select Left
+  inner alternative:
+    b is not nullable
+    epsilon is nullable
+    -> select Right
+
+bits = [1,1]
+\end{verbatim}
+\end{minipage}
+\caption{Diagnostic trace of the bit-coded construction.}
+\label{fig:deriv-bc-trace}
+\end{figure}
+
+\paragraph{Extracting the bits.}
+Both disjuncts of $\mathit{ri}_2$ are nullable, so
+$\mathit{mkEpsBC}$ applies $\mathsf{EB}_{+}^{L}$ and selects the left
+disjunct. Its outer annotation is empty, so no bit is emitted at that
+level. Inside the surviving alternative, $b$ is not nullable while
+$\varepsilon$ is, so $\mathsf{EB}_{+}^{R}$ selects the right branch and
+contributes its $[1]$ tag:
+
+\begin{equation}\label{eq:dpbc-mkepsbc}
+\mathit{mkEpsBC}(\mathit{ri}_2)
+  \xrightarrow{\mathsf{EB}_{+}^{L}}
+  \mathit{mkEpsBC}\big(
+    [1]@([0]@b \oplus [1]@\varepsilon)
+  \big)
+  \xrightarrow{\mathsf{EB}_{+}^{R}}
+  [1]\mathbin{+\!\!+}[1]
+  = [1,1].
+\end{equation}
+
+Unlike $\mathit{mkEps}$, which constructs a partial parse tree,
+$\mathit{mkEpsBC}$ only extracts the committed choices as a flat
+bit-string. The tree structure is reconstructed by $\mathit{decode}$.
+
+\paragraph{Result.}
+The decoder reads $[1,1]$ against the original, unannotated $r_0$. The
+first bit selects the right branch of $a+ab$, producing the $ab$ factor,
+while the second selects the right branch of $b+\varepsilon$:
+
+\begin{equation}\label{eq:dpbc-decode}
+\mathit{decode}_{r_0}([1,1])
+  = \big(
+      \mathit{Right}(a,b),
+      \mathit{Right}(\,)
+    \big)
+  = v_0.
+\end{equation}
+
+Thus, the bit-coded construction produces the same POSIX parse tree as the
+direct construction, but without retaining the intermediate expressions
+$r_0$, $r_1$, and $r_2$:
+
+\begin{figure}[H]
+\fontsize{9.5}{11}\selectfont
+\begin{verbatim}
+DECODE
+-------------------------------
+Bits:                 [1,1]
+Parse tree:           (Right (a, b), Right ())
+
+RESULT
+-------------------------------
+Flattened:            "ab"
+Current expression:   ri2
+\end{verbatim}
+\caption{Final parse tree and validation of the bit-coded construction.}
+\label{fig:deriv-bc-result}
+\end{figure}
+
+The resulting tree is validated by \texttt{flatten}:
+\begin{equation}\label{eq:dpbc-flatten}
+\mathit{flatten}(v_0)
+  = a \cdot b \cdot \varepsilon
+  = \mathtt{ab}.
+\end{equation}

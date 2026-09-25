@@ -630,7 +630,6 @@ $w=\mathtt{101}$ one symbol at a time.
 The final expression is nullable by $\mathsf{N}_{+}$ and
 $\mathsf{N}_{\varepsilon}$, so $\mathtt{101}\in L(r_{01})$. The
 $\varepsilon$ summand witnesses that the match is complete.
-
 For comparison, $w=\mathtt{10}$ leaves
 $\big((0+1)^{*}\cdot0+\varepsilon\big)\cdot1$. Neither branch is
 nullable: $(0+1)^{*}\cdot0$ still requires a $0$, while
@@ -713,7 +712,7 @@ requires only the final residual.
 The derivative-based matcher avoids the exponential backtracking of naive
 matching by transforming the expression rather than searching for
 decompositions. Simplification keeps the resulting expressions compact,
-preventing the unbounded growth illustrated in ~\eqref{eq:der-growth}.
+preventing the growth shown in ~\eqref{eq:der-growth}.
 
 %
 %
@@ -874,7 +873,13 @@ redundant $\varepsilon \cdot s$ expressions.
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:smart-seq-rust} is $\mathit{smartC}$.
+Figure~\ref{fig:smart-seq-rust} is $\mathit{smartC}$. 
+\texttt{smart\_seq} takes \texttt{r} by value and \texttt{s} by
+reference, matching ~\eqref{eq:smartc}. The residual $r'$ comes
+from the recursive derivative and is consumed, while $s$ must survive
+into the result. The $r'=\varepsilon$ branch clones only \texttt{s} and
+drops $\varepsilon$, so $\varepsilon\cdot s$ is never built.
+
 
 \begin{figure}[H]
 \begin{verbatim}
@@ -888,12 +893,6 @@ pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
 \caption{\texttt{smart\_seq}, the smart constructor $\mathit{smartC}$}
 \label{fig:smart-seq-rust}
 \end{figure}
-
-\texttt{smart\_seq} takes \texttt{r} by value and \texttt{s} by
-reference, matching ~\eqref{eq:smartc}. The residual $r'$ comes
-from the recursive derivative and is consumed, while $s$ must survive
-into the result. The $r'=\varepsilon$ branch clones only \texttt{s} and
-drops $\varepsilon$, so $\varepsilon\cdot s$ is never built.
 
 %
 

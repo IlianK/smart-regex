@@ -1,73 +1,60 @@
 -------------------------------====
 REGEX ENGINE DEBUG REPORT
 -------------------------------====
-Timestamp:            2026-09-04 23:33:22
-Mode:                 POSIX Bitcoded
-Regex:                a*
-Input:                "aab"
-Result:               NO MATCH
+Timestamp:            2026-09-24 20:26:00
+Mode:                 POSIX Standard (loop parser)
+Regex:                (a|ab)(b|ε)
+Input:                "ab"
+Result:               MATCH
 Policy:               POSIX
 -------------------------------====
 TIMING
 -------------------------------====
-Parse time:           0.011ms
-Derivative steps:     3
+Parse time:           0.021ms
+Expressions stored:   3 (r0 → r1 → r2)
 -------------------------------====
-INTERNALIZE
+FORWARD PASS (Derivatives)
 -------------------------------====
-internalize(a*)
-  rule: internalize(r*) = []@(internalize r)*
-  inner: internalize(Lit('a')) → []@...
-ri0 = []@([]@'a')*
--------------------------------====
-FORWARD PASS (deriv_bc + simp)
--------------------------------====
-Step 1 (char: 'a', position 1)
-  ri0 = []@([]@'a')*
-  deriv_bc(ri0, 'a'):
-    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
-  simp → [false]@([]@'a')*
-  ri1 = [false]@([]@'a')*
-  nullable_bc(ri1) = true  ✓  bits accumulating
+r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
 
-Step 2 (char: 'a', position 2)
-  ri1 = [false]@([]@'a')*
-  deriv_bc(ri1, 'a'):
-    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
-  simp → [false, false]@([]@'a')*
-  ri2 = [false, false]@([]@'a')*
-  nullable_bc(ri2) = true  ✓  bits accumulating
+Step 1: ∂(r0, 'a')
+  rule: ∂(r1·r2, 'a')  [nullable(r1)=false]
+       = ∂(r1, 'a')·r2
+r1 = Seq(Alt(Eps, Seq(Eps, Lit('b'))), Alt(Lit('b'), Eps))
+  nullable(r1) = true  ✓ position 1 matched
 
-Step 3 (char: 'b', position 3)
-  ri2 = [false, false]@([]@'a')*
-  deriv_bc(ri2, 'b'):
-    rule: (bs@ri*) \ 'b' = bs@(fuse [0] (ri\'b') · ([]@ri*))
-  simp → φ
-  ri3 = φ
-  nullable_bc(ri3) = false  ✗
+Step 2: ∂(r1, 'b')
+  rule: ∂(r1·r2, 'b')  [nullable(r1)=true]
+       = ∂(r1, 'b')·r2  +  ∂(r2, 'b')
+r2 = Alt(Seq(Alt(Phi, Alt(Seq(Phi, Lit('b')), Eps)), Alt(Lit('b'), Eps)), Alt(Eps, Phi))
+  nullable(r2) = true  ✓ position 2 matched
 
 -------------------------------====
 NULLABILITY CHECK
 -------------------------------====
-nullable_bc(ri3) = false → no full parse tree exists
+nullable(r2) = true → proceed to backward pass
 -------------------------------====
-PARTIAL RECOVERY
+BACKWARD PASS (mkEps + inject)
 -------------------------------====
-Last nullable expression: ri2 = [false, false]@([]@'a')*  (after position 2)
-Accumulated bits: [001]
+mkEps(r2):
+  mkEps(r1 + r2): nullable(r1)=true → Left(mkEps(r1))
+v2 = Left (Right Right (), Right ())
 
-mkEpsBC(ri2) would give: [001]
-Decoding not possible: final expression is not nullable.
+inject(r1, 'b', v2):
+  inject(Seq(Alt(Eps, Seq(Eps, Lit('b'))), Alt(Lit('b'), Eps)), 'b', Left (Right Right (), Right ()))
+  → (Right ((), b), Right ())
+v1 = (Right ((), b), Right ())
 
-Partial match:        "aa"  (positions 1–2)
+inject(r0, 'a', v1):
+  inject(Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps)), 'a', (Right ((), b), Right ()))
+  → (Right (a, b), Right ())
+v0 = (Right (a, b), Right ())
+
 -------------------------------====
-ERROR SUMMARY
+RESULT
 -------------------------------====
-Failure at position:  3 (1-indexed)
-Found:                'b'
-Expected:             'a' or end of input
-  aab
-    ^
+Parse tree:           (Right (a, b), Right ())
+Flattened:            "ab"
 -------------------------------====
 END OF REPORT
 -------------------------------====

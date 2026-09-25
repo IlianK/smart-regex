@@ -2,162 +2,162 @@
 \label{sec:evaluation}
 
 Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}
-developed four parser combinations -- \texttt{deriv\_std},
-\texttt{deriv\_bc}, \texttt{pderiv\_std}, \texttt{pderiv\_bc} -- each
-claimed to compute either the POSIX or the leftmost-first parse
-tree, by four structurally different constructions. This chapter
-verifies those claims empirically: Section~\ref{sec:testing-strategy}
-describes how the test suite checks the four parsers, and the three
-Boolean matchers of Chapter~\ref{sec:derivatives}, against each other
-and against the paper's own worked examples;
-Section~\ref{sec:dataset-preparation} describes how a corpus of
-real-world regular expressions was assembled to test and benchmark
-against, alongside the synthetic patterns used elsewhere in this
-thesis; Section~\ref{sec:correctness-verification} reports the results
-of that testing; and Section~\ref{sec:performance-analysis} measures
-where the four parsers' costs actually diverge from each other, on both
-the synthetic and real-world workloads.
+developed four parser combinations, \texttt{deriv\_std} (recursive and
+loop variants), \texttt{deriv\_bc}, \texttt{pderiv\_std} and
+\texttt{pderiv\_bc}, each claimed to compute either the POSIX or the
+leftmost-first parse tree, by four structurally different constructions.
+This chapter evaluates those four parsers against each other, first for
+correctness and then for performance, on two kinds of input: the small,
+hand-constructed patterns used throughout this thesis to isolate one
+algorithmic property at a time, and a corpus of real-world regular
+expressions assembled from the same three sources, Snort/Suricata,
+SpamAssassin and RegexLib, that Mamouras et al.'s disambiguation-robustness
+study \citep{mamouras2024} draws on. That paper studies exactly the
+POSIX-versus-Greedy question this thesis studies, via real intrusion-detection
+signatures, and finds concrete real-world patterns where the two policies
+visibly diverge; it provides no public dataset artifact of its own, so
+Section~\ref{sec:dataset-preparation} describes how this thesis's own
+corpus was independently assembled to occupy the same role.
+
+Section~\ref{sec:correctness-verification} checks the four parsers, and
+the three Boolean matchers of Chapter~\ref{sec:derivatives}, against each
+other and against the paper's own worked examples.
+Section~\ref{sec:dataset-preparation} describes both input sources in
+detail: the project's own synthetic patterns and the real-world corpus.
+Section~\ref{sec:performance-analysis} measures where the four parsers'
+costs diverge on each. Section~\ref{sec:results-discussion} draws the
+two together.
+
+%
+%
+%
+
+\section{Parser Agreement}
+\label{sec:correctness-verification}
+
+Running the same expression through every parser at once, rather than
+the two the test above picks, shows the full pattern the test's single
+comparison is a slice of:
+
+\begin{verbatim}
+$ cargo run -- parse "(a|ab)(b|)" "ab" --parser all
+Parser       | Policy    | Result
+-------------+-----------+-------------------------------
+DERIV_REC    | POSIX     | (Right (a, b), Right ()) -> "ab"
+DERIV_LOOP   | POSIX     | (Right (a, b), Right ()) -> "ab"
+DERIV_BC     | POSIX     | (Right (a, b), Right ()) -> "ab"
+PDERIV_STD   | NON-POSIX | (Left a, Left b) -> "ab"
+PDERIV_BC    | NON-POSIX | (Left a, Left b) -> "ab"
+
+POSIX parsers agree
+PDERIV parsers agree
+NON-POSIX agrees with POSIX on membership
+\end{verbatim}
 
 
 
-\section{Compared Engines}
-\label{sec:compared-engines}
-
-The primary object of comparison in this chapter is the four parser
-combinations against \emph{each other}: two built on the derivative and
-two on the partial derivative, one tree-building and one bit-coded
-within each pair
-(Chapters~\ref{sec:derivative-parser}-\ref{sec:partial-derivative-parser})
--- since that internal comparison is what this thesis's own theoretical
-claims (POSIX-correctness of the derivative parsers, agreement of all
-four on membership, the tree-versus-bit-coded performance trade-off) are
-actually about. A second,
-external comparison against established regular expression engines is
-motivated in Chapter~\ref{sec:motivation} and positions these results
-relative to the wider field. It is implemented as an optional,
-feature-gated addition to this codebase (Rust's \texttt{regex} crate as
-an ordinary optional dependency; Google's RE2 via a small C++ shim over
-its own API, since RE2 offers no C API of its own) rather than a default
-one, specifically so that the default build stays free of any external
-regular-expression engine dependency -- \texttt{cargo build}/\texttt{cargo
-test}/\texttt{cargo bench} never touch either engine unless the
-\texttt{external-engines} feature is explicitly enabled.
-Section~\ref{sec:comparison-existing-engines} reports and discusses the
-resulting numbers; what follows briefly positions both engines
-conceptually, since that section refers back to this framing.
-
-\subsection{Rust's \texttt{regex} Crate}
-\label{sec:rust-regex-crate-eval}
-
-Rust's \texttt{regex} crate compiles a pattern to a Thompson-construction
-NFA and simulates it without backtracking, guaranteeing linear-time
-matching in the input length independent of the pattern -- the same
-automaton-based guarantee Chapter~\ref{sec:motivation} attributes to
-finite-automata approaches generally. Its disambiguation policy is
-leftmost-first, matching Section~\ref{sec:greedy-leftmost}'s Greedy
-order rather than POSIX leftmost-longest; it offers no POSIX mode. That
-makes it the natural external comparison for this thesis's
-partial-derivative parsers
-(\texttt{pderiv\_std}/\texttt{pderiv\_bc}), which are also
-leftmost-first, on performance. Whether the two agree on the parse tree
-as well is a question this thesis does not settle: the
-partial-derivative construction is left-biased and commits on first
-success (Section~\ref{sec:posix-vs-greedy-example}), which is not by
-itself a claim that it implements the same policy the crate does.
-
-\subsection{RE2}
-\label{sec:re2-eval}
-
-Google's RE2 is likewise automaton-based (Thompson NFA compiled lazily
-to a DFA on demand), explicitly designed to avoid the exponential
-backtracking blowup of backreference-supporting engines
-\citep{re2,cox2007}. Unlike Rust's \texttt{regex} crate, RE2 supports an
-explicit POSIX leftmost-longest mode alongside its default Perl-style
-leftmost-first mode, making it a comparison point for \emph{both}
-disambiguation policies studied in this thesis, in one engine, depending
-on which mode is selected.
-
-
-
-\section{Testing Strategy}
-\label{sec:testing-strategy}
-
-The test suite is split, following ordinary Rust convention, into unit
-tests (\texttt{\#[cfg(test)] mod tests} blocks inside the \texttt{src/}
-files they exercise, testing private helper functions alongside public
-ones) and integration tests (\texttt{tests/}, exercising only the public
-API each parser or matcher module exposes). \texttt{tests/common/mod.rs}
-factors out what is shared across the integration suites: the two
-worked examples from the paper, \texttt{paper\_r1} and \texttt{paper\_r2}
-(Section~\ref{sec:parse-trees-as-evidence}), and two assertion helpers,
-\texttt{assert\_round\_trip} (checking \texttt{flatten(parse(r,w)) == w},
-i.e.\ that a produced parse tree is actually evidence for the word it
-was built from) and \texttt{assert\_parsers\_agree} (comparing two
-\texttt{Option<ParseTree>} results with a labeled failure message
-identifying which two implementations disagreed).
-
+%
+%
+%
 
 \section{Dataset Preparation}
 \label{sec:dataset-preparation}
 
-The synthetic patterns used throughout this thesis -- \texttt{paper\_r1},
+Two kinds of input drive the measurements in this chapter, and they are
+kept deliberately distinct rather than pooled into one corpus.
+
+\subsection{Synthetic Patterns}
+\label{sec:synthetic-patterns}
+
+The synthetic patterns used throughout this thesis, \texttt{paper\_r1},
 \texttt{paper\_r2}, the pathological $(a^{*})^{*}$-style expressions of
-Section~\ref{sec:membership-overview} -- are deliberately small and
-hand-constructed, chosen to isolate one specific algorithmic property at
-a time. They say little about how any of the four parsers behaves on the
-regular expressions people actually write. Mamouras et al.'s
-disambiguation-robustness study \citep{mamouras2024} motivates closing
-that gap: it studies exactly the POSIX-versus-Greedy question this
-thesis studies, via real Snort/Suricata intrusion-detection signatures,
-and finds concrete real-world patterns where the two policies visibly
-diverge. That paper provides no public dataset artifact of its own, so
-this thesis's corpus was independently assembled from three families of
-real-world regular expression sources chosen to cover different
-"shapes" of real regex use, not three samples of the same thing:
+Section~\ref{sec:membership-overview}, and the benchmark families of
+Section~\ref{sec:performance-analysis}, are deliberately small and
+hand-constructed, each chosen to isolate one specific algorithmic
+property at a time rather than to resemble real regex use:
+
+\begin{center}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{4.8cm}@{}}
+\hline
+Family & Pattern shape & Property isolated \\
+\hline
+\texttt{small\_patterns} & \texttt{a}, \texttt{a*} against \texttt{""}/\texttt{"a"}/\texttt{"aaa"} & fixed per-call overhead \\
+\texttt{scaling\_a\_star} & \texttt{a*} against $\mathtt{a}^n$ & cost as a function of input length alone \\
+\texttt{deep\_expression} & $\mathtt{a}\cdot\mathtt{a}\cdots\mathtt{a}$, depth $n$ & cost as a function of expression size \\
+\texttt{ambiguous\_star} & $(a+aa)^{*}$ against $\mathtt{a}^n$ & branching from genuine ambiguity \\
+\texttt{pathological}, \texttt{benign} & $(a^{*})^{*}$ vs.\ $(a+b)^{*}$ & the naive matcher's worst and ordinary case \\
+\texttt{nesting\_depth} & $a^{*}$ nested $n$ times & cost as a function of nesting, not length \\
+\hline
+\end{tabular}
+\end{center}
+
+They say little on their own about how any of the four parsers behaves
+on the regular expressions people actually write, which is what
+Section~\ref{sec:mamouras-dataset} closes the gap on; kept separate,
+each still isolates one variable the mixed real-world corpus cannot.
+
+\subsection{The Mamouras Regex Dataset}
+\label{sec:mamouras-dataset}
+
+This thesis's own real-world corpus was independently assembled from
+three families of real-world regular expression sources chosen to cover
+different "shapes" of real regex use, not three samples of the same
+thing:
 
 \begin{itemize}
   \item \textbf{Snort/Suricata} network intrusion-detection signatures
   (\texttt{pcre:"..."} rule options, sourced from the Emerging Threats
-  Open ruleset) -- literal-heavy, moderate complexity, the closest of
+  Open ruleset), literal-heavy, moderate complexity, the closest of
   the three to "everyday" regex use.
   \item \textbf{SpamAssassin} email spam-filtering rules
-  (\texttt{body}/\texttt{header} Perl-regex rules) -- content matching
+  (\texttt{body}/\texttt{header} Perl-regex rules), content matching
   over unstructured text, a different shape than network signatures.
   \item \textbf{RegexLib} crowd-sourced general-purpose patterns
-  (validators, extractors) -- the opposite end, where chained lookahead
+  (validators, extractors), the opposite end, where chained lookahead
   assertions are idiomatic, stress-testing the frontend's rejection path
   hardest of the three.
 \end{itemize}
 
 \paragraph{Extraction.} Each source embeds its patterns in a different
-surrounding syntax, so each needs its own extractor
-(\texttt{examples/extract\_dataset.rs}): Suricata's rule lines carry a
-\texttt{pcre:"/PATTERN/FLAGS";} option; SpamAssassin's carry a bare
-\texttt{body}/\texttt{header NAME =~ /PATTERN/FLAGS} without the
+surrounding syntax that has nothing to do with the pattern itself and
+has to be stripped away before the pattern can be parsed at all.
+Figure~\ref{fig:extraction-pipeline} shows the three formats side by
+side: Suricata's rule lines carry a \texttt{pcre:"/PATTERN/FLAGS";}
+option; SpamAssassin's carry a bare
+\texttt{body}/\texttt{header NAME =~ /PATTERN/FLAGS} without
 Suricata's trailing-quote convention; RegexLib's sample file lists plain
-patterns directly, one (possibly multi-line) entry per blank-line-delimited
-block. All three converge on the same \texttt{/PATTERN/FLAGS} PCRE
-delimiter convention once extracted, parsed by
-\texttt{frontend::parse\_pcre\_rule} -- including the case-insensitive
-\texttt{i} flag, applied by case-folding every literal character in the
-translated \texttt{ExtPat} to an \texttt{Any} of both cases
-(Chapter~\ref{sec:frontend}'s frontend) rather than as a runtime
-matching option, since \texttt{Regex} itself has no case-insensitivity
-concept.
+patterns directly, one (possibly multi-line) entry per
+blank-line-delimited block. A separate extraction routine reads each
+format's own surrounding syntax and reduces it to the pattern text
+underneath; despite three different starting shapes, all three converge
+on one common \texttt{/PATTERN/FLAGS} PCRE delimiter convention once
+extracted, and it is only that common form which is ever handed to the
+frontend parser, including the case-insensitive \texttt{i} flag, applied
+by case-folding every literal character in the translated
+\texttt{ExtPat} to an \texttt{Any} of both cases (Chapter~\ref{sec:frontend}'s
+frontend) rather than as a runtime matching option, since
+\texttt{Regex} itself has no case-insensitivity concept.
 
-\paragraph{Filtering.} Real rules routinely use constructs no
-derivative-based engine over the six-constructor \texttt{Regex} of
-Section~\ref{sec:regex-rust-implementation} can express at all --
-backreferences and lookaround assertions describe languages that are
-not regular in the formal sense this thesis's entire construction
-depends on. \texttt{parse\_pcre\_rule} rejects both outright with a
-descriptive error rather than silently mis-parsing them, and
-\texttt{extract\_dataset} tallies every rejection by cause
-(\texttt{backreference}, \texttt{lookaround}, or \texttt{other} --
-chiefly bound expressions such as \texttt{\{1586,\}} that would unroll
-past this frontend's repetition cap, and a handful of unsupported
-\texttt{(?...)}~group syntaxes). Re-running this pipeline against the
-tracked raw sources gives the current triage:
+
+\paragraph{Filtering.} Filtering is not a separate step run over
+already-extracted patterns; it is what happens when the frontend parser
+itself rejects one. A regular-expression engine built on the
+six-constructor \texttt{Regex} of Section~\ref{sec:regex-rust-implementation}
+cannot represent every construct a real, PCRE-authored rule may use.
+Backreferences and lookaround assertions in particular describe
+languages that are not regular in the formal sense this thesis's entire
+construction depends on, so \texttt{parse\_pcre\_rule} rejects both
+outright with a descriptive error rather than silently mis-parsing them
+into something weaker than what the rule author wrote. Every rejection
+is recorded by cause rather than discarded: \texttt{backreference} and
+\texttt{lookaround} each name themselves, and \texttt{other} covers
+everything else that still fails to parse, chiefly bound expressions
+such as \texttt{\{1586,\}} that would unroll past this frontend's
+repetition cap, and a handful of unsupported \texttt{(?...)}~group
+syntaxes. Re-running this pipeline against the tracked raw sources
+gives the current triage, read a row at a time: of 231 Suricata rules,
+209 parse and 22 are rejected, split 5/11/6 across the three causes, and
+so on for the other two formats.
 
 \begin{center}
 \begin{tabular}{lrrrrr}
@@ -178,253 +178,57 @@ in RegexLib, matching that family's idiomatic use of chained
 assertions; Suricata and SpamAssassin reject mostly on the same handful
 of negative-lookahead idioms (guarding against one specific following
 word). The accepted 685 patterns, deduplicated across all three formats
-into \texttt{data/corpus\_patterns.txt} (665 lines after deduplication),
-are what Section~\ref{sec:benchmark-results}'s dataset benchmark
-actually runs against.
+into \texttt{data/corpus\_patterns.txt} (663 lines after deduplication),
+are what Section~\ref{sec:mamouras-benchmark-results}'s dataset
+benchmark actually runs against.
 
-\paragraph{Unanchored matching.} Real rules are \emph{written} as search
-patterns: a Suricata rule fires on seeing a match anywhere in a packet
-payload, not on the payload being exactly that pattern. They are
-therefore parsed through the frontend's two search entry points,
-\texttt{parse\_\allowbreak dataset\_\allowbreak pattern} and
-\texttt{parse\_\allowbreak pcre\_\allowbreak rule}, instead of the
-full-string-equality \texttt{parse\_\allowbreak pattern} used everywhere
-else in this thesis's own examples. That difference is not
-cosmetic: real dataset patterns, run unanchored the way they have to be,
-are measurably bigger than the pattern text suggests and expose scaling
-behaviour the small synthetic patterns of
-Section~\ref{sec:pathological-inputs} do not. The mechanism is worth
-setting out before the measurements that depend on it.
+Real rules are \emph{written} as search patterns, fired on seeing a
+match anywhere in a packet payload or message body, not on the payload
+being exactly that pattern, so they are parsed through the frontend's
+search entry points rather than through plain full-string equality.
+Section~\ref{sec:frontend-substring-search} already gives the mechanism
+that implements this, padding an unanchored side with $\Sigma^{*}$; the
+practical effect on this corpus specifically is that a real dataset
+pattern, run the way it has to be run, is measurably bigger than its
+own text suggests, which Section~\ref{sec:mamouras-benchmark-results}
+returns to.
 
-\subsection{Substring Search: How the Corpus Is Run}
-\label{sec:frontend-substring-search}
-
-No parser in Chapters~\ref{sec:derivative-parser}
-and~\ref{sec:partial-derivative-parser} answers any question but "does
-this entire input derive to nullable". There is no
-"found somewhere inside a longer string" mode anywhere below the
-frontend, and neither \citet{sulzmannlu2014} nor Sulzmann's
-teaching-page material defines one: POSIX and Antimirov derivatives are
-inherently full-match operations. Real rules, though, are \emph{written}
-as search patterns. A Suricata rule fires on seeing its pattern anywhere
-in a packet payload, not on the payload being exactly that pattern.
-
-\texttt{frontend/mod.rs} therefore implements substring search entirely
-at this layer, before a \texttt{Regex} ever reaches a parser, by padding
-the translated core with \texttt{wildcard\_run()}, a \texttt{Star} over
-a 98-way \texttt{Alt} of the full alphabet meaning "any run of
-characters at all", on whichever side lacks an explicit anchor.
-Figure~\ref{fig:padding} gives the four cases, with the size of each
-lowered result alongside.
-
-\begin{figure}[ht]
-\centering
-\begin{tikzpicture}[
-  seg/.style={draw, minimum height=6mm, font=\scriptsize, anchor=west},
-  wild/.style={seg, fill=black!8, minimum width=22mm},
-  core/.style={seg, minimum width=14mm},
-  pat/.style={font=\scriptsize\ttfamily, anchor=east},
-  cnt/.style={font=\scriptsize, anchor=west},
-]
-\node[pat] at (-0.15,3.0) {\^{}abc\$};
-\node[core] at (0,3.0) {\texttt{abc}};
-\node[cnt] at (6.3,3.0) {9 nodes, no padding};
-
-\node[pat] at (-0.15,2.2) {\^{}abc};
-\node[core] at (0,2.2) {\texttt{abc}};
-\node[wild] at (1.4,2.2) {$\Sigma^{*}$};
-\node[cnt] at (6.3,2.2) {204 nodes, end padded};
-
-\node[pat] at (-0.15,1.4) {abc\$};
-\node[wild] at (0,1.4) {$\Sigma^{*}$};
-\node[core] at (2.2,1.4) {\texttt{abc}};
-\node[cnt] at (6.3,1.4) {204 nodes, start padded};
-
-\node[pat] at (-0.15,0.6) {abc};
-\node[wild] at (0,0.6) {$\Sigma^{*}$};
-\node[core] at (2.2,0.6) {\texttt{abc}};
-\node[wild] at (3.6,0.6) {$\Sigma^{*}$};
-\node[cnt] at (6.3,0.6) {399 nodes, both sides padded};
-\end{tikzpicture}
-\caption{Anchor-aware padding under the search entry points. Each
-$\Sigma^{*}$ is one \texttt{wildcard\_run()}, 196 nodes on its own, so
-the padding dominates the lowered expression whenever the pattern is
-short. The fully anchored case still costs 9 rather than 5 nodes,
-because the erased \texttt{\^{}} and \texttt{\$} leave an \texttt{Eps}
-apiece behind in the concatenation.}
-\label{fig:padding}
-\end{figure}
-
-\texttt{starts\_with\_carat} and \texttt{ends\_with\_dollar}
-(\texttt{ext\_pattern.rs}) decide which sides need padding by walking
-into \texttt{Concat} and \texttt{Group} to find a leading \texttt{\^{}}
-or trailing \texttt{\$} even when nested, before \texttt{Carat} and
-\texttt{Dollar} are themselves translated away to \texttt{Eps}. Under
-the search-oriented entry points \texttt{parse\_dataset\_pattern} and
-\texttt{parse\_pcre\_rule}, as against \texttt{parse\_pattern}'s plain
-full-string equality used everywhere else in this thesis's own examples,
-deciding which side of this padding is skipped is the anchors' only real
-effect.
-
-Because the anchors are recognized structurally rather than
-positionally, a \texttt{\^{}} that is not at the start, as in
-\texttt{a\^{}b}, is not an anchor at all. It still parses to
-\texttt{Carat} and still translates to \texttt{Eps}, so it contributes a
-node to the lowered expression but nothing to the language:
-\begin{verbatim}
-$ cargo run -- parse "a^b" "ab" --diag 1
-Regex:  a^b
-Input:  "ab"
-Match:  true
-Tree:   ((a, ()), b)
-\end{verbatim}
-The \texttt{()} in the middle of that tree is the erased anchor. PCRE
-would treat the same pattern as unmatchable outside multiline mode. This
-is a silent difference rather than an error, and it is the one place in
-the frontend where a mis-written pattern is neither rejected nor
-faithfully represented.
-
-\paragraph{Edge case.} An unanchored pattern already nullable on empty
-input, with \texttt{"a*"} the simplest example, gets padded on both
-sides regardless of its own content. The padding's own empty match,
-combined with either \texttt{Star}, is then enough by itself to match
-\emph{any} string at all, not just runs of \texttt{a}. This is correct
-substring-search semantics, since "some substring matches" is satisfied
-by the empty substring that every string contains, and
-\texttt{mod.rs}'s own test
-\texttt{unanchored\_nullable\_pattern\_matches\_anything} asserts
-exactly this behaviour rather than treating it as a defect. It is worth
-flagging nonetheless, because such a pattern carries no information in a
-corpus: it matches every input and so contributes nothing to
-Section~\ref{sec:dataset-preparation}'s measurements beyond its own
-parse cost.
-
-\paragraph{Anchors are not a language feature here.} Recognising
-\texttt{\^{}} and \texttt{\$} structurally, and letting them do nothing
-but suppress one side of the padding, is a decision about the corpus
-pipeline and not an account of what anchors mean. This thesis's core
-algebra has six constructors and no notion of a position within an
-input, so there is nowhere in it for an anchor to live: a derivative
-consumes a character and knows nothing about where that character sits.
-Extended matchers that do support anchors get them from a richer
-algebra. \citet{varatalu2023} handle intersection, complement and
-lookarounds on top of derivatives, and treat anchors as expressible
-through lookarounds rather than as primitives of their own. Adopting
-that route would mean extending the core algebra and every derivative
-rule defined over it, which is well beyond the scope of this
-implementation, but it is the direction in which the gap described above
-closes, and it is the reason the gap is a scope boundary rather than an
-oversight.
-
-\paragraph{What this dataset does not (yet) give.} The corpus was
-triaged for "does it parse at all," not for "does POSIX visibly diverge
-from the partial-derivative answer on this pattern the way
-\texttt{paper\_r1}/\texttt{paper\_r2} do", and unlike Mamouras et al.'s own disambiguation-robustness analysis
-\citep{mamouras2024}, this thesis does not (yet) identify which, if any,
-of the 685 accepted real-world patterns are themselves
-disambiguation-non-robust in their sense. Combining this dataset with
-their static-analysis technique to find such patterns automatically, or
-constructing inputs that provoke visible divergence between the two
-constructions on the existing corpus directly, is a natural extension of this evaluation left
-to future work (Section~\ref{sec:further-performance-optimizations}).
-
-
-
-\section{Correctness Verification}
-\label{sec:correctness-verification}
-
-\subsection{Paper Examples Reproduced}
-\label{sec:paper-examples-reproduced}
-
-Both worked examples from Sulzmann and Lu's paper are reproduced as
-executable tests rather than only as the manual derivations of
-Sections~\ref{sec:disambiguation-problem} and~\ref{sec:posix-longest-leftmost}:
-\texttt{parse\_recursive\_paper\_r1\_on\_ab} and
-\texttt{parse\_recursive\_paper\_r2\_on\_ab}
-(\texttt{tests/test\_deriv\_std.rs}) assert the exact POSIX tree shape
-derived by hand in Section~\ref{sec:posix-longest-leftmost};
-\texttt{paper\_r1\_computes\_greedy\_not\_posix} and
-\texttt{paper\_r2\_computes\_greedy\_not\_posix}
-(\texttt{src/parsers/pderiv\_bc/parse.rs}) assert both the expected tree
-shape of Section~\ref{sec:greedy-leftmost} \emph{and} that it disagrees
-with the POSIX answer on the identical input -- encoding the divergence
-itself, not merely each answer separately, as the property under test.
-Every one of these four assertions currently passes, confirming this
-implementation reproduces both documented policies exactly on the
-paper's own examples.
-
-\subsection{Cross-Implementation Equivalence}
-\label{sec:cross-implementation-equivalence}
-
-Following the agreement-testing strategy of
-Section~\ref{sec:testing-strategy}, the full test suite checks, and at
-the time of writing passes, agreement at every layer this thesis
-introduces more than one implementation of the same specification:
-
-\begin{itemize}
-  \item \texttt{match\_naive} = \texttt{match\_deriv} = \texttt{match\_pderiv}
-  on membership, across the hand-picked cases of
-  \texttt{tests/test\_matchers.rs}.
-  \item \texttt{parse\_recursive} and \texttt{parse\_loop} produce
-  identical parse trees on every shared test case
-  (Section~\ref{sec:recursive-vs-loop}), including
-  \texttt{recursive\_traced\_and\_loop\_traced\_agree\_on\_all\_paper\_examples}
-  comparing full derivation traces, not just final answers.
-  \item \texttt{deriv\_bc} agrees with \texttt{deriv\_std} (via
-  \texttt{parse\_recursive}) on every shared test case
-  (\texttt{bitcoded\_agrees\_with\_recursive}, \texttt{tests/test\_deriv\_bc.rs}),
-  the empirical counterpart of Section~\ref{sec:derivative-parser}'s
-  claim that both compute the identical POSIX tree by different means.
-  \item \texttt{pderiv\_std} and \texttt{pderiv\_bc} agree exactly, not
-  just on membership, on every hand-picked and fuzzed case
-  (Section~\ref{sec:testing-strategy}).
-  \item All four parser combinations agree on membership wherever the
-  two constructions are not known to diverge, and each pair agrees
-  exactly on tree shape within itself: \texttt{deriv\_std} with
-  \texttt{deriv\_bc}, and \texttt{pderiv\_std} with
-  \texttt{pderiv\_bc}. This is exercised directly by the CLI's
-  \texttt{-{}-parser all} comparison mode
-  (\texttt{src/cli/parser.rs}), which reports all three checks
-  side by side for a given regex/input pair on demand.
-\end{itemize}
-
-No disagreement has been observed in any of these checks against the
-current implementation; a regression in any one parser would show up
-first as a failure here, in the specific pairing that parser
-participates in, before it could show up as an incorrect answer with no
-diagnosis of which implementation is at fault.
-
-
+%
+%
+%
 
 \section{Performance Analysis}
 \label{sec:performance-analysis}
 
-\subsection{Stack Depth: Recursive vs.\ Iterative Construction}
+\subsection{Performance on Synthetic Patterns}
+\label{sec:synthetic-performance}
+
+\paragraph{Stack depth: recursive vs.\ iterative construction.}
 \label{sec:stack-depth}
 
-
-\subsection{Heap Allocation: \texttt{deriv\_std} vs.\ \texttt{deriv\_bc}}
+\paragraph{Heap allocation: \texttt{deriv\_std} vs.\ \texttt{deriv\_bc}.}
 \label{sec:heap-allocation}
 
+%
 
-\subsection{Derivative-Based vs.\ Partial-Derivative-Based}
+\paragraph{Derivative-based vs.\ partial-derivative-based.}
 \label{sec:deriv-vs-pderiv-performance}
 
 \begin{center}
 \begin{tikzpicture}
 \begin{axis}[
   width=13cm, height=7.5cm,
-  xlabel={nesting depth}, ylabel={mean time (ms)},
+  xlabel={input length ($a^n$ against \texttt{scaling\_a\_star}}, ylabel={mean time (ms)},
   xmode=log, ymode=log,
   legend pos=north west, legend cell align=left,
   grid=major,
 ]
 \addplot coordinates {(50,0.781781) (100,5.782) (200,47.659) (400,337.588) (600,1108) (800,2587) (1000,4968)};
-\addlegendentry{\texttt{recursive} (\texttt{deriv\_std})}
+\addlegendentry{\texttt{deriv\_std\_rec}}
 \addplot coordinates {(50,0.856238) (100,5.485) (200,40.639) (400,310.084) (600,1006) (800,2339) (1000,4538)};
-\addlegendentry{\texttt{loop} (\texttt{deriv\_std})}
+\addlegendentry{\texttt{deriv\_std\_loop}}
 \addplot coordinates {(50,0.177474) (100,1.119) (200,7.717) (400,58.650) (600,214.236) (800,559.635) (1000,1155)};
-\addlegendentry{\texttt{bitcoded} (\texttt{deriv\_bc})}
+\addlegendentry{\texttt{deriv\_bc}}
 \addplot coordinates {(50,0.122207) (100,0.739572) (200,4.796) (400,31.445) (600,103.264) (800,254.264) (1000,549.164)};
 \addlegendentry{\texttt{pderiv\_bc}}
 \addplot coordinates {(50,0.168377) (100,0.947508) (200,5.485) (400,34.691) (600,111.227) (800,278.002) (1000,616.815)};
@@ -433,9 +237,9 @@ diagnosis of which implementation is at fault.
 \end{tikzpicture}
 \end{center}
 
-\subsection{Pathological Inputs}
-\label{sec:pathological-inputs}
 
+\paragraph{Pathological inputs.}
+\label{sec:pathological-inputs}
 
 \begin{center}
 \begin{tikzpicture}
@@ -457,7 +261,7 @@ diagnosis of which implementation is at fault.
 \end{center}
 
 
-\subsection{Benchmark Results}
+\paragraph{Benchmark results.}
 \label{sec:benchmark-results}
 
 \begin{center}
@@ -465,157 +269,38 @@ diagnosis of which implementation is at fault.
 \hline
 Parser & $n{=}5$ & $n{=}10$ & $n{=}15$ & $n{=}18$ \\
 \hline
-\texttt{recursive} (\texttt{deriv\_std}) & 8.0\,\textmu s & 110.7\,\textmu s & 1.427\,ms & 6.052\,ms \\
-\texttt{bitcoded} (\texttt{deriv\_bc}) & 11.4\,\textmu s & 183.8\,\textmu s & 4.175\,ms & 49.491\,ms \\
+\texttt{deriv\_std\_rec} & 8.0\,\textmu s & 110.7\,\textmu s & 1.427\,ms & 6.052\,ms \\
+\texttt{deriv\_bc} & 11.4\,\textmu s & 183.8\,\textmu s & 4.175\,ms & 49.491\,ms \\
 \texttt{pderiv\_bc} & 13.4\,\textmu s & 210.6\,\textmu s & 2.207\,ms & 9.236\,ms \\
 \texttt{pderiv\_std} & 22.4\,\textmu s & 323.9\,\textmu s & 3.374\,ms & 14.263\,ms \\
 \hline
 \end{tabular}
 \end{center}
 
-\begin{center}
-\begin{tabular}{lr}
-\hline
-Parser & Mean time / sweep \\
-\hline
-\texttt{deriv\_std\_rec} & 1.311\,s \\
-\texttt{deriv\_std\_loop} & 1.091\,s \\
-\texttt{deriv\_bc} & 643.5\,ms \\
-\texttt{pderiv\_bc} & 159.2\,ms \\
-\texttt{pderiv\_std} & 158.6\,ms \\
-\hline
-\end{tabular}
-\end{center}
+
+\subsection{Evaluation on the Mamouras Regex Dataset}
+\label{sec:mamouras-benchmark-results}
+
+\begin{itemize}
+  \item \textbf{Corpus sample sweep}
+  \item \textbf{Neutral-case probe}
+  \item \textbf{Worst-case probe}
+  \item \textbf{Best-case probe}
+\end{itemize}
 
 
-\begin{center}
-\begin{tabular}{lr}
-\hline
-Parser & Mean time \\
-\hline
-\texttt{deriv\_std\_rec} & 1.000\,s \\
-\texttt{deriv\_bc} & 81.1\,ms \\
-\hline
-\end{tabular}
-\end{center}
-
-
-\section{Comparison with Existing Engines}
-\label{sec:comparison-existing-engines}
-
-\subsection{Performance}
-\label{sec:performance-comparison}
-
-
-\begin{center}
-\begin{tabular}{lrr}
-\hline
-Engine & Mean time / sweep & vs.\ \texttt{regex} \\
-\hline
-\texttt{deriv\_std\_rec} (POSIX, recursive) & 1.503\,s & $\times$1{,}415{,}254 \\
-\texttt{deriv\_std\_loop} (POSIX, loop) & 1.218\,s & $\times$1{,}146{,}893 \\
-\texttt{deriv\_bc} (POSIX, bit-coded) & 690.74\,ms & $\times$650{,}417 \\
-\texttt{pderiv\_bc} (partial derivative, bit-coded) & 171.85\,ms & $\times$161{,}815 \\
-\texttt{pderiv\_std} (partial derivative, tree) & 173.28\,ms & $\times$163{,}167 \\
-\hline
-\texttt{regex} (Rust crate) & 1.06\,\textmu s & $\times$1 \\
-\texttt{re2\_perl} (leftmost-first) & 6.61\,\textmu s & $\times$6.2 \\
-\texttt{re2\_posix} (leftmost-longest) & 2.75\,\textmu s & $\times$2.6 \\
-\hline
-\end{tabular}
-\end{center}
-
-\begin{center}
-\begin{tabular}{lrr}
-\hline
-Engine & Mean time / sweep & vs.\ \texttt{regex} \\
-\hline
-\texttt{match\_deriv} & 273.07\,ms & $\times$259{,}815 \\
-\texttt{match\_pderiv} & 134.95\,ms & $\times$128{,}397 \\
-\hline
-\texttt{regex} (Rust crate) & 1.05\,\textmu s & $\times$1 \\
-\texttt{re2\_perl} (leftmost-first) & 6.63\,\textmu s & $\times$6.3 \\
-\texttt{re2\_posix} (leftmost-longest) & 2.72\,\textmu s & $\times$2.6 \\
-\hline
-\end{tabular}
-\end{center}
-
-
-\subsection{Standardized Benchmarking via rebar}
-\label{sec:rebar-comparison}
-
-
-\section{Optimization Challenges and Insights}
-\label{sec:optimization-challenges}
-\label{sec:further-performance-optimizations}
-
-Two optimizations were identified while implementing the four parsers.
-Neither is applied in the shipped code, and in both cases the reason is
-the same: the change is worth more than it costs only if correctness is
-measured against something other than the reference construction. They
-are recorded here with the measurements that establish their value,
-since those measurements are the product of this evaluation rather than
-of the implementation.
-
-\paragraph{Character classes in place of literal alternation.}
-\label{sec:char-class-optimization}
-The core algebra of Chapter~\ref{sec:regular-expressions} has six
-constructors and no character class among them, so the frontend lowers
-every class to an explicit alternation
-(Section~\ref{sec:frontend-translate}). The cost of that decision is
-visible in the lowered node counts of Section~\ref{sec:frontend-cost}: a
-\texttt{\textbackslash{}d} becomes ten nodes, a
-\texttt{\textbackslash{}w} becomes 125, and a wildcard becomes 195. The
-padding a search pattern receives is one \texttt{wildcard\_run()} of 196
-nodes per unanchored side, so an unanchored three-letter literal reaches
-399 nodes against the 5 its own content needs.
-
-Every one of those nodes is structure the parser walks once per input
-character. A dedicated class constructor carrying a set of characters
-would collapse each of them to a single node whose derivative is one
-membership test, which changes the per-character work from linear in the
-size of the class to constant. Section~\ref{sec:performance-analysis}'s
-dataset measurements are dominated by exactly this effect, since
-essentially every real-world pattern in the corpus is an unanchored
-search containing at least one class shorthand.
-
-The optimization is not applied because it is not local. A seventh
-constructor has to be understood by \texttt{nullable}, \texttt{deriv},
-\texttt{simp}, \texttt{mkEps}, \texttt{inj}, the annotated
-\texttt{ARegex} and its refined derivative, \texttt{pDerivBC}, and
-\texttt{decode}, which is every definition in
-Chapters~\ref{sec:derivative-parser} and
-\ref{sec:partial-derivative-parser}. The four parsers would then no
-longer be transcriptions of the constructions they are transcriptions
-of, which is the property the correctness argument of
-Section~\ref{sec:correctness-verification} rests on. There is a second
-benefit worth recording alongside the performance one: because the
-expected set reported on a failure is read off the first-literal set of
-the expression, a mismatch against a lowered wildcard currently reports
-all 98 alternatives individually, where a native class could report
-\texttt{expected: any character}.
-
-\paragraph{Frontier-wide deduplication.}
-The partial-derivative parsers apply \texttt{nub2} inside a single
-expansion and never across the flattened frontier, which is what lets
-the frontier double on the expressions of
-Section~\ref{sec:frontier-growth} while the number of distinct residuals
-stays bounded. Moving that deduplication to the frontier as a whole is a
-change of one call site. Measured over the same 11\,700 cases as
-Section~\ref{sec:cross-implementation-equivalence}, it changes no
-answer, on membership or on the tree returned, and takes the peak
-frontier from 170 strands to 4.
-
-It is not applied for the reason given in
-Section~\ref{sec:pderiv-bc-theory}: this parser's correctness criterion
-is literal agreement with the reference \texttt{pDerivBC}, and a change
-verified on finitely many cases without a proof is a change to the thing
-being verified against. The measurement establishes that the
-optimization is available and what it is worth; adopting it would
-require replacing agreement with an argument.
-
-
+%
+%
+%
 
 \section{Discussion of Results}
 \label{sec:results-discussion}
 
+\subsection{Optimization Challenges and Insights}
+\label{sec:optimization-challenges}
+\label{sec:further-performance-optimizations}
+
+\paragraph{Character classes in place of literal alternation.}
+\label{sec:char-class-optimization}
+
+\paragraph{Frontier-wide deduplication.}
