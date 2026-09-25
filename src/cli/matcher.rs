@@ -1,12 +1,15 @@
 //! Matcher command logic -- always simple true/false, no diagnostics.
 
 use regex_engine::matchers::MatcherType;
-use regex_engine::frontend::parse_pattern;
+use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
 
+fn parse(regex_str: &str, search: bool) -> Result<regex_engine::types::Regex, String> {
+    if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) }
+}
 
 // Runs with chosen matcher
-pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType) {
-    let r = match parse_pattern(regex_str) {
+pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType, search: bool) {
+    let r = match parse(regex_str, search) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
@@ -18,8 +21,8 @@ pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType) {
 
 
 // Runs with all matchers
-pub fn run_match_all(regex_str: &str, input: &str) {
-    let r = match parse_pattern(regex_str) {
+pub fn run_match_all(regex_str: &str, input: &str, search: bool) {
+    let r = match parse(regex_str, search) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };

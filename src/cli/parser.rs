@@ -6,8 +6,11 @@ use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 use regex_engine::{parse_deriv_std_rec, parse_deriv_std_loop, parse_deriv_bc, parse_pderiv_bc, flatten};
 use regex_engine::parsers::{ParserType, parse_pderiv_std};
 use regex_engine::types::ParseTree;
-use regex_engine::frontend::parse_pattern;
+use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
 
+fn parse(regex_str: &str, search: bool) -> Result<regex_engine::types::Regex, String> {
+    if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) }
+}
 
 // Runs with chosen parser
 pub fn run_parse_single(
@@ -16,8 +19,9 @@ pub fn run_parse_single(
     parser: ParserType,
     diag: DiagLevel,
     diag_report: Option<String>,
+    search: bool,
 ) {
-    let r = match parse_pattern(regex_str) {
+    let r = match parse(regex_str, search) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
@@ -34,8 +38,8 @@ pub fn run_parse_single(
 
 
 // Runs with all parsers
-pub fn run_parse_all(regex_str: &str, input: &str) {
-    let r = match parse_pattern(regex_str) {
+pub fn run_parse_all(regex_str: &str, input: &str, search: bool) {
+    let r = match parse(regex_str, search) {
         Ok(r)  => r,
         Err(e) => {
             eprintln!("Regex parse error: {}", e);
@@ -47,8 +51,8 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
     println!("Regex: {}", regex_str);
     println!("Input: {:?}", input);
     println!();
-    println!("{:12} | {:6} | {}", "Parser", "Policy", "Result");
-    println!("{:-<12}-+-{:-<6}-+-{:-<30}", "", "", "");
+    println!("{:12} | {:9} | {}", "Parser", "Policy", "Result");
+    println!("{:-<12}-+-{:-<9}-+-{:-<30}", "", "", "");
 
     type ParserFn = fn(&str, &regex_engine::Regex) -> Option<ParseTree>;
 
@@ -67,7 +71,7 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
         match &result {
             Some(tree) => {
                 println!(
-                    "{:12} | {:6} | {} → {:?}",
+                    "{:12} | {:9} | {} → {:?}",
                     name,
                     "POSIX",
                     tree,
@@ -75,14 +79,14 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
                 );
             }
             None => {
-                println!("{:12} | {:6} | No match", name, "POSIX");
+                println!("{:12} | {:9} | No match", name, "POSIX");
             }
         }
 
         posix_results.push(result);
     }
 
-    // GREEDY Antimirov-partial derivative parsers
+    // Antimirov partial-derivative parsers (non-POSIX)
     let greedy_parsers: Vec<(&str, ParserFn)> = vec![
         ("PDERIV_STD", parse_pderiv_std),
         ("PDERIV_BC",  parse_pderiv_bc),
@@ -95,16 +99,16 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
 
         match &result {
             Some(tree) => println!(
-                "{:12} | {:6} | {} → {:?}",
+                "{:12} | {:9} | {} → {:?}",
                 name,
-                "GREEDY",
+                "NON-POSIX",
                 tree,
                 flatten(tree)
             ),
             None => println!(
-                "{:12} | {:6} | No match",
+                "{:12} | {:9} | No match",
                 name,
-                "GREEDY"
+                "NON-POSIX"
             ),
         }
 
@@ -135,7 +139,7 @@ fn check_parser_agreement(
         println!("POSIX PARSERS DISAGREE");
     }
 
-    // GREEDY parsers must produce identical trees
+    // the two partial-derivative parsers must produce identical trees
     let greedy_agree = greedy_results.windows(2).all(|w| w[0] == w[1]);
 
     if greedy_agree {
@@ -153,7 +157,7 @@ fn check_parser_agreement(
             .all(|matched| matched == posix_results[0].is_some());
 
     if membership_agrees {
-        println!("GREEDY agrees with POSIX on membership");
+        println!("NON-POSIX agrees with POSIX on membership");
     } else {
         println!("MEMBERSHIP DISAGREEMENT (bug)");
     }

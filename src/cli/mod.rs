@@ -46,9 +46,14 @@ enum Commands {
         input: String,
         #[arg(long, value_enum, default_value_t = MatcherArg::Deriv)]
         matcher: MatcherArg,
+        /// Pad unanchored sides with Sigma* (substring search) instead of
+        /// requiring the whole input to match the whole pattern. Anchors
+        /// (^/$) still suppress padding on the side they're on.
+        #[arg(long)]
+        search: bool,
     },
 
-    /// Parser (returns parse tree) 
+    /// Parser (returns parse tree)
     Parse {
         regex: String,
         input: String,
@@ -58,6 +63,11 @@ enum Commands {
         diag: DiagArg,
         #[arg(long)]
         diag_report: Option<String>,
+        /// Pad unanchored sides with Sigma* (substring search) instead of
+        /// requiring the whole input to match the whole pattern. Anchors
+        /// (^/$) still suppress padding on the side they're on.
+        #[arg(long)]
+        search: bool,
     },
 }
 
@@ -152,16 +162,16 @@ pub fn run() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Match { regex, input, matcher } => {
+        Commands::Match { regex, input, matcher, search } => {
             match matcher.single() {
-                Some(m) => run_match_single(&regex, &input, m),
-                None    => run_match_all(&regex, &input),
+                Some(m) => run_match_single(&regex, &input, m, search),
+                None    => run_match_all(&regex, &input, search),
             }
         }
-        Commands::Parse { regex, input, parser, diag, diag_report } => {
+        Commands::Parse { regex, input, parser, diag, diag_report, search } => {
             match parser.single() {
-                Some(p) => run_parse_single(&regex, &input, p, diag.into(), diag_report),
-                None    => run_parse_all(&regex, &input),
+                Some(p) => run_parse_single(&regex, &input, p, diag.into(), diag_report, search),
+                None    => run_parse_all(&regex, &input, search),
             }
         }
     }
