@@ -1,3 +1,13 @@
+//! Per-source extraction: read a source's raw rule files and produce
+//! `ExtractedRule` values carrying both the bare pattern and whatever
+//! source-specific context (Suricata `content:` fields, SpamAssassin rule
+//! kind, RegexLib description) `generate` needs to build inputs for it.
+//!
+//! The pattern-extraction logic itself (finding the `/PATTERN/FLAGS` span,
+//! Suricata vs. SpamAssassin vs. RegexLib framing) started from the same
+//! algorithm the now-retired `examples/extract_dataset.rs` used; this
+//! module additionally extracts the surrounding context `generate` needs,
+//! which that pattern-only pipeline never kept.
 
 use crate::data::types::{ContentField, ExtractedRule, RuleContext, SaField, SourceKind};
 

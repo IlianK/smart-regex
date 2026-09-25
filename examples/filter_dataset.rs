@@ -4,7 +4,7 @@
 //!
 //! Takes arbitrary file paths, so it works against a full downloaded
 //! ruleset of any size, not just the small tracked samples under
-//! `data/raw/`. See `docs/DATASET_PREPARE.md`.
+//! `data/raw/`. See `docs/DATASETS.md`.
 //!
 //! Usage:
 //!   cargo run --release --example filter_dataset -- suricata <file>...
