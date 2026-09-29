@@ -18,6 +18,7 @@ use regex_engine::types::Regex;
 
 const DATA_ROOT: &str = "data/processed";
 /// Distinct patterns admitted per category, not rows: see `load_corpus`.
+/// Default, overridden by `BENCH_PATTERN_LIMIT`; see `bench_selection`.
 const PATTERN_LIMIT_PER_CATEGORY: usize = 30;
 
 /// One prepared case, with its pattern compiled once rather than per
@@ -27,13 +28,57 @@ struct Entry {
     input: String,
 }
 
+/// Which category, sources, and pattern cap a run is narrowed to, read
+/// from the environment rather than CLI flags: `criterion_main!` already
+/// owns `cargo bench`'s own argument parsing (its filter regex,
+/// `--sample-size`, `--test`, ...), so a custom flag would either collide
+/// with that or need `--` juggling; an env var sidesteps it entirely.
+/// See `docs/BENCHMARKS.md` for the full list and examples.
+struct BenchSelection {
+    category: Option<Category>,
+    sources: Vec<SourceKind>,
+    pattern_limit: usize,
+}
+
+fn bench_selection() -> BenchSelection {
+    let category = std::env::var("BENCH_CATEGORY").ok().map(|s| match s.to_lowercase().as_str() {
+        "best" => Category::Best,
+        "neutral" => Category::Neutral,
+        "worst" => Category::Worst,
+        other => panic!("BENCH_CATEGORY must be best, neutral, or worst, got {other:?}"),
+    });
+    let sources = std::env::var("BENCH_SOURCE")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(|part| match part.trim().to_lowercase().as_str() {
+                    "suricata" | "snort" => SourceKind::Suricata,
+                    "spamassassin" => SourceKind::SpamAssassin,
+                    "regexlib" => SourceKind::RegexLib,
+                    other => panic!(
+                        "BENCH_SOURCE entries must be suricata, spamassassin, or regexlib, got {other:?}"
+                    ),
+                })
+                .collect()
+        })
+        .unwrap_or_default(); // empty Vec -> load_prepared_cases's own "all sources" default
+    let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT")
+        .ok()
+        .map(|s| {
+            s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
+        })
+        .unwrap_or(PATTERN_LIMIT_PER_CATEGORY);
+    BenchSelection { category, sources, pattern_limit }
+}
+
 /// Loads every verified variant from up to `pattern_limit` distinct
-/// patterns per `Category`, from every source under `data/processed/`.
-/// `pattern_limit` caps the number of *patterns* represented, not the
-/// number of rows: `src/data/generate.rs` now produces several verified
-/// inputs per (pattern, category) rather than one, so capping rows
-/// directly would let one pattern's several variants crowd out another
-/// pattern's coverage entirely. A pattern already admitted for a category
+/// patterns per `Category`, from `sel`'s selected sources (all three if
+/// empty) and narrowed to `sel`'s category if set. `pattern_limit` caps
+/// the number of *patterns* represented, not the number of rows:
+/// `src/data/generate.rs` now produces several verified inputs per
+/// (pattern, category) rather than one, so capping rows directly would
+/// let one pattern's several variants crowd out another pattern's
+/// coverage entirely. A pattern already admitted for a category
 /// contributes every one of its variants for that category; the cap only
 /// ever decides whether a *new* pattern gets in.
 ///
@@ -42,15 +87,16 @@ struct Entry {
 /// happen (prepare_dataset verifies every case against this exact
 /// function before writing it) -- skipped with a warning rather than
 /// panicking, so a bench run survives an unexpected mismatch.
-fn load_corpus(pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
-    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &[], None).unwrap_or_else(|e| {
-        panic!(
-            "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-             prepare_dataset -- <suricata|spamassassin|regexlib> <file>...` first; see \
-             docs/DATASETS.md",
-            DATA_ROOT
-        )
-    });
+fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
+    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources, sel.category)
+        .unwrap_or_else(|e| {
+            panic!(
+                "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
+                 prepare_dataset -- <suricata|spamassassin|regexlib> <file>...` first; see \
+                 docs/DATASETS.md",
+                DATA_ROOT
+            )
+        });
 
     let mut best = Vec::new();
     let mut neutral = Vec::new();
@@ -80,7 +126,7 @@ fn load_corpus(pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
         bucket.push(Entry { regex, input: case.input });
     }
     if best.is_empty() && neutral.is_empty() && worst.is_empty() {
-        panic!("{}", empty_corpus_diagnosis());
+        panic!("{}", empty_corpus_diagnosis(sel));
     }
     (best, neutral, worst)
 }
@@ -92,7 +138,10 @@ fn load_corpus(pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
 /// `<source>/prepared.jsonl` as "no cases from that source" rather than an
 /// error, which is right for a benchmark that only wants whichever sources
 /// happen to be prepared, but wrong for silently explaining nothing here.
-fn empty_corpus_diagnosis() -> String {
+/// Also reports the active `BENCH_*` selection, since a filter that's
+/// narrower than intended (a typo'd category, a source with nothing
+/// prepared) produces this exact symptom too.
+fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
     let root = std::path::Path::new(DATA_ROOT);
     let resolved = std::fs::canonicalize(root)
         .map(|p| p.display().to_string())
@@ -100,7 +149,9 @@ fn empty_corpus_diagnosis() -> String {
              does not exist there)"));
     let mut lines = vec![format!(
         "bench: no entries loaded from any category, for any source, under {DATA_ROOT} \
-         (resolved: {resolved}). Per-source check:"
+         (resolved: {resolved}). Active selection: category={:?}, sources={:?} (empty = all), \
+         pattern_limit={}. Per-source check:",
+        sel.category, sel.sources, sel.pattern_limit
     )];
     for source in [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib] {
         let path = root.join(source.dir_name()).join("prepared.jsonl");
@@ -133,14 +184,17 @@ const PARSERS: &[(ParserType, ParserFn)] = &[
 /// in that category, probed with *that entry's own* verified input, not a
 /// string shared across the whole corpus.
 fn bench_by_category(c: &mut Criterion) {
-    let (best, neutral, worst) = load_corpus(PATTERN_LIMIT_PER_CATEGORY);
+    let sel = bench_selection();
+    let (best, neutral, worst) = load_corpus(&sel, sel.pattern_limit);
     eprintln!(
         "bench_dataset: {} best, {} neutral, {} worst (pattern, input) entries loaded (up to {} \
-         distinct patterns each) from {}",
+         distinct patterns each, category={:?}, sources={:?} [empty = all]) from {}",
         best.len(),
         neutral.len(),
         worst.len(),
-        PATTERN_LIMIT_PER_CATEGORY,
+        sel.pattern_limit,
+        sel.category,
+        sel.sources,
         DATA_ROOT
     );
 
@@ -167,7 +221,8 @@ fn bench_by_category(c: &mut Criterion) {
 /// Per-pattern breakdown for the worst-case category specifically: which
 /// individual patterns cost the most, not just the aggregate.
 fn bench_worst_per_pattern(c: &mut Criterion) {
-    let (_, _, worst) = load_corpus(5);
+    let sel = bench_selection();
+    let (_, _, worst) = load_corpus(&sel, 5);
 
     let mut group = c.benchmark_group("dataset_worst_per_pattern");
     group.sample_size(10);

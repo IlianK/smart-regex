@@ -2,6 +2,11 @@
 
 Full command reference for the `regex-engine` binary. See the [README](../README.md) for install/build and a quickstart.
 
+**By default, `match`/`parse` require the entire input to match the
+entire pattern**, and `^`/`$` do nothing: full-string matching is what
+the core algorithm computes. Pass `--search` to pad unanchored sides
+with `Σ*` instead (substring search), the same padding
+`src/data/`'s dataset pipeline uses. 
 
 ---
 
@@ -128,9 +133,11 @@ cat reports/report.txt
 
 | Flag | Values | Default | Use |
 |---|---|---|---|
-| `--parser` | `deriv_std_rec` `deriv_std_loop` `deriv_bc` `pderiv_std` `pderiv_bc` `all` | `deriv_std_rec` | Parser selection |
-| `--diag`  | `0` `1` `2` `3` | `0` | Output verbosity level |
-| `--diag-report` | file path | unset (`reports/report.txt` if `--diag 3` with no path given) | Level 3 report destination |
+| `--parser` | `deriv_std_rec` `deriv_std_loop` `deriv_bc` `pderiv_std` `pderiv_bc` `all` | `deriv_std_rec` | Parser selection (`parse` only) |
+| `--matcher` | `naive` `deriv` `pderiv` `all` | `deriv` | Matcher selection (`match` only) |
+| `--diag`  | `0` `1` `2` `3` | `0` | Output verbosity level (`parse` only) |
+| `--diag-report` | file path | unset (`reports/report.txt` if `--diag 3` with no path given) | Level 3 report destination (`parse` only) |
+| `--search` | flag (present/absent) | absent | Pad unanchored sides with `Σ*` instead of requiring a full-string match; both `match` and `parse` |
 
 ### Verbosity levels
 
@@ -140,3 +147,103 @@ cat reports/report.txt
 | `1` | Basic | Regex, Input, Match, Tree | + position, found, expected, caret |
 | `2` | Verbose | + time, step count, construction steps / bit trace | + partial match recovery |
 | `3` | Debug | + full structural derivation trace | + full trace to failure point; writes to `--diag-report` if set |
+
+---
+
+## External Pattern: Anchoring
+
+Without `--search`, both `match` and `parse` parse their `regex`
+argument with `frontend::parse_pattern`: the bare pattern text directly,
+**not** wrapped in PCRE `/pattern/flags` delimiters, and **not** padded
+into a search over `^`/`$`-unanchored substrings. `match`/`parse` ask
+whether the *entire* input matches the *entire* pattern; `^`/`$` are
+accepted but do nothing (`translate` maps both to `Eps`).
+
+With `--search`, both instead parse with `frontend::parse_dataset_pattern`
+(the same padding `src/data/`'s pipeline uses, minus its `/PATTERN/FLAGS`
+wrapper-stripping and `i`-flag case-folding, which `--search` doesn't
+add): whichever side of the pattern lacks a top-level `^`/`$` gets padded
+with `Σ*`. Verified live:
+
+```bash
+$ cargo run -- match "abc" "xabcx"            # no --search: full string only
+false
+$ cargo run -- match "abc" "xabcx" --search   # unanchored: padded both sides
+true
+$ cargo run -- match '^abc$' "xabcx" --search # fully anchored: no padding either side
+false
+$ cargo run -- match '^abc' "abcx" --search   # start-anchored: padded on the end only
+true
+$ cargo run -- match '^abc' "xabc" --search
+false
+```
+
+See [FRONTEND.md](FRONTEND.md)'s "Search padding and anchoring" section
+for the full anchoring table (`(^abc)`, `a^b`, `(a|^b)c`, etc.) — every
+row of it applies identically under `--search`.
+
+### Supported syntax
+
+```bash
+# Literals, concatenation, alternation, grouping
+cargo run -- match "cat|dog" "dog"
+cargo run -- match "(a|b)c" "bc"
+cargo run -- match "(?:a|b)c" "bc"      # non-capturing group
+
+# Quantifiers: greedy and lazy (trailing ?)
+cargo run -- match "a*"  "aaa"
+cargo run -- match "a+"  "aaa"
+cargo run -- match "a?"  "a"
+cargo run -- match "a*?" "aaa"          # lazy star
+cargo run -- match "a+?" "aaa"          # lazy plus
+
+# Bounded repetition {m}, {m,}, {m,n}
+cargo run -- match "a{2,4}" "aaa"
+
+# Character classes, negation, ranges
+cargo run -- match "[abc]"   "b"
+cargo run -- match "[^abc]"  "d"
+cargo run -- match "[a-z0-9]+" "a1b2"
+
+# Shorthand classes: \d \D \w \W \s \S, and . (any character)
+cargo run -- match '\d{3}-\d{4}' "555-1234"
+cargo run -- match '\w+\s\w+' "hello world"
+cargo run -- match "a.c" "abc"
+
+# ^ and $: accepted, but a no-op under match/parse's default full-string
+# semantics -- they only start mattering with --search (see below)
+cargo run -- match "^abc$" "abc"
+```
+
+### Rejected outright, with a specific error
+
+Three constructs describe languages, or depend on position, in a way
+that isn't regular in the formal sense every parser depends on.
+`parse_pattern` rejects all three with a
+descriptive error rather than silently mis-parsing them:
+
+```bash
+$ cargo run -- match "(a)\1" "aa"
+Regex parse error: backreference '\1' is not a regular-language construct -- unsupported
+
+$ cargo run -- match "a(?=b)" "ab"
+Regex parse error: lookahead '(?=...)' is not a regular-language construct -- unsupported
+
+$ cargo run -- match '\bfoo\b' "foo"
+Regex parse error: word boundary '\b'/'\B' is position-dependent, not a regular-language construct -- unsupported
+```
+
+Lookahead, negative lookahead, lookbehind, and negative lookbehind
+(`(?=`, `(?!`, `(?<=`, `(?<!`) are all rejected the same way, at parse
+time, before any translation is attempted. `\b`/`\B` parse successfully
+(into an internal `WordBoundary` marker, so a literal `b` is never
+silently substituted) but are rejected one step later, at translation.
+
+### What this frontend still does *not* expose
+
+`--search` covers the padding half of `parse_pcre_rule` (what
+`src/data/`'s dataset pipeline and `examples/filter_dataset.rs` actually
+use), not the rest: the `/PATTERN/FLAGS` wrapper and the `i`
+case-insensitive flag are still specific to `parse_pcre_rule` and have no
+CLI flag — there is no `cargo run -- match "/pattern/i" "input"` form.
+See [DATASETS.md](DATASETS.md) for that path instead.

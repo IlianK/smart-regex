@@ -22,7 +22,48 @@ use regex_engine::{match_deriv, match_pderiv};
 
 const DATA_ROOT: &str = "data/processed";
 /// Distinct patterns admitted per category, not rows: see `load_corpus`.
+/// Default, overridden by `BENCH_PATTERN_LIMIT`; see `bench_selection`.
 const PATTERN_LIMIT_PER_CATEGORY: usize = 30;
+
+/// Which category, sources, and pattern cap a run is narrowed to; see
+/// `bench_dataset.rs`'s own copy of this type for why env vars rather
+/// than CLI flags, and `docs/BENCHMARKS.md` for the full list.
+struct BenchSelection {
+    category: Option<Category>,
+    sources: Vec<SourceKind>,
+    pattern_limit: usize,
+}
+
+fn bench_selection() -> BenchSelection {
+    let category = std::env::var("BENCH_CATEGORY").ok().map(|s| match s.to_lowercase().as_str() {
+        "best" => Category::Best,
+        "neutral" => Category::Neutral,
+        "worst" => Category::Worst,
+        other => panic!("BENCH_CATEGORY must be best, neutral, or worst, got {other:?}"),
+    });
+    let sources = std::env::var("BENCH_SOURCE")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(|part| match part.trim().to_lowercase().as_str() {
+                    "suricata" | "snort" => SourceKind::Suricata,
+                    "spamassassin" => SourceKind::SpamAssassin,
+                    "regexlib" => SourceKind::RegexLib,
+                    other => panic!(
+                        "BENCH_SOURCE entries must be suricata, spamassassin, or regexlib, got {other:?}"
+                    ),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT")
+        .ok()
+        .map(|s| {
+            s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
+        })
+        .unwrap_or(PATTERN_LIMIT_PER_CATEGORY);
+    BenchSelection { category, sources, pattern_limit }
+}
 
 /// One prepared case, compiled for every engine this bench compares.
 struct Entry {
@@ -47,8 +88,9 @@ fn external_pattern(pattern: &str) -> (String, bool) {
 /// (`src/data/generate.rs` produces several verified inputs per (pattern,
 /// category) now, not one). A pattern already admitted for a category
 /// contributes every one of its variants for that category.
-fn load_corpus(pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
-    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &[], None).unwrap_or_else(|e| {
+fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
+    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources, sel.category)
+        .unwrap_or_else(|e| {
         panic!(
             "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
              prepare_dataset -- <suricata|spamassassin|regexlib> <file>...` first; see \
@@ -128,7 +170,7 @@ fn load_corpus(pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
         re2_posix_failures,
     );
     if best.is_empty() && neutral.is_empty() && worst.is_empty() {
-        panic!("{}", empty_corpus_diagnosis());
+        panic!("{}", empty_corpus_diagnosis(sel));
     }
     (best, neutral, worst)
 }
@@ -140,10 +182,11 @@ fn load_corpus(pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
 /// `<source>/prepared.jsonl` as "no cases from that source" rather than an
 /// error, which is right for a benchmark that only wants whichever sources
 /// happen to be prepared, but wrong for silently explaining nothing here.
-/// Duplicated from `bench_dataset.rs` rather than shared, the same
-/// self-contained-file convention `tests/test_thesis_figures.rs` already
-/// uses for its own duplicated helpers.
-fn empty_corpus_diagnosis() -> String {
+/// Also reports the active `BENCH_*` selection. Duplicated from
+/// `bench_dataset.rs` rather than shared, the same self-contained-file
+/// convention `tests/test_thesis_figures.rs` already uses for its own
+/// duplicated helpers.
+fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
     let root = std::path::Path::new(DATA_ROOT);
     let resolved = std::fs::canonicalize(root)
         .map(|p| p.display().to_string())
@@ -151,7 +194,9 @@ fn empty_corpus_diagnosis() -> String {
              does not exist there)"));
     let mut lines = vec![format!(
         "bench: no entries loaded from any category, for any source, under {DATA_ROOT} \
-         (resolved: {resolved}). Per-source check:"
+         (resolved: {resolved}). Active selection: category={:?}, sources={:?} (empty = all), \
+         pattern_limit={}. Per-source check:",
+        sel.category, sel.sources, sel.pattern_limit
     )];
     for source in [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib] {
         let path = root.join(source.dir_name()).join("prepared.jsonl");
@@ -222,7 +267,8 @@ fn bench_external_engines(group: &mut BenchmarkGroup<WallTime>, corpus: &[Entry]
 }
 
 fn bench_by_category(c: &mut Criterion) {
-    let (best, neutral, worst) = load_corpus(PATTERN_LIMIT_PER_CATEGORY);
+    let sel = bench_selection();
+    let (best, neutral, worst) = load_corpus(&sel, sel.pattern_limit);
 
     for (label, corpus) in [
         ("external_best", &best),
@@ -252,7 +298,8 @@ fn bench_by_category(c: &mut Criterion) {
 /// `regex`/RE2's `is_match` builds no parse tree; compares against this
 /// crate's own tree-free matchers instead of the full parsers.
 fn bench_matcher_by_category(c: &mut Criterion) {
-    let (best, neutral, worst) = load_corpus(PATTERN_LIMIT_PER_CATEGORY);
+    let sel = bench_selection();
+    let (best, neutral, worst) = load_corpus(&sel, sel.pattern_limit);
 
     for (label, corpus) in [
         ("external_matcher_best", &best),
@@ -282,7 +329,8 @@ fn bench_matcher_by_category(c: &mut Criterion) {
 /// membership decision agrees with `regex`-crate's and RE2's, on each
 /// entry's own verified input and expected outcome.
 fn bench_agreement_smoke(c: &mut Criterion) {
-    let (best, neutral, worst) = load_corpus(PATTERN_LIMIT_PER_CATEGORY);
+    let sel = bench_selection();
+    let (best, neutral, worst) = load_corpus(&sel, sel.pattern_limit);
     let all: Vec<&Entry> = best.iter().chain(neutral.iter()).chain(worst.iter()).collect();
 
     let mut rust_regex_agree = 0usize;

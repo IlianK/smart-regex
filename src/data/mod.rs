@@ -77,7 +77,20 @@ pub fn run_pipeline(
 
     let mut rules = Vec::new();
     for file in raw_files {
-        let text = std::fs::read_to_string(file)?;
+        let bytes = std::fs::read(file)?;
+        let text = match String::from_utf8(bytes) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "warning: {} is not valid UTF-8, decoding lossily rather than \
+                     aborting the run -- a pattern touching the invalid bytes may \
+                     come out corrupted, not just this file's progress lost: {}",
+                    file.display(),
+                    e
+                );
+                String::from_utf8_lossy(e.as_bytes()).into_owned()
+            }
+        };
         let extracted = match source {
             SourceKind::Suricata => extract::extract_suricata(&text),
             SourceKind::SpamAssassin => extract::extract_spamassassin(&text),

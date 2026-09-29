@@ -1,4 +1,4 @@
-//! Runs the dataset preparation pipeline (`src/data/`) end to end for one
+//! Runs the dataset preparation pipeline (`data/`) end to end for one
 //! source: extract patterns from the given raw file(s), generate
 //! best/neutral/worst candidates for each, verify every one against the
 //! real parser, and write the survivors to
