@@ -166,15 +166,15 @@ add): whichever side of the pattern lacks a top-level `^`/`$` gets padded
 with `Σ*`. Verified live:
 
 ```bash
-$ cargo run -- match "abc" "xabcx"            # no --search: full string only
+cargo run -- match "abc" "xabcx"            # no --search: full string only
 false
-$ cargo run -- match "abc" "xabcx" --search   # unanchored: padded both sides
+cargo run -- match "abc" "xabcx" --search   # unanchored: padded both sides
 true
-$ cargo run -- match '^abc$' "xabcx" --search # fully anchored: no padding either side
+cargo run -- match '^abc$' "xabcx" --search # fully anchored: no padding either side
 false
-$ cargo run -- match '^abc' "abcx" --search   # start-anchored: padded on the end only
+cargo run -- match '^abc' "abcx" --search   # start-anchored: padded on the end only
 true
-$ cargo run -- match '^abc' "xabc" --search
+cargo run -- match '^abc' "xabc" --search
 false
 ```
 
@@ -223,13 +223,13 @@ that isn't regular in the formal sense every parser depends on.
 descriptive error rather than silently mis-parsing them:
 
 ```bash
-$ cargo run -- match "(a)\1" "aa"
+cargo run -- match "(a)\1" "aa"
 Regex parse error: backreference '\1' is not a regular-language construct -- unsupported
 
-$ cargo run -- match "a(?=b)" "ab"
+cargo run -- match "a(?=b)" "ab"
 Regex parse error: lookahead '(?=...)' is not a regular-language construct -- unsupported
 
-$ cargo run -- match '\bfoo\b' "foo"
+cargo run -- match '\bfoo\b' "foo"
 Regex parse error: word boundary '\b'/'\B' is position-dependent, not a regular-language construct -- unsupported
 ```
 
