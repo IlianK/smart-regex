@@ -1,8 +1,4 @@
-//! Benchmarks the four parsers against real corpus patterns paired with
-//! real, verified input -- not a pattern list probed with the same fixed
-//! generic string regardless of what each pattern actually is. That input
-//! comes from `src/data/`'s prepare stage (`data/processed/*/prepared.jsonl`);
-//! see `docs/DATASETS.md` for how to produce it.
+//! Benchmarks the four parsers against real corpus patterns 
 //!
 //! Run: `cargo bench --bench bench_dataset`
 
@@ -17,23 +13,11 @@ use regex_engine::parsers::{
 use regex_engine::types::Regex;
 
 const DATA_ROOT: &str = "data/processed";
-/// Distinct patterns admitted per category, not rows: see `load_corpus`.
-/// Default, overridden by `BENCH_PATTERN_LIMIT`; see `bench_selection`.
 const PATTERN_LIMIT_PER_CATEGORY: usize = 30;
-
-/// One prepared case, with its pattern compiled once rather than per
-/// benchmark iteration.
 struct Entry {
     regex: Regex,
     input: String,
 }
-
-/// Which category, sources, and pattern cap a run is narrowed to, read
-/// from the environment rather than CLI flags: `criterion_main!` already
-/// owns `cargo bench`'s own argument parsing (its filter regex,
-/// `--sample-size`, `--test`, ...), so a custom flag would either collide
-/// with that or need `--` juggling; an env var sidesteps it entirely.
-/// See `docs/BENCHMARKS.md` for the full list and examples.
 struct BenchSelection {
     category: Option<Category>,
     sources: Vec<SourceKind>,
@@ -71,22 +55,6 @@ fn bench_selection() -> BenchSelection {
     BenchSelection { category, sources, pattern_limit }
 }
 
-/// Loads every verified variant from up to `pattern_limit` distinct
-/// patterns per `Category`, from `sel`'s selected sources (all three if
-/// empty) and narrowed to `sel`'s category if set. `pattern_limit` caps
-/// the number of *patterns* represented, not the number of rows:
-/// `src/data/generate.rs` now produces several verified inputs per
-/// (pattern, category) rather than one, so capping rows directly would
-/// let one pattern's several variants crowd out another pattern's
-/// coverage entirely. A pattern already admitted for a category
-/// contributes every one of its variants for that category; the cap only
-/// ever decides whether a *new* pattern gets in.
-///
-/// A pattern that fails to compile here would mean `prepare_dataset`
-/// wrote something `parse_pcre_rule` itself rejects, which should never
-/// happen (prepare_dataset verifies every case against this exact
-/// function before writing it) -- skipped with a warning rather than
-/// panicking, so a bench run survives an unexpected mismatch.
 fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources, sel.category)
         .unwrap_or_else(|e| {
@@ -131,16 +99,6 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
     (best, neutral, worst)
 }
 
-/// Explains *why* nothing loaded, rather than letting the caller run every
-/// benchmark on a silently empty corpus (0 entries, but no failure) -- the
-/// exact symptom this diagnostic exists to make impossible to miss. Checked
-/// per source, since `load_prepared_cases` itself treats a missing
-/// `<source>/prepared.jsonl` as "no cases from that source" rather than an
-/// error, which is right for a benchmark that only wants whichever sources
-/// happen to be prepared, but wrong for silently explaining nothing here.
-/// Also reports the active `BENCH_*` selection, since a filter that's
-/// narrower than intended (a typo'd category, a source with nothing
-/// prepared) produces this exact symptom too.
 fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
     let root = std::path::Path::new(DATA_ROOT);
     let resolved = std::fs::canonicalize(root)
@@ -180,9 +138,6 @@ const PARSERS: &[(ParserType, ParserFn)] = &[
     (ParserType::PDerivStd, parse_pderiv_std),
 ];
 
-/// One benchmark group per category: each parser runs against every entry
-/// in that category, probed with *that entry's own* verified input, not a
-/// string shared across the whole corpus.
 fn bench_by_category(c: &mut Criterion) {
     let sel = bench_selection();
     let (best, neutral, worst) = load_corpus(&sel, sel.pattern_limit);
@@ -218,8 +173,7 @@ fn bench_by_category(c: &mut Criterion) {
     }
 }
 
-/// Per-pattern breakdown for the worst-case category specifically: which
-/// individual patterns cost the most, not just the aggregate.
+
 fn bench_worst_per_pattern(c: &mut Criterion) {
     let sel = bench_selection();
     let (_, _, worst) = load_corpus(&sel, 5);

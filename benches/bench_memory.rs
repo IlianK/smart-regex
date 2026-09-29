@@ -1,17 +1,5 @@
-//! Memory consumption, the counterpart to `bench_dataset.rs`'s timing:
-//! bytes allocated per parser per category on the real-world corpus.
-//! Same `BENCH_*` selection as `bench_dataset.rs`/`bench_external.rs`
-//! (see `docs/BENCHMARKS.md`), and the same `data/processed/*/prepared.jsonl`
-//! input (see `docs/DATASETS.md`).
-//!
-//! Not a Criterion target: allocation counts are deterministic per input
-//! (no scheduling noise to average away the way wall-clock time has), so
-//! a single measurement per entry is a real number, not an estimate --
-//! Criterion's statistical sampling machinery would be measuring nothing
-//! but its own repeated overhead. `harness = false` in Cargo.toml (a
-//! plain `fn main()`, not `criterion_main!`) reflects that; the target
-//! still runs via `cargo bench --bench bench_memory` like the others.
-//!
+//! Memory consumption
+
 //! Run: `cargo bench --bench bench_memory`
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -29,12 +17,6 @@ use regex_engine::types::Regex;
 // -------------------------------
 // Counting global allocator
 // -------------------------------
-
-/// Wraps the system allocator, counting rather than replacing: every
-/// `alloc`/`dealloc` this process makes (Criterion isn't linked in this
-/// binary, but `serde_json`, `clap`-free straight-line code, and the
-/// parsers themselves all still allocate normally) passes through here
-/// unchanged, with byte counts tracked on the side via atomics.
 struct CountingAllocator;
 
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
@@ -76,14 +58,6 @@ unsafe impl GlobalAlloc for CountingAllocator {
 #[global_allocator]
 static GLOBAL: CountingAllocator = CountingAllocator;
 
-/// Runs `f`, returning its result plus the bytes allocated during the
-/// call (`TOTAL`, cumulative including freed-and-reallocated churn) and
-/// the peak live bytes reached *above* whatever was already live when
-/// the call started (`PEAK`, reset to that baseline first) -- the two
-/// numbers Section~8's "Heap allocation" argument needs to become exact
-/// rather than qualitative: total for `deriv_std`'s "sum of the
-/// derivation sequence" claim, peak for `deriv_bc`'s "largest single
-/// step" claim.
 fn measure<T>(f: impl FnOnce() -> T) -> (T, usize, usize) {
     let baseline = CURRENT.load(Ordering::SeqCst);
     PEAK.store(baseline, Ordering::SeqCst);
@@ -93,12 +67,6 @@ fn measure<T>(f: impl FnOnce() -> T) -> (T, usize, usize) {
     let peak = PEAK.load(Ordering::SeqCst).saturating_sub(baseline);
     (result, total, peak)
 }
-
-// -------------------------------
-// Corpus loading -- duplicated from bench_dataset.rs rather than shared,
-// the same self-contained-file convention as this crate's other bench
-// and test files.
-// -------------------------------
 
 const DATA_ROOT: &str = "data/processed";
 const PATTERN_LIMIT_PER_CATEGORY: usize = 30;

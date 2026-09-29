@@ -1,8 +1,5 @@
 //! Compares the four parsers, and this crate's tree-free matchers, against
-//! Rust's `regex` crate and Google's RE2, on real corpus patterns paired
-//! with real, verified input (see `bench_dataset.rs`'s own doc comment for
-//! why that matters). Input comes from `data/processed/*/prepared.jsonl`;
-//! see `docs/DATASETS.md`.
+//! Rust's `regex` crate and Google's RE2
 //!
 //! Run: `cargo bench --bench bench_external --features external-engines`
 
@@ -21,13 +18,8 @@ use regex_engine::types::Regex;
 use regex_engine::{match_deriv, match_pderiv};
 
 const DATA_ROOT: &str = "data/processed";
-/// Distinct patterns admitted per category, not rows: see `load_corpus`.
-/// Default, overridden by `BENCH_PATTERN_LIMIT`; see `bench_selection`.
 const PATTERN_LIMIT_PER_CATEGORY: usize = 30;
 
-/// Which category, sources, and pattern cap a run is narrowed to; see
-/// `bench_dataset.rs`'s own copy of this type for why env vars rather
-/// than CLI flags, and `docs/BENCHMARKS.md` for the full list.
 struct BenchSelection {
     category: Option<Category>,
     sources: Vec<SourceKind>,
@@ -65,7 +57,6 @@ fn bench_selection() -> BenchSelection {
     BenchSelection { category, sources, pattern_limit }
 }
 
-/// One prepared case, compiled for every engine this bench compares.
 struct Entry {
     internal: Regex,
     input: String,
@@ -75,19 +66,11 @@ struct Entry {
     re2_posix: Option<Re2>,
 }
 
-/// `/pattern/flags` -> the bare pattern body plus whether the `i` flag was
-/// set. RE2's posix_syntax mode rejects an inline `(?i)` group outright.
 fn external_pattern(pattern: &str) -> (String, bool) {
     let (body, case_insensitive) = strip_pcre_delimiters(pattern);
     (body.to_string(), case_insensitive)
 }
 
-/// Loads every verified variant from up to `pattern_limit` distinct
-/// patterns per `Category`. `pattern_limit` caps the number of *patterns*
-/// represented, not rows: see `bench_dataset.rs`'s `load_corpus` for why
-/// (`src/data/generate.rs` produces several verified inputs per (pattern,
-/// category) now, not one). A pattern already admitted for a category
-/// contributes every one of its variants for that category.
 fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources, sel.category)
         .unwrap_or_else(|e| {
@@ -175,17 +158,7 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
     (best, neutral, worst)
 }
 
-/// Explains *why* nothing loaded, rather than letting the caller run every
-/// benchmark on a silently empty corpus (0 entries, but no failure) -- the
-/// exact symptom this diagnostic exists to make impossible to miss. Checked
-/// per source, since `load_prepared_cases` itself treats a missing
-/// `<source>/prepared.jsonl` as "no cases from that source" rather than an
-/// error, which is right for a benchmark that only wants whichever sources
-/// happen to be prepared, but wrong for silently explaining nothing here.
-/// Also reports the active `BENCH_*` selection. Duplicated from
-/// `bench_dataset.rs` rather than shared, the same self-contained-file
-/// convention `tests/test_thesis_figures.rs` already uses for its own
-/// duplicated helpers.
+
 fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
     let root = std::path::Path::new(DATA_ROOT);
     let resolved = std::fs::canonicalize(root)
@@ -225,15 +198,10 @@ const PARSERS: &[(ParserType, ParserFn)] = &[
     (ParserType::PDerivStd, parse_pderiv_std),
 ];
 
-/// The tree-free Boolean matchers, unlike `PARSERS` above: there is no
-/// POSIX/Greedy split here, since membership never distinguishes
-/// disambiguation policy.
+
 type MatcherFn = fn(&str, &Regex) -> bool;
 const MATCHERS: &[(&str, MatcherFn)] = &[("deriv", match_deriv), ("pderiv", match_pderiv)];
 
-/// Adds the three external-engine benchmark functions (`rust_regex`,
-/// `re2_perl`, `re2_posix`) to `group`, each probed with its own entry's
-/// verified input.
 fn bench_external_engines(group: &mut BenchmarkGroup<WallTime>, corpus: &[Entry]) {
     group.bench_function("rust_regex", |b| {
         b.iter(|| {
@@ -295,8 +263,7 @@ fn bench_by_category(c: &mut Criterion) {
     }
 }
 
-/// `regex`/RE2's `is_match` builds no parse tree; compares against this
-/// crate's own tree-free matchers instead of the full parsers.
+
 fn bench_matcher_by_category(c: &mut Criterion) {
     let sel = bench_selection();
     let (best, neutral, worst) = load_corpus(&sel, sel.pattern_limit);
@@ -325,9 +292,6 @@ fn bench_matcher_by_category(c: &mut Criterion) {
     }
 }
 
-/// One-time sanity check, printed to stderr, of how often this crate's own
-/// membership decision agrees with `regex`-crate's and RE2's, on each
-/// entry's own verified input and expected outcome.
 fn bench_agreement_smoke(c: &mut Criterion) {
     let sel = bench_selection();
     let (best, neutral, worst) = load_corpus(&sel, sel.pattern_limit);
@@ -370,7 +334,6 @@ fn bench_agreement_smoke(c: &mut Criterion) {
         re2_total
     );
 
-    // Criterion still wants at least one measured function per group.
     let mut group = c.benchmark_group("external_agreement_smoke");
     group.sample_size(10);
     group.bench_function("noop", |b| b.iter(|| black_box(())));
