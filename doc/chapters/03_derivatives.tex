@@ -351,7 +351,7 @@ which justifies simplification after every derivative step.
 
 \paragraph{Example: Growth without simplification.}
 Consider $(x+y)^{*}$ against the word $\mathtt{xx}$:
-\emph{Step 1.} The expression is a star, so $\mathsf{D}_{*}$ applies with
+The expression is a star, so $\mathsf{D}_{*}$ applies with
 body $r = x+y$:
 \begin{equation}\label{eq:der-3}
 \begin{aligned}
@@ -363,7 +363,7 @@ body $r = x+y$:
 \end{aligned}
 \end{equation}
 
-\emph{Step 2.} The expression is now the concatenation
+The expression is now the concatenation
 $(\varepsilon + \emptyset) \cdot (x+y)^{*}$, and deriving it consumes the second
 $\mathtt{x}$. The result is an alternation because
 $\mathsf{D}_{\mathrm{seq}}^{\,n}$ applies with $r = \varepsilon + \emptyset$ and
@@ -899,7 +899,7 @@ pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
 \paragraph{Example: No growth under \boldmath$pd$\unboldmath.}
 Consider $(x+y)^{*}$ against $\mathtt{xx}$ under $pd$.
 
-\emph{Step 1.} $\mathsf{P}_{*}$ applies with star body $r=x+y$:
+$\mathsf{P}_{*}$ applies with star body $r=x+y$:
 \begin{equation}\label{eq:der-15}
 \begin{aligned}
 pd((x+y)^{*},\mathtt{x})
@@ -911,16 +911,18 @@ pd((x+y)^{*},\mathtt{x})
   &&\mathsf{SC},\ r' = \varepsilon.
 \end{aligned}
 \end{equation}
+
 $pd(x+y,\mathtt{x})=\{\varepsilon\}\cup\{\}=\{\varepsilon\}$ by
 $\mathsf{P}_{+}$, since $\mathtt{x}$ matches the left literal and
 misses the right, and $\mathit{smartC}$ absorbs the $\varepsilon$
 straight back into $(x+y)^{*}$.
 
-\emph{Step 2.} The set is $\{(x+y)^{*}\}$, so deriving by the second
+The set is $\{(x+y)^{*}\}$, so deriving by the second
 $\mathtt{x}$ repeats the computation:
 \[
 pd((x+y)^{*},\mathtt{x},\mathtt{x}) = \{(x+y)^{*}\}.
 \]
+
 Since $(x+y)^{*}$ is nullable by $\mathsf{N}_{*}$, the final partial 
 derivative accepts $\varepsilon$, so $\mathtt{xx}\in L((x+y)^{*})$.
 
@@ -934,8 +936,6 @@ $\{(x+y)^{*}\}$ after both steps,
 since $\mathsf{P}_{\emptyset}$ and $\mathsf{P}_{\varepsilon}$ produce no
 residual at all. So redundant terms are avoided at construction time rather
 than built and simplified afterwards
-
-The next example shows where more than one residual survives at once.
 
 %
 

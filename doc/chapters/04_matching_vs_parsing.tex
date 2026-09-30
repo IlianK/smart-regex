@@ -1,71 +1,47 @@
-\chapter{Matching versus Parsing}
+\chapter{Matching and Parsing}
 \label{sec:matching-vs-parsing}
 
 Chapter~\ref{sec:derivatives} established matching with a Boolean
-answer: whether $w \in L(r)$. A matcher therefore answers only whether
-the input is accepted by the regular expression. Parsing goes beyond
-this membership question by identifying the derivation for the match.
-
-This distinction is important because a regular expression can admit
-more than one way of matching the same word. A parser must therefore
-represent the choices made during a match. These choices can be
-represented by \emph{parse trees}, which provide structured witnesses
-for membership in the language.
+answer: $w \in L(r)$. A matcher only answers whether
+the input is accepted by the regular expression. 
+Parsing identifies the evidence for the match and
+\emph{parse trees} act as their structured witnesses.
 
 %
 
-\section{Matching Ambiguity}
+\section{Matching: A Boolean Answer}
 \label{sec:matching-problem}
 
-Consider the regular expression
-\[
-r = (a+ab)(b+\varepsilon)
-\]
-and the input word
-\[
-w = \mathtt{ab}.
-\]
+Consider $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$. 
+The matcher can determine $w \in L(r)$ using the algorithms of Chapter~\ref{sec:derivatives}. 
+There are, however, two ways in which $r$ can match $w$:
+\begin{equation}
+\begin{aligned}
+\underbrace{a}_{a+ab}\; \underbrace{b}_{b+\varepsilon}
+\quad&\text{and}\quad
+\underbrace{\mathtt{ab}}_{a+ab}\; \underbrace{\varepsilon}_{b+\varepsilon}
+\end{aligned}
+\label{eq:match-decompositions}
+\end{equation}
 
-The matcher can establish that $w \in L(r)$ using the matching
-procedures of Chapter~\ref{sec:derivatives}. There are, however, two
-ways in which the match can be obtained. In the first, the left
-subexpression matches $\mathtt{a}$ and the right subexpression matches
-$\mathtt{b}$:
-\[
-\underbrace{a}_{a+ab}\;
-\underbrace{b}_{b+\varepsilon}.
-\]
-
-In the second, the left subexpression matches the entire input and the
-right subexpression matches the empty word:
-\[
-\underbrace{\mathtt{ab}}_{a+ab}\;
-\underbrace{\varepsilon}_{b+\varepsilon},
-\]
-
-Both choices therefore establish the same membership result,
-\[
-\mathtt{ab} \in L\bigl((a+ab)(b+\varepsilon)\bigr),
-\]
+Both choices establish the same membership result,
 but assign the input differently to the subexpressions of $r$.
-The Boolean result of matching does not distinguish these cases.
+The Boolean result alone cannot distinguish these cases,
+so the matcher cannot reveal which decomposition was chosen.
 
-Parsing makes this additional structure explicit. A parser must represent
+Parsing makes this additional structure explicit, by showing
 which alternatives were chosen and which parts of the input were
 consumed by the corresponding subexpressions.
-A \emph{parse tree} provides a structured witness for such a derivation,
-recording the choices made by the expression and the corresponding
-consumption of the input.
 
 %
 
-\section{Parse Trees as Matching Evidence}
+\section{Parsing: Parse Trees as Matching Evidence}
 \label{sec:parse-trees-as-evidence}
-
-Sulzmann and Lu view regular expressions as types and parse trees as their
-values \citep{sulzmannlu2014}. The judgment $\vdash v : r$ states that
-$v$ is a valid parse tree for $r$ and records the structural choices made
-when matching $r$:
+\paragraph{Parse Tree.} A \emph{parse tree} provides a structured witness for such a derivation.
+Sulzmann and Lu view regular expressions as types and \emph{parse trees} as their
+values \citep{sulzmannlu2014}. The judgment $\vdash v : r$ states that $v$ is a
+valid parse tree for $r$, recording which alternatives were chosen and how each
+part of the input was consumed during matching:
 
 \begin{equation}
 \label{eq:typing-rules}
@@ -108,20 +84,15 @@ when matching $r$:
 \end{aligned}
 \end{equation}
 
-The rules correspond to the constructors of regular
-expressions. A concatenation uses a pair of parse trees, an alternation
-records the chosen branch with a tagged injection, and a Kleene star
-records its iterations as a list.
+
 
 %
 
 \paragraph{In Rust.}
-The definitions above translate directly to Rust. Figure~\ref{fig:parsetree-enum}
-shows the parse-tree type, with one variant for each constructor in
-~\eqref{eq:typing-rules}. The two star rules share a single
-\texttt{Star} variant, represented by a \texttt{Vec}.
-
+Figure~\ref{fig:parsetree-enum}
+shows the parse-tree type, with one variant for each constructor.
 \begin{figure}[H]
+\small
 \begin{verbatim}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseTree {
@@ -133,31 +104,22 @@ pub enum ParseTree {
     Star(Vec<ParseTree>),                  // [v1, ..., vn]
 }
 \end{verbatim}
-\caption{The parse-tree type: The variants
-correspond to the constructors. The two star rules share the \texttt{Star} variant.}
+\caption{The parse tree type, representing the structure of a parse.}
 \label{fig:parsetree-enum}
 \end{figure}
 
-The correspondence is one to one except for the star case:
-$\mathsf{T}_{\varepsilon}$, $\mathsf{T}_{\mathrm{lit}}$,
-$\mathsf{T}_{\mathrm{seq}}$, $\mathsf{T}_{+}^{L}$, and
-$\mathsf{T}_{+}^{R}$ correspond to \texttt{Empty}, \texttt{Char},
-\texttt{Pair}, \texttt{Left}, and \texttt{Right}, respectively. The
-empty and non-empty star rules are both represented by \texttt{Star},
-with $[\,]$ represented by \texttt{Star(vec![])}.
-
-The recursive variants use \texttt{Box<ParseTree>} because Rust requires
-recursive types to have a statically known size. \texttt{Star} instead
-uses \texttt{Vec<ParseTree>}, which already provides indirection through
-a fixed-size vector handle.
-
-\paragraph{Derived traits.}
-\texttt{PartialEq} and \texttt{Eq} allow direct comparison of parse
-trees, while \texttt{Hash} is omitted because parse trees are not used
-as keys for deduplication.
+The definitions above translate directly to Rust, except for the star case:
+$\mathsf{T}{\varepsilon}$ corresponds to \texttt{Empty} for the empty
+parse, $\mathsf{T}_{\mathrm{lit}}$ to \texttt{Char} for a literal,
+$\mathsf{T}_{\mathrm{seq}}$ to \texttt{Pair} for a concatenation of
+parse trees, and $\mathsf{T}_{+}^{L}$ and $\mathsf{T}_{+}^{R}$ to
+\texttt{Left} and \texttt{Right}, recording the chosen branch of an
+alternation. Both star rules are represented
+by \texttt{Star(vec![])}.
 
 %
 
+\paragraph{Flattening.}
 The typing judgment describes the structure of a match, but a parse tree
 must also be related to the word that it matches. For this purpose, they
 define a \emph{flattening} function $\lvert v\rvert$ that maps a parse
@@ -193,8 +155,9 @@ tree to the word represented by its structure:
 \end{aligned}
 \end{equation}
 
-The flattening function connects parse trees to the language of a regular
-expression:
+The flattening function directly connects parse trees to $L(r)$,
+and thus validates that a parse tree witnesses membership in $L(r)$,
+serving as an correctness check:
 
 \begin{equation}\label{eq:mvp-5}
 L(r)
@@ -202,22 +165,14 @@ L(r)
 \{\,\lvert v\rvert \mid \vdash v : r\,\}.
 \end{equation}
 
-Thus, a parse tree $v$ provides a structured \emph{witness} for
-membership in $L(r)$, recording both the match and the structural
-choices by which $r$ produces the word.
-
 %
 
 \paragraph{In Rust.}
-The function takes \texttt{\&ParseTree} rather than consuming the tree,
-so it can be inspected, printed, and compared after flattening. The star
-case similarly borrows its elements through \texttt{vs.iter()}. Keeping
-flattening separate from tree construction also provides an independent
-parse validation. A tree for $w$ must satisfy
-$\lvert v\rvert=w$, as required by ~\eqref{eq:mvp-26}.
-Flattening is implemented directly from ~\eqref{eq:flatten}:
-
+Figure~\ref{fig:flatten-rust} shows that the function takes \texttt{\&ParseTree}
+rather than consuming the tree, so it can be inspected, printed, and compared after flattening. 
+The star case similarly borrows its elements through \texttt{vs.iter()}.
 \begin{figure}[H]
+\small
 \begin{verbatim}
 pub fn flatten(v: &ParseTree) -> String {
     match v {
@@ -231,81 +186,67 @@ pub fn flatten(v: &ParseTree) -> String {
     }
 }
 \end{verbatim}
-\caption{The \texttt{flatten} function: extract the matched word from a parse tree.}
+\caption{The \texttt{flatten} function extracts the matched word from a parse tree.}
 \label{fig:flatten-rust}
 \end{figure}
 
 %
 
 \paragraph{Unambiguous example.}
-Consider $r = ab$ and $w = \mathtt{ab}$. The sequence rule requires a
-parse tree for $a$ followed by a parse tree for $b$. Since each
-subexpression is a literal, the literal rule gives the only possible
-derivation:
-
+\label{par:unambigious-example}
+Consider $r = ab$ and $w = \mathtt{ab}$. 
+Since each subexpression is a literal, the rule $\mathsf{T}_{\mathrm{lit}}$ 
+gives each literal a unique witness.
+Then $\mathsf{T}_{\mathrm{seq}}$ requires 
+the parse tree for $a$ to be followed by the parse tree for $b$,
+combining them into a parse tree for $ab$:
 \begin{equation}\label{eq:mvp-6}
+\dfrac{a \in \Sigma}{\vdash a : a}\;(\mathsf{T}_{\mathrm{lit}})
+\qquad\qquad
+\dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
+\qquad\qquad
 \dfrac{
-  \dfrac{a \in \Sigma}{\vdash a : a}\;(\mathsf{T}_{\mathrm{lit}})
-  \qquad
-  \dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
+  \vdash a : a \qquad \vdash b : b
 }{
   \vdash (a,b) : ab
 }\;(\mathsf{T}_{\mathrm{seq}})
 \end{equation}
 
-The parse tree is $v=(a,b)$ and flattening recovers the
-input word:
-$\lvert (a,b)\rvert = \lvert a\rvert\,\lvert b\rvert
-= \mathtt{a}\mathtt{b}$.
+The parse tree $v=(a,b)$ flattens to $\lvert (a,b)\rvert = \mathtt{ab}$.
 
 %
+\paragraph{Ambiguous Example.}
+\label{par:ambigious-example}
+Recall $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$ from the example in
+Section~\ref{sec:matching-problem}, the two decompositions
+in~\eqref{eq:match-decompositions} correspond to two distinct parse
+trees.
 
-\section{Disambiguation}
-\label{sec:disambiguation-problem}
-
-The typing judgment identifies all valid parse trees for a given regular
-expression, while the flattening function determines which word each
-tree represents. So for a regular expression $r$ and word $w$, a parse
-result must satisfy:
-
-\begin{equation}
-\label{eq:mvp-26}
-\vdash v : r
-\qquad\text{and}\qquad
-\lvert v\rvert = w.
+The first decomposition uses the right alternatives of both subexpressiosn $a+ab$ and $b+\varepsilon$. 
+First deriving the parse tree for $a+ab$, gives:
+\begin{equation}\label{eq:mvp-7a}
+\begin{gathered}
+\dfrac{a \in \Sigma}{\vdash a : a}\;(\mathsf{T}_{\mathrm{lit}})
+\qquad\qquad
+\dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
+\\[1.6em]
+\dfrac{\vdash a : a \quad \vdash b : b}{\vdash (a,b) : ab}\;(\mathsf{T}_{\mathrm{seq}})
+\qquad\qquad
+\dfrac{\vdash (a,b) : ab}{\vdash \mathit{Right}(a,b) : a+ab}\;(\mathsf{T}_{+}^{R})
+\end{gathered}
 \end{equation}
 
-When several parse trees satisfy these conditions, the typing judgment
-does not determine which one should be returned. A \emph{disambiguation
-policy} specifies how this choice is made.
-Two policies commonly considered in the literature are \emph{Greedy} and
-\emph{POSIX}:
+Then the parse tree for $b+\varepsilon$:
+\begin{equation}\label{eq:mvp-7b}
+\dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
+\qquad\qquad
+\vdash () : \varepsilon\;(\mathsf{T}_{\varepsilon})
+\qquad\qquad
+\dfrac{\vdash () : \varepsilon}{\vdash \mathit{Right}() : b+\varepsilon}\;(\mathsf{T}_{+}^{R})
+\end{equation}
 
-\begin{itemize}
-  \item \emph{Greedy} resolves choices by the order in which the
-  expression offers them, preferring the earlier alternative and
-  preferring a further iteration to stopping, whatever each consumes
-  \citep{frischcardelli2004}.
 
-  \item \emph{POSIX} resolves choices by subpattern match length from left
-  to right, with ties resolved by the expression order \citep{posix_ere}.
-\end{itemize}
-
-The precise definitions of these policies are given in the corresponding
-literature; see \citet{frischcardelli2004} and \citet{sulzmannlu2014}
-for formal treatments. Instead, the examples below
-show how the policies distinguish between valid parse trees.
-
-%
-
-\paragraph{Ambiguity in concatenation.}
-For
-$r_1 = (a + ab)(b + \varepsilon)$ and $w = \mathtt{ab}$, there are two
-possible matches, corresponding to two distinct parse trees.
-
-The first consumes $\mathtt{ab}$ with the second alternative of $a+ab$
-and then chooses $\varepsilon$:
-
+By $\mathsf{T}_{\mathrm{seq}}$, the parse trees for $a+ab$ and $b+\varepsilon$ combine into one derivation for $r$:
 \begin{equation}
 \label{eq:mvp-7}
 \dfrac{
@@ -321,31 +262,32 @@ and then chooses $\varepsilon$:
   \vdash \mathit{Right}() : b + \varepsilon
 }
 \quad\Rightarrow\quad
-\vdash
-\bigl(
-  \mathit{Right}(a,b),
-  \mathit{Right}()
-\bigr)
-:
-(a+ab)(b+\varepsilon).
-\end{equation}
-
-Thus,
-
-\begin{equation}
-\label{eq:mvp-8}
 v_1 =
 \bigl(
   \mathit{Right}(a,b),
   \mathit{Right}()
 \bigr),
-\qquad
+\quad
 \lvert v_1\rvert = \mathtt{ab}.
 \end{equation}
 
-The second matches $\mathtt{a}$ and $\mathtt{b}$ using the first
-alternatives of $a+ab$ and $b+\varepsilon$:
+The second decomposition matches $\mathtt{a}$ and $\mathtt{b}$ using
+the first alternatives of $a+ab$ and $b+\varepsilon$:
+\begin{equation}\label{eq:mvp-9a}
+\dfrac{a \in \Sigma}{\vdash a : a}\;(\mathsf{T}_{\mathrm{lit}})
+\qquad\qquad
+\dfrac{\vdash a : a}{\vdash \mathit{Left}\ a : a+ab}\;(\mathsf{T}_{+}^{L})
+\end{equation}
 
+Then the parse tree for $b+\varepsilon$:
+\begin{equation}\label{eq:mvp-9b}
+\dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
+\qquad\qquad
+\dfrac{\vdash b : b}{\vdash \mathit{Left}\ b : b+\varepsilon}\;(\mathsf{T}_{+}^{L})
+\end{equation}
+
+By $\mathsf{T}_{\mathrm{seq}}$, the parse trees for $a+ab$ and $b+\varepsilon$ 
+combine into one derivation for $r$:
 \begin{equation}
 \label{eq:mvp-9}
 \dfrac{\vdash a : a}
@@ -354,125 +296,19 @@ alternatives of $a+ab$ and $b+\varepsilon$:
 \dfrac{\vdash b : b}
       {\vdash \mathit{Left}\ b : b + \varepsilon}
 \quad\Rightarrow\quad
-\vdash
-\bigl(
-  \mathit{Left}\ a,
-  \mathit{Left}\ b
-\bigr)
-:
-(a+ab)(b+\varepsilon).
-\end{equation}
-
-Thus,
-
-\begin{equation}
-\label{eq:mvp-10}
-v_1' =
+v_2 =
 \bigl(
   \mathit{Left}\ a,
   \mathit{Left}\ b
 \bigr),
-\qquad
-\lvert v_1'\rvert = \mathtt{ab}.
-\end{equation}
-
-Hence $v_1 \neq v_1'$ are valid parse trees for the same expression and
-word. POSIX selects $v_1$ because the leftmost subpattern matches the
-longer string $\mathtt{ab}$, while Greedy selects $v_1'$ because its left
-alternative comes first.
-
-%
-
-\paragraph{Ambiguity in repetition.}
-A similar ambiguity arises from repetition. Consider
-$r_2 = (a+b+ab)^{\ast}$ against $w=\mathtt{ab}$, with the alternation
-nested as $a+(b+ab)$. The word can either be consumed by one iteration
-using the $ab$ alternative or by two iterations consuming $\mathtt{a}$
-and $\mathtt{b}$ separately.
-
-The first match is
-
-\begin{equation}
-\label{eq:mvp-16}
-\dfrac{
-  \dfrac{
-    \dfrac{\vdash a : a \quad \vdash b : b}
-          {\vdash (a,b) : ab}
-  }{
-    \vdash \mathit{Right}(a,b) : b+ab
-  }
-}{
-  \vdash \mathit{Right}\,\mathit{Right}(a,b) : a+(b+ab)
-}
-\quad\Rightarrow\quad
-\vdash
-[
-  \mathit{Right}\,\mathit{Right}(a,b)
-]
-:
-(a+(b+ab))^{\ast}.
-\end{equation}
-
-Thus,
-
-\begin{equation}
-\label{eq:mvp-17}
-v_2 =
-[
-  \mathit{Right}\,\mathit{Right}(a,b)
-],
-\qquad
+\quad
 \lvert v_2\rvert = \mathtt{ab}.
 \end{equation}
 
-The second match uses two iterations:
 
-\begin{equation}
-\label{eq:mvp-18}
-\begin{aligned}
-\dfrac{\vdash a : a}
-      {\vdash \mathit{Left}\ a : a+(b+ab)}
-&\qquad
-\dfrac{
-  \dfrac{\vdash b : b}
-        {\vdash \mathit{Left}\ b : b+ab}
-}{
-  \vdash \mathit{Right}\,\mathit{Left}\ b : a+(b+ab)
-}
-\\[1.2em]
-&\qquad\qquad\Rightarrow\qquad
-\vdash
-[
-  \mathit{Left}\ a,
-  \mathit{Right}\,\mathit{Left}\ b
-]
-:
-(a+(b+ab))^{\ast}.
-\end{aligned}
-\end{equation}
-
-Thus,
-
-\begin{equation}
-\label{eq:mvp-19}
-v_2' =
-[
-  \mathit{Left}\ a,
-  \mathit{Right}\,\mathit{Left}\ b
-],
-\qquad
-\lvert v_2'\rvert = \mathtt{ab}.
-\end{equation}
-
-Here POSIX selects the single-iteration tree $v_2$,
-since the star's first iteration can match
-both characters through the $ab$ alternative. Greedy selects the
-two-iteration tree $v_2'$, since the alternative $a$ comes first and
-consuming only $\mathtt{a}$ leaves $\mathtt{b}$ for a second iteration.
-
-The examples show that the same regular expression and input can admit
-multiple valid parse trees, with the selected tree depending on the
-disambiguation policy. The next two chapters apply these ideas to
-derivative-based parsing and compare the resulting parser implementations.
+Both trees are valid parse trees for the same expression and word, yet
+they differ in their structure. The typing judgment alone does not
+determine which should be selected. A \emph{disambiguation policy}
+specifies this choice.
 
 %
