@@ -8,22 +8,26 @@
 //!      (data::prepare::core_regex, data::generate::generate_best)
 //!   2. wrap it in arbitrary noise on both sides, drawn from the same
 //!      alphabet Sigma* itself is built from (frontend::alphabet)
-//!   3. run --diag 2 on the wrapped, noisy input against the real
-//!      search-padded regex (frontend::parse_pcre_rule) -- it still
-//!      matches, because Sigma* absorbs the noise on each side
+//!   3. run a diag trace on the wrapped, noisy input against the real
+//!      search-padded regex (frontend::parse_pcre_rule), labeled with the
+//!      expected outcome (MATCH) before the trace -- it matches, because
+//!      Sigma* absorbs the noise on each side
 //!   4. run the identical wrapped input against a PLAIN full-string
 //!      compile of the same core (frontend::parse_pattern, no padding
-//!      at all) -- it does not match, because nothing absorbs the noise
+//!      at all), labeled with the expected outcome (NO MATCH) -- it does
+//!      not match, because nothing absorbs the noise
 //!
 //! Steps 3 and 4 use the exact same input string and differ only in
 //! whether the pattern was padded; the difference in outcome is the
-//! padding's effect, isolated from everything else.
+//! padding's effect, isolated from everything else. Default `--diag 1`
+//! keeps each trace to regex/input/match/tree; raise it for the
+//! construction-step trace.
 //!
 //! Only patterns with neither `^` nor `$` are drawn from: a pattern with
 //! one or both anchors is what `examples/demo_anchored_samples.rs` covers.
 //! The two examples share the same argument surface (source, `--seed`,
-//! `--data-dir`, `--count`) so the same command line can be pointed at
-//! either pool.
+//! `--data-dir`, `--count`, `--diag`) so the same command line can be
+//! pointed at either pool.
 //!
 //! Run:
 //!   cargo run --release --example demo_unanchored_samples -- snort \
@@ -123,7 +127,14 @@ fn plain_translation(raw_pattern: &str) -> Regex {
     translate(&ep).expect("already accepted by parse_pcre_rule")
 }
 
-fn show(index: usize, total: usize, pool: &[String], rng: &mut StdRng, parser: ParserType) {
+fn show(
+    index: usize,
+    total: usize,
+    pool: &[String],
+    rng: &mut StdRng,
+    parser: ParserType,
+    diag: DiagLevel,
+) {
     let mut order: Vec<usize> = (0..pool.len()).collect();
     order.shuffle(rng);
 
@@ -172,15 +183,19 @@ fn show(index: usize, total: usize, pool: &[String], rng: &mut StdRng, parser: P
     println!("Wrapped in noise:           {wrapped:?}  ({prefix:?} + match + {suffix:?})");
     println!();
 
-    let config = DiagConfig::new(DiagLevel::Verbose, parser, None);
+    let config = DiagConfig::new(diag, parser, None);
 
-    println!("-- against the padded/search regex (parse_pcre_rule) --");
+    println!(
+        "-- against the padded/search regex (parse_pcre_rule) -- \
+         expected MATCH: Sigma* absorbs the noise on both sides --"
+    );
     run_parser(pattern, &padded, &wrapped, &config);
     println!();
 
     println!(
         "-- same input, against the same body with no padding \
-         (parse_pattern on the folded body) --"
+         (parse_pattern on the folded body) -- expected NO MATCH: \
+         nothing absorbs the noise, the input must equal the pattern exactly --"
     );
     run_parser(pattern, &plain, &wrapped, &config);
     println!();
@@ -191,7 +206,8 @@ fn main() {
     if args.len() < 2 {
         eprintln!(
             "usage: cargo run --release --example demo_unanchored_samples -- \
-             <suricata|spamassassin|regexlib> [--seed N] [--data-dir DIR] [--count N] [file...]"
+             <suricata|spamassassin|regexlib> [--seed N] [--data-dir DIR] [--count N] \
+             [--diag 0|1|2|3] [file...]"
         );
         std::process::exit(2);
     }
@@ -209,6 +225,7 @@ fn main() {
     let mut seed: Option<u64> = None;
     let mut data_dir = "data/raw/_Samples".to_string();
     let mut count: usize = 3;
+    let mut diag = DiagLevel::Basic;
     let mut explicit_files: Vec<PathBuf> = Vec::new();
     let mut i = 2;
     while i < args.len() {
@@ -236,6 +253,19 @@ fn main() {
                 };
                 count = c;
             }
+            "--diag" => {
+                i += 1;
+                diag = match args.get(i).map(String::as_str) {
+                    Some("0") => DiagLevel::Off,
+                    Some("1") => DiagLevel::Basic,
+                    Some("2") => DiagLevel::Verbose,
+                    Some("3") => DiagLevel::Debug,
+                    _ => {
+                        eprintln!("--diag needs 0, 1, 2, or 3");
+                        std::process::exit(2);
+                    }
+                };
+            }
             other if !other.starts_with("--") => explicit_files.push(PathBuf::from(other)),
             other => {
                 eprintln!("unknown argument {other:?}");
@@ -260,6 +290,6 @@ fn main() {
     println!("{} unanchored accepted patterns available\n", unanchored.len());
 
     for n in 1..=count {
-        show(n, count, &unanchored, &mut rng, ParserType::DerivStdRec);
+        show(n, count, &unanchored, &mut rng, ParserType::DerivStdRec, diag);
     }
 }

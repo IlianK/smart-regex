@@ -100,6 +100,37 @@ pub(crate) fn ends_with_dollar(ep: &ExtPat) -> bool {
     }
 }
 
+/// Rewrite every `Dot` into `NoneOf(['\n'])`: without the dotall (`s`)
+/// flag, PCRE's `.` excludes `\n`. `translate` itself always lowers `Dot`
+/// to the full alphabet (`alt_of_chars(alphabet::alphabet())`), including
+/// `\n`, with no flag awareness; this preprocessing step, applied before
+/// `translate` for the PCRE-flag-aware entry points, is where the `s`
+/// flag's absence is actually honoured, the same way `case_fold` is where
+/// the `i` flag's presence is honoured.
+pub fn strip_dot_newline(ep: &ExtPat) -> ExtPat {
+    match ep {
+        ExtPat::Empty => ExtPat::Empty,
+        ExtPat::Eps => ExtPat::Eps,
+        ExtPat::Never => ExtPat::Never,
+        ExtPat::Group(inner) => ExtPat::Group(Box::new(strip_dot_newline(inner))),
+        ExtPat::GroupNonMarking(inner) => ExtPat::GroupNonMarking(Box::new(strip_dot_newline(inner))),
+        ExtPat::Or(alts) => ExtPat::Or(alts.iter().map(strip_dot_newline).collect()),
+        ExtPat::Concat(parts) => ExtPat::Concat(parts.iter().map(strip_dot_newline).collect()),
+        ExtPat::Opt(inner) => ExtPat::Opt(Box::new(strip_dot_newline(inner))),
+        ExtPat::Plus(inner) => ExtPat::Plus(Box::new(strip_dot_newline(inner))),
+        ExtPat::Star(inner) => ExtPat::Star(Box::new(strip_dot_newline(inner))),
+        ExtPat::Bound(inner, lo, hi) => ExtPat::Bound(Box::new(strip_dot_newline(inner)), *lo, *hi),
+        ExtPat::Carat => ExtPat::Carat,
+        ExtPat::Dollar => ExtPat::Dollar,
+        ExtPat::Dot => ExtPat::NoneOf(vec!['\n']),
+        ExtPat::Any(cs) => ExtPat::Any(cs.clone()),
+        ExtPat::NoneOf(cs) => ExtPat::NoneOf(cs.clone()),
+        ExtPat::Escape(c) => ExtPat::Escape(*c),
+        ExtPat::WordBoundary(b) => ExtPat::WordBoundary(*b),
+        ExtPat::Char(c) => ExtPat::Char(*c),
+    }
+}
+
 fn both_cases(cs: &[char]) -> Vec<char> {
     let mut v = Vec::with_capacity(cs.len() * 2);
     for &c in cs {

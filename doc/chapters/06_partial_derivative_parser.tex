@@ -2,18 +2,29 @@
 \label{sec:partial-derivative-parser}
 
 Chapter~\ref{sec:derivative-parser} built two parsers on Brzozowski's
-derivative. This chapter builds the same two kinds of parser again,
-using Antimirov's partial derivative $pd(r,x)$ from
+derivative $r\backslash x$, which names one expression: parsing there
+follows a single thread, one expression after another, deterministic
+the way a DFA is. This chapter builds the same two kinds of parser
+again, using Antimirov's partial derivative $pd(r,x)$ from
 Section~\ref{sec:antimirov-partial-derivatives} in place of
-$r\backslash x$.
+$r\backslash x$. $pd(r,x)$ does not return one expression; it returns
+the \emph{set} of states of the implicit NFA for $r$ that a transition
+on $x$ reaches. Stepping $pd$ across a whole input therefore does not
+follow a single thread: it tracks a whole set of live NFA states at
+once, one character at a time, the same subset-simulation idea a
+textbook NFA-to-DFA construction uses to decide membership, except
+nothing is precomputed into a DFA table here; the set is recomputed
+directly at every character.
 
-The substitution is not free. $r\backslash x$ returns one expression,
-so a rule can prefer its left branch; $pd(r,x)$ returns a \emph{set},
-with no branch to prefer. The POSIX choice $\mathit{mkEps}$ and
-$\mathit{mkEpsBC}$ made in Chapter~\ref{sec:derivative-parser}
-therefore has no site in the set representation. Both parsers built
-here instead keep every surviving element alive in parallel and
-resolve the choice only once, by list order, at the end of the input.
+The substitution is not free for parsing specifically. $r\backslash
+x$'s single expression lets a rule prefer its left branch when
+reconstructing a value; $pd(r,x)$'s set has no distinguished branch to
+prefer, so the POSIX choice $\mathit{mkEps}$ and $\mathit{mkEpsBC}$
+made in Chapter~\ref{sec:derivative-parser} has no obvious site to
+attach to in the set representation. Both parsers built here instead
+keep every live state around in parallel, each carrying whatever
+reconstruction information it individually needs, and resolve the
+choice only once, by list order, once the input runs out.
 
 %
 %
@@ -22,21 +33,45 @@ resolve the choice only once, by list order, at the end of the input.
 \section{The Standard Partial-Derivative-Based Parser}
 \label{sec:pderiv-std-theory-rust}
 
-$pd(r,x)$'s elements are exactly the states of the implicit NFA for
-$r$ that are still alive after reading $x$
-(Section~\ref{sec:antimirov-partial-derivatives}). Parsing needs more
-than a state, though: it needs enough information to rebuild a parse
-tree for whichever state turns out to be the winner once the input is
-exhausted. This construction pairs every state with an
-\emph{injection closure}, a function that, given the parse tree of
-that state's own residual, returns the parse tree of the
-\emph{original} expression $r$. The construction starts with one
-state carrying the identity closure; each character replaces every
-state with the union of $pd$ applied to it, each successor composing
-its own closure inside the one it inherited; and once the input is
-exhausted, the first state with a nullable residual, in list order,
-is selected and its closure applied to $\mathit{mkEps}$ of that
-residual.
+Knowing which NFA states are alive is enough to decide whether $w\in
+L(r)$ (Section~\ref{sec:antimirov-partial-derivatives}), but parsing
+needs more: once the input ends, whichever surviving state is
+nullable must be turned back into a parse tree for the
+\emph{original} expression $r$, not just for its own local residual.
+In Chapter~\ref{sec:derivative-parser}'s single-threaded setting this
+was $\mathit{inj}$'s job, walking the one stored sequence of
+expressions backward, from the final residual to $r$. There is no
+single sequence to walk here: many states are alive at once, each
+reached by a different path through $r$'s alternations and sequences,
+and a state that died two steps ago is simply gone from the set that
+replaced it, with no stored history to walk back through. Each
+surviving state must therefore carry its own reconstruction recipe
+with it as it goes, rather than relying on a shared trail left behind
+it.
+
+This construction attaches exactly that recipe to every state, as a
+function called an \emph{injection closure}: given the parse tree for
+the state's own residual, it returns the parse tree for the whole
+original $r$. The construction starts with one state, $r$ itself,
+carrying the identity closure, since at that point the state's
+residual \emph{is} $r$ and nothing needs reconstructing yet. Each
+character replaces the whole state set with $pd$ applied to every
+member, and every successor's closure is built by composing that
+step's own local reconstruction step inside the closure it inherited
+from its parent, so the composition grows by one layer per character
+without ever being evaluated. Once the input is exhausted, the first
+state with a nullable residual, in list order, is selected, and its
+closure, applied to $\mathit{mkEps}$ of that residual, is the parse
+tree.
+
+\paragraph{Terminology.} This section calls an element of $pd(r,x)$ a
+\emph{state} and the working collection of them the \emph{state set},
+following the automata reading above rather than any
+expression-specific vocabulary. The implementation's own names for
+this collection, \texttt{frontier} and \texttt{step\_frontier}
+(Section~\ref{sec:pderiv-std-driver}), refer to the identical thing;
+this chapter says state set throughout, but the two names are
+interchangeable.
 
 Consider the unambiguous example from Section~\ref{par:unambigious-example}:
 $r = a\cdot b$ with input $w=\mathtt{ab}$, checked against
@@ -214,6 +249,37 @@ D^{T}_{rs} &= \mathit{nub}_T\big(
 \end{aligned}
 \end{equation}
 
+Each case answers the same question $pd$'s own cases answer, which
+successor states exist, and additionally says how to rebuild a value
+for $r$ from a value for that successor. $D^{T}_y$ is where a value
+first appears: on a match, the one successor state $\varepsilon$
+carries a closure that ignores whatever it is eventually given and
+returns $\mathit{Char}(y)$ directly, since there is nothing left to
+reconstruct below a matched literal. $D^{T}_{r+s}$ keeps both
+operands' states alive side by side, wrapping each one's closure in
+an outer $\mathit{Left}$ or $\mathit{Right}$ tag: the tag is written
+into the closure the moment the state is created, not decided later,
+so by the time a state is selected its path through the alternation
+is already fixed. $D^{T}_{r^{*}}$ takes every successor of the star's
+body and prepends the reconstructed iteration onto whatever
+iterations the rest of the star eventually produces, which is exactly
+what running the body once more inside the same star means.
+
+The sequence case is where a state can come from either operand.
+When $r$ is not nullable, only $r$ can currently be mid-match, so
+every successor is $r$'s own, each rewrapped into a sequence with $s$
+untouched. When $r$ is nullable, a second possibility opens: the
+character just read may belong to $s$ instead, immediately after $r$
+matched the empty word. The nullable case's union reflects exactly
+this: one strand continues into $r$ as before, and a second strand
+jumps straight into $s$'s own successors. A state on the jump strand
+never has a closure for $r$'s half of the pair, since no future step
+will visit $r$ again to produce one, so its closure supplies
+$\mathit{mkEps}_r$ for that half directly, the same role
+$\mathit{mkEps}$ plays for the skipped operand in
+Chapter~\ref{sec:derivative-parser}'s own $\mathsf{I}_{\mathrm{seq}}^R$
+rule.
+
 The $r^{*}$ and $rs,\ n(r){=}\mathrm{false}$ cases both build their
 residual with a plain sequence, $r'\,r^{*}$ or $r's$, never the smart
 constructor $\mathit{smartC}$
@@ -314,10 +380,10 @@ Chapter~\ref{sec:derivative-parser} defined
 \label{sec:pderiv-std-driver}
 
 Figure~\ref{fig:pderiv-std-driver-rust} is the driver: start with one
-state carrying the identity closure, replace the whole set with
-\texttt{pderiv\_tree}'s union at each character, and select the first
-nullable residual's closure applied to \texttt{mk\_eps} of that
-residual once the input ends.
+state carrying the identity closure, replace the whole state set
+(the code's own \texttt{frontier}) with \texttt{pderiv\_tree}'s union
+at each character, and select the first nullable residual's closure
+applied to \texttt{mk\_eps} of that residual once the input ends.
 
 \begin{figure}[H]
 \small
@@ -368,10 +434,22 @@ Chapter~\ref{sec:derivative-parser}'s $\mathit{inj}$ applies during
 its own backward pass, just built forward here instead of walked
 backward.
 
+\texttt{select} scans the state set in the fixed order
+\texttt{step\_frontier} built it in and returns the first nullable
+state it finds, the same list-order priority a hand-written
+alternative-by-alternative matcher applies when more than one
+alternative would otherwise match: earlier states come from earlier
+alternatives or earlier iterations, so \emph{first nullable, in list
+order} and \emph{leftmost alternative preferred} pick out the same
+state. Nothing resembling a POSIX longest-match comparison happens
+here, since \texttt{select} stops at the first match it finds and
+never looks at the states after it.
+
 %
 
 \subsection{Worked Example: Ambigious Expression}
 \label{sec:pderiv-std-worked}
+
 Recall the ambigious example from Section~\ref{par:ambigious-example}
 with regular expression $r_0=(a+ab)(b+\varepsilon)$ against input
 $\mathtt{ab}$, checked against \texttt{--parser pderiv\_std --diag 3}.
@@ -451,13 +529,14 @@ criterion is literal agreement with \texttt{pDerivBC}, not an
 independently derived ideal form, so where the reference keeps an
 asymmetry, this section keeps it too rather than smoothing it away.
 
-
-Figure~\ref{fig:pderiv-bc-single-pass} shows this on the same pattern and
-input Chapter~\ref{sec:derivative-parser} used for its own bit-coded
-overview, $a^{*}$ against \texttt{"aaa"} (Figure~\ref{fig:single-pass}),
-checked against \texttt{--parser pderiv\_bc --diag 3}. $\mathit{smartC}$
-collapses the residual back to $a^{*}$ at every step, so the state itself
-never changes; only the bit list carried alongside it grows.
+Figure~\ref{fig:pderiv-bc-single-pass} shows this on the same
+unambiguous example Section~\ref{sec:pderiv-std-theory-rust}'s own
+overview used, $r=a\cdot b$ against \texttt{"ab"}, checked against
+\texttt{--parser pderiv\_bc --diag 3}. $a\cdot b$ is unambiguous, so no
+$\mathsf{PB}_{+}$ or $\mathsf{PB}_{*}$ rule ever fires and the bit list
+carried alongside the state stays empty throughout; what changes at
+each step is the state itself, as $\mathit{smartC}$ strips the factor
+just matched away.
 
 \begin{figure}[ht]
 \centering
@@ -468,36 +547,39 @@ never changes; only the bit list carried alongside it grows.
                font=\scriptsize, inner xsep=3pt, fill=black!5},
   lbl/.style={font=\scriptsize, inner sep=1.5pt},
 ]
-\node[expr] (r)   at (0,0)    {$a^{*}$};
-\node[expr] (ri0) at (2.6,0)  {$(a^{*}, [\,])$};
-\node[expr] (ri1) at (5.7,0)  {$(a^{*}, [0])$};
-\node[expr] (ri2) at (8.8,0)  {$(a^{*}, [0,0])$};
-\node[expr] (ri3) at (12.2,0) {$(a^{*}, [0,0,0])$};
-\node[bits] (bs)  at (5.7,-1.9)  {$[0,0,0,1]$};
-\node[bits] (v)   at (9.6,-1.9)  {$[a,a,a]$};
+\node[expr] (r)   at (0,0)    {$a\cdot b$};
+\node[expr] (ri0) at (2.8,0)  {$(a\cdot b,\ [\,])$};
+\node[expr] (ri1) at (6.4,0)  {$(b,\ [\,])$};
+\node[expr] (ri2) at (9.4,0)  {$(\varepsilon,\ [\,])$};
+\node[bits] (bs)  at (6.4,-1.9)  {$[\,]$};
+\node[bits] (v)   at (9.8,-1.9)  {$(a,b)$};
 
 \draw[->] (r)   -- node[lbl, above] {start} (ri0);
 \draw[->] (ri0) -- node[lbl, above] {$D_{\cdot}\ \mathtt{a}$} (ri1);
-\draw[->] (ri1) -- node[lbl, above] {$D_{\cdot}\ \mathtt{a}$} (ri2);
-\draw[->] (ri2) -- node[lbl, above] {$D_{\cdot}\ \mathtt{a}$} (ri3);
-\draw[->] (ri3.south) to[out=-90, in=25]
+\draw[->] (ri1) -- node[lbl, above] {$D_{\cdot}\ \mathtt{b}$} (ri2);
+\draw[->] (ri2.south) to[out=-90, in=25]
   node[lbl, right, pos=0.45] {$\mathit{mkEpsBC}$} (bs.east);
 \draw[->] (bs) -- node[lbl, above] {$\mathit{decode}_r$} (v);
 \draw[->, dashed] (r.south) to[out=-90, in=180]
   node[lbl, below, pos=0.6] {the original $r$} (bs.west);
 \end{tikzpicture}
-\caption{The bit-coded partial-derivative construction on $a^{*}$ and
-input \texttt{"aaa"}: the state stays $a^{*}$ throughout, since
-$\mathit{smartC}$ collapses each step's residual back to it; the bit list
-carried alongside accumulates one $0$ per step, the same sequence
-Figure~\ref{fig:single-pass} accumulates inside the annotated expression
-for the identical pattern and input.}
+\caption{The bit-coded partial-derivative construction on $a\cdot b$ and
+input \texttt{"ab"}: $\mathit{smartC}$ collapses $a\cdot b$ to $b$ and
+then to $\varepsilon$ as each factor is matched, while the bit list
+carried alongside stays empty, since neither factor is an alternation
+or a star.}
 \label{fig:pderiv-bc-single-pass}
 \end{figure}
 
-Both constructions reach the identical bit-string $[0,0,0,1]$ and decode
-it against the same original $a^{*}$ to the same tree $[a,a,a]$; the only
-difference is where the bits live while they accumulate.
+Both constructions reach the same tree $(a,b)$: Section~\ref{sec:pderiv-std-theory-rust}'s
+$\kappa_2(())$ by composing an injection closure that carries the
+reconstruction inside itself, this one's $\mathit{decode}_{a\cdot b}([\,])$
+by reading an (here empty) bit-string back against the original
+pattern. Neither needs the accumulated information to grow on this
+particular example, since $a\cdot b$ never offers a choice to record;
+Section~\ref{sec:pderiv-bc-worked}'s worked example, on the ambiguous
+$r_0=(a+ab)(b+\varepsilon)$, is where the bit list actually
+accumulates.
 
 %
 
@@ -536,6 +618,21 @@ structure but walking an un-annotated tree; $\mathit{smartC}$ is the
 smart sequence constructor collapsing $\varepsilon\cdot s$ to $s$; and
 $\mathit{nub2}$ deduplicates a list of \texttt{(residual, bits)} pairs
 by the residual alone, keeping the first occurrence.
+
+Every case here has the same job as its $\mathsf{B}$-rule counterpart
+in Chapter~\ref{sec:derivative-parser}
+(Equation~\eqref{eq:bderiv}), just distributed over a state set
+instead of folded into one annotated tree: $\mathsf{PB}_{+}$ tags each
+operand's states with $0$ or $1$ the way $\mathsf{B}_{+}$ tags each
+branch; $\mathsf{PB}_{\mathrm{seq}}$ and $\mathsf{PB}_{\mathrm{seq}}^{\,n}$
+split on nullability the same way $\mathsf{B}_{\mathrm{seq}}$ and
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$ do, with the nullable case again
+producing two strands; and $\mathsf{PB}_{*}$ tags one more iteration
+with a leading $0$ the same way $\mathsf{B}_{*}$ does. The state and
+state set terminology from Section~\ref{sec:pderiv-std-theory-rust}
+carries over unchanged: an element of $D_r$ is a state, $D_r$ itself
+is the next state set, and \texttt{frontier} in this section's own
+code (Section~\ref{sec:pderiv-bc-driver}) names the same thing again.
 
 Unlike Section~\ref{sec:pderiv-tree-theory}'s construction, the two
 sequence cases here build their residuals differently on purpose:

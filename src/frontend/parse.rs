@@ -307,13 +307,45 @@ fn parse_class_enum(chars: &mut Chars) -> Result<Vec<char>, String> {
                 break;
             }
             None => return Err("unterminated character class (expected ']')".to_string()),
-            _ => members.extend(parse_one_class_member(chars)?),
+            _ => {
+                if let Some(name) = posix_class_name(chars) {
+                    return Err(format!(
+                        "POSIX class '[:{name}:]' is not supported inside a character class \
+                         (it would otherwise be silently misread as the literal characters \
+                         '[', ':', and the class name); use an explicit range or a shorthand \
+                         (\\d, \\w, \\s and their negations) instead"
+                    ));
+                }
+                members.extend(parse_one_class_member(chars)?)
+            }
         }
     }
     if members.is_empty() {
         return Err("empty character class '[]'".to_string());
     }
     Ok(members)
+}
+
+/// Looks ahead (without consuming) for a `[:name:]` POSIX class at the
+/// current position, e.g. the `[:alpha:]` in `[[:alpha:]]`. Returns the
+/// name if found. This frontend does not implement POSIX classes; without
+/// this check, `[:alpha:]` would be silently read as the literal members
+/// `[`, `:`, `a`, `l`, `p`, `h` followed by a literal `]` -- accepted, and
+/// translated into something that denotes almost nothing like what the
+/// pattern author meant, with no error and no caveat to catch it.
+fn posix_class_name(chars: &Chars) -> Option<String> {
+    let mut trial = chars.clone();
+    if trial.next() != Some('[') || trial.next() != Some(':') {
+        return None;
+    }
+    let mut name = String::new();
+    loop {
+        match trial.next() {
+            Some(':') if trial.next() == Some(']') => return Some(name),
+            Some(c) if c.is_ascii_lowercase() => name.push(c),
+            _ => return None,
+        }
+    }
 }
 
 enum ClassAtom {
@@ -359,12 +391,37 @@ fn parse_class_atom(chars: &mut Chars) -> Result<ClassAtom, String> {
                 'W' => Ok(ClassAtom::Multi(alphabet::complement(&alphabet::word_chars()))),
                 's' => Ok(ClassAtom::Multi(alphabet::space_chars())),
                 'S' => Ok(ClassAtom::Multi(alphabet::complement(&alphabet::space_chars()))),
+                // Inside a class, PCRE never reads a digit-following-backslash
+                // as a backreference (backreferences don't exist in classes),
+                // so `\0`-`\7` are unambiguous: up to three octal digits are
+                // read to make one code point. `\8`/`\9` are not octal digits,
+                // so PCRE reads them as the literal characters '8'/'9' --
+                // that's already what the `other` fallthrough below does.
+                '0'..='7' => Ok(ClassAtom::Single(read_class_octal(c, chars))),
                 other => Ok(ClassAtom::Single(other)),
             }
         }
         Some(c) => Ok(ClassAtom::Single(c)),
         None => Err("unterminated character class (expected ']')".to_string()),
     }
+}
+
+/// Reads up to two further octal digits after an already-consumed first
+/// octal digit `first`, and returns the resulting code point (0-255).
+/// Three octal digits can specify up to 511; clamped to 255 rather than
+/// wrapped, since this frontend has no character above 255 to represent.
+fn read_class_octal(first: char, chars: &mut Chars) -> char {
+    let mut value = first.to_digit(8).expect("caller only passes '0'..='7'");
+    for _ in 0..2 {
+        match chars.peek().and_then(|c| c.to_digit(8)) {
+            Some(d) => {
+                value = value * 8 + d;
+                chars.next();
+            }
+            None => break,
+        }
+    }
+    value.min(255) as u8 as char
 }
 
 fn parse_class_range_end(chars: &mut Chars) -> Result<char, String> {
@@ -407,6 +464,27 @@ mod tests {
     #[test]
     fn non_marking_group() {
         assert_eq!(p("(?:a)"), ExtPat::GroupNonMarking(Box::new(ExtPat::Char('a'))));
+    }
+
+    #[test]
+    fn posix_class_inside_brackets_is_rejected_not_silently_misread() {
+        let err = parse_ext_pattern("[[:alpha:]]").expect_err("should be rejected");
+        assert!(err.contains("[:alpha:]"), "error should name the class: {err}");
+    }
+
+    #[test]
+    fn posix_class_embedded_after_other_members_is_also_rejected() {
+        let err = parse_ext_pattern("[a[:digit:]z]").expect_err("should be rejected");
+        assert!(err.contains("[:digit:]"), "error should name the class: {err}");
+    }
+
+    #[test]
+    fn ordinary_bracket_class_with_a_leading_open_bracket_char_still_works() {
+        // A literal '[' as a class member (not a POSIX class) must still parse.
+        assert_eq!(
+            p("[\\[ab]"),
+            ExtPat::Any(vec!['[', 'a', 'b'])
+        );
     }
 
     #[test]
@@ -510,6 +588,21 @@ mod tests {
     #[test]
     fn char_class_range() {
         assert_eq!(p("[a-c]"), ExtPat::Any(vec!['a', 'b', 'c']));
+    }
+
+    #[test]
+    fn octal_escape_in_class_reads_up_to_three_digits() {
+        // Real SpamAssassin data: [\042\223\224\262\263\271]. \042 (octal)
+        // is '"', not the three literal characters '0', '4', '2'.
+        assert_eq!(p("[\\042]"), ExtPat::Any(vec!['"']));
+        assert_eq!(p("[\\101]"), ExtPat::Any(vec!['A'])); // octal 101 = 'A'
+    }
+
+    #[test]
+    fn octal_8_and_9_are_not_octal_digits() {
+        // Per PCRE: \8 and \9 inside a class are the literal characters
+        // '8' and '9', not the start of an octal escape.
+        assert_eq!(p("[\\8\\9]"), ExtPat::Any(vec!['8', '9']));
     }
 
     #[test]

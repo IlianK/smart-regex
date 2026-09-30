@@ -31,6 +31,19 @@ pub fn sample_positive(r: &Regex, rng: &mut StdRng, max_star_iters: u32) -> Opti
     sample_positive_bounded(r, rng, max_star_iters, &mut budget)
 }
 
+/// The number of `Alt` leaves reachable under `r` without crossing into
+/// another `Alt`'s own children twice -- i.e. treating `r` as a flat list
+/// of alternatives if it is a (possibly unbalanced) chain of `Alt` nodes,
+/// and as a single alternative otherwise. Used to weight sampling so a
+/// left-folded `Alt` chain is chosen from uniformly; see the comment in
+/// `sample_positive_bounded`'s `Alt` case.
+fn alt_leaf_count(r: &Regex) -> usize {
+    match r {
+        Regex::Alt(a, b) => alt_leaf_count(a) + alt_leaf_count(b),
+        _ => 1,
+    }
+}
+
 fn sample_positive_bounded(
     r: &Regex,
     rng: &mut StdRng,
@@ -50,7 +63,20 @@ fn sample_positive_bounded(
             Some(s)
         }
         Regex::Alt(a, b) => {
-            if rng.gen_bool(0.5) {
+            // `alt_of_chars` (frontend/translate.rs) builds a character
+            // class as a left-folded `Alt` chain: deeply left-nested, with
+            // each later character one level shallower on the right. A
+            // flat 50/50 choice here would pick the *last*-inserted
+            // character about half the time, the second-to-last about a
+            // quarter, and so on -- for a class of size N, roughly the
+            // first N-15 sorted characters (digits and early letters, in
+            // a typical [a-z0-9] class, since alt_of_chars sorts first)
+            // would never be sampled in practice. Weighting the choice by
+            // each branch's leaf count instead makes every leaf equally
+            // likely, regardless of how unbalanced the tree is.
+            let wa = alt_leaf_count(a) as f64;
+            let wb = alt_leaf_count(b) as f64;
+            if rng.gen_bool(wa / (wa + wb)) {
                 sample_positive_bounded(a, rng, max_star_iters, budget)
                     .or_else(|| sample_positive_bounded(b, rng, max_star_iters, budget))
             } else {
@@ -300,6 +326,31 @@ mod tests {
         let r = Regex::Phi;
         let mut rng = rng();
         assert!(sample_positive(&r, &mut rng, 4).is_none());
+    }
+
+    #[test]
+    fn sample_positive_from_a_large_class_reaches_every_member() {
+        // Regression test: `alt_of_chars` builds a 36-member class as a
+        // left-folded, deeply unbalanced `Alt` chain. A flat 50/50 choice
+        // at each `Alt` node used to make the last-sorted characters
+        // (here, letters near 'z') dominate almost completely, and the
+        // first ~20 sorted members (every digit, and letters up to
+        // around 'k') would in practice never be sampled at all -- 0 of
+        // 20,000 samples reached any of them before this was fixed.
+        let r = core("[a-z0-9]");
+        let mut rng = StdRng::seed_from_u64(99);
+        let mut seen: std::collections::BTreeSet<char> = std::collections::BTreeSet::new();
+        for _ in 0..20_000 {
+            let s = sample_positive(&r, &mut rng, 1).expect("should sample");
+            seen.insert(s.chars().next().expect("single-char sample"));
+        }
+        assert_eq!(
+            seen.len(),
+            36,
+            "expected all 36 class members to be reachable, only saw {}: {:?}",
+            seen.len(),
+            seen
+        );
     }
 
     #[test]

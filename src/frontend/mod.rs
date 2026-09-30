@@ -5,7 +5,7 @@ pub mod ext_pattern;
 pub mod parse;
 pub mod translate;
 
-pub use ext_pattern::{case_fold, ExtPat};
+pub use ext_pattern::{case_fold, strip_dot_newline, ExtPat};
 pub use parse::parse_ext_pattern;
 pub use translate::translate;
 
@@ -21,7 +21,7 @@ use translate::wildcard_run;
 /// deliberately not recorded and not rejected:
 ///
 /// - Snort's buffer-selection and normalization flags (`U`, `H`, `P`,
-///   `C`, `D`, `I`, `K`, `M`, `G`, `A`, `B`, `O`, `S`) tell Snort *which
+///   `C`, `D`, `I`, `K`, `M`, `G`, `B`, `O`, `S`) tell Snort *which
 ///   buffer* to match and how to normalize it. They do not change what
 ///   the pattern denotes.
 /// - `R` (relative) tells Snort where in the buffer to start the search
@@ -30,6 +30,13 @@ use translate::wildcard_run;
 ///   receives only the pattern string, not the surrounding rule. The
 ///   frontend treats an `R` pattern as an ordinary search pattern and
 ///   documents that simplification; it does not reject it.
+///
+/// `A` is handled, not ignored: per PCRE/Suricata's own documentation,
+/// "a pattern has to match at the beginning of a buffer. (In pcre `^`
+/// is similar to `A`.)" It is a positional constraint the frontend
+/// *can* see (unlike `R`, it needs no context beyond the pattern
+/// string), so `/foo/A` is treated exactly like `/^foo/`: left padding
+/// is suppressed the same way an explicit leading `^` suppresses it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PcreFlags {
     pub case_insensitive: bool,
@@ -37,6 +44,7 @@ pub struct PcreFlags {
     pub dot_all: bool,
     pub relative: bool,
     pub extended: bool,
+    pub anchored: bool,
 }
 
 impl PcreFlags {
@@ -51,6 +59,7 @@ impl PcreFlags {
             dot_all: f('s'),
             relative: f('R'),
             extended: f('x'),
+            anchored: f('A'),
         }
     }
 
@@ -97,13 +106,17 @@ pub fn parse_dataset_pattern(s: &str) -> Result<Regex, String> {
     }
     let ep = parse_ext_pattern(body)?;
     let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
-    translate_as_search(&ep)
+    let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
+    translate_as_search(&ep, flags.anchored)
 }
 
 /// Parse a `/PATTERN/FLAGS` PCRE rule for substring search. Case-folds
-/// when the `i` flag is present. Rejects patterns whose flags (`m`, `x`)
-/// would change what `^` / `$` mean or how the pattern is tokenized.
-/// Inputs not delimited by `/` are passed through unchanged.
+/// when the `i` flag is present, excludes `\n` from `.` unless the
+/// dotall (`s`) flag is present, and suppresses left padding when the
+/// `A` (anchored) flag is present, the same as an explicit leading `^`.
+/// Rejects patterns whose flags (`m`, `x`) would change what `^` / `$`
+/// mean or how the pattern is tokenized. Inputs not delimited by `/` are
+/// passed through unchanged.
 pub fn parse_pcre_rule(s: &str) -> Result<Regex, String> {
     let (body, flags) = strip_pcre_delimiters(s);
     if let Some(reason) = flags.unsupported() {
@@ -111,24 +124,30 @@ pub fn parse_pcre_rule(s: &str) -> Result<Regex, String> {
     }
     let ep = parse_ext_pattern(body)?;
     let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
-    translate_as_search(&ep)
+    let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
+    translate_as_search(&ep, flags.anchored)
 }
 
-/// Report whether `s` parses and which anchors it carries. Returns an
-/// error for patterns whose flags this frontend does not support, so the
-/// caller sees the same set of patterns `parse_pcre_rule` accepts.
+/// Report whether `s` parses and which anchors it carries -- including
+/// the `A` flag, which anchors the start exactly like a leading `^`.
+/// Returns an error for patterns whose flags this frontend does not
+/// support, so the caller sees the same set of patterns `parse_pcre_rule`
+/// accepts.
 pub fn detect_anchors(s: &str) -> Result<(bool, bool), String> {
     let (body, flags) = strip_pcre_delimiters(s);
     if let Some(reason) = flags.unsupported() {
         return Err(format!("unsupported PCRE flag: {reason}"));
     }
     let ep = parse_ext_pattern(body)?;
-    Ok((starts_with_carat(&ep), ends_with_dollar(&ep)))
+    Ok((starts_with_carat(&ep) || flags.anchored, ends_with_dollar(&ep)))
 }
 
-fn translate_as_search(ep: &ExtPat) -> Result<Regex, String> {
+/// `force_left_anchor` is the `A` PCRE flag: it suppresses left padding
+/// exactly like a leading `^`, without the pattern needing to contain one.
+fn translate_as_search(ep: &ExtPat, force_left_anchor: bool) -> Result<Regex, String> {
     let core = translate(ep)?;
-    Ok(match (starts_with_carat(ep), ends_with_dollar(ep)) {
+    let start_anchored = starts_with_carat(ep) || force_left_anchor;
+    Ok(match (start_anchored, ends_with_dollar(ep)) {
         (true, true) => core,
         (true, false) => Regex::seq(core, wildcard_run()),
         (false, true) => Regex::seq(wildcard_run(), core),
@@ -256,8 +275,33 @@ mod tests {
 
     #[test]
     fn parse_pcre_rule_accepts_dot_all_flag() {
-        // `s` is harmless: Dot already expands to an alphabet including '\n'.
         assert!(parse_pcre_rule("/a.c/s").is_ok());
+    }
+
+    #[test]
+    fn dot_without_s_excludes_newline_but_s_restores_it() {
+        use crate::parsers::parse_deriv_std_rec;
+
+        let without_s = parse_pcre_rule("/a.c/").expect("should parse");
+        assert_eq!(parse_deriv_std_rec("a\nc", &without_s), None);
+        assert!(parse_deriv_std_rec("abc", &without_s).is_some());
+
+        let with_s = parse_pcre_rule("/a.c/s").expect("should parse");
+        assert!(parse_deriv_std_rec("a\nc", &with_s).is_some());
+    }
+
+    #[test]
+    fn a_flag_anchors_the_start_like_a_leading_carat() {
+        use crate::parsers::parse_deriv_std_rec;
+
+        // Per Suricata's own docs: "A pattern has to match at the
+        // beginning of a buffer. (In pcre ^ is similar to A.)"
+        let anchored = parse_pcre_rule("/abc/A").expect("should parse");
+        assert_eq!(parse_deriv_std_rec("ZZZabc", &anchored), None);
+        assert!(parse_deriv_std_rec("abc", &anchored).is_some());
+        assert!(parse_deriv_std_rec("abcZZZ", &anchored).is_some());
+
+        assert_eq!(detect_anchors("/abc/A").unwrap(), (true, false));
     }
 
     #[test]

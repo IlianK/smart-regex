@@ -8,9 +8,15 @@
 //!   1. the original raw regex
 //!   2. which anchors it has, via `frontend::detect_anchors`
 //!   3. the core `Regex`, via `data::prepare::core_regex`
-//!   4. up to 5 generated candidate inputs, via `data::generate`
-//!   5. `--diag 2` on each input against the search-padded regex,
-//!      via `frontend::parse_pcre_rule`
+//!   4. up to 5 generated candidate inputs, via `data::generate`, each
+//!      labeled with its expected outcome (MATCH / NO MATCH) and a
+//!      plain-English reason -- `Category::Worst` covers both a genuine
+//!      match pushed to maximal repetition and a corrupted near-miss that
+//!      must fail late, so the raw category name alone does not say which
+//!      a given sample is
+//!   5. a diag trace for each input against the search-padded regex, via
+//!      `frontend::parse_pcre_rule` (default `--diag 1`: regex, input,
+//!      match, tree; raise it for the construction-step trace)
 //!
 //! Only patterns that carry at least one anchor are drawn from: a
 //! pattern with neither is what `examples/demo_unanchored_samples.rs`
@@ -23,7 +29,7 @@
 //! `--seed N` makes sample selection and input generation deterministic;
 //! omit it for a fresh set each run. `--data-dir DIR` overrides the sample
 //! directory (default `data/_Samples`). `--count N` is how many samples
-//! to show (default 3).
+//! to show (default 3). `--diag 0|1|2|3` sets trace verbosity (default 1).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -35,7 +41,7 @@ use rand::SeedableRng;
 use regex_engine::data::extract::{extract_regexlib, extract_spamassassin, extract_suricata};
 use regex_engine::data::generate::{generate_best, generate_neutral, generate_worst_structural};
 use regex_engine::data::prepare::core_regex;
-use regex_engine::data::types::{Candidate, Category, SourceKind};
+use regex_engine::data::types::{Candidate, Category, Provenance, SourceKind};
 use regex_engine::diagnostics::{run_parser, DiagConfig, DiagLevel};
 use regex_engine::frontend::{detect_anchors, parse_pcre_rule, strip_pcre_delimiters};
 use regex_engine::parsers::ParserType;
@@ -120,14 +126,14 @@ fn anchored_patterns(patterns: &[String]) -> Vec<Sample> {
 /// `Regex`, using the same generators `data::run_pipeline` calls:
 /// 2 Best, 2 Neutral, then `generate_worst_structural(.., 6, 1)`, which
 /// yields at most one positive and one late-failing negative.
-fn generate_inputs(core: &Regex, rng: &mut StdRng) -> Vec<(String, Category)> {
-    let mut inputs: Vec<(String, Category)> = Vec::new();
+fn generate_inputs(core: &Regex, rng: &mut StdRng) -> Vec<Candidate> {
+    let mut inputs: Vec<Candidate> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
 
-    let mut absorb = |cands: Vec<Candidate>, inputs: &mut Vec<(String, Category)>| {
+    let mut absorb = |cands: Vec<Candidate>, inputs: &mut Vec<Candidate>| {
         for c in cands {
             if seen.insert(c.text.clone()) {
-                inputs.push((c.text, c.category));
+                inputs.push(c);
             }
         }
     };
@@ -140,11 +146,33 @@ fn generate_inputs(core: &Regex, rng: &mut StdRng) -> Vec<(String, Category)> {
     inputs
 }
 
+/// Plain-English description of why this candidate was generated and what
+/// outcome to expect against the search-padded regex. `Category::Worst`
+/// covers two different things (see `data::generate::generate_worst_structural`
+/// and `data::prepare::verify_candidate`'s late-failure check): a genuinely
+/// matching input pushed to maximal repetition, and a corrupted near-miss
+/// that must fail *late* to count. This distinguishes the two explicitly
+/// instead of printing the raw `Category` name, which does not by itself
+/// say which of the two a given "Worst" sample is.
+fn describe(candidate: &Candidate) -> &'static str {
+    match (candidate.category, candidate.provenance, candidate.claimed_match) {
+        (Category::Best, ..) => "shortest matching input",
+        (Category::Neutral, ..) => "typical matching input (moderate repetition)",
+        (Category::Worst, Provenance::Structural, true) => {
+            "hardest matching input (maximal repetition)"
+        }
+        (Category::Worst, Provenance::StructuralNegative, false) => {
+            "near-miss: corrupted late, must NOT match"
+        }
+        _ => "generated input",
+    }
+}
+
 /// Picks a random sample from `pool` and runs it through all 5 steps. A
 /// pattern `parse_pcre_rule` accepts can still be rejected by
 /// `core_regex`; when that happens, retry with another sample from the
 /// same pool rather than aborting, noting the skip on stderr.
-fn show(index: usize, total: usize, pool: &[Sample], rng: &mut StdRng, parser: ParserType) {
+fn show(index: usize, total: usize, pool: &[Sample], rng: &mut StdRng, parser: ParserType, diag: DiagLevel) {
     let mut order: Vec<usize> = (0..pool.len()).collect();
     order.shuffle(rng);
 
@@ -188,18 +216,26 @@ fn show(index: usize, total: usize, pool: &[Sample], rng: &mut StdRng, parser: P
         size_regex(&padded)
     );
     println!("4. Generated {} input(s) (data::generate):", inputs.len());
-    for (text, category) in &inputs {
-        println!("     [{category:?}] {text:?}");
+    for c in &inputs {
+        let expect = if c.claimed_match { "MATCH   " } else { "NO MATCH" };
+        println!("     [{expect}] {:?}  -- {}", c.text, describe(c));
     }
     println!();
 
-    println!("5. --diag 2 traces:");
-    let config = DiagConfig::new(DiagLevel::Verbose, parser, None);
-    for (i, (text, category)) in inputs.iter().enumerate() {
+    println!("5. --diag {} traces:", diag as u8);
+    let config = DiagConfig::new(diag, parser, None);
+    for (i, c) in inputs.iter().enumerate() {
+        let expect = if c.claimed_match { "MATCH" } else { "NO MATCH" };
         println!("{}", "-".repeat(70));
-        println!("input {}/{} [{category:?}]: {text:?}", i + 1, inputs.len());
+        println!(
+            "input {}/{} [expected {expect}] {:?}  -- {}",
+            i + 1,
+            inputs.len(),
+            c.text,
+            describe(c)
+        );
         println!("{}", "-".repeat(70));
-        run_parser(&sample.pattern, &padded, text, &config);
+        run_parser(&sample.pattern, &padded, &c.text, &config);
         println!();
     }
 }
@@ -209,7 +245,8 @@ fn main() {
     if args.len() < 2 {
         eprintln!(
             "usage: cargo run --release --example demo_anchored_samples -- \
-             <suricata|spamassassin|regexlib> [--seed N] [--data-dir DIR] [--count N] [file...]"
+             <suricata|spamassassin|regexlib> [--seed N] [--data-dir DIR] [--count N] \
+             [--diag 0|1|2|3] [file...]"
         );
         std::process::exit(2);
     }
@@ -227,6 +264,7 @@ fn main() {
     let mut seed: Option<u64> = None;
     let mut data_dir = "data/_Samples".to_string();
     let mut count: usize = 3;
+    let mut diag = DiagLevel::Basic;
     let mut explicit_files: Vec<PathBuf> = Vec::new();
     let mut i = 2;
     while i < args.len() {
@@ -254,6 +292,19 @@ fn main() {
                 };
                 count = c;
             }
+            "--diag" => {
+                i += 1;
+                diag = match args.get(i).map(String::as_str) {
+                    Some("0") => DiagLevel::Off,
+                    Some("1") => DiagLevel::Basic,
+                    Some("2") => DiagLevel::Verbose,
+                    Some("3") => DiagLevel::Debug,
+                    _ => {
+                        eprintln!("--diag needs 0, 1, 2, or 3");
+                        std::process::exit(2);
+                    }
+                };
+            }
             other if !other.starts_with("--") => explicit_files.push(PathBuf::from(other)),
             other => {
                 eprintln!("unknown argument {other:?}");
@@ -278,6 +329,6 @@ fn main() {
     println!("{} anchored accepted patterns available\n", anchored.len());
 
     for n in 1..=count {
-        show(n, count, &anchored, &mut rng, ParserType::DerivStdRec);
+        show(n, count, &anchored, &mut rng, ParserType::DerivStdRec, diag);
     }
 }
