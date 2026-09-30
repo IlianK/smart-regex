@@ -18,6 +18,17 @@
 //!      `frontend::parse_pcre_rule` (default `--diag 1`: regex, input,
 //!      match, tree; raise it for the construction-step trace)
 //!
+//! `data::generate` samples straight from the core, with no padding at
+//! all, so a candidate starts and ends exactly where the core does. For a
+//! `^`-only or `$`-only sample that never exercises the padding: the
+//! padded and plain (unpadded) forms of the pattern would agree on every
+//! such candidate, and the demo would not show what the padding actually
+//! buys. Step 4 wraps each candidate with noise on the side(s) the
+//! padding covers (nothing for a fully-anchored `^...$` sample, which has
+//! no padding to exercise), and step 5 then runs it against both the
+//! padded regex and the plain one: they disagree exactly on the noise
+//! side, which is the demonstration.
+//!
 //! Only patterns that carry at least one anchor are drawn from: a
 //! pattern with neither is what `examples/demo_unanchored_samples.rs`
 //! covers. `--count` picks how many to show per run.
@@ -43,7 +54,11 @@ use regex_engine::data::generate::{generate_best, generate_neutral, generate_wor
 use regex_engine::data::prepare::core_regex;
 use regex_engine::data::types::{Candidate, Category, Provenance, SourceKind};
 use regex_engine::diagnostics::{run_parser, DiagConfig, DiagLevel};
-use regex_engine::frontend::{detect_anchors, parse_pcre_rule, strip_pcre_delimiters};
+use regex_engine::frontend::alphabet::alphabet;
+use regex_engine::frontend::{
+    case_fold, detect_anchors, parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters,
+    translate,
+};
 use regex_engine::parsers::ParserType;
 use regex_engine::types::Regex;
 
@@ -52,6 +67,44 @@ fn size_regex(r: &Regex) -> usize {
         Regex::Phi | Regex::Eps | Regex::Lit(_) => 1,
         Regex::Alt(a, b) | Regex::Seq(a, b) => 1 + size_regex(a) + size_regex(b),
         Regex::Star(a) => 1 + size_regex(a),
+    }
+}
+
+fn noise(rng: &mut StdRng, len: usize) -> String {
+    let chars = alphabet();
+    (0..len).map(|_| *chars.choose(rng).expect("alphabet() is non-empty")).collect()
+}
+
+/// A full-string translation of the same body the padded regex was built
+/// from, case-folded the same way, with no padding at all. Used so a
+/// noise-wrapped input can be checked against a version that has no
+/// padding to absorb the noise, isolating exactly what padding buys.
+fn plain_translation(raw_pattern: &str) -> Regex {
+    let (body, flags) = strip_pcre_delimiters(raw_pattern);
+    let ep = parse_ext_pattern(body).expect("already accepted by parse_pcre_rule");
+    let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
+    translate(&ep).expect("already accepted by parse_pcre_rule")
+}
+
+/// Wraps a generated candidate's text with noise on the side(s) that are
+/// actually padded, so the generated input exercises the padding instead
+/// of starting and ending exactly where the core does. Without this, a
+/// candidate drawn straight from `core_regex` (no padding at all) would
+/// match a `^`-only or `$`-only pattern's padded form and its plain
+/// (unpadded) form identically, never showing what the padding does.
+/// Returns `None` for a fully-anchored sample, since there is no padding
+/// to exercise.
+fn wrap_for_anchor_shape(
+    text: &str,
+    start_anchored: bool,
+    end_anchored: bool,
+    rng: &mut StdRng,
+) -> Option<String> {
+    match (start_anchored, end_anchored) {
+        (true, true) => None,
+        (true, false) => Some(format!("{text}{}", noise(rng, 4))),
+        (false, true) => Some(format!("{}{text}", noise(rng, 4))),
+        (false, false) => unreachable!("unanchored samples are not drawn from this pool"),
     }
 }
 
@@ -207,35 +260,74 @@ fn show(index: usize, total: usize, pool: &[Sample], rng: &mut StdRng, parser: P
         }
     );
 
-    let inputs = generate_inputs(&core, rng);
+    let candidates = generate_inputs(&core, rng);
     let padded = parse_pcre_rule(&sample.pattern).expect("already accepted by parse_pcre_rule");
+    let plain = plain_translation(&sample.pattern);
     println!(
         "3. Prepared:     core {} nodes -> search-padded {} nodes \
          (data::prepare::core_regex, frontend::parse_pcre_rule)",
         size_regex(&core),
         size_regex(&padded)
     );
+
+    // Each candidate is drawn straight from the core (data::generate never
+    // touches padding), so as generated it starts and ends exactly where
+    // the core does. For a `^`-only or `$`-only sample that never
+    // exercises the padding at all: the padded and plain (unpadded) forms
+    // would agree on every one of them, and the demo would not show what
+    // the padding actually does. Wrapping with noise on the padded
+    // side(s) makes the two forms disagree -- that disagreement is the
+    // demonstration.
+    let inputs: Vec<(String, &Candidate)> = candidates
+        .iter()
+        .map(|c| {
+            let text = wrap_for_anchor_shape(&c.text, sample.start_anchored, sample.end_anchored, rng)
+                .unwrap_or_else(|| c.text.clone());
+            (text, c)
+        })
+        .collect();
+
     println!("4. Generated {} input(s) (data::generate):", inputs.len());
-    for c in &inputs {
+    for (text, c) in &inputs {
         let expect = if c.claimed_match { "MATCH   " } else { "NO MATCH" };
-        println!("     [{expect}] {:?}  -- {}", c.text, describe(c));
+        println!("     [{expect}] {:?}  -- {}", text, describe(c));
     }
     println!();
 
+    let fully_anchored = sample.start_anchored && sample.end_anchored;
     println!("5. --diag {} traces:", diag as u8);
     let config = DiagConfig::new(diag, parser, None);
-    for (i, c) in inputs.iter().enumerate() {
+    for (i, (text, c)) in inputs.iter().enumerate() {
         let expect = if c.claimed_match { "MATCH" } else { "NO MATCH" };
         println!("{}", "-".repeat(70));
         println!(
             "input {}/{} [expected {expect}] {:?}  -- {}",
             i + 1,
             inputs.len(),
-            c.text,
+            text,
             describe(c)
         );
         println!("{}", "-".repeat(70));
-        run_parser(&sample.pattern, &padded, &c.text, &config);
+        if fully_anchored {
+            run_parser(&sample.pattern, &padded, text, &config);
+        } else {
+            println!(
+                "-- against the padded/search regex -- expected {expect}: \
+                 the noise sits on the side the padding covers --"
+            );
+            run_parser(&sample.pattern, &padded, text, &config);
+            println!();
+            // Always NO MATCH against the plain form, whether this
+            // candidate was positive or negative: for a positive one, the
+            // added noise breaks the exact full-string equality plain
+            // matching requires; for a negative one, the core already
+            // failed to match before any noise was added.
+            println!(
+                "-- same input, against the plain body with no padding at all -- \
+                 expected NO MATCH: nothing absorbs the added noise --"
+            );
+            run_parser(&sample.pattern, &plain, text, &config);
+        }
         println!();
     }
 }

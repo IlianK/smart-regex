@@ -9,7 +9,8 @@
 
 use crate::data::types::{Candidate, Category, PreparedCase, SourceKind};
 use crate::frontend::{
-    case_fold, parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters, translate, ExtPat,
+    case_fold, parse_ext_pattern, parse_pcre_rule, strip_dot_newline, strip_pcre_delimiters,
+    translate, ExtPat,
 };
 use crate::parsers::deriv_bc::deriv::deriv_bc;
 use crate::parsers::deriv_bc::internalize::internalize;
@@ -87,11 +88,11 @@ const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
 
 /// The bare core regex for a PCRE-rule body, with no search padding.
 /// `parse_pcre_rule` performs the same steps (delimiter strip, flag
-/// check, parse, case-fold), then pads with `Σ*` on each un-anchored side.
-/// This function deliberately skips the padding, because it is used only
-/// to measure how far a failing input got into the core pattern --
-/// against a padded regex, the leading `Σ*` would swallow the whole
-/// prefix and make that measurement meaningless.
+/// check, parse, case-fold, dotall), then pads with `Σ*` on each
+/// un-anchored side. This function deliberately skips the padding,
+/// because it is used only to measure how far a failing input got into
+/// the core pattern -- against a padded regex, the leading `Σ*` would
+/// swallow the whole prefix and make that measurement meaningless.
 pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
     let (body, flags) = strip_pcre_delimiters(raw_pattern);
     if let Some(reason) = flags.unsupported() {
@@ -99,6 +100,7 @@ pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
     }
     let ep = parse_ext_pattern(body)?;
     let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
+    let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
     let estimated_depth = estimated_translated_depth(&ep);
     if estimated_depth > MAX_CORE_DEPTH {
         return Err(format!(
