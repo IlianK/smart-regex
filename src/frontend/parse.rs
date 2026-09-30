@@ -1,35 +1,24 @@
 //! regex-engine/src/frontend/parse.rs
 //!
-//! Recursive-descent parser: pattern string -> `ExtPat`
-//! Modeled on `Text.Regex.PDeriv.Parse`'s:
-//! - `p_ere`/`p_branch`/`p_exp`/`p_atom`/ `p_group`/`p_charclass`/`p_enum`/`p_bound` 
-//! 
-//! Differences from the reference:
-//! - `\d`/`\w`/`\s`/`\D`/`\W`/`\S` are read as PCRE character-class shorthands
-//!   (`Translate.hs`reads a bare `EEscape c` as the literal character `c`)
-//! 
-//! - Backreferences (`\1`..`\9`) and lookaround (`(?=`, `(?!`, `(?<=`, `(?<!`) are
-//!   rejected here (not read as the reference's 3-digit octal-ASCII escape
-//!   (`p_oct_ascii`) or literal digit). `\b`/`\B` parse into `ExtPat::WordBoundary`;
-//!   `translate` rejects it, since a plain `Regex` can't represent a
-//!   position-dependent assertion.
+//! Recursive-descent parser: pattern string -> `ExtPat`.
 //!
-//! - Named groups `(?<name>...)` / `(?P<name>...)` are accepted 
-//! 
-//! - `\xHH` (2-digit hex escape) is accepted
+//! Differences from `Text.Regex.PDeriv.Parse`:
+//! - `\d`/`\w`/`\s` and their negations are read as class shorthands.
+//! - Backreferences and lookaround are rejected.
+//! - Named groups `(?<name>...)` / `(?P<name>...)` are accepted (name dropped).
+//! - `\xHH` hex escapes are accepted.
+//! - `\b` / `\B` parse to `ExtPat::WordBoundary`, which `translate` rejects.
+//! - A trailing `?` after `?`, `+`, `*`, or `{...}` is accepted and discarded.
 
 use super::alphabet;
 use super::ext_pattern::ExtPat;
 
 type Chars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
 
-/// Characters with regex meaning at top level 
-/// - Reference's `specials = "^.[$()|*+?{\\"`) 
-/// - `]` and `}` deliberately absent: only meaningful in context of already-open `[` / `{`
+/// Characters with regex meaning outside a character class. `]` and `}`
+/// are absent: they only matter inside an already-open `[` or `{`.
 const SPECIALS: &str = "^.[$()|*+?{\\";
 
-/// Parse a full pattern string into an `ExtPat`
-/// Errors on any leftover unparsed suffix (e.g. an unmatched `)`)
 pub fn parse_ext_pattern(s: &str) -> Result<ExtPat, String> {
     let mut chars = s.chars().peekable();
     let pat = parse_or(&mut chars)?;
@@ -39,9 +28,7 @@ pub fn parse_ext_pattern(s: &str) -> Result<ExtPat, String> {
     Ok(pat)
 }
 
-// -------------------------------
 // a|b|c
-// -------------------------------
 
 fn parse_or(chars: &mut Chars) -> Result<ExtPat, String> {
     let mut alts = vec![parse_concat(chars)?];
@@ -52,9 +39,7 @@ fn parse_or(chars: &mut Chars) -> Result<ExtPat, String> {
     Ok(if alts.len() == 1 { alts.pop().unwrap() } else { ExtPat::Or(alts) })
 }
 
-// -------------------------------
-// ab c  (implicit concatenation, stops at '|' or ')')
-// -------------------------------
+// ab c  (stops at '|' or ')')
 
 fn parse_concat(chars: &mut Chars) -> Result<ExtPat, String> {
     let mut parts = Vec::new();
@@ -65,45 +50,42 @@ fn parse_concat(chars: &mut Chars) -> Result<ExtPat, String> {
         parts.push(parse_postfixed(chars)?);
     }
     match parts.len() {
-        0 => Ok(ExtPat::Empty), // missing branch in "a|" or "(|b)"
+        0 => Ok(ExtPat::Empty),
         1 => Ok(parts.pop().unwrap()),
         _ => Ok(ExtPat::Concat(parts)),
     }
 }
 
-// -------------------------------
 // atom postfixed by at most one of ? + * {m,n}
-// like single (non-looping) p_post_anchor_or_atom application
-// -------------------------------
 
 fn parse_postfixed(chars: &mut Chars) -> Result<ExtPat, String> {
     let atom = parse_anchor_or_atom(chars)?;
     match chars.peek() {
         Some('?') => {
             chars.next();
-            Ok(ExtPat::Opt(Box::new(atom), consume_lazy_marker(chars)))
+            discard_lazy_marker(chars);
+            Ok(ExtPat::Opt(Box::new(atom)))
         }
         Some('+') => {
             chars.next();
-            Ok(ExtPat::Plus(Box::new(atom), consume_lazy_marker(chars)))
+            discard_lazy_marker(chars);
+            Ok(ExtPat::Plus(Box::new(atom)))
         }
         Some('*') => {
             chars.next();
-            Ok(ExtPat::Star(Box::new(atom), consume_lazy_marker(chars)))
+            discard_lazy_marker(chars);
+            Ok(ExtPat::Star(Box::new(atom)))
         }
         Some('{') => Ok(parse_bound(chars, atom)),
         _ => Ok(atom),
     }
 }
 
-/// Consumes trailing `?` (marking operator as lazy) if present
-/// Returns whether operator is greedy (`true` unless a `?` followed)
-fn consume_lazy_marker(chars: &mut Chars) -> bool {
+/// Consumes a trailing `?` marking a quantifier lazy, if present. The
+/// marker has no effect on the lowered `Regex`, so it is not recorded.
+fn discard_lazy_marker(chars: &mut Chars) {
     if chars.peek() == Some(&'?') {
         chars.next();
-        false
-    } else {
-        true
     }
 }
 
@@ -137,33 +119,30 @@ fn parse_atom(chars: &mut Chars) -> Result<ExtPat, String> {
     }
 }
 
-// -------------------------------
-// {m,n} / {m,} / {m} only consumed if it's a genuine bound
-// - a '{' that doesn't form one is left unconsumed
-// (a bare stray '{' then fails at the next p_atom, since '{' is in `specials` )
-// -------------------------------
+// {m,n} / {m,} / {m}. A '{' that does not form a valid bound is left
+// unconsumed, and the next `parse_atom` then errors on it.
 
 fn parse_bound(chars: &mut Chars, atom: ExtPat) -> ExtPat {
     let mut trial = chars.clone();
     match try_parse_bound_spec(&mut trial) {
-        Some((lo, hi, greedy)) => {
+        Some((lo, hi)) => {
             *chars = trial;
-            ExtPat::Bound(Box::new(atom), lo, hi, greedy)
+            ExtPat::Bound(Box::new(atom), lo, hi)
         }
-        None => atom, // '{' left unconsumed; next parse_atom will error on it
+        None => atom,
     }
 }
 
-fn try_parse_bound_spec(chars: &mut Chars) -> Option<(u32, Option<u32>, bool)> {
+fn try_parse_bound_spec(chars: &mut Chars) -> Option<(u32, Option<u32>)> {
     if chars.next() != Some('{') {
         return None;
     }
     let lo = read_digits(chars)?;
     let hi: Option<u32> = if chars.peek() == Some(&',') {
         chars.next();
-        read_digits(chars) // None here means unbounded "{m,}"
+        read_digits(chars)
     } else {
-        Some(lo) // "{m}" exact
+        Some(lo)
     };
     if chars.next() != Some('}') {
         return None;
@@ -173,13 +152,8 @@ fn try_parse_bound_spec(chars: &mut Chars) -> Option<(u32, Option<u32>, bool)> {
             return None;
         }
     }
-    let greedy = if chars.peek() == Some(&'?') {
-        chars.next();
-        false
-    } else {
-        true
-    };
-    Some((lo, hi, greedy))
+    discard_lazy_marker(chars);
+    Some((lo, hi))
 }
 
 fn read_digits(chars: &mut Chars) -> Option<u32> {
@@ -195,10 +169,8 @@ fn read_digits(chars: &mut Chars) -> Option<u32> {
     if s.is_empty() { None } else { s.parse().ok() }
 }
 
-// -------------------------------
 // ( ... )  (?: ... )  (?<name> ... )  (?P<name> ... )
 // (?= (?! (?<= (?<!  -- rejected
-// -------------------------------
 
 fn parse_group(chars: &mut Chars) -> Result<ExtPat, String> {
     if chars.peek() != Some(&'?') {
@@ -206,7 +178,7 @@ fn parse_group(chars: &mut Chars) -> Result<ExtPat, String> {
         expect_close_paren(chars)?;
         return Ok(ExtPat::Group(Box::new(inner)));
     }
-    chars.next(); // consume '?'
+    chars.next();
     match chars.peek() {
         Some(':') => {
             chars.next();
@@ -269,9 +241,7 @@ fn expect_char(chars: &mut Chars, expected: char) -> Result<(), String> {
     }
 }
 
-// -------------------------------
-// \c - escapes outside a character class
-// -------------------------------
+// \c outside a character class
 
 fn parse_escape(chars: &mut Chars) -> Result<ExtPat, String> {
     let c = chars.next().ok_or_else(|| "unexpected end of pattern after '\\'".to_string())?;
@@ -284,10 +254,6 @@ fn parse_escape(chars: &mut Chars) -> Result<ExtPat, String> {
             "backreference '\\{}' is not a regular-language construct -- unsupported",
             c
         )),
-        // Word boundary / non-boundary. `translate` rejects these, since a plain
-        // `Regex` can't represent a position-dependent assertion. Only outside a
-        // character class: `[\b]` is parsed by `parse_charclass`'s own escape
-        // handling, unaffected by this.
         'b' => Ok(ExtPat::WordBoundary(true)),
         'B' => Ok(ExtPat::WordBoundary(false)),
         _ => Ok(ExtPat::Escape(c)),
@@ -305,9 +271,7 @@ fn read_hex_byte(chars: &mut Chars) -> Result<u8, String> {
     u8::from_str_radix(&format!("{h1}{h2}"), 16).map_err(|e| e.to_string())
 }
 
-// -------------------------------
 // [ ... ]  [^ ... ]
-// -------------------------------
 
 fn parse_charclass(chars: &mut Chars) -> Result<ExtPat, String> {
     let negated = if chars.peek() == Some(&'^') {
@@ -322,9 +286,8 @@ fn parse_charclass(chars: &mut Chars) -> Result<ExtPat, String> {
 
 fn parse_class_enum(chars: &mut Chars) -> Result<Vec<char>, String> {
     let mut members = Vec::new();
-    // Reference (p_enum): a ']' or '-' immediately after '[' / '[^' is a literal member
-    // not the terminator / a range operator 
-    // Otherwise "[]f-z]" (']' plus the range 'f'..'z') could never be written
+    // A ']' or '-' immediately after '[' / '[^' is a literal member, so
+    // that "[]f-z]" and "[-a]" can be written.
     match chars.peek() {
         Some(&']') => {
             chars.next();
@@ -361,14 +324,13 @@ enum ClassAtom {
 fn parse_one_class_member(chars: &mut Chars) -> Result<Vec<char>, String> {
     let start = parse_class_atom(chars)?;
     let lo = match start {
-        ClassAtom::Multi(cs) => return Ok(cs), // \d \w \s ... : never a range endpoint
+        ClassAtom::Multi(cs) => return Ok(cs),
         ClassAtom::Single(c) => c,
     };
     if chars.peek() == Some(&'-') {
         let mut trial = chars.clone();
-        trial.next(); // consume '-' in the trial
+        trial.next();
         if trial.peek() != Some(&']') && trial.peek().is_some() {
-            // range: commit the '-', then parse the end char
             chars.next();
             let hi = parse_class_range_end(chars)?;
             if hi < lo {
@@ -376,7 +338,6 @@ fn parse_one_class_member(chars: &mut Chars) -> Result<Vec<char>, String> {
             }
             return Ok((lo..=hi).collect());
         }
-        // '-' immediately before ']' (or end of input): literal trailing dash
     }
     Ok(vec![lo])
 }
@@ -398,7 +359,7 @@ fn parse_class_atom(chars: &mut Chars) -> Result<ClassAtom, String> {
                 'W' => Ok(ClassAtom::Multi(alphabet::complement(&alphabet::word_chars()))),
                 's' => Ok(ClassAtom::Multi(alphabet::space_chars())),
                 'S' => Ok(ClassAtom::Multi(alphabet::complement(&alphabet::space_chars()))),
-                other => Ok(ClassAtom::Single(other)), // \] \- \\ \^ etc: literal
+                other => Ok(ClassAtom::Single(other)),
             }
         }
         Some(c) => Ok(ClassAtom::Single(c)),
@@ -414,10 +375,6 @@ fn parse_class_range_end(chars: &mut Chars) -> Result<char, String> {
         }
     }
 }
-
-// -------------------------------
-// Tests
-// -------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -502,16 +459,17 @@ mod tests {
     #[test]
     fn dot_star_plus_opt() {
         assert_eq!(p("."), ExtPat::Dot);
-        assert_eq!(p("a*"), ExtPat::Star(Box::new(ExtPat::Char('a')), true));
-        assert_eq!(p("a+"), ExtPat::Plus(Box::new(ExtPat::Char('a')), true));
-        assert_eq!(p("a?"), ExtPat::Opt(Box::new(ExtPat::Char('a')), true));
+        assert_eq!(p("a*"), ExtPat::Star(Box::new(ExtPat::Char('a'))));
+        assert_eq!(p("a+"), ExtPat::Plus(Box::new(ExtPat::Char('a'))));
+        assert_eq!(p("a?"), ExtPat::Opt(Box::new(ExtPat::Char('a'))));
     }
 
     #[test]
-    fn lazy_variants_carry_greedy_false() {
-        assert_eq!(p("a*?"), ExtPat::Star(Box::new(ExtPat::Char('a')), false));
-        assert_eq!(p("a+?"), ExtPat::Plus(Box::new(ExtPat::Char('a')), false));
-        assert_eq!(p("a??"), ExtPat::Opt(Box::new(ExtPat::Char('a')), false));
+    fn lazy_markers_are_accepted_and_dropped() {
+        assert_eq!(p("a*?"), p("a*"));
+        assert_eq!(p("a+?"), p("a+"));
+        assert_eq!(p("a??"), p("a?"));
+        assert_eq!(p("a{2,4}?"), p("a{2,4}"));
     }
 
     #[test]
@@ -521,29 +479,21 @@ mod tests {
 
     #[test]
     fn bound_exact() {
-        assert_eq!(p("a{3}"), ExtPat::Bound(Box::new(ExtPat::Char('a')), 3, Some(3), true));
+        assert_eq!(p("a{3}"), ExtPat::Bound(Box::new(ExtPat::Char('a')), 3, Some(3)));
     }
 
     #[test]
     fn bound_range() {
-        assert_eq!(p("a{2,4}"), ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, Some(4), true));
+        assert_eq!(p("a{2,4}"), ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, Some(4)));
     }
 
     #[test]
     fn bound_unbounded() {
-        assert_eq!(p("a{2,}"), ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, None, true));
-    }
-
-    #[test]
-    fn bound_lazy() {
-        assert_eq!(p("a{2,4}?"), ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, Some(4), false));
+        assert_eq!(p("a{2,}"), ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, None));
     }
 
     #[test]
     fn invalid_bound_falls_back_and_then_errors_on_stray_brace() {
-        // "{9,2}" (hi < lo) isn't a valid bound spec
-        // '{' is left unconsumed for the next atom, which then fails
-        // becuase '{' is a special character with no literal-fallback meaning
         assert!(parse_ext_pattern("a{9,2}").is_err());
     }
 
@@ -564,8 +514,6 @@ mod tests {
 
     #[test]
     fn char_class_leading_bracket_is_literal() {
-        // "[]a]" = the set {']', 'a'} -- a ']' right after '[' is a literal member
-        // not the terminator (reference's p_enum)
         assert_eq!(p("[]a]"), ExtPat::Any(vec![']', 'a']));
     }
 
@@ -627,15 +575,14 @@ mod tests {
         assert!(parse_ext_pattern("(a").is_err());
     }
 
-    // A real dataset-style pattern: simplified IP-octet-group shape
     #[test]
     fn realistic_nested_pattern_shape() {
         let ep = p(r"(\d{1,3}\.){3}\d{1,3}");
         match ep {
             ExtPat::Concat(parts) => {
                 assert_eq!(parts.len(), 2);
-                assert!(matches!(parts[0], ExtPat::Bound(_, 3, Some(3), true)));
-                assert!(matches!(parts[1], ExtPat::Bound(_, 1, Some(3), true)));
+                assert!(matches!(parts[0], ExtPat::Bound(_, 3, Some(3))));
+                assert!(matches!(parts[1], ExtPat::Bound(_, 1, Some(3))));
             }
             other => panic!("expected Concat, got {:?}", other),
         }

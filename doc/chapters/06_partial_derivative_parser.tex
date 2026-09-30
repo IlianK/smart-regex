@@ -1,96 +1,19 @@
 \chapter{Partial-Derivative-Based Parser}
 \label{sec:partial-derivative-parser}
 
-Chapter~\ref{sec:derivative-parser} developed two parsers based on
-Brzozowski's derivative. This chapter develops the corresponding two parsers
-using Antimirov's partial derivative from
+Chapter~\ref{sec:derivative-parser} built two parsers on Brzozowski's
+derivative. This chapter builds the same two kinds of parser again,
+using Antimirov's partial derivative $pd(r,x)$ from
 Section~\ref{sec:antimirov-partial-derivatives} in place of
-$r\backslash x$ throughout.
+$r\backslash x$.
 
-The replacement is local in notation but affects how the parsers are constructed.
-Both operators
-consume one character and return the residual expression that remains to be
-matched, and each operator is sufficient to drive a parser. However,
-$r\backslash x$ returns a single expression, whereas $pd(r,x)$ returns a
-\emph{set}, and a set has no single top-level alternation whose left branch a
-rule can prefer. The POSIX choice performed by the two constructions of
-Chapter~\ref{sec:derivative-parser}, in $\mathit{mkEps}$ and in
-$\mathit{mkEpsBC}$, therefore has no corresponding site in the set
-representation. The choice is relocated, and its outcome differs.
-
-Section~\ref{sec:partial-derivative-parser-theory} identifies the new site,
-and Sections~\ref{sec:pderiv-std-worked} and
-\ref{sec:pderiv-bc-worked} demonstrate the consequence on a small
-expression whose behaviour can be verified by direct inspection.
-
-%
-%
-%
-
-\section{The Frontier Approach}
-\label{sec:partial-derivative-parser-theory}
-
-Section~\ref{sec:antimirov-partial-derivatives} defined $pd(r,x)$ as a set
-of residual expressions, each representing a state of the implicit NFA for
-$r$ after reading $x$. Parsing therefore pairs each surviving element with
-payload sufficient to reconstruct its parse tree: an injection closure in
-this project's extension (Section~\ref{sec:pderiv-std-theory-rust}) or a bit
-string in the reference-based construction
-(Section~\ref{sec:pderiv-bc-theory}).
-
-The algorithm maintains a \emph{frontier} of
-\texttt{(residual, extra)} pairs, one per live \emph{strand}, and replaces
-it after each input character with the successors produced by $pd$. At
-end of input, it selects the first strand with a nullable residual.
-Figure~\ref{fig:frontier} illustrates this process using
-\texttt{pderiv\_bc}'s bits as payload; Section~\ref{sec:pderiv-std-theory-rust}
-shows the frontier with injection closures.
-
-Both strands in the last column are nullable, yet only the first is
-inspected. Neither construction defines a preference; list order determines
-which is considered first. This is deliberate: parse trees are complete only
-at end of input and cannot be compared during pruning.
-Sections~\ref{sec:pderiv-std-theory-rust} and
-\ref{sec:pderiv-bc-theory} develop complete parsers from this loop.
-
-\begin{figure}[ht]
-\centering
-\begin{tikzpicture}[
-  st/.style={draw, rounded corners=2pt, font=\scriptsize,
-             minimum height=6mm, inner xsep=3pt},
-  win/.style={st, fill=black!10, very thick},
-  lbl/.style={font=\scriptsize, inner sep=1.5pt},
-  col/.style={font=\scriptsize\itshape},
-]
-\node[col] (c0) at (0,2.1) {start};
-\node[col] (c1) at (4.0,2.1) {after $\mathtt{a}$};
-\node[col] (c2) at (8.6,2.1) {after $\mathtt{b}$};
-
-\node[st] (s0) at (0,1.0) {$r_0$,\ $[\,]$};
-
-\node[st] (a0) at (4.0,1.5) {$b+\varepsilon$,\ $[0]$};
-\node[st] (a1) at (4.0,0.4) {$b\,(b+\varepsilon)$,\ $[1]$};
-
-\node[win] (b0) at (8.6,1.5) {$\varepsilon$,\ $[0,0]$};
-\node[st]  (b1) at (8.6,0.4) {$b+\varepsilon$,\ $[1]$};
-
-\draw[->] (s0) -- node[lbl, above, pos=0.55] {$\mathsf{PB}_{+}$, left} (a0);
-\draw[->] (s0) -- node[lbl, below, pos=0.55] {$\mathsf{PB}_{+}$, right} (a1);
-\draw[->] (a0) -- node[lbl, above] {$\mathsf{PB}_{+}$} (b0);
-\draw[->] (a1) -- node[lbl, below] {$\mathsf{PB}_{\mathrm{seq}}$} (b1);
-
-\node[lbl, anchor=west, align=left] at (9.7,1.5)
-  {nullable,\\first in order:\\\textbf{selected}};
-\node[lbl, anchor=west, align=left] at (9.7,0.4)
-  {nullable,\\never inspected};
-\end{tikzpicture}
-\caption{Frontier for $r_0 = (a+ab)(b+\varepsilon)$ on
-\texttt{"ab"}, using \texttt{pderiv\_bc}'s bits as per-strand payload.
-Both final strands are nullable; the first in list order is selected.}
-\label{fig:frontier}
-\end{figure}
-
-
+The substitution is not free. $r\backslash x$ returns one expression,
+so a rule can prefer its left branch; $pd(r,x)$ returns a \emph{set},
+with no branch to prefer. The POSIX choice $\mathit{mkEps}$ and
+$\mathit{mkEpsBC}$ made in Chapter~\ref{sec:derivative-parser}
+therefore has no site in the set representation. Both parsers built
+here instead keep every surviving element alive in parallel and
+resolve the choice only once, by list order, at the end of the input.
 
 %
 %
@@ -99,48 +22,414 @@ Both final strands are nullable; the first in list order is selected.}
 \section{The Standard Partial-Derivative-Based Parser}
 \label{sec:pderiv-std-theory-rust}
 
+$pd(r,x)$'s elements are exactly the states of the implicit NFA for
+$r$ that are still alive after reading $x$
+(Section~\ref{sec:antimirov-partial-derivatives}). Parsing needs more
+than a state, though: it needs enough information to rebuild a parse
+tree for whichever state turns out to be the winner once the input is
+exhausted. This construction pairs every state with an
+\emph{injection closure}, a function that, given the parse tree of
+that state's own residual, returns the parse tree of the
+\emph{original} expression $r$. The construction starts with one
+state carrying the identity closure; each character replaces every
+state with the union of $pd$ applied to it, each successor composing
+its own closure inside the one it inherited; and once the input is
+exhausted, the first state with a nullable residual, in list order,
+is selected and its closure applied to $\mathit{mkEps}$ of that
+residual.
+
+Consider the unambiguous example from Section~\ref{par:unambigious-example}:
+$r = a\cdot b$ with input $w=\mathtt{ab}$, checked against
+\texttt{--parser pderiv\_std --diag 3}. A single state survives at every
+step, so the forward pass is visible without any competition between
+states:
+\begin{equation}\label{eq:pderiv-std-overview-example}
+\{(a\cdot b,\ \mathrm{id})\}
+\ \xrightarrow{\ a\ }\
+\{(\varepsilon\cdot b,\ \kappa_1)\}
+\ \xrightarrow{\ b\ }\
+\{(\varepsilon,\ \kappa_2)\},
+\end{equation}
+shown in Figure~\ref{fig:pderiv-std-single-pass}. A mismatched literal
+under Brzozowski's derivative keeps $\phi$ as a residual, so the matcher
+discovers failure only once it reaches the end; a mismatched literal
+under $pd$ contributes no successor at all, so a dead state simply
+disappears from the set rather than surviving as $\phi$.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  expr/.style={draw, rounded corners=2pt, minimum height=7mm,
+               font=\small, inner xsep=4pt},
+  clo/.style={draw, rounded corners=2pt, minimum height=7mm,
+               font=\small, inner xsep=4pt, fill=black!5},
+  lbl/.style={font=\scriptsize, inner sep=1.5pt},
+]
+\node[expr] (r0) at (0,1.8)   {$a\cdot b$};
+\node[expr] (r1) at (3.8,1.8) {$\varepsilon\cdot b$};
+\node[expr] (r2) at (7.6,1.8) {$\varepsilon$};
+\draw[->] (r0) -- node[lbl, above] {$D^{T}_{\cdot}\ \mathtt{a}$} (r1);
+\draw[->] (r1) -- node[lbl, above] {$D^{T}_{\cdot}\ \mathtt{b}$} (r2);
+
+\node[clo] (k0) at (0,0)   {$\mathrm{id}$};
+\node[clo] (k1) at (3.8,0) {$\kappa_1$};
+\node[clo] (k2) at (7.6,0) {$\kappa_2$};
+\draw[->] (k0) -- node[lbl, above] {compose} (k1);
+\draw[->] (k1) -- node[lbl, above] {compose} (k2);
+
+\node[clo] (v0) at (11.0, 0.9) {$(a,b)$};
+\draw[->] (r2) to[out=-20,in=115]
+  node[lbl, right, pos=0.3] {$\mathit{mkEps}$} (v0);
+\draw[->] (k2) to[out=20,in=245]
+  node[lbl, right, pos=0.65] {$\kappa_2(\cdot)$} (v0);
+
+\node[lbl, anchor=east, align=right] at (-1.0,1.8) {states};
+\node[lbl, anchor=east, align=right] at (-1.0,0)   {closures};
+\end{tikzpicture}
+\caption{The standard partial-derivative construction on $a\cdot b$ and
+input \texttt{"ab"}: states (top row) and their injection closures
+(bottom row) evolve together in one forward pass; the closure attached
+to the final state is applied once, to $\mathit{mkEps}$ of that state's
+own residual.}
+\label{fig:pderiv-std-single-pass}
+\end{figure}
+
+\paragraph{Single pass, not two.} Both closures are fully determined as
+soon as they are built: $\kappa_1$ already carries the tree for the
+\texttt{a} it just matched, and $\kappa_2$ extends that with the tree for
+\texttt{b}. Nothing is deferred, so there is no separate backward walk:
+the construction ends by evaluating $\kappa_2$ once, on
+$\mathit{mkEps}(\varepsilon)=()$, giving $\kappa_2(()) = (a,b)$, matching
+the trace above. Section~\ref{sec:pderiv-std-worked} repeats this on the
+ambiguous $r_0=(a+ab)(b+\varepsilon)$ from
+Section~\ref{par:ambigious-example}, where more than one state survives a
+step and list order, not the closure, does the choosing.
+
+No rule anywhere prefers one state over another during this process:
+a parse tree is complete only once the whole input has been read, so
+there is nothing to compare while stepping. Two states can both be
+nullable at the end; only the first, in the order this section's
+rules produce, is ever inspected.
+
+\emph{No published construction corresponds to this one.} Sulzmann's
+teaching-page Haskell transcript \citep{sulzmann_slides} defines a
+bit-coded partial-derivative parser directly (Section~\ref{sec:pderiv-bc-theory}
+follows it literally), but not a tree-building one; this
+injection-closure construction is this project's own extension of
+$pd$, built to give the bit-coded parser below a matched,
+independently-implemented counterpart the way \texttt{deriv\_std} is
+to \texttt{deriv\_bc} in Chapter~\ref{sec:derivative-parser}. Every
+rule and every Rust listing in this section was checked directly
+against \texttt{src/parsers/pderiv\_std/} and against a live
+\texttt{--diag 3} trace before being written here, since no reference
+implementation exists to check it against instead.
+
 %
+
+\subsection{Injection Closures}
+\label{sec:pderiv-std-strand-theory}
+
+A state's closure accumulates the same way $\mathit{inj}$'s effect
+does in Chapter~\ref{sec:derivative-parser}, one layer per character,
+except that nothing is applied until the very end: where
+\texttt{deriv\_std} runs an explicit backward pass, calling
+\texttt{inject} once per character after the input is exhausted, this
+construction builds the composition forward, one layer per step, and
+applies the finished composition exactly once. In that sense it is as
+single-pass as \texttt{deriv\_bc}: the closure chain plays the role
+the bit-string plays there.
+
+\paragraph{In Rust.}
+\label{sec:inj-type-impl}
+
+Figure~\ref{fig:inj-type-rust} is the closure's type, the identity
+closure the construction starts with, and its deduplication helper.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub(crate) type Inj = Rc<dyn Fn(ParseTree) -> ParseTree>;
+
+pub(crate) fn identity_inj() -> Inj {
+    Rc::new(|v| v)
+}
+
+pub(crate) fn nub_tree(strands: Vec<(Regex, Inj)>) -> Vec<(Regex, Inj)> {
+    let mut seen: HashSet<Regex> = HashSet::with_capacity(strands.len());
+    let mut out = Vec::with_capacity(strands.len());
+    for (r, inj) in strands {
+        if seen.insert(r.clone()) {
+            out.push((r, inj));
+        }
+    }
+    out
+}
+\end{verbatim}
+\caption{\texttt{Inj}, its identity value, and \texttt{nub\_tree}:
+stable deduplication on the residual alone, keeping the first
+occurrence.}
+\label{fig:inj-type-rust}
+\end{figure}
+
+\texttt{Rc<dyn Fn(ParseTree) -> ParseTree>} is a reference-counted,
+heap-allocated closure: a single step can expand one state into
+several, and every successor needs the same parent closure, so the
+parent has to be shared rather than cloned or moved. Cloning an
+\texttt{Rc} bumps a reference count; it does not copy whatever state
+the closure captured.
+
 %
+
+\subsection{The Partial Derivative with Injection}
+\label{sec:pderiv-tree-theory}
+
+Writing $D^{T}_r$ for this construction's step at a fixed character
+$x$, its case structure matches $pd$'s own
+(Section~\ref{sec:antimirov-partial-derivatives}) with a closure
+attached to every surviving element instead of nothing:
+\begin{equation}\label{eq:pd-tree}
+\begin{aligned}
+D^{T}_{\varepsilon} &= \{\} \qquad D^{T}_{\emptyset} = \{\} \\
+D^{T}_{y} &= \begin{cases}
+  \{(\varepsilon,\ \_\mapsto \mathit{Char}(y))\} & x = y \\
+  \{\} & x \neq y
+\end{cases} \\
+D^{T}_{r+s} &= \mathit{nub}_T\big(
+  \{(r',\ v\mapsto\mathit{Left}(f(v))) \mid (r',f)\in D^{T}_r\} \\
+  &\qquad\qquad \cup\ \{(s',\ v\mapsto\mathit{Right}(g(v))) \mid (s',g)\in D^{T}_s\}\big) \\
+D^{T}_{r^{*}} &= \mathit{nub}_T\big(
+  \{(r'\,r^{*},\ (v,vs)\mapsto \mathit{Star}(f(v){:}vs)) \mid (r',f)\in D^{T}_r\}\big)
+\end{aligned}
+\end{equation}
+and the sequence case again splits on the nullability of the left
+factor:
+\begin{equation}\label{eq:pd-tree-seq}
+\begin{aligned}
+D^{T}_{rs} &= \{(r's,\ (v_1,v_2)\mapsto(f(v_1),v_2)) \mid (r',f)\in D^{T}_r\}
+  && n(r) = \mathrm{false} \\
+D^{T}_{rs} &= \mathit{nub}_T\big(
+  \{(r's,\ (v_1,v_2)\mapsto(f(v_1),v_2)) \mid (r',f)\in D^{T}_r\} \\
+  &\qquad\quad \cup\ \{(s',\ v_2\mapsto(\mathit{mkEps}_r,\,g(v_2))) \mid (s',g)\in D^{T}_s\}\big)
+  && n(r) = \mathrm{true}
+\end{aligned}
+\end{equation}
+
+The $r^{*}$ and $rs,\ n(r){=}\mathrm{false}$ cases both build their
+residual with a plain sequence, $r'\,r^{*}$ or $r's$, never the smart
+constructor $\mathit{smartC}$
+(Section~\ref{sec:antimirov-partial-derivatives}) that collapses
+$\varepsilon\cdot s$ to $s$. This is not an oversight: selection ends
+by calling $f(\mathit{mkEps}(r))$ on the winning state, so every
+closure is applied to a tree whose \emph{shape is fixed by its own
+residual}. A closure built for a sequence residual pattern-matches on
+a pair, exactly what $\mathit{mkEps}$ produces for a sequence;
+collapsing $\varepsilon\cdot s$ to $s$ would make $\mathit{mkEps}$
+produce $s$'s own shape instead, and the closure expecting a pair
+would receive something else. Substituting the smart constructor here
+makes the test suite fail immediately, on the simplest sequence
+pattern, with exactly that mismatch.
+
+\paragraph{In Rust.}
+\label{sec:pderiv-tree-impl}
+
+Figure~\ref{fig:pderiv-tree-rust} is the \texttt{Alt} and \texttt{Seq}
+arms of \texttt{pderiv\_tree}; \texttt{Star} follows the same shape as
+\texttt{Seq}'s continue branch, prepending its injected value onto the
+existing \texttt{Star} list instead of pairing it, and is omitted.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+Regex::Alt(r1, r2) => {
+    let mut out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+        .into_iter()
+        .map(|(r1_, inj1)| {
+            let f: Inj = Rc::new(move |v| ParseTree::Left(Box::new(inj1(v))));
+            (r1_, f)
+        })
+        .collect();
+    out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
+        let f: Inj = Rc::new(move |v| ParseTree::Right(Box::new(inj2(v))));
+        (r2_, f)
+    }));
+    nub_tree(out)
+}
+
+Regex::Seq(r1, r2) => {
+    if nullable(r1) {
+        let mut out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+            .into_iter()
+            .map(|(r1_, inj1)| {
+                let r2c = (**r2).clone();
+                let f: Inj = Rc::new(move |v: ParseTree| match v {
+                    ParseTree::Pair(v1, v2) =>
+                        ParseTree::Pair(Box::new(inj1(*v1)), v2),
+                    other => panic!("expected Pair, got {:?}", other),
+                });
+                (Regex::seq(r1_, r2c), f)
+            })
+            .collect();
+        let v1_eps = mk_eps(r1);
+        out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
+            let v1c = v1_eps.clone();
+            let f: Inj = Rc::new(move |v2: ParseTree| {
+                ParseTree::Pair(Box::new(v1c.clone()), Box::new(inj2(v2)))
+            });
+            (r2_, f)
+        }));
+        nub_tree(out)
+    } else {
+        pderiv_tree(r1, x)
+            .into_iter()
+            .map(|(r1_, inj1)| {
+                let r2c = (**r2).clone();
+                let f: Inj = Rc::new(move |v: ParseTree| match v {
+                    ParseTree::Pair(v1, v2) =>
+                        ParseTree::Pair(Box::new(inj1(*v1)), v2),
+                    other => panic!("expected Pair, got {:?}", other),
+                });
+                (Regex::seq(r1_, r2c), f)
+            })
+            .collect()
+    }
+}
+\end{verbatim}
+\caption{The alternation and sequence arms of \texttt{pderiv\_tree},
+transcribing Equations~\eqref{eq:pd-tree} and~\eqref{eq:pd-tree-seq}.}
+\label{fig:pderiv-tree-rust}
+\end{figure}
+
+Both \texttt{Seq} branches build the same "continue into \texttt{r1}"
+closure shape; the nullable branch additionally unions in the
+"jump to \texttt{r2}" strands, each carrying a fresh
+\texttt{mk\_eps(r1)} for the half the derivative skipped, the same
+role $\mathit{mkEps}_r$ plays in Equation~\eqref{eq:pd-tree-seq}. Both
+\texttt{mk\_eps} and \texttt{nullable} here are the exact functions
+Chapter~\ref{sec:derivative-parser} defined
+(Figure~\ref{fig:mkeps-rust}), imported and reused, not reimplemented.
+
 %
 
-\section{The Bit-Coded Approach}
-\label{sec:pderiv-bc-overview}
+\subsection{Parser}
+\label{sec:pderiv-std-driver}
 
-\texttt{pderiv\_std}'s frontier carries a chain of heap-allocated
-closures, one per surviving derivative step, applied only once, on the
-winning strand, at the very end. \texttt{pderiv\_bc} replaces that chain
-with the same flat \texttt{Vec<bool>} Chapter~\ref{sec:derivative-parser}'s
-\texttt{deriv\_bc} used, following Sulzmann's teaching-page Haskell
-transcript \citep{sulzmann_slides} directly rather than building a
-parallel construction from scratch. Figure~\ref{fig:frontier}
-(Section~\ref{sec:partial-derivative-parser-theory}) already draws this
-representation in full, so there is no second frontier diagram to
-redraw here: reading it again now, the payload on every strand is a
-\texttt{Vec<bool>}, not an $\iota$.
+Figure~\ref{fig:pderiv-std-driver-rust} is the driver: start with one
+state carrying the identity closure, replace the whole set with
+\texttt{pderiv\_tree}'s union at each character, and select the first
+nullable residual's closure applied to \texttt{mk\_eps} of that
+residual once the input ends.
 
-\paragraph{Comparison with the standard construction.}
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub(super) fn step_frontier(frontier: Vec<(Regex, Inj)>, x: char)
+    -> Vec<(Regex, Inj)>
+{
+    let mut out = Vec::new();
+    for (r, inj_parent) in frontier {
+        for (r_next, inj_step) in pderiv_tree(&r, x) {
+            let parent = inj_parent.clone();
+            let combined: Inj = Rc::new(move |v| parent(inj_step(v)));
+            out.push((r_next, combined));
+        }
+    }
+    out
+}
 
-\begin{center}
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.0cm}%
-                  >{\raggedright\arraybackslash}p{4.0cm}@{}}
-\hline
-& \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
-\hline
-Per-strand payload & \texttt{Rc<dyn Fn>} closure chain & \texttt{Vec<bool>} \\
-Allocation per step & one heap closure per successor & one \texttt{Vec} append \\
-Residual constructor & plain \texttt{Regex::seq} only & \texttt{smart\_seq} where safe \\
-Followed reference & none; this thesis's own & \texttt{pDerivBC} directly \\
-\hline
-\end{tabular}
-\end{center}
+pub(super) fn select(frontier: &[(Regex, Inj)]) -> Option<ParseTree> {
+    for (r, inj) in frontier {
+        if nullable(r) {
+            return Some(inj(mk_eps(r)));
+        }
+    }
+    None
+}
 
-Both constructions deduplicate identically, \texttt{nub\_tree} and
-\texttt{nub2} apply the same keep-the-first rule to the same residual
-equality, so the difference in this table is entirely about what rides
-alongside the residual, never about which residual survives. The next
-section develops \texttt{pderiv\_bc}'s rules formally and sets its own
-per-case table next to Section~\ref{sec:pderiv-tree-theory}'s, now that
-both constructions are available to compare.
+pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
+    let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), identity_inj())];
+    for c in input.chars() {
+        frontier = step_frontier(frontier, c);
+        if frontier.is_empty() { return None; }
+    }
+    select(&frontier)
+}
+\end{verbatim}
+\caption{\texttt{parse\_pderiv\_std}: build the closure chain forward,
+one character at a time, and apply it once, at the end.}
+\label{fig:pderiv-std-driver-rust}
+\end{figure}
+
+\texttt{combined} composes \texttt{inj\_step} \emph{inside}
+\texttt{parent}, \texttt{parent(inj\_step(v))}: the most recent step's
+closure runs first, on the raw tree \texttt{mk\_eps} produces for the
+current residual, and each earlier step's closure wraps that result
+one layer further out, exactly the right-to-left order
+Chapter~\ref{sec:derivative-parser}'s $\mathit{inj}$ applies during
+its own backward pass, just built forward here instead of walked
+backward.
+
+%
+
+\subsection{Worked Example: Ambigious Expression}
+\label{sec:pderiv-std-worked}
+Recall the ambigious example from Section~\ref{par:ambigious-example}
+with regular expression $r_0=(a+ab)(b+\varepsilon)$ against input
+$\mathtt{ab}$, checked against \texttt{--parser pderiv\_std --diag 3}.
+
+\paragraph{Step 1.} $a+ab$ is not nullable, so the outer sequence
+takes its non-nullable case: every state below comes from stepping
+$a+ab$ alone, each wrapped back into a sequence with $b+\varepsilon$
+untouched:
+\begin{equation}\label{eq:pt-step1}
+\{(r_0,\ \mathrm{id})\}
+\ \xrightarrow{\ a\ }\
+\big\{
+  \big(\varepsilon\,(b+\varepsilon),\ f_0\big),\ \
+  \big((\varepsilon\, b)\,(b+\varepsilon),\ f_1\big)
+\big\}
+\end{equation}
+Both states survive $\mathit{nub}_T$, since $\varepsilon(b+\varepsilon)$
+and $(\varepsilon b)(b+\varepsilon)$ are syntactically distinct
+residuals; the tool's own trace lists exactly these two, printed as
+\texttt{Seq(Eps, Alt(Lit('b'), Eps))} and
+\texttt{Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))}.
+
+\paragraph{Step 2.} The two states are stepped independently, and
+different rules fire on each. The first state's left factor
+$\varepsilon$ is nullable, so it takes the nullable sequence case;
+its own left factor contributes no successor ($\varepsilon$ has none),
+so only the jump into $b+\varepsilon$ survives. The second state's
+left factor $\varepsilon\,b$ is not nullable, so it takes the plain
+case again:
+\begin{equation}\label{eq:pt-step2}
+\big\{
+  \big(\varepsilon(b+\varepsilon),\ f_0\big),\ \big((\varepsilon b)(b+\varepsilon),\ f_1\big)
+\big\}
+\ \xrightarrow{\ b\ }\
+\big\{
+  (\varepsilon,\ g_0),\ \ \big(\varepsilon(b+\varepsilon),\ g_1\big)
+\big\}
+\end{equation}
+matching the tool's \texttt{Eps} and
+\texttt{Seq(Eps, Alt(Lit('b'), Eps))}.
+
+\paragraph{Selection and result.} Both residuals are nullable;
+$\varepsilon$, first in list order, is selected. Its closure applied
+to $\mathit{mkEps}(\varepsilon) = ()$ threads back through every layer
+built above it:
+\begin{equation}\label{eq:pt-result}
+g_0(()) = \big(\mathit{Left}\ a,\ \mathit{Left}\ b\big) = v_0,
+\qquad \lvert v_0\rvert = \mathtt{ab}.
+\end{equation}
+This is a different tree from the POSIX one
+Section~\ref{sec:worked-example} builds for the identical
+$r_0$ and $\mathtt{ab}$, $\big(\mathit{Right}(a,b),\mathit{Right}(\,)\big)$:
+here the leftmost alternative of $a+ab$ is committed to as soon as it
+is available, rather than the longest one being preferred once the
+whole match is known. Both are valid parse trees for the same
+expression and word (Section~\ref{sec:parse-trees-as-evidence}); which
+one a parser returns depends on which of the two constructions built
+it.
 
 %
 %
@@ -150,149 +439,145 @@ both constructions are available to compare.
 \label{sec:pderiv-bc-theory}
 
 Sulzmann's teaching-page Haskell transcript gives a bit-coded
-partial-derivative construction, \texttt{pDerivBC}, that this thesis's
-\texttt{pderiv\_bc} follows directly \citep{sulzmann_slides}. It extends
-$pd$ with per-strand bits the same way
-Section~\ref{sec:bitcoded-optimization-theory}'s $\backslash_b$ extends
-the Brzozowski derivative, with one visible difference: the bits stay
-\emph{external} to the expression tree, as a plain list carried
-alongside a plain, un-annotated $r$, instead of being folded into an
-\texttt{ARegex}-shaped tree. This construction's correctness criterion is
-literal agreement with \texttt{pDerivBC}, not an independently derived
-ideal form.
+partial-derivative construction, \texttt{pDerivBC}
+\citep{sulzmann_slides}, that this project's \texttt{pderiv\_bc}
+follows directly. It extends $pd$ with per-state bits the same way
+Chapter~\ref{sec:derivative-parser}'s $\backslash_b$ extends the
+Brzozowski derivative, with one visible difference: the bits stay
+\emph{external} to the expression, a plain list carried alongside a
+plain, un-annotated $r$, rather than folded into an
+\texttt{ARegex}-shaped tree. This construction's correctness
+criterion is literal agreement with \texttt{pDerivBC}, not an
+independently derived ideal form, so where the reference keeps an
+asymmetry, this section keeps it too rather than smoothing it away.
+
+
+Figure~\ref{fig:pderiv-bc-single-pass} shows this on the same pattern and
+input Chapter~\ref{sec:derivative-parser} used for its own bit-coded
+overview, $a^{*}$ against \texttt{"aaa"} (Figure~\ref{fig:single-pass}),
+checked against \texttt{--parser pderiv\_bc --diag 3}. $\mathit{smartC}$
+collapses the residual back to $a^{*}$ at every step, so the state itself
+never changes; only the bit list carried alongside it grows.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  expr/.style={draw, rounded corners=2pt, minimum height=6.5mm,
+               font=\scriptsize, inner xsep=3pt},
+  bits/.style={draw, rounded corners=2pt, minimum height=6.5mm,
+               font=\scriptsize, inner xsep=3pt, fill=black!5},
+  lbl/.style={font=\scriptsize, inner sep=1.5pt},
+]
+\node[expr] (r)   at (0,0)    {$a^{*}$};
+\node[expr] (ri0) at (2.6,0)  {$(a^{*}, [\,])$};
+\node[expr] (ri1) at (5.7,0)  {$(a^{*}, [0])$};
+\node[expr] (ri2) at (8.8,0)  {$(a^{*}, [0,0])$};
+\node[expr] (ri3) at (12.2,0) {$(a^{*}, [0,0,0])$};
+\node[bits] (bs)  at (5.7,-1.9)  {$[0,0,0,1]$};
+\node[bits] (v)   at (9.6,-1.9)  {$[a,a,a]$};
+
+\draw[->] (r)   -- node[lbl, above] {start} (ri0);
+\draw[->] (ri0) -- node[lbl, above] {$D_{\cdot}\ \mathtt{a}$} (ri1);
+\draw[->] (ri1) -- node[lbl, above] {$D_{\cdot}\ \mathtt{a}$} (ri2);
+\draw[->] (ri2) -- node[lbl, above] {$D_{\cdot}\ \mathtt{a}$} (ri3);
+\draw[->] (ri3.south) to[out=-90, in=25]
+  node[lbl, right, pos=0.45] {$\mathit{mkEpsBC}$} (bs.east);
+\draw[->] (bs) -- node[lbl, above] {$\mathit{decode}_r$} (v);
+\draw[->, dashed] (r.south) to[out=-90, in=180]
+  node[lbl, below, pos=0.6] {the original $r$} (bs.west);
+\end{tikzpicture}
+\caption{The bit-coded partial-derivative construction on $a^{*}$ and
+input \texttt{"aaa"}: the state stays $a^{*}$ throughout, since
+$\mathit{smartC}$ collapses each step's residual back to it; the bit list
+carried alongside accumulates one $0$ per step, the same sequence
+Figure~\ref{fig:single-pass} accumulates inside the annotated expression
+for the identical pattern and input.}
+\label{fig:pderiv-bc-single-pass}
+\end{figure}
+
+Both constructions reach the identical bit-string $[0,0,0,1]$ and decode
+it against the same original $a^{*}$ to the same tree $[a,a,a]$; the only
+difference is where the bits live while they accumulate.
+
+%
 
 \subsection{The Bit-Coded Partial Derivative}
 \label{sec:pderivbc-rules-theory}
 
-Writing $D_r$ for $\mathit{pDerivBC}(x,r)$ throughout, to keep the set
-comprehensions readable, the base and non-sequence cases are
-
+Writing $D_r$ for $\mathit{pDerivBC}(x,r)$, the base and non-sequence
+cases are
 \begin{equation}\label{eq:pderivbc}
 \begin{aligned}
-D_{\varepsilon} &= \{\} \qquad\qquad D_{\emptyset} = \{\}
-  &&(\mathsf{PB}_{\varepsilon}),\ (\mathsf{PB}_{\emptyset}) \\
+D_{\varepsilon} &= \{\} \qquad D_{\emptyset} = \{\} \\
 D_{y} &= \begin{cases} \{(\varepsilon, [\,])\} & x = y \\
-                       \{\} & x \neq y \end{cases}
-  &&(\mathsf{PB}_{\mathrm{lit}}) \\
+                       \{\} & x \neq y \end{cases} \\
 D_{r+s} &= \mathit{nub2}\big(
-  \{(r', 0{:}bs) \mid (r',bs) \in D_r\} \\
-  &\qquad\quad \cup\ \{(s', 1{:}bs) \mid (s',bs) \in D_s\}\big)
-  &&(\mathsf{PB}_{+}) \\
+  \{(r', 0{:}bs) \mid (r',bs) \in D_r\}
+  \cup \{(s', 1{:}bs) \mid (s',bs) \in D_s\}\big) \\
 D_{r^{*}} &= \mathit{nub2}\big(
   \{(\mathit{smartC}(r', r^{*}),\, 0{:}bs) \mid (r',bs) \in D_r\}\big)
-  &&(\mathsf{PB}_{*})
 \end{aligned}
 \end{equation}
-
-and the sequence case splits on the nullability of the left factor
-exactly as Equation~\eqref{eq:derivative} does:
-
+and the sequence case splits on the nullability of the left factor,
+exactly as in Chapter~\ref{sec:derivative-parser}:
 \begin{equation}\label{eq:pderivbc-seq}
 \begin{aligned}
 D_{rs} &= \{(\mathit{smartC}(r',s),\, bs) \mid (r',bs) \in D_r\}
-  && (\mathsf{PB}_{\mathrm{seq}}),\ n(r) = \mathrm{false} \\
+  && n(r) = \mathrm{false} \\
 D_{rs} &= \mathit{nub2}\big(
   \{(r's,\ bs) \mid (r',bs) \in D_r\} \\
-  &\qquad\quad \cup\ \{(s',\ \mathit{mkEpsBC}_r \mathbin{+\!\!+} bs)
-       \mid (s',bs) \in D_s\}\big)
-  && (\mathsf{PB}_{\mathrm{seq}}^{\,n}),\ n(r) = \mathrm{true}
+  &\quad \cup\ \{(s',\ \mathit{mkEpsBC}_r \mathbin{+\!\!+} bs) \mid (s',bs) \in D_s\}\big)
+  && n(r) = \mathrm{true}
 \end{aligned}
 \end{equation}
+Here $\mathit{mkEpsBC}_r$ is the plain-$r$ analogue of
+Chapter~\ref{sec:derivative-parser}'s $\mathit{mkEpsBC}$, identical in
+structure but walking an un-annotated tree; $\mathit{smartC}$ is the
+smart sequence constructor collapsing $\varepsilon\cdot s$ to $s$; and
+$\mathit{nub2}$ deduplicates a list of \texttt{(residual, bits)} pairs
+by the residual alone, keeping the first occurrence.
 
-The names extend Section~\ref{sec:antimirov-partial-derivatives}'s
-$\mathsf{P}$ scheme, one $\mathsf{PB}$ rule per $\mathsf{P}$ rule, and
-the derivation below cites them with the binding of $r$ and $s$ given at
-each application. Here $\mathit{mkEpsBC}_r$ is the plain-$r$ analogue of
-Section~\ref{sec:mk-eps-bc}'s $\mathit{mkEpsBC}$, identical in structure
-but walking an un-annotated tree; $\mathit{smartC}$ is the smart
-concatenation constructor of
-Section~\ref{sec:antimirov-partial-derivatives}, collapsing
-$\varepsilon\cdot s$ to $s$; and \texttt{nub2} deduplicates a list of
-\texttt{(residual, bits)} pairs by comparing the residual alone, keeping
-the first occurrence.
-
-Two details of Equation~\eqref{eq:pderivbc-seq} deserve attention.
-$\mathsf{PB}_{\mathrm{seq}}^{\,n}$'s second set is where a strand
-inherits $\mathit{mkEpsBC}_r$, the bits $r$ would have contributed by
-matching empty, which is the same move
-$\mathsf{B}_{\mathrm{seq}}^{\,n}$ made with $\mathit{fuse}$ in
-Chapter~\ref{sec:derivative-parser} and the same one
-$\mathsf{I}_{\mathrm{seq}}^{R}$ made with $\mathit{mkEps}$. And the two
-sequence cases build their residuals differently:
-$\mathsf{PB}_{\mathrm{seq}}$ uses $\mathit{smartC}$ while
-$\mathsf{PB}_{\mathrm{seq}}^{\,n}$ builds its first strand with a plain
-$r's$. That asymmetry is present in the reference itself and is
-preserved here and not "corrected", since correctness of this
-construction is judged by literal agreement with that reference
-(Chapter~\ref{sec:evaluation}) and not against an independently derived
-ideal form. Section~\ref{sec:pderiv-tree-theory} met the same question
-from the other side, where the choice between the two constructors was
-not free.
+Unlike Section~\ref{sec:pderiv-tree-theory}'s construction, the two
+sequence cases here build their residuals differently on purpose:
+$n(r){=}\mathrm{false}$ uses $\mathit{smartC}$, while
+$n(r){=}\mathrm{true}$'s first branch uses a plain $r's$. That
+asymmetry is present in the reference itself; since this
+construction's own correctness bar is literal agreement with
+\texttt{pDerivBC}, it is kept rather than corrected.
 
 \paragraph{In Rust.}
-\label{sec:pderiv-bc-theory-rust}
+\label{sec:pderiv-bc-impl}
 
-\texttt{pderiv\_bc} transcribes
-$\mathit{pDerivBC}$ case for case. Each $D_r$ becomes a vector of
-\texttt{(Regex, Vec<bool>)} pairs and not a set, because order is what
-encodes priority here, and a \texttt{HashSet} would discard exactly the
-information selection depends on. Deduplication is factored into its
-own function, Figure~\ref{fig:nub2-rust}, used by every case that can
-produce more than one strand.
+Each $D_r$ becomes a \texttt{Vec<(Regex, Vec<bool>)>}, not a set,
+since order is what encodes priority and a \texttt{HashSet} would
+discard exactly that. Figure~\ref{fig:pderivbc-rust} is the
+\texttt{Seq} arm, where the asymmetry above is visible directly in
+code; \texttt{Alt} and \texttt{Star} tag their one or two successors
+with a leading \texttt{false}/\texttt{true} and deduplicate with
+\texttt{nub2} (Figure~\ref{fig:nub2-rust}), omitted here.
 
 \begin{figure}[H]
+\small
 \begin{verbatim}
 fn nub2(pairs: Vec<(Regex, Vec<bool>)>) -> Vec<(Regex, Vec<bool>)> {
     let mut seen: HashSet<Regex> = HashSet::with_capacity(pairs.len());
     let mut out = Vec::with_capacity(pairs.len());
     for (r, bs) in pairs {
-        if seen.insert(r.clone()) {
-            out.push((r, bs));
-        }
+        if seen.insert(r.clone()) { out.push((r, bs)); }
     }
     out
 }
 \end{verbatim}
 \caption{\texttt{nub2}: stable deduplication on the residual alone.
-\texttt{HashSet::insert} returns \texttt{true} the first time a value is
-seen and \texttt{false} on every repeat, so the loop keeps a pair
-exactly when its residual has not been seen before, in the order the
-input \texttt{Vec} presents them.}
+The one place \texttt{Regex}'s derived \texttt{Hash} is load-bearing
+in the codebase, keeping this linear rather than quadratic in the
+number of states.}
 \label{fig:nub2-rust}
 \end{figure}
-
-This is the one place in the codebase where \texttt{Regex}'s derived
-\texttt{Hash} implementation (Section~\ref{sec:regex-rust-implementation})
-is load-bearing: elsewhere equality alone would do, but a hash set is
-what keeps \texttt{nub2} linear in the number of strands instead of
-quadratic.
-
-Figure~\ref{fig:pderivbc-rust} gives the two arms that produce more than
-one strand and tag them as they go; \texttt{Star} is left out, since it
-tags its one strand with a single leading \texttt{false} the same way
-\texttt{Alt}'s left arm does, and otherwise matches
-Figure~\ref{fig:derivbc-rust}'s star arm in Chapter~\ref{sec:derivative-parser}.
 
 \begin{figure}[H]
 \small
 \begin{verbatim}
-Regex::Alt(r1, r2) => {
-    let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
-        .into_iter()
-        .map(|(r1_, mut bs)| {
-            let mut b = vec![false];
-            b.append(&mut bs);
-            (r1_, b)
-        })
-        .collect();
-    out.extend(pderiv_bc(r2, x).into_iter().map(|(r2_, mut bs)| {
-        let mut b = vec![true];
-        b.append(&mut bs);
-        (r2_, b)
-    }));
-    nub2(out)
-}
-
 Regex::Seq(r1, r2) => {
     if nullable(r1) {
         let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
@@ -314,85 +599,30 @@ Regex::Seq(r1, r2) => {
     }
 }
 \end{verbatim}
-\caption{The alternation and sequence arms of \texttt{pderiv\_bc},
-transcribing $\mathsf{PB}_{+}$, $\mathsf{PB}_{\mathrm{seq}}$ and
-$\mathsf{PB}_{\mathrm{seq}}^{\,n}$.}
+\caption{\texttt{pderiv\_bc}'s \texttt{Seq} arm, transcribing
+$\mathsf{PB}_{\mathrm{seq}}$ and $\mathsf{PB}_{\mathrm{seq}}^{\,n}$:
+the nullable branch's first strand uses plain \texttt{Regex::seq},
+matching Equation~\eqref{eq:pderivbc-seq}'s plain $r's$; the
+non-nullable branch calls \texttt{smart\_seq} instead. Not an
+inconsistency, a literal transcription of the reference's own
+asymmetry.}
 \label{fig:pderivbc-rust}
 \end{figure}
 
-\texttt{Alt} prepends its tag with \texttt{vec![false]}/\texttt{vec![true]}
-and \texttt{append}, which is $0{:}bs$ and $1{:}bs$ read as a
-\texttt{Vec} operation, then deduplicates the combined vector once at the
-end, matching $\mathit{nub2}$'s position on the outside of the union in
-Equation~\eqref{eq:pderivbc}.
-
-\texttt{Seq} is the one place the two constructors genuinely differ, and
-the code keeps that difference instead of smoothing it away. The
-nullable branch's first strand is built with plain
-\texttt{Regex::seq(r1\_, *r2.clone())}, matching
-$\mathsf{PB}_{\mathrm{seq}}^{\,n}$'s plain $r's$; its second strand
-reuses \texttt{mk\_eps\_bits(r1)} exactly as
-Section~\ref{sec:pderivbc-rules-theory} described. The non-nullable branch,
-reached only when \texttt{nullable(r1)} is false, calls
-\texttt{smart\_seq(r1\_, r2)} instead, matching
-$\mathsf{PB}_{\mathrm{seq}}$. A reader who only skims the two branches
-could mistake this for an inconsistency; it is the literal transcription
-of the asymmetry Equation~\eqref{eq:pderivbc-seq} already has.
-
-\subsection{Comparing the Two Constructions}
-\label{sec:pderiv-bc-comparison}
-
-Section~\ref{sec:pderiv-tree-theory}'s table and this section's rules
-are the same case split read twice, once attaching a closure and once a
-bit:
-
-\begin{center}
-\begin{tabular}{lll}
-\hline
-Case & \texttt{pderiv\_bc} attaches & \texttt{pderiv\_tree} attaches \\
-\hline
-$\varepsilon$, $\emptyset$ & no strands & no strands \\
-$x$ (matching) & \texttt{[]} & \texttt{|\_| Char(x)} \\
-$r+s$, left & \texttt{0:}\textit{bs} & \texttt{|v| Left(inj1(v))} \\
-$r+s$, right & \texttt{1:}\textit{bs} & \texttt{|v| Right(inj2(v))} \\
-$rs$, continue $r$ & \textit{bs} & \texttt{|Pair(v1,v2)| Pair(inj1(v1), v2)} \\
-$rs$, jump to $s$ & $\mathit{mkEpsBC}_r$ \texttt{++} \textit{bs} & \texttt{|v2| Pair(mk\_eps(r), inj2(v2))} \\
-$r^{*}$ & \texttt{0:}\textit{bs} & \texttt{|Pair(v1,vs)| Star(inj1(v1) : vs)} \\
-\hline
-\end{tabular}
-\end{center}
-
-Every row is the same decision, expressed once as a bit and once as a
-constructor. The correspondence is exact enough that the "jump to $s$"
-row calls the shared \texttt{mk\_eps} at precisely the point
-\texttt{pderiv\_bc} calls \texttt{mk\_eps\_bits}, for the reason
-$\mathsf{I}_{\mathrm{seq}}^{R}$ gave in Chapter~\ref{sec:derivative-parser}.
-\texttt{nub\_tree} is called in exactly the positions \texttt{nub2} is
-in Figure~\ref{fig:pderivbc-rust}, deduplicating on the residual alone
-and keeping the first occurrence, so the priority order is preserved
-identically between the two constructions.
-
-\paragraph{Where \texttt{nub2} is and is not applied.} \texttt{nub2}
-appears inside $\mathit{pDerivBC}$, once per case that can produce more
-than one strand, and nowhere else. In particular the frontier-driving
-loop concatenates the per-strand results into the next frontier without
-deduplicating across them, so the guarantee \texttt{nub2} provides is
-local to a single strand's expansion and does not extend to the frontier
-as a whole. Two strands that were distinct at step $i$ can converge on
-the same residual at step $i+1$ and both survive, exactly the same
-effect \texttt{nub\_tree} permits in \texttt{pderiv\_std}, since both
-apply the same keep-the-first rule only within a single strand's
-expansion.
+%
 
 \subsection{Parser}
 \label{sec:pderiv-bc-driver}
 
-\texttt{step\_frontier} and \texttt{select\_bits}
-implement the loop of
-Section~\ref{sec:partial-derivative-parser-theory}. Figure~\ref{fig:pderivbc-driver-rust}
-gives both, plus the entry point that calls them.
+Figure~\ref{fig:pderivbc-driver-rust} is the driver, the same loop as
+Section~\ref{sec:pderiv-std-driver}'s, with a \texttt{Vec<bool>}
+accumulated per state instead of a closure, and
+\texttt{decode} (Chapter~\ref{sec:derivative-parser},
+Section~\ref{sec:decode}) reading the winning bit-string against the
+\emph{original} \texttt{Regex} at the very end.
 
 \begin{figure}[H]
+\small
 \begin{verbatim}
 pub(super) fn step_frontier(frontier: &[(Regex, Vec<bool>)], x: char)
     -> Vec<(Regex, Vec<bool>)>
@@ -408,9 +638,7 @@ pub(super) fn step_frontier(frontier: &[(Regex, Vec<bool>)], x: char)
     out
 }
 
-pub(super) fn select_bits(frontier: &[(Regex, Vec<bool>)])
-    -> Option<Vec<bool>>
-{
+pub(super) fn select_bits(frontier: &[(Regex, Vec<bool>)]) -> Option<Vec<bool>> {
     for (r, bits) in frontier {
         if nullable(r) {
             let mut result = bits.clone();
@@ -425,170 +653,61 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
     let mut frontier = vec![(r.clone(), Vec::new())];
     for c in input.chars() {
         frontier = step_frontier(&frontier, c);
-        if frontier.is_empty() {
-            return None;
-        }
+        if frontier.is_empty() { return None; }
     }
     let bits = select_bits(&frontier)?;
     Some(decode(r, &bits))
 }
 \end{verbatim}
-\caption{The frontier loop and its entry point. \texttt{step\_frontier}
-replaces every \texttt{(residual, bits)} pair with the union of
-\texttt{pderiv\_bc} applied to it, concatenating each result's bits onto
-that strand's accumulated prefix. \texttt{select\_bits} scans in list
-order and returns the first nullable strand's
-\texttt{bits ++ mk\_eps\_bits(residual)}.}
+\caption{\texttt{parse\_pderiv\_bc}: accumulate bits per state instead
+of composing closures; decode once, at the end, against the original
+\texttt{Regex}.}
 \label{fig:pderivbc-driver-rust}
 \end{figure}
 
-\texttt{parse\_pderiv\_bc} drives the loop and passes the winning
-bit-string, together with the \emph{original} \texttt{Regex} and never
-the derived residual, to \texttt{decode} (Section~\ref{sec:decode}).
-That is the same shared decoder \texttt{deriv\_bc} uses, since both
-constructions arrive at the identical \texttt{(Regex, bits)} shape by
-the time decoding is needed, whatever route each took to get there. The
-early return on an empty frontier is the same short-circuit
-Figure~\ref{fig:pderiv-loop-rust}'s matcher uses, now guarding a
-\texttt{Vec<(Regex, Vec<bool>)>} instead of a \texttt{HashSet<Regex>}.
+%
 
-\subsection{Worked Example}
+\subsection{Worked Example: Ambigious Expression}
 \label{sec:pderiv-bc-worked}
 
-Run the same $r_0$ against $\mathtt{ab}$ through this construction,
-checked against \texttt{cargo run -- parse "(a|ab)(b|)" "ab" --parser
-pderiv\_bc --diag 3} (Appendix~\ref{app:report-pderiv-bc-match}), so it
-can be read side by side with Section~\ref{sec:pderiv-std-worked}'s run
-of the standard construction on the identical input.
+The same $r_0=(a+ab)(b+\varepsilon)$ against $\mathtt{ab}$, checked
+against \texttt{--parser pderiv\_bc --diag 3}.
 
-\paragraph{Forward pass.}
-The frontier starts as one strand, $(r_0,[\,])$. The first character
-binds $r=a+ab$ and $s=b+\varepsilon$ at the outer node. That $r$ is not
-nullable, so $\mathsf{PB}_{\mathrm{seq}}$ applies and $s$ contributes no
-strand; the strands that do appear come from $\mathsf{PB}_{+}$
-one level down:
+\paragraph{Step 1.} $a+ab$ is not nullable, so $\mathsf{PB}_{\mathrm{seq}}$
+applies with $\mathit{smartC}$ collapsing every $\varepsilon\cdot s$
+residual it produces along the way:
+\begin{equation}\label{eq:pdbc-step1}
+\{(r_0,[\,])\}
+\ \xrightarrow{\ a\ }\
+\big\{\,(b+\varepsilon,\ [0]),\ \ (b\,(b+\varepsilon),\ [1])\,\big\}
+\end{equation}
+The $0$ and $1$ come from $\mathsf{PB}_{+}$ tagging $a+ab$'s two
+alternatives one level down; $\mathit{smartC}$ collapses the first
+state's $\varepsilon\cdot(b+\varepsilon)$ to $b+\varepsilon$ outright,
+which is why this residual is shorter than
+Section~\ref{sec:pderiv-std-worked}'s equivalent state at the same
+step.
 
-\begin{equation}\label{eq:pd-step1}
-\begin{aligned}
-D_{a+ab}
-&= \{(\varepsilon,[0])\} \cup \{(b,[1])\}
-&&\mathsf{PB}_{+},\ r = a,\ s = ab \\
-D_{r_0}
-&= \{(\mathit{smartC}(\varepsilon,\, b+\varepsilon),\ [0]),\
-    (\mathit{smartC}(b,\, b+\varepsilon),\ [1])\}
-&&\mathsf{PB}_{\mathrm{seq}},\ n(a+ab) = \mathrm{false} \\
-&= \{(b+\varepsilon,\ [0]),\ (b\,(b+\varepsilon),\ [1])\}
-&&\mathsf{SC}\ \text{twice}
-\end{aligned}
+\paragraph{Step 2.} $b+\varepsilon$ takes $\mathsf{PB}_{+}$, matching
+$b$ and contributing nothing for $\varepsilon$
+($\mathsf{PB}_{\varepsilon}$ is empty); $b(b+\varepsilon)$'s left
+factor $b$ is not nullable, so it takes $\mathsf{PB}_{\mathrm{seq}}$
+again:
+\begin{equation}\label{eq:pdbc-step2}
+\big\{(b+\varepsilon,[0]),\ (b(b+\varepsilon),[1])\big\}
+\ \xrightarrow{\ b\ }\
+\big\{(\varepsilon,\ [0,0]),\ \ (b+\varepsilon,\ [1])\big\}
 \end{equation}
 
-The two applications of $\mathsf{SC}$ take different branches, which is
-why the two strands look so different from
-Section~\ref{sec:pderiv-std-worked}'s at the same step. Against the
-first, $r' = \varepsilon$, so $\mathsf{SC}$ absorbs it and leaves
-$b+\varepsilon$ alone; against the second, $r' = b \neq \varepsilon$, so
-it keeps the concatenation. The trace agrees:
-
-\begin{verbatim}
-Step 1 (char: 'a', position 1)
-      rule: pDerivBC('a', r1.r2)  [nullable(r1)=false]
-           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
-  frontier after (2 residual(s)):
-    [0] Alt(Lit('b'), Eps)   bits = [0]
-    [1] Seq(Lit('b'), Alt(Lit('b'), Eps))   bits = [1]
-\end{verbatim}
-
-Both bits were emitted by $\mathsf{PB}_{+}$ one level down, and
-$\mathsf{PB}_{\mathrm{seq}}$ carried them outward unchanged, which is
-why neither strand's bits grew at this step. Where the plain bit-coded
-construction of Chapter~\ref{sec:derivative-parser} kept the two
-alternatives inside one expression, joined by $\oplus$, they are now two
-separate objects that will be advanced independently.
-
-The second character steps \emph{both} strands, and each is matched
-against the rule set on its own, so two different rules fire on the same
-character:
-
-\begin{equation}\label{eq:pd-step2}
-\begin{aligned}
-D_{b+\varepsilon}
-&= \{(\varepsilon,[0])\} \cup \{\}
-&&\mathsf{PB}_{+},\ r = b,\ s = \varepsilon;\ \mathsf{PB}_{\varepsilon} \\
-D_{b\,(b+\varepsilon)}
-&= \{(\mathit{smartC}(\varepsilon,\, b+\varepsilon),\ [\,])\}
-   = \{(b+\varepsilon,\ [\,])\}
-&&\mathsf{PB}_{\mathrm{seq}},\ n(b) = \mathrm{false}
-\end{aligned}
-\end{equation}
-
-Strand \texttt{[0]} is an alternation whose left disjunct contributes
-$\varepsilon$ tagged $0$ and whose right contributes nothing, since
-$\mathsf{PB}_{\varepsilon}$ returns the empty set. Strand \texttt{[1]}
-is a concatenation whose left factor is a bare literal, so
-$\mathsf{PB}_{\mathrm{seq}}$ applies and only that factor is derived.
-Each strand's accumulated bits are its own prefix followed by whatever
-the step produced, so \texttt{[0]} gains a $0$ and reaches
-\texttt{[0,0]} while \texttt{[1]} gains nothing and stays at
-\texttt{[1]}:
-
-\begin{verbatim}
-Step 2 (char: 'b', position 2)
-    from [0]:
-      rule: pDerivBC('b', r1+r2) = tag(0, pDerivBC('b',r1)) ++
-        tag(1, pDerivBC('b',r2)), nub2
-      -> (Eps, [0])
-    from [1]:
-      rule: pDerivBC('b', r1.r2)  [nullable(r1)=false]
-           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
-      -> (Alt(Lit('b'), Eps), [])
-  frontier after (2 residual(s)):
-    [0] Eps   bits = [00]
-    [1] Alt(Lit('b'), Eps)   bits = [1]
-\end{verbatim}
-
-\paragraph{Selection and result.}
-Selection scans this final frontier in list order and takes the first
-nullable strand. Strand \texttt{[0]}, $(\varepsilon,[0,0])$, is checked
-and accepted before strand \texttt{[1]} is inspected, although
-\texttt{[1]} is nullable too:
-
-\begin{equation}\label{eq:pdbc-decode}
-[0]\text{'s bits} \mathbin{+\!\!+} \mathit{mkEpsBC}(\varepsilon)
-  = [0,0] \mathbin{+\!\!+} [\,] = [0,0],
+\paragraph{Selection and result.} Both states are nullable;
+$(\varepsilon,[0,0])$, first in list order, is selected, and
+$\mathit{mkEpsBC}(\varepsilon)=[\,]$ contributes nothing further:
+\begin{equation}\label{eq:pdbc-result}
+[0,0] \mathbin{+\!\!+} [\,] = [0,0],
 \qquad
-\mathit{decode}_{r_0}([0,0]) = \big(\mathit{Left}\ a,\ \mathit{Left}\ b\big).
+\mathit{decode}_{r_0}([0,0]) = \big(\mathit{Left}\ a,\ \mathit{Left}\ b\big) = v_0,
+\qquad \lvert v_0\rvert = \mathtt{ab}.
 \end{equation}
-
-\begin{verbatim}
-selected residual's accumulated bits ++ mkEpsBC(residual) = [00]
-
-decode((a|ab)(b|), [00]):
-  = (Left a, Left b)
-
-RESULT
-Bits:                 [00]
-Parse tree:           (Left a, Left b)
-Flattened:            "ab"
-\end{verbatim}
-
 This is the identical tree Section~\ref{sec:pderiv-std-worked} reached
-by composing injection closures, reached here by reading bits off the
-winning strand instead. Two differences from that section's trace are
-visible, and both were predicted by the smart-constructor argument of
-Section~\ref{sec:pderiv-tree-theory}. First, the residuals themselves:
-where this construction lists \texttt{Alt(Lit('b'), Eps)} after
-$\mathtt{a}$, Section~\ref{sec:pderiv-std-worked} lists
-\texttt{Seq(Eps, Alt(Lit('b'), Eps))}, the $\varepsilon$ node
-$\mathit{smartC}$ discards here and the other construction cannot
-afford to. Second, and sharper: because the residuals differ, the two
-constructions do not even take the same rules at step two. This
-construction's strand \texttt{[0]} is an \texttt{Alt} and fires
-$\mathsf{PB}_{+}$; the standard construction's is a \texttt{Seq} whose
-left factor is the retained \texttt{Eps}, so it fires the nullable
-sequence rule instead. The two constructions are therefore not running
-over the same residuals, and not applying the same rules to them, and
-they still select the same tree. Because deduplication runs on residual
-syntax in both, they can in principle prune at different points as
-well, which makes their agreement on every tested case a stronger check
-than it would be if they shared a residual representation.
-
+by composing injection closures, reached here instead by reading bits
+off the winning state at the very end.

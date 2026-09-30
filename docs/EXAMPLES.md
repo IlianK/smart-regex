@@ -111,9 +111,9 @@ cargo run --release --example prepare_dataset -- spamassassin data/raw/spamAssas
 
 ```bash
 # Extracts patterns from raw source files and prints the ones the frontend parser rejects
-cargo run --release --example filter_dataset -- regexlib data/raw/regexLib/regexlib-manual-processed.txt 
+cargo run --release --example filter_dataset -- regexlib data/raw/regexLib/regexlib-manual-processed.txt --anchors
 
-cargo run --release --example filter_dataset -- snort data/raw/snort/*.rules
+cargo run --release --example filter_dataset -- snort data/raw/snort/*.rules --anchors
 
-cargo run --release --example filter_dataset -- spamassassin data/raw/spamAssassin/*.cf
+cargo run --release --example filter_dataset -- spamassassin data/raw/spamAssassin/*.cf --anchors
 ```

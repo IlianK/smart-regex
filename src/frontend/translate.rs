@@ -1,17 +1,15 @@
-//! Lowers an `ExtPat` (surface syntax) down into the core `Regex`.
+//! Lower an `ExtPat` into the core `Regex`.
 
 use super::alphabet;
 use super::ext_pattern::ExtPat;
 use crate::types::Regex;
 
-/// Repeating a bound past this many copies is refused 
+/// Bounds larger than this are refused rather than unrolled.
 const MAX_BOUND: u32 = 1000;
 
-/// Lower an `ExtPat` into this crate's core `Regex`.
 pub fn translate(ep: &ExtPat) -> Result<Regex, String> {
     match ep {
-        ExtPat::Empty => Ok(Regex::Eps),
-        ExtPat::Eps => Ok(Regex::Eps),
+        ExtPat::Empty | ExtPat::Eps => Ok(Regex::Eps),
         ExtPat::Never => Ok(Regex::Phi),
         ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => translate(inner),
         ExtPat::Or(alts) => {
@@ -33,13 +31,13 @@ pub fn translate(ep: &ExtPat) -> Result<Regex, String> {
             }
             Ok(acc)
         }
-        ExtPat::Opt(inner, _greedy) => Ok(Regex::alt(translate(inner)?, Regex::Eps)),
-        ExtPat::Plus(inner, _greedy) => {
+        ExtPat::Opt(inner) => Ok(Regex::alt(translate(inner)?, Regex::Eps)),
+        ExtPat::Plus(inner) => {
             let r = translate(inner)?;
             Ok(Regex::seq(r.clone(), Regex::star(r)))
         }
-        ExtPat::Star(inner, _greedy) => Ok(Regex::star(translate(inner)?)),
-        ExtPat::Bound(inner, lo, hi, _greedy) => desugar_bound(translate(inner)?, *lo, *hi),
+        ExtPat::Star(inner) => Ok(Regex::star(translate(inner)?)),
+        ExtPat::Bound(inner, lo, hi) => desugar_bound(translate(inner)?, *lo, *hi),
         ExtPat::Carat | ExtPat::Dollar => Ok(Regex::Eps),
         ExtPat::Dot => alt_of_chars(alphabet::alphabet()),
         ExtPat::Any(cs) => alt_of_chars(cs.clone()),
@@ -61,12 +59,11 @@ fn translate_escape(c: char) -> Result<Regex, String> {
         'W' => alt_of_chars(alphabet::complement(&alphabet::word_chars())),
         's' => alt_of_chars(alphabet::space_chars()),
         'S' => alt_of_chars(alphabet::complement(&alphabet::space_chars())),
-        // Any other escaped char (\. \( \) \[ \] \{ \} \| \+ \* \? \^ \$ \\, ...): a literal
         _ => Ok(Regex::lit(c)),
     }
 }
 
-/// `(alphabet)*` is "any run of characters"
+/// `(alphabet)*`, i.e. "any run of characters".
 pub(crate) fn wildcard_run() -> Regex {
     Regex::star(alt_of_chars(alphabet::alphabet()).expect("alphabet() is non-empty"))
 }
@@ -82,7 +79,7 @@ fn alt_of_chars(mut cs: Vec<char>) -> Result<Regex, String> {
 fn desugar_bound(r: Regex, lo: u32, hi: Option<u32>) -> Result<Regex, String> {
     if lo > MAX_BOUND || hi.is_some_and(|h| h > MAX_BOUND) {
         return Err(format!(
-            "bound {{{},{}}} exceeds this frontend's cap of {} repetitions (literal unrolling would blow up the regex size)",
+            "bound {{{},{}}} exceeds this frontend's cap of {} repetitions",
             lo,
             hi.map(|h| h.to_string()).unwrap_or_default(),
             MAX_BOUND
@@ -106,7 +103,7 @@ fn repeat_exact(r: &Regex, k: u32) -> Regex {
     (0..k).fold(Regex::Eps, |acc, _| Regex::seq(acc, r.clone()))
 }
 
-/// Zero to `k` further optional copies of `r` -- the `{m,n}` upper part, `k = n - m`
+/// Zero to `k` further optional copies of `r`.
 fn optional_extra(r: &Regex, k: u32) -> Regex {
     if k == 0 {
         Regex::Eps
@@ -114,8 +111,6 @@ fn optional_extra(r: &Regex, k: u32) -> Regex {
         Regex::alt(Regex::Eps, Regex::seq(r.clone(), optional_extra(r, k - 1)))
     }
 }
-
-// Tests
 
 #[cfg(test)]
 mod tests {
@@ -161,20 +156,20 @@ mod tests {
 
     #[test]
     fn opt_desugars_to_alt_eps() {
-        assert_eq!(t(ExtPat::Opt(Box::new(ExtPat::Char('a')), true)), Regex::alt(Regex::lit('a'), Regex::Eps));
+        assert_eq!(t(ExtPat::Opt(Box::new(ExtPat::Char('a')))), Regex::alt(Regex::lit('a'), Regex::Eps));
     }
 
     #[test]
     fn plus_desugars_to_seq_star() {
         assert_eq!(
-            t(ExtPat::Plus(Box::new(ExtPat::Char('a')), true)),
+            t(ExtPat::Plus(Box::new(ExtPat::Char('a')))),
             Regex::seq(Regex::lit('a'), Regex::star(Regex::lit('a')))
         );
     }
 
     #[test]
     fn star_desugars_directly() {
-        assert_eq!(t(ExtPat::Star(Box::new(ExtPat::Char('a')), true)), Regex::star(Regex::lit('a')));
+        assert_eq!(t(ExtPat::Star(Box::new(ExtPat::Char('a')))), Regex::star(Regex::lit('a')));
     }
 
     #[test]
@@ -216,14 +211,13 @@ mod tests {
 
     #[test]
     fn escape_dot_is_literal() {
-        // \. -- a punctuation escape, not a class shorthand: literal '.'
         let r = t(ExtPat::Escape('.'));
         assert_eq!(r, Regex::lit('.'));
     }
 
     #[test]
     fn bound_exact_three() {
-        let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 3, Some(3), true));
+        let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 3, Some(3)));
         assert!(parse_deriv_std_rec("aaa", &r).is_some());
         assert!(parse_deriv_std_rec("aa", &r).is_none());
         assert!(parse_deriv_std_rec("aaaa", &r).is_none());
@@ -231,7 +225,7 @@ mod tests {
 
     #[test]
     fn bound_range_two_to_four() {
-        let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, Some(4), true));
+        let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, Some(4)));
         assert!(parse_deriv_std_rec("a", &r).is_none());
         assert!(parse_deriv_std_rec("aa", &r).is_some());
         assert!(parse_deriv_std_rec("aaa", &r).is_some());
@@ -241,7 +235,7 @@ mod tests {
 
     #[test]
     fn bound_unbounded_lower() {
-        let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, None, true));
+        let r = t(ExtPat::Bound(Box::new(ExtPat::Char('a')), 2, None));
         assert!(parse_deriv_std_rec("a", &r).is_none());
         assert!(parse_deriv_std_rec("aa", &r).is_some());
         assert!(parse_deriv_std_rec("aaaaaaaa", &r).is_some());
@@ -249,21 +243,8 @@ mod tests {
 
     #[test]
     fn bound_over_cap_is_rejected() {
-        let ep = ExtPat::Bound(Box::new(ExtPat::Char('a')), 0, Some(MAX_BOUND + 1), true);
+        let ep = ExtPat::Bound(Box::new(ExtPat::Char('a')), 0, Some(MAX_BOUND + 1));
         assert!(translate(&ep).is_err());
-    }
-
-    // Regex has no lazy-quantifier concept, so translate() drops the greedy flag entirely.
-    #[test]
-    fn lazy_and_greedy_quantifiers_translate_identically() {
-        assert_eq!(
-            t(ExtPat::Star(Box::new(ExtPat::Char('a')), true)),
-            t(ExtPat::Star(Box::new(ExtPat::Char('a')), false)),
-        );
-        assert_eq!(
-            t(ExtPat::Opt(Box::new(ExtPat::Char('a')), true)),
-            t(ExtPat::Opt(Box::new(ExtPat::Char('a')), false)),
-        );
     }
 
     #[test]
@@ -274,27 +255,22 @@ mod tests {
         assert!(parse_deriv_std_rec(" ", &r).is_some());
     }
 
-    // \b/\B parse into ExtPat (see parse.rs's tests) but a plain Regex can't
-    // represent their position-dependence, so translate() rejects them.
-
     #[test]
     fn word_boundary_is_rejected() {
         assert!(translate(&ExtPat::WordBoundary(true)).is_err());
         assert!(translate(&ExtPat::WordBoundary(false)).is_err());
     }
 
-    // Round trip: a translated ExtPat's parse tree flattens back to the original input
     #[test]
     fn round_trip_through_desugared_bound_and_class() {
         let ep = ExtPat::Concat(vec![
-            ExtPat::Bound(Box::new(ExtPat::Escape('d')), 1, Some(3), true),
+            ExtPat::Bound(Box::new(ExtPat::Escape('d')), 1, Some(3)),
             ExtPat::Char('.'),
         ]);
         let r = t(ep);
         for w in ["1.", "12.", "123."] {
             let tree = parse_deriv_std_rec(w, &r).unwrap_or_else(|| panic!("should match {:?}", w));
             assert_eq!(flatten(&tree), w);
-            // Greedy pderiv_bc must at least agree on membership.
             assert!(parse_pderiv_bc(w, &r).is_some());
         }
     }

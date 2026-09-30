@@ -8,7 +8,9 @@
 //! character is not a worst case, whatever its provenance claimed.
 
 use crate::data::types::{Candidate, Category, PreparedCase, SourceKind};
-use crate::frontend::{case_fold, parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters, translate, ExtPat};
+use crate::frontend::{
+    case_fold, parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters, translate, ExtPat,
+};
 use crate::parsers::deriv_bc::deriv::deriv_bc;
 use crate::parsers::deriv_bc::internalize::internalize;
 use crate::parsers::deriv_bc::nullable::{is_phi, nullable_bc};
@@ -65,7 +67,7 @@ fn step_bc_bounded(input: &str, r: &Regex) -> SteppedOutcome {
     SteppedOutcome::Finished { nullable: nullable_bc(&ri) }
 }
 
-/// Whether `input` matches `r`, checked through `step_bc_bounded` 
+/// Whether `input` matches `r`, checked through `step_bc_bounded`
 pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
     match step_bc_bounded(input, r) {
         SteppedOutcome::DiedAt(_) => Some(false),
@@ -73,7 +75,6 @@ pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
         SteppedOutcome::TooExpensive => None,
     }
 }
-
 
 pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
     match step_bc_bounded(input, r) {
@@ -84,10 +85,20 @@ pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
 }
 const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
 
+/// The bare core regex for a PCRE-rule body, with no search padding.
+/// `parse_pcre_rule` performs the same steps (delimiter strip, flag
+/// check, parse, case-fold), then pads with `Σ*` on each un-anchored side.
+/// This function deliberately skips the padding, because it is used only
+/// to measure how far a failing input got into the core pattern --
+/// against a padded regex, the leading `Σ*` would swallow the whole
+/// prefix and make that measurement meaningless.
 pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
-    let (body, case_insensitive) = strip_pcre_delimiters(raw_pattern);
+    let (body, flags) = strip_pcre_delimiters(raw_pattern);
+    if let Some(reason) = flags.unsupported() {
+        return Err(format!("unsupported PCRE flag: {reason}"));
+    }
     let ep = parse_ext_pattern(body)?;
-    let ep = if case_insensitive { case_fold(&ep) } else { ep };
+    let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
     let estimated_depth = estimated_translated_depth(&ep);
     if estimated_depth > MAX_CORE_DEPTH {
         return Err(format!(
@@ -117,13 +128,13 @@ fn estimated_translated_depth(ep: &ExtPat) -> usize {
         ExtPat::Dot => 98, // the full working alphabet, alt_of_chars(alphabet())'s Alt chain
         ExtPat::Any(cs) | ExtPat::NoneOf(cs) => cs.len().max(1),
         ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => estimated_translated_depth(inner),
-        ExtPat::Opt(inner, _) => 1 + estimated_translated_depth(inner),
-        ExtPat::Plus(inner, _) => 1 + 2 * estimated_translated_depth(inner),
-        ExtPat::Star(inner, _) => 1 + estimated_translated_depth(inner),
+        ExtPat::Opt(inner) => 1 + estimated_translated_depth(inner),
+        ExtPat::Plus(inner) => 1 + 2 * estimated_translated_depth(inner),
+        ExtPat::Star(inner) => 1 + estimated_translated_depth(inner),
         ExtPat::Or(parts) => 1 + parts.iter().map(estimated_translated_depth).max().unwrap_or(0),
         ExtPat::Concat(parts) => parts.iter().map(estimated_translated_depth).sum::<usize>() + parts.len(),
         ExtPat::WordBoundary(_) => 1,
-        ExtPat::Bound(inner, lo, hi, _) => {
+        ExtPat::Bound(inner, lo, hi) => {
             let copies = (*hi).unwrap_or(*lo).max(*lo).max(1) as usize;
             copies.saturating_add(estimated_translated_depth(inner))
         }
@@ -152,6 +163,7 @@ fn node_count(r: &Regex) -> usize {
 
 const MAX_CORE_DEPTH: usize = 2_000;
 const MAX_CORE_NODES: usize = 20_000;
+
 pub fn verify_candidate(
     source: SourceKind,
     raw_pattern: &str,
@@ -235,10 +247,6 @@ pub fn read_prepared_cases(path: &std::path::Path) -> std::io::Result<Vec<Prepar
         })
         .collect()
 }
-
-// -------------------------------
-// Tests
-// -------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -386,5 +394,17 @@ mod tests {
     fn an_ordinary_pattern_is_well_under_the_node_cap() {
         let r = core_regex(r"[a-c]+\d{2}").expect("should translate");
         assert!(node_count(&r) < 100);
+    }
+
+    #[test]
+    fn core_regex_rejects_multiline_flag() {
+        assert!(core_regex("/^abc/m").is_err());
+    }
+
+    #[test]
+    fn core_regex_accepts_relative_flag() {
+        // `R` is a Snort positioning constraint; treated as an ordinary
+        // search pattern. See `frontend::PcreFlags`'s doc comment.
+        assert!(core_regex("/abc/R").is_ok());
     }
 }

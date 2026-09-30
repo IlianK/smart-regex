@@ -1,55 +1,51 @@
 //! regex-engine/src/frontend/ext_pattern.rs
 //!
-//! `ExtPat`: external surface-syntax pattern AST
-//! modeled on `Text.Regex.PDeriv.ExtPattern`'s `EPat` 
+//! Surface-syntax pattern AST. Parsed from a pattern string, then lowered
+//! to `Regex` by `translate`.
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExtPat {
-    /// the empty string, `translate`s to `Regex::Eps`.
+    /// Missing branch, e.g. the empty side of `a|` or `(|b)`.
     Empty,
+    /// `ε`.
     Eps,
-    /// Literal `∅` token `translate`s to `Regex::Phi`.
+    /// `∅`.
     Never,
-    /// A marking group `( ... )`.
+    /// `( ... )`.
     Group(Box<ExtPat>),
-    /// A non-marking group `(?: ... )`.
+    /// `(?: ... )`.
     GroupNonMarking(Box<ExtPat>),
-    /// Alternation `a|b|c`.
+    /// `a|b|c`.
     Or(Vec<ExtPat>),
-    /// Concatenation `ab c`.
+    /// `abc`.
     Concat(Vec<ExtPat>),
-    /// `r?` / `r??` (bool: greedy).
-    Opt(Box<ExtPat>, bool),
-    /// `r+` / `r+?` (bool: greedy).
-    Plus(Box<ExtPat>, bool),
-    /// `r*` / `r*?` (bool: greedy).
-    Star(Box<ExtPat>, bool),
-    /// `r{lo,hi}` / `r{lo,}` / `r{lo}` (bool: greedy).
-    Bound(Box<ExtPat>, u32, Option<u32>, bool),
+    /// `r?` (including `r??`; laziness is discarded).
+    Opt(Box<ExtPat>),
+    /// `r+` (including `r+?`).
+    Plus(Box<ExtPat>),
+    /// `r*` (including `r*?`).
+    Star(Box<ExtPat>),
+    /// `r{lo,hi}`, `r{lo,}`, `r{lo}` (including a trailing `?`).
+    Bound(Box<ExtPat>, u32, Option<u32>),
     /// `^`.
     Carat,
     /// `$`.
     Dollar,
     /// `.`.
     Dot,
-    /// `[ ... ]` listed characters (ranges and `\d`/`\w`/`\s`
-    /// shorthands already expanded by the parser).
+    /// `[ ... ]`, with shorthands and ranges already expanded.
     Any(Vec<char>),
     /// `[^ ... ]`.
     NoneOf(Vec<char>),
-    /// `\c` for a `c` that carries regex meaning to `translate`
-    /// (`d`/`D`/`w`/`W`/`s`/`S`) or, for any other `c`, an escaped literal
-    /// (`\.`, `\(`, `\\`, ...).
+    /// `\c` for a shorthand (`d`/`D`/`w`/`W`/`s`/`S`) or an escaped literal.
     Escape(char),
-    /// An ordinary, unescaped literal character.
+    /// An ordinary literal character.
     Char(char),
-    /// `\b` (`true`) / `\B` (`false`): word boundary / non-boundary.
-    /// Rejected by `translate` (position-dependent).
+    /// `\b` (`true`) / `\B` (`false`). `translate` rejects these.
     WordBoundary(bool),
 }
 
-/// Case-fold an `ExtPat`: every literal letter becomes "either case"
-/// Class shorthands (`\d`/`\w`/`\s`/...) are already case-agnostic 
+/// Case-fold an `ExtPat`: every literal letter becomes an `Any` of both cases.
 pub fn case_fold(ep: &ExtPat) -> ExtPat {
     match ep {
         ExtPat::Empty => ExtPat::Empty,
@@ -59,10 +55,10 @@ pub fn case_fold(ep: &ExtPat) -> ExtPat {
         ExtPat::GroupNonMarking(inner) => ExtPat::GroupNonMarking(Box::new(case_fold(inner))),
         ExtPat::Or(alts) => ExtPat::Or(alts.iter().map(case_fold).collect()),
         ExtPat::Concat(parts) => ExtPat::Concat(parts.iter().map(case_fold).collect()),
-        ExtPat::Opt(inner, g) => ExtPat::Opt(Box::new(case_fold(inner)), *g),
-        ExtPat::Plus(inner, g) => ExtPat::Plus(Box::new(case_fold(inner)), *g),
-        ExtPat::Star(inner, g) => ExtPat::Star(Box::new(case_fold(inner)), *g),
-        ExtPat::Bound(inner, lo, hi, g) => ExtPat::Bound(Box::new(case_fold(inner)), *lo, *hi, *g),
+        ExtPat::Opt(inner) => ExtPat::Opt(Box::new(case_fold(inner))),
+        ExtPat::Plus(inner) => ExtPat::Plus(Box::new(case_fold(inner))),
+        ExtPat::Star(inner) => ExtPat::Star(Box::new(case_fold(inner))),
+        ExtPat::Bound(inner, lo, hi) => ExtPat::Bound(Box::new(case_fold(inner)), *lo, *hi),
         ExtPat::Carat => ExtPat::Carat,
         ExtPat::Dollar => ExtPat::Dollar,
         ExtPat::Dot => ExtPat::Dot,
@@ -81,12 +77,14 @@ pub fn case_fold(ep: &ExtPat) -> ExtPat {
     }
 }
 
-/// Does `ep` open with a top-level `^`?
+/// Whether `ep` opens with a top-level `^`, or every alternative of a
+/// top-level `Or` does.
 pub(crate) fn starts_with_carat(ep: &ExtPat) -> bool {
     match ep {
         ExtPat::Carat => true,
         ExtPat::Concat(parts) => parts.first().is_some_and(starts_with_carat),
         ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => starts_with_carat(inner),
+        ExtPat::Or(branches) => branches.iter().all(starts_with_carat),
         _ => false,
     }
 }
@@ -97,6 +95,7 @@ pub(crate) fn ends_with_dollar(ep: &ExtPat) -> bool {
         ExtPat::Dollar => true,
         ExtPat::Concat(parts) => parts.last().is_some_and(ends_with_dollar),
         ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => ends_with_dollar(inner),
+        ExtPat::Or(branches) => branches.iter().all(ends_with_dollar),
         _ => false,
     }
 }
@@ -109,10 +108,6 @@ fn both_cases(cs: &[char]) -> Vec<char> {
     }
     v
 }
-
-// -------------------------------
-// Tests
-// -------------------------------
 
 #[cfg(test)]
 mod tests {
