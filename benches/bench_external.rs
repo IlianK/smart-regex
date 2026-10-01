@@ -67,8 +67,8 @@ struct Entry {
 }
 
 fn external_pattern(pattern: &str) -> (String, bool) {
-    let (body, case_insensitive) = strip_pcre_delimiters(pattern);
-    (body.to_string(), case_insensitive)
+    let (body, flags) = strip_pcre_delimiters(pattern);
+    (body.to_string(), flags.case_insensitive)
 }
 
 fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {

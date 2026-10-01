@@ -39,8 +39,8 @@ Error:  position 3: found 'b', expected 'a' or end of input
     ^
 ```
 
-The `Tree` on an ambiguous input, between POSIX and GREEDY.** 
-Membership (`Match:`) never differs.
+What may differ at this level is `Tree` *value*, on an
+ambiguous input, between POSIX and GREEDY. 
 
 ```bash
 cargo run -- parse "(a|ab)(b|ε)" "ab" --diag 1 --parser deriv_std_rec
@@ -230,3 +230,12 @@ Below the header, sections run in this order per family.
 4. SELECTION
 5. RESULT *or* PARTIAL RECOVERY
 6. ERROR SUMMARY
+
+`deriv_std_loop` vs. `deriv_std_rec` at Level 3: identical except the
+`Mode:` label and the `Parse time:` line:
+
+```bash
+cargo run -- parse "a*" "aaa" --diag 3 --diag-report reports/rec.txt
+cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 3 --diag-report reports/loop.txt
+diff reports/rec.txt reports/loop.txt
+```

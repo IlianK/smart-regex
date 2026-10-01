@@ -56,11 +56,17 @@ compile patterns once, then their match APIs return only boolean/span/capture
 information. They do not construct this project's `ParseTree`.
 
 
+## Scope
+
+- The three frontends largely accept the same language on the corpus
+- RE2's POSIX mode changes disambiguation policy
 
 
-- The three frontends largely accept the same language on the corpus, providing
-  an agreement smoke test for `src/frontend/`.
-- RE2's POSIX mode changes disambiguation policy: the
-  `posix_mode_prefers_longest_match` test confirms that `a|ab` on `"ab"` yields
-  `(0,1)` in leftmost-first mode and `(0,2)` in POSIX leftmost-longest mode.
+## Limitations
+
+- **Competitiveness:** Timings are informative, not evidence of competitiveness
+  with the optimized `regex` and RE2 implementations.
+- **Disambiguation:** No corpus-wide POSIX-vs-leftmost-first comparison
+- **Captures:** No capture/submatch comparison; the benchmark only calls
+  `is_match`.
 
