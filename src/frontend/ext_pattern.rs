@@ -100,6 +100,42 @@ pub(crate) fn ends_with_dollar(ep: &ExtPat) -> bool {
     }
 }
 
+/// Does `^` appear anywhere in `ep`, at any depth? Includes a `^` inside
+/// an `Or` branch that `starts_with_carat` does not treat as anchoring
+/// the whole pattern (only a fully-anchored `Or`, every branch alike,
+/// counts there). Used to detect a nested anchor: a `^`/`$` present
+/// somewhere in the pattern but not recognized as a real top-level
+/// anchor, which `translate` still silently lowers to `Eps` rather than
+/// enforcing or rejecting -- see `faithfulness_gaps` in `frontend::mod`.
+pub(crate) fn contains_carat_anywhere(ep: &ExtPat) -> bool {
+    match ep {
+        ExtPat::Carat => true,
+        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_carat_anywhere),
+        ExtPat::Group(inner)
+        | ExtPat::GroupNonMarking(inner)
+        | ExtPat::Opt(inner)
+        | ExtPat::Plus(inner)
+        | ExtPat::Star(inner)
+        | ExtPat::Bound(inner, ..) => contains_carat_anywhere(inner),
+        _ => false,
+    }
+}
+
+/// Symmetric counterpart of `contains_carat_anywhere` for `$`.
+pub(crate) fn contains_dollar_anywhere(ep: &ExtPat) -> bool {
+    match ep {
+        ExtPat::Dollar => true,
+        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_dollar_anywhere),
+        ExtPat::Group(inner)
+        | ExtPat::GroupNonMarking(inner)
+        | ExtPat::Opt(inner)
+        | ExtPat::Plus(inner)
+        | ExtPat::Star(inner)
+        | ExtPat::Bound(inner, ..) => contains_dollar_anywhere(inner),
+        _ => false,
+    }
+}
+
 /// Rewrite every `Dot` into `NoneOf(['\n'])`: without the dotall (`s`)
 /// flag, PCRE's `.` excludes `\n`. `translate` itself always lowers `Dot`
 /// to the full alphabet (`alt_of_chars(alphabet::alphabet())`), including

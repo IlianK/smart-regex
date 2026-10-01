@@ -70,6 +70,12 @@ fn main() {
     println!("=== {:?} (variants per category: {}) ===", source, variants);
     println!("rules extracted:      {}", report.rules_extracted);
     println!("patterns unusable:    {}", report.patterns_unusable);
+    println!(
+        "patterns not faithful: {} (accepted, but only an approximation -- R or a nested anchor; \
+         skipped, not included in the dataset)",
+        report.patterns_not_faithful
+    );
+    println!("patterns faithful (used): {}", report.patterns_faithful);
     println!("candidates generated: {}", report.candidates_generated);
     println!("candidates verified:  {}", report.candidates_verified);
     println!(

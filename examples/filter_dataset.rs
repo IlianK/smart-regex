@@ -27,6 +27,15 @@
 //! "Accepted" only means `parse_pcre_rule` did not hard-reject the
 //! pattern; `faithful + approx == accepted`, always.
 //!
+//! The faithful/approx split here is read from `frontend::faithfulness_gaps`,
+//! the same function `data::run_pipeline` calls to decide what to leave
+//! out of the real dataset (`data/processed/<source>/prepared.jsonl`
+//! contains only faithful patterns, as of the review that drew this
+//! line: everything else is now either rejected outright or excluded as
+//! a known approximation, never silently included). So this report's
+//! "Faithful" row is not just a statistic about the corpus, it is
+//! exactly the set of patterns the real benchmark is built from.
+//!
 //! Default: reads all three sources from their standard locations under
 //! `data/raw/`. `--source S` restricts to one. Explicit file paths on the
 //! command line override the standard locations for whichever sources
@@ -50,7 +59,7 @@ use std::path::PathBuf;
 use regex_engine::data::extract::{extract_regexlib, extract_spamassassin, extract_suricata};
 use regex_engine::data::types::SourceKind;
 use regex_engine::frontend::{
-    detect_anchors, parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters, ExtPat,
+    detect_anchors, faithfulness_gaps, parse_pcre_rule, strip_pcre_delimiters, FaithfulnessGap,
 };
 
 // ---------------------------------------------------------------------
@@ -252,15 +261,23 @@ fn classify(pattern: &str) -> Classification {
 }
 
 /// The caveats an accepted `pattern` still carries (see `Caveat`).
-/// Returns an empty `Vec` for a pattern that is faithful.
+/// Returns an empty `Vec` for a pattern that is faithful. `Relative` and
+/// `NestedAnchor` are read from `frontend::faithfulness_gaps` -- the same
+/// function `data::run_pipeline` calls to decide what to exclude from the
+/// real dataset, so this report can never drift from what the pipeline
+/// actually does. `BufferFlag` is not a faithfulness gap at all (see its
+/// doc comment) and has no library equivalent; it stays a local,
+/// informational-only check.
 fn caveats_of(pattern: &str) -> Vec<Caveat> {
-    let mut out = Vec::new();
+    let mut out: Vec<Caveat> = faithfulness_gaps(pattern)
+        .into_iter()
+        .map(|gap| match gap {
+            FaithfulnessGap::Relative => Caveat::Relative,
+            FaithfulnessGap::NestedAnchor => Caveat::NestedAnchor,
+        })
+        .collect();
 
-    let raw = raw_flags(pattern);
-    if raw.contains('R') {
-        out.push(Caveat::Relative);
-    }
-    // Any flag letter not in "imsxRA" is assumed to be one of Suricata's
+    // Any flag letter not in "imsxRAE" is assumed to be one of Suricata's
     // documented buffer-selector/no-op flags (U, H, P, Q, I, D, M, C, S,
     // Y, V, B, O, ...; confirmed against Suricata's own pcre-keyword
     // docs, doc/userguide/rules/payload-keywords.rst). That assumption
@@ -269,55 +286,15 @@ fn caveats_of(pattern: &str) -> Vec<Caveat> {
     // for a corpus using a PCRE flag outside {i, m, s, x} that Suricata
     // does not document, since such a letter would be silently ignored
     // here rather than flagged.
+    let raw = raw_flags(pattern);
     if raw
         .chars()
-        .any(|c| c.is_ascii_alphabetic() && !"imsxRA".contains(c))
+        .any(|c| c.is_ascii_alphabetic() && !"imsxRAE".contains(c))
     {
         out.push(Caveat::BufferFlag);
     }
 
-    let (body, _) = strip_pcre_delimiters(pattern);
-    if let Ok(ep) = parse_ext_pattern(body) {
-        let (start, end) = detect_anchors(body).unwrap_or((false, false));
-        if (!start && contains_carat_anywhere(&ep)) || (!end && contains_dollar_anywhere(&ep)) {
-            out.push(Caveat::NestedAnchor);
-        }
-    }
-
     out
-}
-
-/// Does `^` appear anywhere in `ep`, at any depth? Includes a `^` inside
-/// an `Or` branch that `detect_anchors` does not treat as anchoring the
-/// whole pattern (only a fully-anchored `Or`, every branch alike, counts
-/// there) -- see `Caveat::NestedAnchor`.
-fn contains_carat_anywhere(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Carat => true,
-        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_carat_anywhere),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner)
-        | ExtPat::Bound(inner, ..) => contains_carat_anywhere(inner),
-        _ => false,
-    }
-}
-
-/// Symmetric counterpart of `contains_carat_anywhere` for `$`.
-fn contains_dollar_anywhere(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Dollar => true,
-        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_dollar_anywhere),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner)
-        | ExtPat::Bound(inner, ..) => contains_dollar_anywhere(inner),
-        _ => false,
-    }
 }
 
 // ---------------------------------------------------------------------
@@ -688,6 +665,7 @@ fn flag_effect(flag: char) -> &'static str {
         'x' => "REJECTED (extended)",
         'R' => "ignored (position hint: R)",
         'A' => "honoured (anchored: treated like a leading ^)",
+        'E' => "honoured (dollar-endonly: $ forbids a trailing \\n)",
         _ => "ignored (buffer selector, or unclassified)",
     }
 }

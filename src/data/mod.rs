@@ -10,18 +10,39 @@ use rand::SeedableRng;
 
 use types::{Category, PreparedCase, RuleContext, SourceKind};
 
+/// `patterns_unusable` is driven by `prepare::core_regex`, not
+/// `frontend::parse_pcre_rule`, so it will not exactly match
+/// `examples/filter_dataset.rs`'s "Rejected" count: `core_regex` has two
+/// extra safety caps `parse_pcre_rule` does not (`MAX_CORE_DEPTH`,
+/// `MAX_CORE_NODES`), so a handful of patterns `parse_pcre_rule` accepts
+/// -- typically ones with a very large repeat bound, like `{500}` or
+/// `{1000,}` -- still count as unusable here, before `patterns_not_faithful`
+/// is even checked. That is by design: generating samples for a
+/// 20,000-node regex is not worth doing even though the translation
+/// itself is fine.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PipelineReport {
     pub rules_extracted: usize,
     pub patterns_unusable: usize,
+    pub patterns_not_faithful: usize,
+    /// Patterns that passed both `core_regex` and `frontend::is_faithful`
+    /// and so actually had candidates generated for them: the count a
+    /// reader actually wants, rather than `rules_extracted -
+    /// patterns_unusable - patterns_not_faithful` computed by hand.
+    pub patterns_faithful: usize,
     pub candidates_generated: usize,
     pub candidates_verified: usize,
 }
 
 /// Runs the full pipeline for one source: extract every rule from
-/// `raw_files`, generate candidates for each, verify them, and write the
-/// survivors to `<data_root>/<source>/prepared.jsonl`. The output file is
-/// replaced, not appended to, at the start of each run
+/// `raw_files`, generate candidates for each faithful rule, verify them,
+/// and write the survivors to `<data_root>/<source>/prepared.jsonl`. A
+/// rule whose translation is accepted but only an approximation of what
+/// the pattern means (`frontend::is_faithful` says so -- currently `R` or
+/// a nested anchor) is skipped, the same as a rule that fails to
+/// translate at all: this pipeline only ever benchmarks patterns whose
+/// produced `Regex` denotes exactly what the source pattern means. The
+/// output file is replaced, not appended to, at the start of each run.
 pub fn run_pipeline(
     source: SourceKind,
     raw_files: &[PathBuf],
@@ -69,6 +90,11 @@ pub fn run_pipeline(
             report.patterns_unusable += 1;
             continue;
         };
+        if !crate::frontend::is_faithful(&rule.raw_pattern) {
+            report.patterns_not_faithful += 1;
+            continue;
+        }
+        report.patterns_faithful += 1;
 
         let mut candidates = Vec::new();
         candidates.extend(generate::generate_best(&core, &mut rng, variants));

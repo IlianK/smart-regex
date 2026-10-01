@@ -30,6 +30,21 @@ fn find_pcre_span_end(s: &str) -> Option<usize> {
     Some(i)
 }
 
+/// Skips `n` leading whitespace-separated tokens in `s` and returns what
+/// is left, with any further leading whitespace trimmed. Used instead of
+/// `SplitWhitespace::as_str` (not available without a newer edition) to
+/// find where a `body NAME /pattern/flags` rule's pattern starts, after
+/// the `body` keyword and the rule name.
+fn skip_whitespace_tokens(s: &str, n: usize) -> &str {
+    let mut rest = s;
+    for _ in 0..n {
+        rest = rest.trim_start();
+        let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        rest = &rest[end..];
+    }
+    rest.trim_start()
+}
+
 // -------------------------------
 // Suricata / Snort
 // -------------------------------
@@ -184,6 +199,13 @@ fn read_modifier_str<'a>(modifiers: &'a str, key: &str) -> Option<&'a str> {
 // -------------------------------
 
 /// Extracts every `body`/`header` rule from a SpamAssassin `.cf` file.
+///
+/// The two kinds use different syntax: `body NAME /pattern/flags` has no
+/// operator at all, the pattern follows the rule name directly, while
+/// `header NAME Field =~ /pattern/flags` has the pattern follow `=~`.
+/// Requiring `=~` unconditionally (as an earlier version of this
+/// function did) silently drops every body rule, since real body rules
+/// never contain it.
 pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -198,13 +220,18 @@ pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
         } else {
             continue;
         };
-        let Some(op) = line.find("=~") else { continue };
         let rule_name = trimmed
             .split_whitespace()
             .nth(1)
             .unwrap_or("")
             .to_string();
-        let rest = line[op + 2..].trim_start();
+        let rest = match field {
+            SaField::Body => skip_whitespace_tokens(trimmed, 2),
+            SaField::Header => {
+                let Some(op) = line.find("=~") else { continue };
+                line[op + 2..].trim_start()
+            }
+        };
         let Some(end) = find_pcre_span_end(rest) else { continue };
         out.push(ExtractedRule {
             source: SourceKind::SpamAssassin,
@@ -292,10 +319,35 @@ mod tests {
 
     #[test]
     fn spamassassin_skips_commented_lines() {
-        let text = "#header FOO Subject =~ /a/\nbody BAR\tSubject =~ /b/";
+        // A real `body` rule has no `=~` operator: the pattern follows
+        // the rule name directly (unlike `header`, see
+        // `spamassassin_extracts_pattern_and_kind`).
+        let text = "#header FOO Subject =~ /a/\nbody BAR\t/b/";
         let rules = extract_spamassassin(text);
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].raw_pattern, "/b/");
+    }
+
+    #[test]
+    fn spamassassin_extracts_body_rule_with_no_operator() {
+        // Real SpamAssassin syntax: `body NAME /pattern/flags`, no `=~`.
+        let text = "body WEIRD_QUOTING\t/[\\042\\223]{2}/";
+        let rules = extract_spamassassin(text);
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].raw_pattern, "/[\\042\\223]{2}/");
+        let RuleContext::SpamAssassin { rule_name, field } = &rules[0].context else {
+            panic!("expected SpamAssassin context")
+        };
+        assert_eq!(rule_name, "WEIRD_QUOTING");
+        assert_eq!(*field, SaField::Body);
+    }
+
+    #[test]
+    fn spamassassin_skips_eval_body_rule() {
+        // `eval:...()` is a function call, not a pattern; no leading
+        // `/` for `find_pcre_span_end` to find.
+        let text = "body MPART_ALT_DIFF\teval:multipart_alternative_difference('99', '100')";
+        assert_eq!(extract_spamassassin(text).len(), 0);
     }
 
     #[test]
