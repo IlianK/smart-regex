@@ -1,4 +1,6 @@
-//! Matcher command logic -- always simple true/false, no diagnostics.
+//! src/cli/matcher.rs
+//!
+//! `match` subcommand: boolean match only, no diagnostics. `--matcher all`
 
 use regex_engine::matchers::MatcherType;
 use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
@@ -7,7 +9,7 @@ fn parse(regex_str: &str, search: bool) -> Result<regex_engine::types::Regex, St
     if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) }
 }
 
-// Runs with chosen matcher
+/// Single matcher: print `true`/`false`, exit 0 on match, 1 on no match.
 pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType, search: bool) {
     let r = match parse(regex_str, search) {
         Ok(r)  => r,
@@ -19,15 +21,13 @@ pub fn run_match_single(regex_str: &str, input: &str, matcher: MatcherType, sear
     if !matched { std::process::exit(1); }
 }
 
-
-// Runs with all matchers
+/// All three matchers: one row per matcher, then an agreement line.
 pub fn run_match_all(regex_str: &str, input: &str, search: bool) {
     let r = match parse(regex_str, search) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
 
-    // Comparison table 
     println!("Regex: {}", regex_str);
     println!("Input: {}", input);
     println!();
@@ -44,6 +44,10 @@ pub fn run_match_all(regex_str: &str, input: &str, search: bool) {
     }
 
     let all_equal = results.windows(2).all(|w| w[0] == w[1]);
-    if all_equal { println!("\nAll matchers agree"); }
-    else         { println!("\nMATCHERS DISAGREE!"); }
+    println!();
+    if all_equal {
+        println!("All matchers agree");
+    } else {
+        println!("MATCHERS DISAGREE");
+    }
 }

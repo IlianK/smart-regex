@@ -1,6 +1,6 @@
-//! regex-engine/src/cli/parser.rs
+//! src/cli/parser.rs
 //!
-//! Parser command logic
+//! `parse` subcommand: parse tree with optional diagnostics. `--parser all`
 
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 use regex_engine::{parse_deriv_std_rec, parse_deriv_std_loop, parse_deriv_bc, parse_pderiv_bc, flatten};
@@ -12,7 +12,10 @@ fn parse(regex_str: &str, search: bool) -> Result<regex_engine::types::Regex, St
     if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) }
 }
 
-// Runs with chosen parser
+/// Single parser, with diagnostics.
+///
+/// `diag = Debug` with no `--diag-report` writes to `reports/report.txt`;
+/// the CLI's own default, not `demo_parse`'s per-parser path.
 pub fn run_parse_single(
     regex_str: &str,
     input: &str,
@@ -28,7 +31,7 @@ pub fn run_parse_single(
 
     let report_path = match (&diag_report, diag) {
         (Some(path), _)          => Some(path.clone()),
-        (None, DiagLevel::Debug) => Some("reports/report.txt".to_string()), // default report path
+        (None, DiagLevel::Debug) => Some("reports/report.txt".to_string()),
         (None, _)                => None,
     };
 
@@ -36,8 +39,12 @@ pub fn run_parse_single(
     run_parser(regex_str, &r, input, &config);
 }
 
-
-// Runs with all parsers
+/// All five parsers in one table, then a summary block.
+///
+/// Three checks, all bugs if they fail: POSIX parsers agree with each
+/// other, Greedy parsers agree with each other, and all five agree on
+/// membership. The fourth line, `Greedy vs POSIX`, is informational: the
+/// two policies are allowed to differ on tree shape (see `PARSERS.md`).
 pub fn run_parse_all(regex_str: &str, input: &str, search: bool) {
     let r = match parse(regex_str, search) {
         Ok(r)  => r,
@@ -47,118 +54,54 @@ pub fn run_parse_all(regex_str: &str, input: &str, search: bool) {
         }
     };
 
-    // Comparison table
     println!("Regex: {}", regex_str);
     println!("Input: {:?}", input);
     println!();
-    println!("{:12} | {:9} | {}", "Parser", "Policy", "Result");
-    println!("{:-<12}-+-{:-<9}-+-{:-<30}", "", "", "");
+    println!("  {:<14} | {:<6} | {:<8} | {}", "parser", "family", "match", "tree");
+    println!("  {:-<14}-+-{:-<6}-+-{:-<8}-+-{:-<30}", "", "", "", "");
 
     type ParserFn = fn(&str, &regex_engine::Regex) -> Option<ParseTree>;
 
-    // POSIX Brzozowski-derivative parsers
-    let posix_parsers: Vec<(&str, ParserFn)> = vec![
-        ("DERIV_REC",  parse_deriv_std_rec),
-        ("DERIV_LOOP", parse_deriv_std_loop),
-        ("DERIV_BC",   parse_deriv_bc),
+    let rows: [(&str, ParserFn, &str); 5] = [
+        (ParserType::DerivStdRec.name(),  parse_deriv_std_rec,  "POSIX"),
+        (ParserType::DerivStdLoop.name(), parse_deriv_std_loop, "POSIX"),
+        (ParserType::DerivBc.name(),      parse_deriv_bc,       "POSIX"),
+        (ParserType::PDerivStd.name(),    parse_pderiv_std,     "Greedy"),
+        (ParserType::PDerivBc.name(),     parse_pderiv_bc,      "Greedy"),
     ];
 
-    let mut posix_results: Vec<Option<ParseTree>> = Vec::new();
-
-    for (name, parser) in &posix_parsers {
-        let result = parser(input, &r);
-
+    let mut results: Vec<Option<ParseTree>> = Vec::new();
+    for (label, f, family) in rows {
+        let result = f(input, &r);
         match &result {
-            Some(tree) => {
-                println!(
-                    "{:12} | {:9} | {} → {:?}",
-                    name,
-                    "POSIX",
-                    tree,
-                    flatten(tree)
-                );
-            }
-            None => {
-                println!("{:12} | {:9} | No match", name, "POSIX");
-            }
+            Some(tree) => println!("  {:<14} | {:<6} | {:<8} | {:?}", label, family, flatten(tree), tree),
+            None       => println!("  {:<14} | {:<6} | {:<8} | no match", label, family, ""),
         }
-
-        posix_results.push(result);
+        results.push(result);
     }
 
-    // Antimirov partial-derivative parsers (non-POSIX)
-    let greedy_parsers: Vec<(&str, ParserFn)> = vec![
-        ("PDERIV_STD", parse_pderiv_std),
-        ("PDERIV_BC",  parse_pderiv_bc),
-    ];
+    // results[0..3] POSIX, results[3..5] Greedy, in `rows` order.
+    let posix  = &results[0..3];
+    let greedy = &results[3..5];
 
-    let mut greedy_results: Vec<Option<ParseTree>> = Vec::new();
+    let posix_agree  = posix.windows(2).all(|w| w[0] == w[1]);
+    let greedy_agree = greedy.windows(2).all(|w| w[0] == w[1]);
+    let membership_agree =
+        results.iter().map(|t| t.is_some()).all(|m| m == results[0].is_some());
 
-    for (name, parser) in &greedy_parsers {
-        let result = parser(input, &r);
+    // Informational: whether pderiv_bc produced the same tree as deriv_bc.
+    let greedy_vs_posix = if results[4] == results[2] { "agree" } else { "disagree" };
 
-        match &result {
-            Some(tree) => println!(
-                "{:12} | {:9} | {} → {:?}",
-                name,
-                "NON-POSIX",
-                tree,
-                flatten(tree)
-            ),
-            None => println!(
-                "{:12} | {:9} | No match",
-                name,
-                "NON-POSIX"
-            ),
-        }
-
-        greedy_results.push(result);
-    }
+    let membership = if membership_agree {
+        if results[0].is_some() { "[ok] all agree: match" } else { "[ok] all agree: no match" }
+    } else {
+        "[FAIL] parsers disagree on membership"
+    };
 
     println!();
-
-    check_parser_agreement(
-        &posix_results,
-        &greedy_results,
-    );
-
-}
-
-
-// Agreement checks
-fn check_parser_agreement(
-    posix_results: &[Option<ParseTree>],
-    greedy_results: &[Option<ParseTree>],
-) {
-    // POSIX parsers must produce identical trees
-    let posix_agree = posix_results.windows(2).all(|w| w[0] == w[1]);
-
-    if posix_agree {
-        println!("POSIX parsers agree");
-    } else {
-        println!("POSIX PARSERS DISAGREE");
-    }
-
-    // the two partial-derivative parsers must produce identical trees
-    let greedy_agree = greedy_results.windows(2).all(|w| w[0] == w[1]);
-
-    if greedy_agree {
-        println!("PDERIV parsers agree");
-    } else {
-        println!("PDERIV PARSERS DISAGREE (bug)");
-    }
-
-    // All must agree on membership
-    let membership_agrees =
-        posix_results
-            .iter()
-            .chain(greedy_results.iter())
-            .map(|t| t.is_some())
-            .all(|matched| matched == posix_results[0].is_some());
-
-    if membership_agrees {
-        println!("NON-POSIX agrees with POSIX on membership");
-    } else {
-        println!("MEMBERSHIP DISAGREEMENT (bug)");
-    }
+    println!("  summary");
+    println!("    membership       : {}", membership);
+    println!("    POSIX parsers    : {}", if posix_agree  { "[ok] agree" } else { "[FAIL] DISAGREE" });
+    println!("    Greedy parsers   : {}", if greedy_agree { "[ok] agree" } else { "[FAIL] DISAGREE" });
+    println!("    Greedy vs POSIX  : {}", greedy_vs_posix);
 }

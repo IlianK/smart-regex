@@ -1,77 +1,78 @@
 # Parsers Quick Reference
 
-The five `--parser` values, one example call each. Each has its own
-detailed writeup with code references:
-[DERIV_STD.md](DERIV_STD.md), [DERIV_BC.md](DERIV_BC.md),
-[PDERIV_STD.md](PDERIV_STD.md), [PDERIV_BC.md](PDERIV_BC.md).
+The five `--parser` values, one example call each.
 - Full flag/diagnostics reference: [docs/CLI.md](CLI.md). 
-- Frontend/syntax reference: [docs/FRONTEND.md](FRONTEND.md),
-  [docs/SUBSTRING_SEARCH.md](SUBSTRING_SEARCH.md).
-
+- Frontend/syntax reference: [docs/FRONTEND.md](FRONTEND.md)
 ---
 
-## Derivative Based
 
-### `deriv_std_rec` -- POSIX, standard recursive
+## Standard Derivative-Based Recursive Parser
 
 ```bash
-cargo run -- parse "a*" "aaa" --parser deriv_std_rec
+cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_std_rec
 ```
 
 Brzozowski derivatives, POSIX leftmost-longest, native recursion
-(`mkEps`/`inject`, Fig. 3). The default parser (same as omitting
-`--parser` entirely).
+(`mkEps`/`inject`). The default parser. Its recursion depth is bounded by
+the input length; `examples/demo_crash.rs` binary-searches the point at
+which a long enough input overflows the stack.
 
-### `deriv_std_loop` -- POSIX, standard iterative
 
-```bash
-cargo run -- parse "a*" "aaa" --parser deriv_std_loop
-```
-
-Identical algorithm and answer to `deriv_std_rec` -- same `mkEps`/`inject`,
-same POSIX disambiguation -- with an explicit `Vec` in place of native
-recursion. Verified to produce identical derivation traces
-(`docs/CLI.md`'s Level 3 diff check).
-
-### `deriv_bc` -- POSIX, bit-coded
+## Standard Derivative-Based Iterative Parser
 
 ```bash
-cargo run -- parse "a*" "aaa" --parser deriv_bc
+cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_std_loop
 ```
 
-Same POSIX answer again, computed via a single fused forward pass over
-a bit-annotated `ARegex` instead of `deriv_std_rec`/`deriv_std_loop`'s two-pass
-(forward derivative, backward inject) structure.
+Identical algorithm to `deriv_std_rec` with the same `mkEps`/`inject` and
+POSIX disambiguation, but with an explicit `Vec` in place of native
+recursion. Both exist so the two can be compared directly:
+`examples/demo_crash.rs` measures how much deeper the loop version
+survives on the same input.
 
 
+## Bitcoded Derivative-Based Parser
 
-## Partial Derivative Based
+```bash
+cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_bc
+```
 
-### pderiv_std -- Greedy, standard
+The same POSIX leftmost-longest result, computed in a single fused
+forward pass over a bit-annotated `ARegex`. `deriv_std_rec` and
+`deriv_std_loop` compute the same answer in two passes: a forward
+derivative that records where each match could have started, then a
+backward `inject` that reconstructs the parse tree. `deriv_bc` does both
+in one pass, carrying the positions forward as annotations on the
+expression itself.
+
+
+## Standard Partial-Derivative-Based Parser
 
 ```bash
 cargo run -- parse "(a|ab)(b|ε)" "ab" --parser pderiv_std
 ```
 
-The same Antimirov construction and the same Greedy answer as
-`pderiv_bc` -- verified byte-identical to it on every input
-(`tests/test_pderiv_std.rs`'s 20,000-case fuzzer) -- built via
-explicit `ParseTree` injection closures instead of bit strings. No
-Haskell reference gives this construction; it's this project's own.
+Antimirov partial derivatives with leftmost priority, non-POSIX 
+On an ambiguous input this may pick a different parse tree from
+the three parsers above (Chapter 6), though it always agrees with them
+on *whether* a string matches. The parse tree is reconstructed via
+explicit injection closures rather than bit strings. 
 
 
-### `pderiv_bc` -- Greedy, bit-coded
+## Bitcoded Partial-Derivative-Based Parser
 
 ```bash
 cargo run -- parse "(a|ab)(b|ε)" "ab" --parser pderiv_bc
 ```
 
-Antimirov partial derivatives, bit-coded. **Greedy leftmost priority,
-not POSIX** -- may pick a different parse tree than the three parsers
-above on an ambiguous input (Chapter 6), though it always agrees with
-them on *whether* a string matches.
+Same Antimirov construction and same non-POSIX answers as `pderiv_std`,
+verified byte-identical by `tests/test_pderiv_std.rs`. The two differ in
+how the parse tree is reconstructed: `pderiv_std` carries explicit
+injection closures alongside each residual, while `pderiv_bc` annotates
+each node with a bit-vector recording which positions in the input the
+node could have started at, and reads the tree back out of those bits in
+a single pass.
 
----
 
 ## Compare all parsers
 
@@ -79,18 +80,8 @@ them on *whether* a string matches.
 cargo run -- parse "(a|ab)(b|ε)" "ab" --parser all
 ```
 
-Prints all five side by side, plus three agreement checks: the three
-POSIX parsers checked for full mutual agreement, `pderiv_bc`/
-`pderiv_std` checked against the POSIX parsers on membership only
-(tree divergence on ambiguous input is expected there, not a bug), and
-`pderiv_bc`/`pderiv_std` checked against *each other* for **exact**
-tree equality (since both compute the identical Greedy policy, any
-disagreement between those two specifically would be a real bug).
+Prints all five side by side, plus three agreement checks:
 
-
-## Add `--diag`
-
-Every value above accepts `--diag 1|2|3` for increasing detail (regex/
-input/match/tree and error caret at 1, construction steps at 2, full
-derivation trace at 3) -- see `docs/CLI.md` for the complete reference,
-including `--diag-report` for redirecting Level 3 output to a file.
+1. POSIX parsers agree with each other: `deriv_std_rec`, `deriv_std_loop`, `deriv_bc`.
+2. Non-POSIX parsers agree with each other: `pderiv_std`, `pderiv_bc`.
+3. POSIX vs. non-POSIX agree on tree shape for this input. Tree divergence allowed and expected on an ambiguous pattern. Whether it occurs depends on the pattern and input, but membership must always agree.

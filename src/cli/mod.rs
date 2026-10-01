@@ -1,20 +1,6 @@
-//! regex-engine/src/cli/mod.rs
+//! src/cli/mod.rs
 //!
-//! CLI module for regex matching and parsing
-//!
-//! Usage:
-//!   cargo run -- <COMMAND> <REGEX> <INPUT> [OPTIONS]
-//!
-//! Commands:
-//!   match    Boolean match only (returns exit code 0/1)
-//!   parse    POSIX parsing with parse tree output
-//!
-//!   match:
-//!     --matcher <MATCHER>   naive, deriv, pderiv, all   (default: deriv)
-//!   parse:
-//!     --parser <PARSER>     deriv_std_rec, deriv_std_loop, deriv_bc, pderiv_std, pderiv_bc, all (default: deriv_std_rec)
-//!     --diag <DIAG>         0, 1, 2, 3                  (default: 0)
-//!     --diag-report <PATH>  Level-3 report destination 
+//! CLI entry point: argument parsing and dispatch to the `match` and `parse` subcommands. 
 
 mod matcher;
 mod parser;
@@ -40,7 +26,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Matcher (returns true/false)
+    /// Match only: prints true/false, exits 0/1.
     Match {
         regex: String,
         input: String,
@@ -53,7 +39,7 @@ enum Commands {
         search: bool,
     },
 
-    /// Parser (returns parse tree)
+    /// Parse: prints the parse tree.
     Parse {
         regex: String,
         input: String,
@@ -95,7 +81,7 @@ impl MatcherArg {
 }
 
 // -------------------------------
-// --parser: deriv_std_rec, deriv_std_loop, deriv_bc, pderiv_std, pderiv_bc
+// --parser: deriv_std_rec, deriv_std_loop, deriv_bc, pderiv_std, pderiv_bc, all
 // -------------------------------
 
 #[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
@@ -110,9 +96,8 @@ enum ParserArg {
     PderivStd,
     #[value(name = "pderiv_bc")]
     PderivBc,
-
     All,
-} 
+}
 
 impl ParserArg {
     fn single(self) -> Option<ParserType> {
