@@ -1,3 +1,5 @@
+//! src/regex/deriv.rs
+//! 
 //! Brzozowski derivative for plain Regex.
 
 use crate::types::Regex;

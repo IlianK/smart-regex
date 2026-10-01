@@ -1,4 +1,6 @@
-//! Partial-derivative parser, plain Regex + injection closures (Greedy); non-bitcoded counterpart of pderiv_bc.
+//! src/parsers/pderiv_std/mod.rs
+//! 
+//! Standard Partial-Derivative-Based Parser
 
 pub(crate) mod inject;
 pub(crate) mod pderiv_tree;

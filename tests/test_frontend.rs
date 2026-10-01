@@ -1,7 +1,7 @@
-// tests/test_frontend.rs
-//
-// Integration tests for regex_engine::frontend
-// Run:  cargo test --test test_frontend
+//! src/tests/test_frontend.rs
+//! 
+//! Integration tests for regex_engine::frontend
+//! Run:  cargo test --test test_frontend
 
 use regex_engine::frontend::parse_dataset_pattern;
 use regex_engine::parsers::{parse_pderiv_bc, parse_deriv_std_rec};

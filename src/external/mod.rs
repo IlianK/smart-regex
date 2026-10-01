@@ -1,3 +1,5 @@
+//! src/external/mod.rs
+//! 
 //! external regex engines
 
 pub mod re2;

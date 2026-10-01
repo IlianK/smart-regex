@@ -1,3 +1,5 @@
+//! src/parsers/deriv_bc/internalize.rs
+//! 
 //! internalize: Regex -> ARegex. fuse: prepend a bit-code prefix.
 
 use crate::types::{Regex, ARegex};

@@ -1,13 +1,13 @@
-// tests/test_matchers.rs
-//
-// Integration tests for src/matchers/
-//   - match_naive    (matchers/match_naive.rs)
-//   - match_deriv    (matchers/match_deriv.rs)
-//   - match_pderiv   (matchers/match_pderiv.rs)
-//
-// Central property:  ∀ w r.  match_naive(w,r) = match_deriv(w,r) = match_pderiv(w,r)
-//
-// Run:  cargo test --test test_matchers
+//! src/tests/test_matchers.rs
+//!
+//! Integration tests for src/matchers/
+//!   - match_naive    (matchers/match_naive.rs)
+//!   - match_deriv    (matchers/match_deriv.rs)
+//!   - match_pderiv   (matchers/match_pderiv.rs)
+//!
+//! Central property:  ∀ w r.  match_naive(w,r) = match_deriv(w,r) = match_pderiv(w,r)
+//!
+//! Run:  cargo test --test test_matchers
 
 mod common;
 use common::{paper_r1, paper_r2};

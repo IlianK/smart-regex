@@ -1,3 +1,5 @@
+//! src/types/tree.rs
+//! 
 //! Parse tree representation (values v).
 
 use std::fmt;

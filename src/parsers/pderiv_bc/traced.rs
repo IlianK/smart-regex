@@ -1,4 +1,7 @@
-//! Traced pderiv_bc parser (REGEX_DIAG=2/3): wraps parse.rs's step_frontier/select_bits, recording a PDerivBitTrace.
+//! src/parsers/pderiv_bc/traced.rs
+//! 
+//! Traced pderiv_bc parser (REGEX_DIAG=2/3): 
+//! wraps parse.rs's step_frontier/select_bits, recording a PDerivBitTrace.
 
 use crate::types::{Regex, ParseTree};
 use crate::trace::{PDerivBitStep, PDerivBitTrace};

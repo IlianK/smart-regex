@@ -1,3 +1,5 @@
+//! src/diagnostics/replay.rs
+//! 
 //! Replay utilities for failure diagnostics: error position (Diag 1) and partial tree (Diag 2/3).
 
 use crate::types::{Regex, ParseTree};

@@ -3,10 +3,18 @@
 //! `match` subcommand: boolean match only, no diagnostics. `--matcher all`
 
 use regex_engine::matchers::MatcherType;
-use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
+use regex_engine::frontend::{parse_dataset_pattern, parse_pattern, faithfulness_gaps, FaithfulnessGap};
 
 fn parse(regex_str: &str, search: bool) -> Result<regex_engine::types::Regex, String> {
-    if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) }
+    let r = if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) };
+    // Warning about nested anchors, which are a known faithfulness gap.
+    if r.is_ok() && faithfulness_gaps(regex_str).contains(&FaithfulnessGap::NestedAnchor) {
+        eprintln!(
+            "warning: {regex_str:?}: '^'/'$' present but not a top-level anchor; \
+            treated as a no-op (see FRONTEND.md, NestedAnchor)"
+        );
+    }
+    r
 }
 
 /// Single matcher: print `true`/`false`, exit 0 on match, 1 on no match.

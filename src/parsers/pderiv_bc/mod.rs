@@ -1,4 +1,6 @@
-//! Bit-coded partial-derivative parser, plain Regex + external bit-vector (Greedy).
+//! src/parsers/pderiv_bc/mod.rs
+//! 
+//! Bit-Coded Partial-Derivative-Based Parser
 
 pub mod pderiv;
 pub mod parse;

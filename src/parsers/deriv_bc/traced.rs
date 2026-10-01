@@ -1,4 +1,7 @@
-//! Traced deriv_bc parser (REGEX_DIAG=2/3): re-implements parse.rs's loop variant, recording a BitTrace.
+//! src/parsers/deriv_bc/traced.rs
+//! 
+//! Traced deriv_bc parser (REGEX_DIAG=2/3): 
+//! re-implements parse.rs's loop variant, recording a BitTrace.
 
 use crate::types::{Regex, ParseTree};
 use crate::parsers::deriv_bc::nullable::nullable_bc;

@@ -1,3 +1,5 @@
+//! src/parsers/deriv_std/traced.rs
+//! 
 //! Traced deriv_std parsers (REGEX_DIAG=2/3): re-implement parse.rs's forward/backward passes, recording a ParseTrace.
 
 use crate::types::{Regex, ParseTree};

@@ -1,4 +1,4 @@
-//! regex-engine/src/types/mod.rs
+//! src/types/mod.rs
 //! 
 //! Core data types 
 

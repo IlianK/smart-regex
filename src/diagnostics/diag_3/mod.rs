@@ -1,4 +1,4 @@
-//! regex-engine/src/diagnostics/diag_3/mod.rs
+//! src/diagnostics/diag_3/mod.rs
 //!
 //! Level 3 - Debug diagnostics. Full trace: derivation, nullability, mkEps, inject
 //!

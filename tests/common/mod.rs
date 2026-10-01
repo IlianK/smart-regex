@@ -1,4 +1,6 @@
-// tests/common/mod.rs
+//! src/tests/common/mod.rs
+//! 
+//! Common helpers for tests
 
 use regex_engine::{Regex, ParseTree, flatten};
 

@@ -1,6 +1,6 @@
-// tests/test_pderiv_bc.rs
-//
-// Run:  cargo test --test test_pderiv_bc
+//! src/tests/test_pderiv_bc.rs
+//! 
+//! Run:  cargo test --test test_pderiv_bc
 
 mod common;
 use common::{assert_round_trip, paper_r1, paper_r2};

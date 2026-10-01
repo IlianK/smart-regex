@@ -1,4 +1,10 @@
-//! One step of the tree-based partial derivative: `pderiv_bc`'s analogue, `(residual, Inj)` pairs instead of bits.
+//! src/parsers/pderiv_std/pderiv_tree.rs
+//! 
+//! Standard Partial-Derivative-Based Parser
+//! Antimirov Partial Derivative 
+//! 
+//! One step of the tree-based partial derivative: 
+//! `pderiv_bc`'s analogue, `(residual, Inj)` pairs instead of bits.
 
 use std::rc::Rc;
 use crate::types::{ParseTree, Regex};

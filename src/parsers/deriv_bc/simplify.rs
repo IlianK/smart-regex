@@ -1,4 +1,7 @@
-//! Simplification for ARegex (simp, Figure 6): Phi propagation, eps-elision, Alt flattening/dedup.
+//! src/parsers/deriv_bc/simplify.rs
+//! 
+//! Simplification for ARegex: 
+//! Phi propagation, eps-elision, Alt flattening/dedup.
 
 use crate::types::ARegex;
 use crate::parsers::deriv_bc::nullable::is_phi;

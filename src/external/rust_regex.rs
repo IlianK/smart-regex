@@ -1,7 +1,9 @@
-//! Thin wrapper around the `regex` crate (Rust's de facto standard engine),
-//! used only for benchmarking against this crate's own parsers on the same
-//! data. `regex` matches leftmost-first (Perl-like, like Greedy here), with
-//! no POSIX leftmost-longest mode of its own -- see docs/EXTERNAL_ENGINES.md.
+//! src/external/rust_regex.rs
+//!
+//! Wrapper over the `regex` crate, for benchmarking against this crate's
+//! own parsers. `regex` matches leftmost-first (like this project's Greedy
+//! parsers); it has no POSIX leftmost-longest mode. See
+//! docs/EXTERNAL_ENGINES.md.
 
 pub struct RustRegex(regex::Regex);
 
@@ -13,14 +15,12 @@ impl RustRegex {
             .map(RustRegex)
     }
 
-    /// Unanchored substring search -- this project's dataset "search"
-    /// semantics (docs/testing/DATASETS.md).
+    /// Unanchored substring search.
     pub fn is_match(&self, text: &str) -> bool {
         self.0.is_match(text)
     }
 
-    /// Anchored, whole-string match -- this project's CLI/`parse_pattern`
-    /// membership semantics.
+    /// Whole-string match.
     pub fn full_match(&self, text: &str) -> bool {
         matches!(self.0.find(text), Some(m) if m.start() == 0 && m.end() == text.len())
     }
@@ -44,8 +44,6 @@ mod tests {
         assert!(RustRegex::new("a(", false).is_err());
     }
 
-    /// `regex` matches leftmost-first, like this project's Greedy parsers
-    /// -- unlike RE2, it has no POSIX leftmost-longest mode to select.
     #[test]
     fn leftmost_first_like_greedy() {
         let re = RustRegex::new("a|ab", false).unwrap();

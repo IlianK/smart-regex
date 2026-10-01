@@ -1,3 +1,5 @@
+//! src/diagnostics/diag_2/deriv_bc.rs
+//! 
 //! Level 2 rendering for the bit-coded derivative-based parser
 
 use std::time::Instant;

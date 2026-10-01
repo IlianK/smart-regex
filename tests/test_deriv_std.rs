@@ -1,4 +1,6 @@
-// Integration tests for parsers/deriv_std/: parse_recursive and parse_loop. Paper examples from flops14-extended.
+//! src/tests/test_deriv_std.rs
+//! 
+//! Integration tests for parsers/deriv_std/: parse_recursive and parse_loop. Paper examples from flops14-extended.
 
 mod common;
 use common::{assert_round_trip, assert_parsers_agree, paper_r1, paper_r2};

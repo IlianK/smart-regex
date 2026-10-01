@@ -1,4 +1,4 @@
-//! The four parsers, one flat subfolder each: deriv_std, deriv_bc, pderiv_std, pderiv_bc. See docs/PARSERS.md.
+//! src/parsers/mod.rs
 
 pub mod deriv_std;
 pub mod deriv_bc;

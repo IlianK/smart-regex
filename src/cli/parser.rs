@@ -6,10 +6,18 @@ use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 use regex_engine::{parse_deriv_std_rec, parse_deriv_std_loop, parse_deriv_bc, parse_pderiv_bc, flatten};
 use regex_engine::parsers::{ParserType, parse_pderiv_std};
 use regex_engine::types::ParseTree;
-use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
+use regex_engine::frontend::{parse_dataset_pattern, parse_pattern, faithfulness_gaps, FaithfulnessGap};
 
 fn parse(regex_str: &str, search: bool) -> Result<regex_engine::types::Regex, String> {
-    if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) }
+    let r: Result<regex_engine::Regex, String> = if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) };
+    // Warning about nested anchors, which are a known faithfulness gap.
+    if r.is_ok() && faithfulness_gaps(regex_str).contains(&FaithfulnessGap::NestedAnchor) {
+        eprintln!(
+            "warning: {regex_str:?}: '^'/'$' present but not a top-level anchor; \
+            treated as a no-op (see FRONTEND.md, NestedAnchor)"
+        );
+    }
+    r
 }
 
 /// Single parser, with diagnostics.

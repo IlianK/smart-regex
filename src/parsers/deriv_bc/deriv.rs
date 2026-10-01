@@ -1,4 +1,7 @@
-//! Bit-coded Brzozowski derivative for ARegex: threads parse-tree bits through the forward pass.
+//! src/parsers/deriv_bc/deriv.rs
+//! 
+//! Brzozowski derivative 
+//! ARegex: threads parse-tree bits through the forward pass
 
 use crate::types::ARegex;
 use crate::parsers::deriv_bc::nullable::nullable_bc;

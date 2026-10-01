@@ -1,11 +1,11 @@
 # CLI Reference
 
-Full command reference for the `regex-engine` binary. See the [README](../README.md) for install/build and a quickstart.
+Command reference for the `regex-engine` binary. 
 
 **By default, `match`/`parse` require the entire input to match the
-entire pattern**, and `^`/`$` do nothing: full-string matching is what
-the core algorithm computes. Pass `--search` to pad unanchored sides
-with `Σ*` instead (substring search), the same padding
+entire pattern**, and `^`/`$` do nothing. 
+- Full-string matching is what the core algorithm computes. 
+- Passing `--search` pads unanchored sides with `Σ*` (substring search), the same padding
 `src/data/`'s dataset pipeline uses. 
 
 ---
@@ -47,9 +47,7 @@ cargo run -- parse "a*" "aaa" --parser deriv_bc
 cargo run -- parse "a*" "aaa" --parser pderiv_std
 cargo run -- parse "a*" "aaa" --parser pderiv_bc 
 
-# Compare all parsers side by side: 
-# POSIX-proven ones checked for full agreement
-# pderiv_bc shown alongside agreeing on membership (not tree shape) 
+# Compare all parsers side by side
 cargo run -- parse "a*"          "aaa" --parser all
 cargo run -- parse "(a|ab)(b|ε)" "ab"  --parser all
 ```
@@ -116,7 +114,7 @@ cargo run -- parse "a*" "aab" --parser deriv_bc --diag 3
 cargo run -- parse "(a|ab)(b|ε)" "ab" --diag 3 --diag-report reports/paper_r1.txt
 cargo run -- parse "(a|b|ab)*"   "ab" --diag 3 --diag-report reports/paper_r2.txt
 
-# Confirm deriv_rec and deriv_std_loop produce identical derivation traces
+# Confirm deriv_std_rec and deriv_std_loop produce identical derivation traces
 # (diff will show two expected differences -- the "Mode:" label and the
 # timing line -- and nothing else)
 cargo run -- parse "a*" "aaa" --diag 3 --diag-report reports/rec.txt
@@ -129,7 +127,7 @@ cat reports/report.txt
 
 ---
 
-## Flags and Diagnostics Levels
+### Args
 
 | Flag | Values | Default | Use |
 |---|---|---|---|
@@ -139,7 +137,7 @@ cat reports/report.txt
 | `--diag-report` | file path | unset (`reports/report.txt` if `--diag 3` with no path given) | Level 3 report destination (`parse` only) |
 | `--search` | flag (present/absent) | absent | Pad unanchored sides with `Σ*` instead of requiring a full-string match; both `match` and `parse` |
 
-### Verbosity levels
+### Diag Verbosity levels
 
 | Level | Name | On success | On failure |
 |---|---|---|---|
@@ -179,8 +177,32 @@ false
 ```
 
 See [FRONTEND.md](FRONTEND.md)'s "Search padding and anchoring" section
-for the full anchoring table (`(^abc)`, `a^b`, `(a|^b)c`, etc.) — every
-row of it applies identically under `--search`.
+for the full anchoring table (`(^abc)`, `a^b`, `(a|^b)c`, etc.).
+Every row of it applies identically under `--search`.
+
+
+### Nested-anchor warning
+
+A `^`/`$` that is present but isn't a real top-level anchor (nested
+inside a branch of an alternation, for example, as in `(a|^b)c`) is
+still accepted: `translate` silently lowers it to `Eps`, a no-op, same
+as any other interior position. 
+
+`match`/`parse` print a warning on stderr when it happens, with or
+without `--search`; the match/parse result and exit code are
+unaffected:
+
+```bash
+cargo run -- match "(a|^b)c" "bc" --search
+warning: '^'/'$' appears but isn't a real anchor at that position -- translated as Eps (no-op) rather than enforced; see FRONTEND.md's faithfulness gaps
+true
+```
+
+See [FRONTEND.md](FRONTEND.md)'s "Faithfulness" section for the
+underlying rule, and why the analogous `R`/relative-match gap is not
+warned about here.
+
+
 
 ### Supported syntax
 
@@ -220,7 +242,7 @@ cargo run -- match "^abc$" "abc"
 Three constructs describe languages, or depend on position, in a way
 that isn't regular in the formal sense every parser depends on.
 `parse_pattern` rejects all three with a
-descriptive error rather than silently mis-parsing them:
+descriptive error.
 
 ```bash
 cargo run -- match "(a)\1" "aa"
@@ -238,12 +260,3 @@ Lookahead, negative lookahead, lookbehind, and negative lookbehind
 time, before any translation is attempted. `\b`/`\B` parse successfully
 (into an internal `WordBoundary` marker, so a literal `b` is never
 silently substituted) but are rejected one step later, at translation.
-
-### What this frontend still does *not* expose
-
-`--search` covers the padding half of `parse_pcre_rule` (what
-`src/data/`'s dataset pipeline and `examples/filter_dataset.rs` actually
-use), not the rest: the `/PATTERN/FLAGS` wrapper and the `i`
-case-insensitive flag are still specific to `parse_pcre_rule` and have no
-CLI flag — there is no `cargo run -- match "/pattern/i" "input"` form.
-See [DATASETS.md](DATASETS.md) for that path instead.

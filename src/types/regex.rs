@@ -1,4 +1,4 @@
-//! regex-engine/src/types/regex.rs
+//! src/types/regex.rs
 //! 
 //! Regular expression data type definition
 

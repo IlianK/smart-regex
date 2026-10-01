@@ -1,4 +1,6 @@
-//! Diagnostics module: verbosity levels 0-3 for `parse`, controlled via --diag. `match` has none.
+//! src/diagnostics/mod.rs
+//! 
+//! Diagnostics module: verbosity levels 0-3 for `parse` controlled via --diag
 
 pub mod replay;
 pub mod format;

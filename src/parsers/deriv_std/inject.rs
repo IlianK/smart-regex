@@ -1,3 +1,5 @@
+//! src/parsers/deriv_std/inject.rs
+//! 
 //! inj: injects a consumed letter back into a derivative's parse tree.
 
 use crate::types::{Regex, ParseTree};

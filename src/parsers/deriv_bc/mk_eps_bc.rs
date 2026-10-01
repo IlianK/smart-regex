@@ -1,3 +1,5 @@
+//! src/parsers/deriv_bc/mk_eps_bc.rs
+//! 
 //! Bit-coded mkEps: extracts the bit sequence from a nullable ARegex.
 
 use crate::types::ARegex;

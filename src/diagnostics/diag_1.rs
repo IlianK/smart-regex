@@ -1,4 +1,4 @@
-//! regex-engine/src/diagnostics/diag_1.rs
+//! src/diagnostics/diag_1.rs
 //! 
 //! Diag 1 - Basic diagnostics output.
 //!

@@ -1,4 +1,8 @@
-//! Bit-coded Antimirov partial derivatives (pDerivBC): plain Regex + external per-strand bits, GREEDY.
+//! src/parsers/pderiv_bc/pderiv.rs
+//! 
+//! Bit-Coded Partial-Derivative-Based Parser
+//! Antimirov Partial Derivative 
+//! plain Regex + external per-strand bits, GREEDY.
 
 use std::collections::HashSet;
 use crate::types::Regex;

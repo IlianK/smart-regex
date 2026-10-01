@@ -1,4 +1,7 @@
-//! Traced pderiv_std parser (REGEX_DIAG=2/3): wraps parse.rs's step_frontier/select, recording a PDerivStdTrace.
+//! src/parsers/pderiv_std/traced.rs
+//! 
+//! Traced pderiv_std parser (REGEX_DIAG=2/3): 
+//! wraps parse.rs's step_frontier/select, recording a PDerivStdTrace.
 
 use crate::types::{ParseTree, Regex};
 use crate::trace::{PDerivStdStep, PDerivStdTrace};

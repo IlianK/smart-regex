@@ -1,3 +1,5 @@
+//! src/matchers/match_deriv.rs
+//! 
 //! Brzozowski derivative matcher (boolean).
 
 use crate::types::Regex;

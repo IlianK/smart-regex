@@ -1,4 +1,4 @@
-//! regex-engine/src/main.rs
+//! src/main.rs
 //! 
 //! CLI for regex matching and parsing
 

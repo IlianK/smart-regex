@@ -1,4 +1,5 @@
-//! regex-engine: derivative and partial-derivative regex parsing, POSIX and Greedy.
+//! src/lib.rs
+//! 
 
 // Core data types
 pub mod types;

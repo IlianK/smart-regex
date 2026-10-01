@@ -1,4 +1,7 @@
-//! Injection-closure for tree-based partial-derivative parser: each strand carries an `Inj` instead of a bit prefix.
+//! src/parsers/pderiv_std/inject.rs
+//! 
+//! Injection-closure for tree-based partial-derivative parser: 
+//! each strand carries an `Inj` instead of a bit prefix.
 
 use std::collections::HashSet;
 use std::rc::Rc;

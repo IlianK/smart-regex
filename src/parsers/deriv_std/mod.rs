@@ -1,4 +1,6 @@
-//! Brzozowski derivative parser, plain Regex (POSIX).
+//! src/parsers/deriv_std/mod.rs
+//! 
+//! Standard Derivative-Based Parser
 
 pub mod inject;
 pub mod parse;

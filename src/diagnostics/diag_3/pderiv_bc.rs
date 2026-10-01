@@ -1,3 +1,5 @@
+//! src/diagnostics/diag_3/pderiv_bc.rs
+//! 
 //! Level 3 rendering for the bit-coded partial-derivative-based parser 
 
 use std::time::Instant;

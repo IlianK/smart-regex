@@ -1,4 +1,4 @@
-//! regex-engine/src/matchers/match_naive.rs
+//! src/matchers/match_naive.rs
 //! 
 //! Naive recursive matcher (boolean)
 

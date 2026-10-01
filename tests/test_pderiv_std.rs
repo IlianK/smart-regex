@@ -1,4 +1,6 @@
-// Integration tests for parsers::pderiv_std::parse_pderiv_std.
+//! src/tests/test_pderiv_std.rs
+//! 
+//! Integration tests for parsers::pderiv_std::parse_pderiv_std.
 
 mod common;
 use common::{assert_round_trip, paper_r1, paper_r2};

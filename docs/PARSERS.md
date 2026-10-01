@@ -1,4 +1,4 @@
-# Parsers Quick Reference
+# Parsers 
 
 The five `--parser` values, one example call each.
 - Full flag/diagnostics reference: [docs/CLI.md](CLI.md). 

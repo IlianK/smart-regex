@@ -1,4 +1,4 @@
-//! regex-engine/src/diagnostics/diag_2/mod.rs
+//! src/diagnostics/diag_2/mod.rs
 //!
 //! Level 2 - Verbose diagnostics output.
 //!

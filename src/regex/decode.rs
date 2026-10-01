@@ -1,3 +1,5 @@
+//! src/regex/decode.rs
+//! 
 //! Decoder: bit-code -> ParseTree, given the original Regex (Figure 4). Shared by deriv_bc and pderiv_bc.
 
 use crate::types::{Regex, ParseTree};

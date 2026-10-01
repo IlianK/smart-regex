@@ -1,111 +1,81 @@
-//! regex-engine/src/trace.rs
-//! 
-//! Trace data structures 
+//! src/trace.rs
+//!
+//! Trace data structures for the `*_traced` parser variants. 
+//! One type per parser family; consumed by `src/diagnostics/` 
+//! for `--diag 2`/`--diag 3` reports
 
 use crate::types::{Regex, ARegex, ParseTree};
 
 
-/// -------------------------------
-/// Standard derivative-based parser trace (parse_loop_traced / parse_recursive_traced)
-/// -------------------------------
+// Standard derivative-based parser (parse_loop_traced / parse_recursive_traced)
 
-/// One step in the forward derivative pass
+/// One forward derivative step: `before`/`after` expressions 
+/// around `character`, and whether `after` is nullable.
 #[derive(Debug, Clone)]
 pub struct DerivStep {
-    /// 1-indexed position in the input
     pub position: usize,
-    /// Character consumed at this step
     pub character: char,
-    /// Expression before this derivative step (rᵢ)
     pub before: Regex,
-    /// Expression after deriv (rᵢ₊₁)
     pub after: Regex,
-    /// Whether the resulting expression is nullable
     pub nullable: bool,
 }
 
-/// One step in the backward inject pass
+/// One backward `inject` step: `before`/`after` trees around `character`.
 #[derive(Debug, Clone)]
 pub struct InjectStep {
-    /// 1-indexed position
     pub position: usize,
-    /// Character injected
     pub character: char,
-    /// Parse tree before injection (vᵢ₊₁)
     pub before: ParseTree,
-    /// Parse tree after injection (vᵢ)
     pub after: ParseTree,
 }
 
-/// mkEps result recorded during the backward pass
+/// The `mkEps` call that seeds the backward pass.
 #[derive(Debug, Clone)]
 pub struct MkEpsResult {
-    /// The nullable expression mkEps was called on (rₙ)
     pub regex: Regex,
-    /// The resulting empty parse tree
     pub tree: ParseTree,
 }
 
-/// Full trace from parse_loop_traced or parse_recursive_traced
+/// Full trace from `parse_loop_traced` / `parse_recursive_traced`.
 #[derive(Debug, Clone)]
 pub struct ParseTrace {
-    /// All expressions r0..rn stored during the forward pass
     pub expressions: Vec<Regex>,
-    /// All derivative steps (one per character)
     pub deriv_steps: Vec<DerivStep>,
-    /// mkEps result (None if parse failed)
     pub mk_eps_result: Option<MkEpsResult>,
-    /// All inject steps in forward order (None if parse failed)
     pub inject_steps: Option<Vec<InjectStep>>,
-    /// Index of the last nullable expression (for partial recovery on failure)
     pub last_nullable_idx: Option<usize>,
 }
 
-
 impl ParseTrace {
-    /// Total derivative expressions computed (= input length + 1)
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
     }
 
-    /// Number of characters that matched before failure
     pub fn successful_steps(&self) -> usize {
         self.last_nullable_idx.unwrap_or(0)
     }
 }
 
+// Bit-coded derivative-based parser (parse_bitcoded_traced)
 
-/// -------------------------------
-/// Bit-coded derivative-based parser trace (parse_bitcoded_traced)
-/// -------------------------------
-
-/// One step in the bitcoded forward pass
+/// One bit-coded forward step: `before`/`after` annotated expressions
+/// around `deriv_bc + simp`, and whether `after` is nullable.
 #[derive(Debug, Clone)]
 pub struct BitStep {
-    /// 1-indexed position
     pub position: usize,
-    /// Character consumed
     pub character: char,
-    /// Annotated expression before deriv_bc + simp (riᵢ)
     pub before: ARegex,
-    /// Annotated expression after deriv_bc + simp (riᵢ₊₁)
     pub after: ARegex,
-    /// Whether the resulting expression is nullable
     pub nullable: bool,
 }
 
-/// Full trace from parse_bitcoded_traced
+/// Full trace from `parse_bitcoded_traced`.
 #[derive(Debug, Clone)]
 pub struct BitTrace {
-    /// Internalized expression (ri₀)
     pub internalized: ARegex,
-    /// All bit steps (one per character)
     pub bit_steps: Vec<BitStep>,
-    /// Bit sequence produced by mkEpsBC (None if parse failed)
     pub final_bits: Option<Vec<bool>>,
-    /// Index of the last nullable riᵢ (for partial recovery on failure)
     pub last_nullable_idx: Option<usize>,
-    /// Bits accumulated at the last nullable step (for failure reporting)
     pub bits_at_last_nullable: Option<Vec<bool>>,
 }
 
@@ -116,40 +86,27 @@ impl BitTrace {
 }
 
 
-/// -------------------------------
-/// Bit-coded partial-derivative parser trace (parse_pderiv_bc_traced)
-/// -------------------------------
+// Bit-coded partial-derivative parser (parse_pderiv_bc_traced)
 
-/// Unlike DerivStep/BitStep (one exp/step) tracks a *frontier*
-/// every (residual, accumulated bits) pair still alive after consuming this character, 
-/// one per surviving strand of nondeterminism (see regex/pderiv/annotated.rs).
+/// One frontier step: every `(residual, accumulated bits)` 
+/// pair still alive after consuming `character`, 
+/// one per surviving strand of nondeterminism.
 #[derive(Debug, Clone)]
 pub struct PDerivBitStep {
-    /// 1-indexed position in the input
     pub position: usize,
-    /// Character consumed at this step
     pub character: char,
-    /// Frontier before this step
     pub before: Vec<(Regex, Vec<bool>)>,
-    /// Frontier after this step
     pub after: Vec<(Regex, Vec<bool>)>,
-    /// Whether any residual in `after` is nullable
     pub nullable: bool,
 }
 
-/// Full trace from parse_pderiv_bc_traced
+/// Full trace from `parse_pderiv_bc_traced`.
 #[derive(Debug, Clone)]
 pub struct PDerivBitTrace {
-    /// Initial frontier: [(r0, [])]
     pub initial: Vec<(Regex, Vec<bool>)>,
-    /// All frontier steps (one per character)
     pub steps: Vec<PDerivBitStep>,
-    /// Complete bit string of the winning (first nullable, in list/priority order) residual 
-    /// (accumulated bits ++ mkEpsBC(residual) or None if parsing failed)
     pub final_bits: Option<Vec<bool>>,
-    /// Index of the last step whose frontier contained a nullable residual
     pub last_nullable_idx: Option<usize>,
-    /// Complete bit string (same construction as `final_bits`) at that step
     pub bits_at_last_nullable: Option<Vec<bool>>,
 }
 
@@ -160,49 +117,32 @@ impl PDerivBitTrace {
 }
 
 
-/// -------------------------------
-/// Standard partial-derivative parser trace (parse_pderiv_std_traced)
-/// -------------------------------
+// Standard partial-derivative parser (parse_pderiv_std_traced)
 
-/// Like PDerivBitStep, tracks a *frontier* (one residual per surviving strand)
-/// but with no bit-string/injection-closure column: 
-/// - a strand's injection here is `Rc<dyn Fn(ParseTree) -> ParseTree>`
-///   which has no printable representation the way a `Vec<bool>` bit prefix does, 
-///   so only the residual regex itself is recorded per strand. 
-/// - What the bit-coded trace shows via "bits accumulated so far", 
-///   this trace shows directly instead `nullable` strands carry their fully-built `ParseTree` right here
-///   (via `select`, which already applies the accumulated injection), 
-///   no separate decode step the way bitcoded's bits->tree conversion requires 
+/// One frontier step, residuals only. 
+/// Injections are `Rc<dyn Fn(ParseTree) -> ParseTree>` and have no printable form, 
+/// so a nullable strand carries its fully-built `ParseTree` directly
 #[derive(Debug, Clone)]
 pub struct PDerivStdStep {
-    /// 1-indexed position in the input
     pub position: usize,
-    /// Character consumed at this step
     pub character: char,
-    /// Frontier residuals before this step (injections not shown -- not printable)
     pub before: Vec<Regex>,
-    /// Frontier residuals after this step
     pub after: Vec<Regex>,
-    /// Whether any residual in `after` is nullable
     pub nullable: bool,
 }
 
-// Full trace from parse_pderiv_std_traced
+/// Full trace from `parse_pderiv_std_traced`.
 #[derive(Debug, Clone)]
 pub struct PDerivStdTrace {
-    /// Initial frontier's residuals: just [r0]
     pub initial: Vec<Regex>,
-    /// All frontier steps (one per character)
     pub steps: Vec<PDerivStdStep>,
-    /// Final selected (first nullable, priority order) strand's fully injected ParseTree
     pub final_tree: Option<ParseTree>,
-    /// Index of the last step whose frontier contained a nullable residual
     pub last_nullable_idx: Option<usize>,
-    /// The ParseTree `select` would have produced at that step
     pub tree_at_last_nullable: Option<ParseTree>,
 }
 
 impl PDerivStdTrace {
+    /// Characters matched before failure (0 on a full failure).
     pub fn successful_steps(&self) -> usize {
         self.last_nullable_idx.unwrap_or(0)
     }

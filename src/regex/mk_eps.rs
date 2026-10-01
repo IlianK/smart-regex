@@ -1,3 +1,5 @@
+//! src/regex/mk_eps.rs
+//! 
 //! mkEps: builds parse tree for empty word. Shared by deriv_std and pderiv_std.
 
 use crate::types::{Regex, ParseTree};

@@ -1,6 +1,7 @@
-//! Safe wrapper around Google's RE2
-//! small C shim in `csrc/re2_shim.cpp`/`.h` over RE2's C++ API 
-//! (RE2 has no official C API of its own)
+//! src/external/re2.rs
+//!
+//! Safe wrapper over Google's RE2, via the C shim in
+//! `csrc/re2_shim.{h,cpp}` (RE2 has no C API of its own).
 
 use std::ffi::{c_char, c_int, CStr};
 
@@ -34,19 +35,17 @@ pub struct Re2 {
     handle: *mut Re2HandleOpaque,
 }
 
-// RE2 objects are documented as thread-safe and logically immutable once constructed 
-// (re2/re2.h, "RE2 objects are thread-safe and logically immutable")
+// RE2 objects are thread-safe and logically immutable once constructed.
 unsafe impl Send for Re2 {}
 unsafe impl Sync for Re2 {}
 
 impl Re2 {
-    /// Compiles `pattern`. `posix` selects RE2's POSIX leftmost-longest mode
-    /// over its default leftmost-first (Perl-like) mode -- both modes still
-    /// accept `\s`/`\d`/`\w`/`\b`, since posix mode also enables
-    /// `perl_classes`/`word_boundary` (see csrc/re2_shim.cpp), so this stays
-    /// a disambiguation-policy switch, not a syntax-dialect one.
-    /// `case_insensitive` is a separate option because RE2's `(?i)` inline
-    /// group is unavailable in posix_syntax mode.
+    /// Compile `pattern`. `posix` selects RE2's POSIX leftmost-longest
+    /// mode over its default leftmost-first mode. Both modes still accept
+    /// `\s`/`\d`/`\w`/`\b`, since the shim also enables
+    /// `perl_classes`/`word_boundary`, so this is a disambiguation switch,
+    /// not a syntax one. `case_insensitive` is a separate option because
+    /// RE2's `(?i)` inline group is unavailable in posix_syntax mode.
     pub fn new(pattern: &str, posix: bool, case_insensitive: bool) -> Result<Self, String> {
         let mut error: *mut c_char = std::ptr::null_mut();
         let handle = unsafe {
@@ -71,23 +70,20 @@ impl Re2 {
         Ok(Re2 { handle })
     }
 
-    /// Unanchored substring search -- this project's dataset "search"
-    /// semantics (docs/testing/DATASETS.md).
+    /// Unanchored substring search (the dataset's "search" semantics).
     pub fn is_match(&self, text: &str) -> bool {
         unsafe { re2_partial_match(self.handle, text.as_ptr().cast(), text.len()) != 0 }
     }
 
-    /// Anchored, whole-string match -- this project's CLI/`parse_pattern`
-    /// membership semantics.
+    /// Anchored, whole-string match (the CLI's default semantics).
     pub fn full_match(&self, text: &str) -> bool {
         unsafe { re2_full_match(self.handle, text.as_ptr().cast(), text.len()) != 0 }
     }
 
-    /// Unanchored search, returning the byte range of the overall match.
-    /// Unlike `is_match`/`full_match` (both booleans, which never
-    /// distinguish leftmost-first from POSIX leftmost-longest -- they
-    /// accept the same language), the returned span does: it is where the
-    /// `posix` flag passed to `new` actually shows up.
+    /// Unanchored search, returning the match's byte range. The two
+    /// boolean methods above cannot distinguish leftmost-first from POSIX
+    /// leftmost-longest (same language); only the span can, so this is
+    /// where the `posix` flag passed to `new` becomes observable.
     pub fn find(&self, text: &str) -> Option<(usize, usize)> {
         let mut start = 0usize;
         let mut end = 0usize;
@@ -120,16 +116,10 @@ mod tests {
         assert!(Re2::new("a(", false, false).is_err());
     }
 
-    /// The whole reason this wrapper exposes a `posix` flag and `find`
-    /// (span) alongside the boolean `is_match`/`full_match`: whole-string
-    /// membership can't tell leftmost-first and POSIX leftmost-longest
-    /// apart -- both accept the same language, so `is_match`/`full_match`
-    /// always agree between them. Only the match *span* differs: on `a|ab`
-    /// against "ab", RE2's default leftmost-first mode reports the first
-    /// alternative that matches ("a", span (0,1)), while POSIX
-    /// leftmost-longest mode reports the longest overall match ("ab", span
-    /// (0,2)). If this ever agrees, the `posix_syntax`/`longest_match`
-    /// options wired through the C shim have stopped doing anything.
+    /// On `a|ab` against "ab": leftmost-first reports "a" (span (0,1)),
+    /// POSIX leftmost-longest reports "ab" (span (0,2)). If these ever
+    /// agree, the posix_syntax/longest_match options wired through the
+    /// shim have stopped doing anything.
     #[test]
     fn posix_mode_prefers_longest_match() {
         let greedy = Re2::new("a|ab", false, false).unwrap();

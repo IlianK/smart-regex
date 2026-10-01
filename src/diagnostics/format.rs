@@ -1,4 +1,4 @@
-//! regex-engine/src/diagnostics/format.rs
+//! src/diagnostics/format.rs
 
 pub fn bits_str(bs: &[bool]) -> String {
     let inner: String = bs.iter().map(|b| if *b { '1' } else { '0' }).collect();

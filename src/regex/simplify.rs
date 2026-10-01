@@ -1,3 +1,5 @@
+//! src/regex/simplify.rs
+//! 
 //! Simplification for plain Regex.
 
 use crate::types::Regex;

@@ -1,3 +1,5 @@
+//! src/regex/mod.rs
+//! 
 //! Core regex algorithms shared by more than one parser: nullable, deriv, simplify, mk_eps, decode.
 
 pub mod nullable;

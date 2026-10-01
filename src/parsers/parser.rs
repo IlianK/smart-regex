@@ -1,4 +1,4 @@
-//! Parser selection via the REGEX_PARSER env var or CLI; see docs/PARSERS.md for the five values.
+//! src/parsers/parser.rs
 
 use crate::types::{Regex, ParseTree};
 use super::selection::ParserType;

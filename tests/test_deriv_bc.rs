@@ -1,4 +1,6 @@
-// Integration tests for parsers/deriv_bc/: parse_bitcoded(w, r) == parse_recursive(w, r) for all w, r.
+//! src/tests/test_deriv_bc.rs
+//!
+//!  Integration tests for parsers/deriv_bc/: parse_bitcoded(w, r) == parse_recursive(w, r) for all w, r.
 
 mod common;
 use common::{assert_round_trip, assert_parsers_agree, paper_r1, paper_r2};

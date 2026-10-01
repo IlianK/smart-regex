@@ -1,9 +1,9 @@
-//! regex-engine/tests/test_thesis_figures.rs
+//! src/tests/test_thesis_figures.rs
 //!
 //! Pins the measured numbers that appear in figures and tables of `doc/`.
 //!
-//! These are not testing the algorithms, which the other test files cover.
-//! They exist so that a change in `deriv_bc`, `simp`, `pderiv_bc` or the
+//! Not testing the algorithms -- the other test files cover that. These
+//! exist so that a change in `deriv_bc`, `simp`, `pderiv_bc`, or the
 //! frontend shows up as a failing test naming the affected figure, rather
 //! than as a thesis figure that has quietly stopped describing the code.
 //!
@@ -12,11 +12,6 @@
 //!   cargo run --release --example demo_simp_branches
 //!   cargo run --release --example demo_growth_pderiv
 //!   cargo run --release --example demo_frontend_translation_sizes
-//!
-//! Every value below was produced by one of those four examples
-//! (demo_growth -> demo_growth_deriv, demo_branches -> demo_simp_branches,
-//! demo_frontier -> demo_growth_pderiv, demo_lowered ->
-//! demo_frontend_translation_sizes, as of the examples/ rename).
 
 use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
 use regex_engine::parsers::deriv_bc::{
@@ -27,13 +22,12 @@ use regex_engine::regex::deriv::deriv;
 use regex_engine::types::{ARegex, Regex};
 
 // -------------------------------
-// Helpers, duplicated from examples/thesis_figures.rs so that the test file
-// stands alone (cargo does not link examples into integration tests).
+// Helpers, duplicated from examples/thesis_figures.rs: cargo does not link
+// examples into integration tests, so the test file stands alone.
 // -------------------------------
 
-/// Run `body` on a thread with a stack large enough for the deepest
-/// expressions the growth figures reach, and propagate a panic (a failed
-/// assertion) to the test thread so the failure is reported normally.
+/// Run `body` on a thread with a large stack, propagating a panic (a failed
+/// assertion) back to the test thread.
 fn with_deep_stack<F>(body: F)
 where
     F: FnOnce() + Send + 'static,
@@ -67,7 +61,7 @@ fn astar() -> Regex {
     Regex::star(Regex::lit('a'))
 }
 
-/// `(a + (b + ab))*`, right-associated, as the test suite builds `paper_r2`.
+/// `(a + (b + ab))*`, right-associated (`paper_r2`).
 fn paper_r2() -> Regex {
     let ab = Regex::seq(Regex::lit('a'), Regex::lit('b'));
     Regex::star(Regex::alt(Regex::lit('a'), Regex::alt(Regex::lit('b'), ab)))
@@ -157,14 +151,11 @@ fn fig_5_3_astar_unsimplified_grows_by_five() {
     );
 }
 
-/// Section 5.5 prose: every two characters take the size s to 2s+1, so the
-/// growth is Theta(2^(n/2)), reaching 2303 at 16 characters and 36863 at 24.
-///
-/// At step 24 the simplified expression has 36863 nodes, and `deriv_bc`,
-/// `simp` and `size_aregex` all walk it recursively. That is deeper than the
-/// stack libtest gives a test thread, so the measurement runs on a thread of
-/// its own with an explicit stack. The example binary needs no such help: it
-/// runs on the main thread, which is large enough.
+/// Section 5.5: each two characters take the size s to 2s+1, so the growth
+/// is Theta(2^(n/2)) and reaches 36863 at 24 characters. `deriv_bc`, `simp`,
+/// and `size_aregex` all walk that expression recursively, which is deeper
+/// than libtest's default test-thread stack; the measurement therefore runs
+/// on an explicit large-stack thread.
 #[test]
 fn section_5_5_growth_is_exponential() {
     with_deep_stack(|| {
@@ -183,8 +174,8 @@ fn section_5_5_growth_is_exponential() {
     });
 }
 
-/// Section 5.5 prose: a single `simp` pass already is the fixpoint, so the
-/// growth is not an artefact of stopping too early.
+/// Section 5.5: a single `simp` pass is already the fixpoint, so the growth
+/// is not an artefact of stopping too early.
 #[test]
 fn section_5_5_simp_is_already_a_fixpoint() {
     let mut ri = internalize(&paper_r2());
@@ -259,8 +250,10 @@ fn section_5_5_branches_are_identical_modulo_bits() {
     );
 }
 
-/// Section 5.5 prose: the figures are the same for the other grouping of the
-/// three-way alternation, which is what the CLI spelling "(a|b|ab)*" parses to.
+/// Section 5.5: the sizes are the same for the other grouping of the
+/// three-way alternation, which is what the CLI spelling `(a|b|ab)*` parses
+/// to. `paper_r2` is right-associated; this asserts both produce identical
+/// series.
 #[test]
 fn section_5_5_growth_independent_of_alternation_grouping() {
     let left = parse_pattern("(a|b|ab)*").expect("should parse");

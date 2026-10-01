@@ -1,3 +1,5 @@
+//! src/parsers/deriv_std/parse.rs
+//! 
 //! Plain-Regex POSIX parsers (deriv_std): recursive and loop variants; traced counterparts in traced.rs.
 
 use crate::types::{Regex, ParseTree};

@@ -1,3 +1,5 @@
+//! src/matchers/match_pderiv.rs
+//! 
 //! Antimirov partial derivative matcher (boolean)
 
 use std::collections::HashSet;

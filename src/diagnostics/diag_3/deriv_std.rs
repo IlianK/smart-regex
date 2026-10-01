@@ -1,3 +1,5 @@
+//! src/diagnostics/diag_3/deriv_std.rs
+//! 
 //! Level 3 rendering for standard derivative-based parser 
 
 use std::time::Instant;

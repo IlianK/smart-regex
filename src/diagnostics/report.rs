@@ -1,4 +1,4 @@
-//! regex-engine/src/diagnostics/report.rs
+//! dsrc/diagnostics/report.rs
 //! 
 //! ReportWriter: buffers diagnostic output and writes to a file (diag_3)
 

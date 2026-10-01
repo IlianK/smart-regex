@@ -1,4 +1,7 @@
-//! Plain-Regex partial-derivative parser (pderiv_std); traced variant in traced.rs reuses step_frontier/select.
+//! src/parsers/pderiv_std/mod.rs
+//! 
+//! Plain-Regex partial-derivative parser (pderiv_std); 
+//! traced variant in traced.rs reuses step_frontier/select.
 
 use std::rc::Rc;
 use crate::types::{ParseTree, Regex};

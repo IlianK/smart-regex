@@ -1,3 +1,5 @@
+//! src/parsers/pderiv_bc/parse.rs
+//! 
 //! Bit-coded partial-derivative parser (pDerivBC / parsePDerivBC), GREEDY; traced variant in traced.rs.
 
 use crate::types::{Regex, ParseTree};

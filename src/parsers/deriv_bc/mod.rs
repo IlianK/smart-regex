@@ -1,4 +1,6 @@
-//! Bit-coded Brzozowski derivative parser, ARegex (POSIX).
+//! src/parsers/deriv_bc/mod.rs
+//! 
+//! Bit-Coded Derivative-Based Parser
 
 pub mod nullable;
 pub mod deriv;

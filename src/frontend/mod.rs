@@ -1,8 +1,6 @@
 //! src/frontend/mod.rs
 //!
-//! External surface-syntax pattern frontend. Entry points differ in how
-//! much is applied on top of the shared parse-and-translate core; see
-//! `FRONTEND.md` for the comparison.
+//! External surface-syntax pattern frontend.
 
 pub mod alphabet;
 pub mod ext_pattern;
@@ -86,16 +84,16 @@ pub fn parse_pattern(s: &str) -> Result<Regex, String> {
 }
 
 /// Parse a pattern for substring search: `Σ*` padding on any side not
-/// guarded by `^`/`$`.
+/// guarded by `^`/`$`. No `/PATTERN/FLAGS` wrapper stripping and no
+/// flags -- that is `parse_pcre_rule`'s job; this is `parse_pattern`
+/// plus padding, nothing else, so a bare CLI pattern that happens to
+/// look like `/foo/i` is never silently reinterpreted as PCRE syntax.
+/// Consequence: `.` includes `\n` here, same as in `parse_pattern`,
+/// since `strip_dot_newline` (the `s`-flag-absent default) only runs in
+/// `parse_pcre_rule` -- there is no flag here to be absent.
 pub fn parse_dataset_pattern(s: &str) -> Result<Regex, String> {
-    let (body, flags) = strip_pcre_delimiters(s);
-    if let Some(reason) = flags.unsupported() {
-        return Err(format!("unsupported PCRE flag: {reason}"));
-    }
-    let ep = parse_ext_pattern(body)?;
-    let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
-    let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
-    translate_as_search(&ep, flags.anchored, flags.dollar_endonly)
+    let ep = parse_ext_pattern(s)?;
+    translate_as_search(&ep, /* force_left_anchor = */ false, /* dollar_endonly = */ false)
 }
 
 /// Parse a `/PATTERN/FLAGS` PCRE rule for substring search: case-folds on

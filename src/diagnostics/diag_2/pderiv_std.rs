@@ -1,3 +1,5 @@
+//! src/diagnostics/diag_2/pderiv_std.rs
+//! 
 //! Level 2 rendering for pderiv_std; mirrors pderiv_bc's but the trace has no bits, residuals only.
 
 use std::time::Instant;

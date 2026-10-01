@@ -1,4 +1,7 @@
-//! Bit-coded POSIX parser (deriv_bc): recursive and loop variants; traced counterpart in traced.rs.
+//! src/parsers/deriv_bc/parse.rs
+//! 
+//! Bit-coded POSIX parser (deriv_bc): 
+//! recursive and loop variants; traced counterpart in traced.rs.
 
 use crate::types::{Regex, ParseTree, ARegex};
 use crate::parsers::deriv_bc::nullable::nullable_bc;
