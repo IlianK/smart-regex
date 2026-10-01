@@ -1,18 +1,13 @@
-//! Runs the dataset preparation pipeline (`data/`) end to end for one
-//! source: extract patterns from the given raw file(s), generate
-//! best/neutral/worst candidates for each, verify every one against the
-//! real parser, and write the survivors to
-//! `data/processed/<source>/prepared.jsonl`.
+//! examples/dataset_prepare.rs
 //!
-//! Usage:
-//!   cargo run --release --example prepare_dataset -- suricata data/raw/emerging-web_client.rules [more files...]
-//!   cargo run --release --example prepare_dataset -- spamassassin data/raw/20_drugs.cf --corpus-dir path/to/ham_spam
-//!   cargo run --release --example prepare_dataset -- regexlib data/raw/regexlib-manual-processed.sample.txt [--variants 5]
+//! cargo run --release --example prepare_dataset -- <source> <file...> [--corpus-dir DIR] [--variants N]
 //!
-//! `--variants N` (default 5) is how many independently verified inputs
-//! each pattern contributes per category, not a total across categories:
-//! up to N `Best`, N `Neutral`, and 2N `Worst` (N heavily-iterated
-//! positives, N late-failing negatives) survive verification per pattern.
+//! Extract patterns from the given raw file(s), 
+//! generate best/neutral/worst candidates for each, verify every one, 
+//! and write the survivors to `data/processed/<source>/prepared.jsonl`.
+//!
+//! `--variants N` (default 5) is inputs per category per pattern, not a
+//! total: up to N Best, N Neutral, and 2N Worst (N positive, N negative).
 
 use std::path::{Path, PathBuf};
 

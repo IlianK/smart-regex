@@ -1,9 +1,10 @@
-//! Figure 7.4 (doc/chapters/07_frontend.tex, label fig:lowered-size): node
-//! count of the lowered Regex, per pattern. Also reports wildcard_run()'s
-//! size and case-folding's per-letter cost, both quoted in Chapter 7.
+//! examples/demo_frontend_translation_sizes.rs
 //!
-//! Run: cargo run --release --example demo_lowered
+//! cargo run --release --example demo_frontend_translation_sizes
 //!
+//! Sizes of the Regex produced by frontend translation: 
+//! node count per pattern (full and search-padded forms), 
+//! wildcard_run()'s own size, and case-folding's per-letter cost. 
 //! Deterministic; pinned by tests/test_thesis_figures.rs.
 
 #[path = "common/thesis_figures.rs"]
@@ -13,7 +14,7 @@ use common::*;
 use regex_engine::frontend::parse_pcre_rule;
 
 fn main() {
-    println!("Figure 7.4: node count of the lowered Regex, per pattern.\n");
+    println!("Node count of the translated Regex, per pattern.\n");
 
     println!("{:<18} {:<10} {:>6}", "pattern", "entry", "nodes");
     for &(pat, search) in LOWERED_PATTERNS {
@@ -24,7 +25,7 @@ fn main() {
         }
     }
 
-    println!("\n-- other lowered sizes quoted in Chapter 7 --");
+    println!("\n-- other translated sizes --");
     for (label, pat, search) in [
         ("a+", "a+", false),
         ("a?", "a?", false),
@@ -50,7 +51,7 @@ fn main() {
         core
     );
 
-    // Section 7.5: case folding adds two nodes per folded letter.
+    // Case folding adds two nodes per folded letter.
     let plain = size_regex(&parse_pcre_rule("/abc/").unwrap());
     let folded = size_regex(&parse_pcre_rule("/abc/i").unwrap());
     println!(

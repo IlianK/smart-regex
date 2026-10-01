@@ -1,8 +1,10 @@
-//! Figure 6.3 (doc/chapters/06_partial_derivative_parser.tex, label
-//! fig:frontier-growth): frontier size against distinct residual count.
+//! examples/demo_growth_pderiv.rs
 //!
-//! Run: cargo run --release --example demo_frontier
+//! cargo run --release --example demo_growth_pderiv
 //!
+//! Antimirov partial derivative: 
+//! frontier size against distinct residual count, 
+//! per input character, for (a+(b+ab))* on (ab)^n. 
 //! Deterministic; pinned by tests/test_thesis_figures.rs.
 
 #[path = "common/thesis_figures.rs"]
@@ -10,7 +12,7 @@ mod common;
 use common::*;
 
 fn main() {
-    println!("Figure 6.3: frontier size vs. distinct residual count.\n");
+    println!("Frontier size vs. distinct residual count.\n");
 
     let rows = series_frontier(&expr_paper_r2(), &"ab".repeat(7));
     println!("{:>5} {:>10} {:>10}", "char", "strands", "distinct");

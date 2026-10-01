@@ -1,8 +1,10 @@
-//! Figure 5.3 (doc/chapters/05_derivative_parser.tex, label fig:simp-growth):
-//! expression size per derivative step, simplified vs. unsimplified.
+//! examples/demo_growth_deriv.rs
 //!
-//! Run: cargo run --release --example demo_growth
+//! cargo run --release --example demo_growth_deriv
 //!
+//! Brzozowski derivative: expression size per derivative step, 
+//! simplified vs. unsimplified, for (a+(b+ab))* and a*. 
+//! Also checks the two hardcoded prose claims and the "doubles every two characters" observation.
 //! Deterministic; pinned by tests/test_thesis_figures.rs.
 
 #[path = "common/thesis_figures.rs"]
@@ -10,7 +12,7 @@ mod common;
 use common::*;
 
 fn main() {
-    println!("Figure 5.3: expression size per derivative step.\n");
+    println!("Expression size per derivative step.\n");
 
     let astar = expr_astar();
     let r2 = expr_paper_r2();
@@ -38,7 +40,7 @@ fn main() {
     println!("\\addplot coordinates {{{}}};", coords(&enumerate_series(&s4)));
 
     let long = series_bitcoded_simplified(&r2, &"ab".repeat(12));
-    println!("\n-- prose claims in Section 5.5 --");
+    println!("\n-- prose claims --");
     println!("simp size at step 16 = {}  (text says 2303)", long[16]);
     println!("simp size at step 24 = {}  (text says 36863)", long[24]);
     for k in (4..=24).step_by(2) {

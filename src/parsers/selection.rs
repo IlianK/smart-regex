@@ -20,14 +20,24 @@ impl ParserType {
         }
     }
 
-    pub fn single_from_env() -> ParserType {
-        match std::env::var("REGEX_PARSER").as_deref() {
-            Ok("deriv_std_loop")        => ParserType::DerivStdLoop,
-            Ok("deriv_bc")              => ParserType::DerivBc,
-            Ok("pderiv_std")            => ParserType::PDerivStd,
-            Ok("pderiv_bc")             => ParserType::PDerivBc,
-            _                           => ParserType::DerivStdRec,
+    /// Parses one of `name()`'s own strings back into a `ParserType`.
+    /// `None` for anything else, including `"all"`: that selects a
+    /// comparison mode, not a single parser, and is each caller's own
+    /// concern (see `examples/demo_parse.rs`, `src/cli/mod.rs`), not
+    /// something this type can represent.
+    pub fn parse(s: &str) -> Option<ParserType> {
+        match s {
+            "deriv_std_rec"  => Some(ParserType::DerivStdRec),
+            "deriv_std_loop" => Some(ParserType::DerivStdLoop),
+            "deriv_bc"       => Some(ParserType::DerivBc),
+            "pderiv_std"     => Some(ParserType::PDerivStd),
+            "pderiv_bc"      => Some(ParserType::PDerivBc),
+            _ => None,
         }
+    }
+
+    pub fn single_from_env() -> ParserType {
+        std::env::var("REGEX_PARSER").ok().and_then(|s| ParserType::parse(&s)).unwrap_or(ParserType::DerivStdRec)
     }
 
     /// Mapping selected parser to (untraced) parsing function

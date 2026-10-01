@@ -1,52 +1,13 @@
-//! Cross-parser agreement over the prepared dataset (`data/processed/`,
-//! `src/data/prepare.rs`'s output), not hand-picked cases: for every
-//! (pattern, input) entry, runs all five parsers and checks two different
-//! things separately, because they carry different weight.
+//! examples/demo_parser_agreement.rs
 //!
-//! - Within one disambiguation policy, the parsers must produce the exact
-//!   same tree: `deriv_std_rec`/`deriv_std_loop`/`deriv_bc` (POSIX) among
-//!   themselves, and `pderiv_std`/`pderiv_bc` (Greedy) among themselves.
-//!   There is exactly one correct tree per policy, so disagreement here is
-//!   a bug, printed per offending entry, not just tallied.
-//! - Across the two policies, only membership has to agree; tree shape is
-//!   allowed, and on a genuinely ambiguous pattern expected, to differ
-//!   (Chapter 6). That is tallied as data, not flagged as a bug: how often
-//!   this corpus contains real disambiguation-relevant ambiguity is exactly
-//!   what the tally measures.
-//! - Membership itself (does *any* parser accept the input) is also
-//!   checked against `PreparedCase::verified_match`, i.e. against what
-//!   `prepare::verify_candidate` already established via `deriv_bc`-based
-//!   bounded stepping when the dataset was built. All five parsers
-//!   disagreeing with that stored fact is the same kind of bug as an
-//!   internal tree mismatch.
+//! cargo run --release --example demo_parser_agreement
 //!
-//! Run: `cargo run --release --example parser_agreement`
-//!
-//! Selection: the same `BENCH_CATEGORY`/`BENCH_SOURCE`/`BENCH_PATTERN_LIMIT`
-//! environment variables the criterion benches read (see
-//! `docs/BENCHMARKS.md`), so a run can be narrowed the same way, e.g.
-//! `BENCH_CATEGORY=worst BENCH_SOURCE=regexlib cargo run --release --example
-//! parser_agreement`. Unlike the benches, `BENCH_PATTERN_LIMIT` is unset
-//! (every prepared entry) by default here: structural tree comparison is
-//! cheap, nothing here needs criterion's repeated-timing budget, and "every
-//! sample" is the point of this tool.
-//!
-//! Per-parser timeout: `deriv_std_rec`/`deriv_std_loop` run the *unsimplified*
-//! derivative (Section 5.5's own point -- growth is unbounded without
-//! `simp`), and every corpus pattern is search-padded with `wildcard_run()`
-//! before this tool ever sees it (Chapter 7), so an already-large padded
-//! structure can make even a Best-case (short-input) entry computationally
-//! infeasible for these two parsers specifically, not because the tool is
-//! broken but because that is exactly the cost the thesis's bit-coded and
-//! partial-derivative parsers exist to avoid. Each parser call therefore
-//! runs on its own thread with a wall-clock budget
-//! (`AGREEMENT_TIMEOUT_MS`, default 2000); a call that does not return in
-//! time is recorded as a timeout, tallied separately from bugs, and its
-//! thread is abandoned rather than joined (Rust has no way to force a
-//! thread to stop, and correctness of the rest of the run does not depend
-//! on that thread ever finishing) -- expect elevated memory/CPU on a run
-//! with many timeouts, since abandoned threads keep computing until the
-//! whole process exits.
+//! Cross-parser agreement over the prepared dataset 
+//! (`data/processed/`, from `dataset_prepare`). 
+//! For every (pattern, input) entry, all five parsers run and three separate checks apply: 
+//! - POSIX among themselves, 
+//! - Greedy among themselves 
+//! - Membership agreement on all
 
 use std::sync::mpsc;
 use std::time::Duration;
@@ -62,18 +23,14 @@ use regex_engine::types::Regex;
 
 const DATA_ROOT: &str = "data/processed";
 const DEFAULT_TIMEOUT_MS: u64 = 2000;
-/// How many offending entries to print in full per bug kind, before
-/// collapsing the rest into a count -- a run over a large corpus with a
-/// real bug would otherwise flood the terminal with what is, after the
-/// first few, the same finding repeated.
+/// Cap on printed instances per bug kind; beyond this, tally only -- a
+/// corpus-wide bug would otherwise flood the terminal with the same finding.
 const MAX_PRINTED_PER_BUG_KIND: usize = 20;
 
 const SOURCES: [SourceKind; 3] = [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib];
 const CATEGORIES: [Category; 3] = [Category::Best, Category::Neutral, Category::Worst];
 
-/// `Category` derives `PartialEq`/`Eq` but not `Hash` (nothing else in the
-/// crate needed it as a map key), so grouping by `(SourceKind, Category)`
-/// here uses a small index instead of a `HashMap` keyed on the pair directly.
+/// `Category` derives Eq but not Hash, so grouping uses a positional index.
 fn source_idx(s: SourceKind) -> usize {
     SOURCES.iter().position(|&x| x == s).expect("exhaustive")
 }
@@ -123,9 +80,8 @@ fn selection() -> Selection {
 }
 
 /// Runs `f` on its own thread with a wall-clock budget. `None` means the
-/// call did not finish in time; the thread is left to run to completion (or
-/// forever) in the background, since Rust has no way to cancel it and the
-/// rest of this tool's correctness does not depend on it ever finishing.
+/// call did not return in time; that thread runs to completion (or forever)
+/// in the background, since Rust cannot cancel it.
 fn with_timeout<F, T>(timeout: Duration, f: F) -> Option<T>
 where
     F: FnOnce() -> T + Send + 'static,
@@ -138,7 +94,7 @@ where
     rx.recv_timeout(timeout).ok()
 }
 
-/// One parser's outcome for one entry: a normal result, or a timeout.
+/// One parser's outcome for one entry.
 enum Outcome {
     Done(Option<ParseTree>),
     TimedOut,
@@ -158,15 +114,14 @@ fn run_parser(
     }
 }
 
-/// Loads `sel`'s selected cases, capped by distinct patterns per category
-/// exactly like `bench_dataset.rs`'s `load_corpus` if `pattern_limit` is
-/// set; unset (the default here) loads every case with no cap at all.
+/// Loads `sel`'s cases; `pattern_limit` caps distinct patterns per category,
+/// matching `bench_dataset.rs`'s `load_corpus`. Unset loads everything.
 fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources, sel.category)
         .unwrap_or_else(|e| {
             panic!(
                 "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-                 prepare_dataset -- <suricata|spamassassin|regexlib> <file>...` first; see \
+                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
                  docs/DATASETS.md",
                 DATA_ROOT
             )
@@ -192,14 +147,13 @@ fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
 #[derive(Default)]
 struct Tally {
     entries: usize,
-    /// Entries skipped because at least one parser did not return within
-    /// `AGREEMENT_TIMEOUT_MS` -- not a bug, see the module doc comment.
+    /// At least one parser timed out -- not a bug.
     timeouts: usize,
     membership_bugs: usize,
     posix_shape_bugs: usize,
     greedy_shape_bugs: usize,
-    /// Entries where both families were internally consistent and both
-    /// matched, so a cross-family shape comparison was actually made.
+    /// Entries where both families were internally consistent and matched,
+    /// so the POSIX-vs-Greedy shape comparison was meaningful.
     cross_compared: usize,
     cross_same_shape: usize,
     cross_different_shape: usize,
@@ -207,8 +161,7 @@ struct Tally {
 
 const PARSER_NAMES: [&str; 5] = ["rec", "loop", "bc", "pstd", "pbc"];
 
-/// `Some(names)` of whichever parsers timed out, in call order; `None` if
-/// every one of the five returned in time.
+/// Names of whichever parsers timed out, in call order; `None` if none did.
 fn timed_out_names(outcomes: &[Outcome; 5]) -> Option<Vec<&'static str>> {
     let names: Vec<&'static str> = outcomes
         .iter()
@@ -299,8 +252,7 @@ fn main() {
         }
 
         if !case.verified_match {
-            // A verified non-match: every parser returned None above,
-            // nothing more to compare (there is no tree to compare shapes of).
+            // Verified non-match: every parser returned None; no trees to compare.
             continue;
         }
 

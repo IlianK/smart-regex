@@ -1,3 +1,5 @@
+//! examples/common/thesis_figures.rs
+
 //! Shared measurement helpers for the `demo_*` example binaries. Not an
 //! example itself (nested under `examples/common/`, so cargo's example
 //! autodiscovery doesn't pick it up); included via
@@ -25,8 +27,8 @@ pub fn size_regex(r: &Regex) -> usize {
     }
 }
 
-/// Node count of an annotated `ARegex`. Bit-lists are not counted: this
-/// measures the expression the derivative has to walk, not the bits it carries.
+/// Node count of an annotated `ARegex`; bit-lists are not counted, so this
+/// measures the expression the derivative walks, not the bits it carries.
 pub fn size_aregex(ri: &ARegex) -> usize {
     match ri {
         ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => 1,
@@ -55,7 +57,7 @@ pub fn expr_paper_r2() -> Regex {
 }
 
 // -------------------------------
-// Figure 5.3: expression size per derivative step
+// Derivative growth: expression size per step
 // -------------------------------
 
 /// Sizes of `simp(deriv_bc(...))` after each character, starting at step 0.
@@ -81,7 +83,7 @@ pub fn series_plain_unsimplified(r: &Regex, input: &str) -> Vec<usize> {
 }
 
 // -------------------------------
-// Section 5.5 table: why simp's dedup never fires
+// Branch counts: why simp's dedup never fires
 // -------------------------------
 
 /// Top-level alternation branches of `ri`, flattened through unannotated
@@ -134,7 +136,7 @@ pub fn series_branch_counts(r: &Regex, input: &str) -> Vec<(usize, usize, usize)
 }
 
 // -------------------------------
-// Figure 6.3: frontier size against distinct residual count
+// Frontier growth: strands vs. distinct residuals
 // -------------------------------
 
 /// Per character: (strands in the frontier, distinct residuals among them).
@@ -167,10 +169,11 @@ pub fn series_frontier(r: &Regex, input: &str) -> Vec<(usize, usize)> {
 }
 
 // -------------------------------
-// Figure 7.4: lowered node counts
+// Frontend translation sizes
 // -------------------------------
 
-/// The patterns plotted in Figure 7.4, with the entry point each goes through.
+/// The patterns plotted in the translation-sizes figure, with the entry
+/// point each goes through.
 pub const LOWERED_PATTERNS: &[(&str, bool)] = &[
     // (pattern, is_substring_search)
     ("a*", false),

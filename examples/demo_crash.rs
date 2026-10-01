@@ -1,11 +1,18 @@
-//! regex-engine/examples/demo_crash.rs
-//! 
-//! To find stack overflow limits for recursive and loop parsers
+//! examples/demo_crash.rs
 //!
-//! Build and run:
+//! cargo run --example demo_crash
+//! cargo run --example demo_crash --release
+//!
+//! Binary-searches the longest `a*` input each parser survives before a stack overflow: 
+//! recursive (`parse_deriv_std_rec`) vs. loop (`parse_deriv_std_loop`). 
+//! Each probe runs in a `demo_crash_worker`subprocess, 
+//! so a crash is observed as a non-zero exit rather than taking the driver down. 
+//! 
+//! Build the worker first:
 //!   cargo build --example demo_crash_worker
-//!   cargo run --example demo_crash
-//!   cargo run --example demo_crash --release
+//!   cargo build --example demo_crash_worker --release
+//! 
+//! Debug and release use different search ranges (debug's smaller stack crashes far sooner).
 
 use std::io::Write;
 use std::process::Command;
@@ -14,14 +21,15 @@ use std::time::Instant;
 
 const WORKER_NAME: &str = "demo_crash_worker";
 
-// Path to worker executable
+/// Path of the worker binary next to this executable.
 fn get_worker_path() -> std::path::PathBuf {
     let exe = env::current_exe().unwrap();
     let exe_dir = exe.parent().unwrap();
     exe_dir.join(WORKER_NAME)
 }
 
-// Run only one test with one worker, to allow isolated crash detection
+/// One probe: run the worker with `value` and `use_loop`; success means it
+/// exited cleanly (no stack overflow).
 fn test_single(value: usize, use_loop: bool) -> bool {
     let worker_path = get_worker_path();
     
@@ -39,7 +47,8 @@ fn test_single(value: usize, use_loop: bool) -> bool {
     status.success()
 }
 
-// Binary search to find crash threshold
+/// Binary search between `min` and `max` for the highest value the worker
+/// survives.
 fn find_threshold(
     name: &str,
     use_loop: bool,
@@ -55,7 +64,6 @@ fn find_threshold(
     let mut iterations = 0;
     const MAX_ITERATIONS: usize = 30;
     
-    // Binary search loop
     while low <= high && iterations < MAX_ITERATIONS {
         let mid = low + (high - low) / 2;
         iterations += 1;
@@ -67,7 +75,6 @@ fn find_threshold(
         let success = test_single(mid, use_loop);
         let duration = start.elapsed().as_millis();
         
-        // Adjust search range based on result
         if success {
             println!("✓ OK ({:.2}ms)", duration);
             last_successful = mid;
@@ -83,7 +90,6 @@ fn find_threshold(
 }
 
 
-// Run all tests and summarize results
 fn main() {
     let mode = if cfg!(debug_assertions) { "DEBUG" } else { "RELEASE" };
     
@@ -96,11 +102,9 @@ fn main() {
     let (rec_limit, loop_limit);
     
     if mode == "DEBUG" {
-        // Debug mode ranges 
         rec_limit = find_threshold("Recursive a*", false, 2000, 10000);
         loop_limit = find_threshold("Loop a*", true, 2000, 15000);
     } else {
-        // Release mode - higher ranges
         rec_limit = find_threshold("Recursive a*", false, 10000, 100000);
         loop_limit = find_threshold("Loop a*", true, 10000, 200000);
     }

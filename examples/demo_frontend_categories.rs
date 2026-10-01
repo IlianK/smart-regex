@@ -1,51 +1,20 @@
-//! regex-engine/examples/demo_frontend_coverage.rs
+//! examples/demo_frontend_categories.rs
 //!
-//! For each category of frontend behaviour established and verified in
-//! this project (flags, character-class/escape handling, outright
-//! rejections, and the two documented faithfulness gaps -- see
-//! `frontend::FaithfulnessGap`), finds a REAL pattern from the dataset
-//! files given on the command line that exercises it, and demonstrates
-//! the frontend's actual behaviour on that exact pattern: what it
-//! translates to, and what it matches or rejects.
+//! cargo run --release --example demo_frontend_categories -- <file...> [--seed N] [--diag 0|1|2|3]
 //!
-//! Every example pattern shown was genuinely extracted from the files
-//! passed on the command line by this project's own extractors
-//! (`data::extract`), not written by hand for this demo. If no pattern
-//! in the given files exercises a category, that category is reported
-//! as "no example found in this dataset" and skipped rather than filled
-//! in with a synthetic pattern -- a category that never shows up here is
-//! a fact about the given corpus, not something to paper over.
+//! For each verified category of frontend behaviour 
+//! (flags, class/escape handling, outright rejections, the two faithfulness gaps), 
+//! finds a REAL pattern in the given corpus files that exercises it, then shows the actual behaviour: 
+//! - translated Regex and a few traces, 
+//! - the exact rejection
+//! - the error or gap
+//! 
+//! A category with no real example in the given files is reported as "no example found" and skipped
 //!
-//! Source files are classified by extension: `.rules` -> Suricata,
-//! `.cf` -> SpamAssassin, anything else -> RegexLib. Pass as many files
-//! from as many sources as you like in one run.
-//!
-//! For an "accepted" category, the demo runs the same candidate
-//! generators `data::run_pipeline` itself uses (`generate_best`,
-//! `generate_neutral`, `generate_worst_structural`) against the
-//! pattern's real `core_regex`, and traces each one against the real
-//! search-padded regex via `frontend::parse_pcre_rule`, the same as
-//! `examples/demo_anchored_samples.rs`. A few categories (case
-//! insensitivity, the default lenient `$`, the strict `/E` `$`) also get
-//! one extra, category-specific check that isolates exactly the
-//! mechanism in question, beyond what a generic candidate shows.
-//!
-//! For a "rejected" category, the demo shows `parse_pcre_rule`'s exact
-//! error string for that real pattern.
-//!
-//! For a "gap" category (accepted but not faithful -- `R`, or a nested
-//! anchor), the demo shows that `parse_pcre_rule` succeeds while
-//! `frontend::faithfulness_gaps` is non-empty, and what concretely is
-//! lost.
-//!
-//! Run:
-//!   cargo run --release --example demo_frontend_coverage -- \
-//!     data/raw/emerging-exploit.rules data/raw/emerging-web_client.rules \
-//!     data/raw/20_body_tests.cf data/raw/20_drugs.cf data/raw/20_head_tests.cf \
-//!     data/raw/regexlib-manual-processed.sample.txt
-//!
-//! `--seed N` makes candidate generation deterministic; omit it for a
-//! fresh set each run. `--diag 0|1|2|3` sets trace verbosity (default 1).
+//! Files are classified by extension: 
+//! `.rules` -> Suricata, `.cf` -> SpamAssassin, anything else -> RegexLib. 
+//! `--seed N` makes candidate generation deterministic; 
+//! `--diag 0|1|2|3` sets trace verbosity (default 1).
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -101,10 +70,8 @@ fn contains_dot(ep: &ExtPat) -> bool {
     }
 }
 
-/// Textual scan for a backslash-octal-digit escape inside a `[...]`
-/// class. Does not try to handle every edge case (`\]`/`\[` inside a
-/// class) exactly -- it only has to pick one real example out of the
-/// corpus, not re-parse PCRE.
+/// Textual scan for a backslash-octal escape inside a `[...]` class; not a
+/// full PCRE parse, just enough to pick one real example from the corpus.
 fn has_octal_in_class(body: &str) -> bool {
     let chars: Vec<char> = body.chars().collect();
     let mut in_class = false;
@@ -190,13 +157,9 @@ fn is_dollar_endonly_flag(p: &str) -> bool {
     matches!(detect_anchors(p), Ok((_, true)))
 }
 
-/// A real `[:name:]` POSIX class, e.g. the `[:punct:]` inside
-/// `[^[:punct:]\s]`. Rejected outright, not approximated: see
-/// `parse::posix_class_name`'s doc comment. Checking the rejection
-/// reason (rather than a naive "contains '[:'" substring test) matters
-/// here: a pattern like `[:*:]` also contains the text "[:" but is an
-/// ordinary class of three literal characters, not a POSIX class, and
-/// is accepted as such.
+/// Real `[:name:]` POSIX class, rejected outright. Checking the rejection
+/// reason (not a `[:` substring test) matters: `[:*:]` contains that text
+/// but is an ordinary class of three literals, and is accepted.
 fn is_posix_class_rejected(p: &str) -> bool {
     rejected_because(p, "POSIX class")
 }
@@ -283,9 +246,9 @@ fn noise(rng: &mut StdRng, len: usize) -> String {
 }
 
 /// Same purpose as `demo_anchored_samples::wrap_for_anchor_shape`: a
-/// candidate drawn straight from `core_regex` starts and ends exactly
-/// where the core does, so a partially-anchored pattern's padding is
-/// never actually exercised unless noise is added on the padded side.
+/// candidate drawn straight from the core starts and ends exactly where
+/// the core does, so a partially-anchored pattern's padding is never
+/// actually exercised unless noise is added on the padded side.
 fn wrap_for_anchor_shape(text: &str, start_anchored: bool, end_anchored: bool, rng: &mut StdRng) -> String {
     match (start_anchored, end_anchored) {
         (true, true) => text.to_string(),
@@ -299,8 +262,8 @@ fn wrap_for_anchor_shape(text: &str, start_anchored: bool, end_anchored: bool, r
 // Demo kinds
 // -------------------------------
 
-/// Runs the generic accepted-pattern demo: core/padded sizes, then up to
-/// 3 generated candidates traced against the real padded regex.
+/// Generic accepted pattern: core/padded sizes, then up to 3 generated
+/// candidates traced against the real padded regex.
 fn demo_accepted(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     let core = core_regex(pattern).expect("category detector already required acceptance");
     let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
@@ -336,12 +299,9 @@ fn demo_accepted(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     }
 }
 
-/// One extra, targeted check beyond the generic candidate run: takes the
-/// shortest matching input straight from `core_regex` and flips the
-/// ASCII case of every letter in it, then shows that it still matches
-/// the padded regex -- directly isolating what the `i` flag's
-/// `case_fold` step buys, rather than relying on a generic candidate
-/// happening to differ in case.
+/// Targeted extra check: flips the ASCII case of every letter in the
+/// shortest match and shows it still matches -- isolates what `case_fold`
+/// buys, rather than hoping a generic candidate differs in case.
 fn extra_case_insensitive(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     let core = core_regex(pattern).expect("category detector already required acceptance");
     let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
@@ -356,10 +316,8 @@ fn extra_case_insensitive(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     run_parser(pattern, &padded, &flipped, &config);
 }
 
-/// One extra, targeted check: appends a trailing '\n' to a shortest
-/// matching input and shows it still matches, isolating the default
-/// (`PCRE_DOLLAR_ENDONLY`-absent) leniency `translate_as_search` builds
-/// in for a `$`-anchored end -- see `frontend::translate_as_search`.
+/// Targeted extra check: appends a trailing '\n' and shows it still matches,
+/// isolating the default `$` leniency `translate_as_search` builds in.
 fn extra_dollar_lenient(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     let core = core_regex(pattern).expect("category detector already required acceptance");
     let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
@@ -374,8 +332,8 @@ fn extra_dollar_lenient(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     run_parser(pattern, &padded, &with_newline, &config);
 }
 
-/// Symmetric counterpart for a real `/E`-flagged pattern: the same
-/// trailing '\n' must now be rejected, since 'E' makes '$' strict.
+/// Symmetric counterpart for a real `/E` pattern: the same trailing '\n'
+/// must now be rejected, since 'E' makes '$' strict.
 fn extra_dollar_strict(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     let core = core_regex(pattern).expect("category detector already required acceptance");
     let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
@@ -395,6 +353,8 @@ fn demo_rejected(pattern: &str) {
     println!("frontend::parse_pcre_rule(..) = Err({err:?})");
 }
 
+/// Accepted but not faithful: prints each gap and what it costs, then runs
+/// the generic accepted demo on the same pattern.
 fn demo_gap(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     let gaps = faithfulness_gaps(pattern);
     println!("frontend::parse_pcre_rule(..) = Ok(..) -- accepted, but:");
@@ -564,7 +524,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!(
-            "usage: cargo run --release --example demo_frontend_coverage -- \
+            "usage: cargo run --release --example demo_frontend_categories -- \
              <file> [file...] [--seed N] [--diag 0|1|2|3]"
         );
         std::process::exit(2);

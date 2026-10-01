@@ -1,57 +1,18 @@
-//! regex-engine/examples/filter_dataset.rs
+//! examples/dataset_stats.rs
 //!
-//! Reads the standard rule corpora (Suricata, SpamAssassin, RegexLib) and
-//! reports a coverage comparison: how many patterns each source yields,
-//! how many the frontend accepts, how the rejections and PCRE flags break
-//! down, and -- separately from "accepted" -- how many of the accepted
-//! patterns are "faithful" (the produced `Regex` exactly denotes what the
-//! source pattern means) versus "approx" (accepted, but a known
-//! simplification was applied: a relative-match flag, or an anchor nested
-//! inside a non-fully-anchored alternation). A bare `.` without the
-//! dotall flag used to be a third case -- this engine let `.` match `\n`
-//! regardless of the flag -- but `parse_pcre_rule` now excludes `\n` from
-//! `.` whenever `s` is absent (`frontend::strip_dot_newline`), so it no
-//! longer needs tracking here: it is a real engine fix, not a documented
-//! approximation.
+//! cargo run --release --example filter_dataset 
+//!          [--source S] [--verbose] [--no-flags] 
+//!          [--no-anchors] [--no-caveats] [file...]
 //!
-//! A buffer-selector flag (`U`, `H`, `P`, `C`, ...) does not make a
-//! pattern "approx": it names which buffer the rule is tested against,
-//! not what the pattern denotes, so the translated `Regex` is still
-//! faithful. What it does affect is whether the generated inputs are
-//! *suitable* for the target buffer, which is a question about input
-//! relevance rather than translation fidelity. That distinction is
-//! stated once, in the note printed under the accepted-patterns flag
-//! table; the caveats table lists only the two caveats that actually
-//! move a pattern from faithful to approx.
+//! Per-source corpus report: extraction counts, acceptance, rejection
+//! causes, faithful/approx split, PCRE flag and anchor usage. 
+//! Defaults to all three sources under `data/raw/`; explicit files need one `--source`.
 //!
-//! "Accepted" only means `parse_pcre_rule` did not hard-reject the
-//! pattern; `faithful + approx == accepted`, always.
-//!
-//! The faithful/approx split here is read from `frontend::faithfulness_gaps`,
-//! the same function `data::run_pipeline` calls to decide what to leave
-//! out of the real dataset (`data/processed/<source>/prepared.jsonl`
-//! contains only faithful patterns, as of the review that drew this
-//! line: everything else is now either rejected outright or excluded as
-//! a known approximation, never silently included). So this report's
-//! "Faithful" row is not just a statistic about the corpus, it is
-//! exactly the set of patterns the real benchmark is built from.
-//!
-//! Default: reads all three sources from their standard locations under
-//! `data/raw/`. `--source S` restricts to one. Explicit file paths on the
-//! command line override the standard locations for whichever sources
-//! they name.
-//!
-//! Usage:
-//!   cargo run --release --example filter_dataset
-//!   cargo run --release --example filter_dataset -- --source snort
-//!   cargo run --release --example filter_dataset -- snort data/raw/snort/*.rules
-//!
-//! Flags:
-//!   --source S    restrict to one source (suricata, spamassassin, regexlib)
-//!   --verbose     list each rejected pattern with its cause
-//!   --no-anchors  skip the anchor-usage table
-//!   --no-flags    skip the PCRE flag-distribution tables and their note
-//!   --no-caveats  skip the remaining-caveats table
+//! "Faithful" (from `frontend::faithfulness_gaps`) is exactly what
+//! `data::run_pipeline` feeds the benchmark; a buffer-selector flag
+//! (U/H/P/C/...) does not make a pattern approx. 
+//! `faithful + approx == accepted`classifies the *raw* corpus
+//! `dataset_prepare` keeps only the faithful subset, so `prepared.jsonl` contains no approx cases.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -66,8 +27,7 @@ use regex_engine::frontend::{
 // Standard corpus locations
 // ---------------------------------------------------------------------
 
-/// Where each source's raw files live by default. Matching is by
-/// directory: every file in the directory (top level only) is read.
+/// Default raw directory per source; every top-level file in it is read.
 fn default_dir(source: SourceKind) -> &'static str {
     match source {
         SourceKind::Suricata => "data/raw/snort",
@@ -143,7 +103,7 @@ impl Cause {
         }
     }
 
-    /// Every variant, so tables can iterate in a fixed order.
+    /// Fixed order for the rejection table.
     const ALL: [Cause; 6] = [
         Cause::Backreference,
         Cause::Lookaround,
@@ -189,30 +149,18 @@ impl AnchorShape {
     }
 }
 
-/// A property an *accepted* pattern can carry. `Relative` and
-/// `NestedAnchor` move a pattern from `faithful` to `approx`;
-/// `BufferFlag` does not, and is deliberately excluded from the caveats
-/// table (see `Caveat::TABLED` and `buffer_flag_note`). The variant stays
-/// so `caveats_of` can still record its count in `SourceStats::caveats`.
+/// A property an accepted pattern may carry. Relative and NestedAnchor move
+/// a pattern to approx; BufferFlag does not (see `Caveat::TABLED`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Caveat {
-    /// `R`: match position is relative to the rule's previous
-    /// `content:` match. The frontend sees only the pattern string, not
-    /// the surrounding rule, so it cannot see that constraint; the
-    /// pattern is treated as an ordinary search pattern instead.
+    /// `R`: position is relative to the rule's previous `content:` match;
+    /// the frontend cannot see that from the pattern string alone.
     Relative,
-    /// A Suricata buffer-selector flag (`U`, `H`, `P`, `C`, ...): which
-    /// normalized buffer the pattern targets. Does *not* affect
-    /// faithfulness -- it names where the pattern is tested, not what it
-    /// denotes -- but it does mean the generated inputs are not
-    /// guaranteed to be shaped like the buffer the rule expects.
+    /// Suricata buffer-selector flag (U/H/P/C/...): names the buffer the
+    /// rule targets, not what the pattern denotes.
     BufferFlag,
-    /// `^` or `$` appears somewhere inside the pattern but not on every
-    /// branch of the alternation it sits in, so `detect_anchors` does
-    /// not treat the whole pattern as anchored on that side. `translate`
-    /// still lowers that nested anchor to `Eps` unconditionally, so once
-    /// the pattern is search-padded it can fire at any position the
-    /// padding stops at, not just the true buffer boundary.
+    /// `^`/`$` not present on every alternation branch; lowered to Eps,
+    /// so search padding can fire it at any stopping position.
     NestedAnchor,
 }
 
@@ -225,20 +173,11 @@ impl Caveat {
         }
     }
 
-    /// Variants the caveats table iterates. `BufferFlag` is deliberately
-    /// absent: a buffer selector does not move a pattern from faithful to
-    /// approx, and its count is printed by `buffer_flag_note` under the
-    /// flag tables instead. `Relative` and `NestedAnchor` are the two
-    /// that do move a pattern from faithful to approx. A bare `.` without
-    /// the dotall (`s`) flag used to be a third: `parse_pcre_rule` now
-    /// excludes `\n` from `.` whenever `s` is absent
-    /// (`frontend::strip_dot_newline`), so that case is gone -- it is a
-    /// real engine fix, not just a tracked approximation anymore.
+    /// Only the two that move a pattern from faithful to approx.
     const TABLED: [Caveat; 2] = [Caveat::Relative, Caveat::NestedAnchor];
 }
 
-/// What happens to one extracted pattern when `parse_pcre_rule` is asked
-/// to translate it for search.
+/// What `parse_pcre_rule` does with one extracted pattern.
 #[derive(Debug)]
 enum Classification {
     Accepted { anchor_shape: AnchorShape },
@@ -249,8 +188,7 @@ fn classify(pattern: &str) -> Classification {
     match parse_pcre_rule(pattern) {
         Ok(_) => {
             let (body, _flags) = strip_pcre_delimiters(pattern);
-            // `detect_anchors` cannot fail here: `parse_pcre_rule` has
-            // already run the same flag check and body parse.
+            // Cannot fail: parse_pcre_rule ran the same check.
             let (start, end) = detect_anchors(body).unwrap_or((false, false));
             Classification::Accepted {
                 anchor_shape: AnchorShape::from_anchors(start, end),
@@ -260,14 +198,7 @@ fn classify(pattern: &str) -> Classification {
     }
 }
 
-/// The caveats an accepted `pattern` still carries (see `Caveat`).
-/// Returns an empty `Vec` for a pattern that is faithful. `Relative` and
-/// `NestedAnchor` are read from `frontend::faithfulness_gaps` -- the same
-/// function `data::run_pipeline` calls to decide what to exclude from the
-/// real dataset, so this report can never drift from what the pipeline
-/// actually does. `BufferFlag` is not a faithfulness gap at all (see its
-/// doc comment) and has no library equivalent; it stays a local,
-/// informational-only check.
+/// Caveats an accepted pattern carries; empty means faithful.
 fn caveats_of(pattern: &str) -> Vec<Caveat> {
     let mut out: Vec<Caveat> = faithfulness_gaps(pattern)
         .into_iter()
@@ -277,15 +208,9 @@ fn caveats_of(pattern: &str) -> Vec<Caveat> {
         })
         .collect();
 
-    // Any flag letter not in "imsxRAE" is assumed to be one of Suricata's
-    // documented buffer-selector/no-op flags (U, H, P, Q, I, D, M, C, S,
-    // Y, V, B, O, ...; confirmed against Suricata's own pcre-keyword
-    // docs, doc/userguide/rules/payload-keywords.rst). That assumption
-    // covers every letter this frontend has actually seen in these three
-    // corpora (checked against the flag tables below). It would be wrong
-    // for a corpus using a PCRE flag outside {i, m, s, x} that Suricata
-    // does not document, since such a letter would be silently ignored
-    // here rather than flagged.
+    // Any letter outside "imsxRAE" is assumed to be a Suricata
+    // buffer-selector/no-op flag; wrong for a corpus using an
+    // undocumented PCRE flag, which would be silently ignored here.
     let raw = raw_flags(pattern);
     if raw
         .chars()
@@ -307,23 +232,17 @@ struct SourceStats {
     files_read: usize,
     extracted: usize,
     accepted: usize,
-    /// Accepted, and the produced `Regex` exactly denotes what the
-    /// source pattern means: no `R` (position hint dropped) and no
-    /// nested-anchor ambiguity. A buffer-selector flag (`U`/`H`/`P`/...)
-    /// does NOT disqualify a pattern from faithful: it says which
-    /// buffer the pattern should be tested against, not what the
-    /// pattern itself denotes as a regular language.
+    /// Accepted with no R and no nested anchor; a buffer-selector flag
+    /// does not disqualify a pattern from faithful.
     faithful: usize,
-    /// Accepted, but not faithful: `R` or a nested anchor was found, so
-    /// the produced `Regex` is a known approximation of what the
-    /// pattern means. `faithful + approx == accepted`, always.
+    /// Accepted, but only an approximation. `faithful + approx == accepted`.
     approx: usize,
     rejected_by: BTreeMap<Cause, usize>,
     anchors: BTreeMap<AnchorShape, usize>,
     caveats: BTreeMap<Caveat, usize>,
     flag_usage: BTreeMap<char, usize>,
     flag_accepted: BTreeMap<char, usize>,
-    /// Every rejected (pattern, cause), only populated when --verbose.
+    /// Populated only when --verbose.
     rejections: Vec<(String, Cause)>,
 }
 
@@ -345,9 +264,8 @@ impl SourceStats {
     fn add_pattern(&mut self, pattern: &str, verbose: bool) {
         self.extracted += 1;
 
-        // Flag usage is recorded for *all* extracted patterns, whether or
-        // not the translation succeeds -- the point is to see what the
-        // corpus contains, not what survives.
+        // Flag usage is recorded for every extracted pattern, accepted or
+        // not -- the point is what the corpus contains, not what survives.
         for flag in flags_of(pattern) {
             *self.flag_usage.entry(flag).or_default() += 1;
         }
@@ -365,8 +283,7 @@ impl SourceStats {
                     *self.caveats.entry(*c).or_default() += 1;
                 }
                 // R or a nested anchor make the produced Regex an
-                // approximation of the source pattern; a buffer-selector
-                // flag alone does not (see the `faithful` field doc).
+                // approximation; a buffer-selector flag alone does not.
                 if caveats.contains(&Caveat::Relative) || caveats.contains(&Caveat::NestedAnchor) {
                     self.approx += 1;
                 } else {
@@ -410,8 +327,8 @@ impl SourceStats {
     }
 }
 
-/// The flag letters attached to a `/PATTERN/FLAGS` wrapper, in whatever
-/// order they appear. Returns an empty iterator for a bare pattern.
+/// Flag letters attached to a `/PATTERN/FLAGS` wrapper; empty for a bare
+/// pattern.
 fn flags_of(pattern: &str) -> Vec<char> {
     raw_flags(pattern)
         .chars()
@@ -419,8 +336,7 @@ fn flags_of(pattern: &str) -> Vec<char> {
         .collect()
 }
 
-/// The raw `FLAGS` part of a `/PATTERN/FLAGS` wrapper, or `""` if
-/// `pattern` isn't wrapped that way.
+/// The raw FLAGS part of `/PATTERN/FLAGS`, or `""` if not wrapped that way.
 fn raw_flags(pattern: &str) -> &str {
     let s = pattern.trim();
     if !s.starts_with('/') {
@@ -463,13 +379,9 @@ fn read_source(source: SourceKind, paths: &[PathBuf], verbose: bool) -> SourceSt
                 continue;
             }
         };
-        // A real corpus is not guaranteed to be clean UTF-8 (SpamAssassin's
-        // locale-specific rule files, e.g. 30_text_de.cf, carry legacy
-        // Latin-1 diacritics). Decoding lossily instead of skipping the
-        // whole file keeps every other rule in it: a pattern whose own
-        // bytes were invalid may come out corrupted, but that is a
-        // per-pattern problem `classify` can reject on its own merits,
-        // not a reason to silently drop the rest of the file.
+        // Some corpora are not clean UTF-8 (SpamAssassin's locale-specific
+        // files). Decode lossily rather than drop the whole file: a
+        // corrupted pattern is a per-pattern problem classify() can reject.
         let text = match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(e) => {
@@ -626,7 +538,6 @@ fn flag_table(
     }
     header(title);
 
-    // Union of all flag letters seen, sorted.
     let mut all_flags: Vec<char> = select(total).keys().copied().collect();
     all_flags.sort_unstable();
 
@@ -670,14 +581,9 @@ fn flag_effect(flag: char) -> &'static str {
     }
 }
 
-/// A short explanation of the buffer-selector flags, printed once under
-/// the accepted-patterns flag table. These flags name the buffer a rule
-/// targets (HTTP URI, HTTP header, POST body, and so on), not what the
-/// pattern denotes; ignoring them does not make the translated `Regex`
-/// unfaithful, but it does mean the generated inputs are not necessarily
-/// shaped like the buffer the rule expects. That is a difference in input
-/// relevance, not in translation fidelity, and this note is where the
-/// report says so.
+/// Buffer-selector flags name the buffer a rule targets, not what the
+/// pattern denotes, so they do not affect faithfulness -- but the
+/// generated inputs are not necessarily shaped like that buffer.
 fn buffer_flag_note(total: &SourceStats) {
     let n = total.caveats.get(&Caveat::BufferFlag).copied().unwrap_or(0);
     if n == 0 {
@@ -783,8 +689,8 @@ fn parse_args() -> Options {
             "--no-anchors" => show_anchors = false,
             "--no-caveats" => show_caveats = false,
             other if !other.starts_with("--") => {
-                // A bare positional: if it looks like a file, treat it as
-                // one; if it names a source, treat it as a source selector.
+                // Bare positional: a source name selects it, anything
+                // else is a file path (only honored for a single source).
                 if let Ok(s) = std::str::from_utf8(other.as_bytes()) {
                     if is_source_name(s) {
                         sources.push(parse_source(s));
@@ -842,9 +748,8 @@ fn parse_source(s: &str) -> SourceKind {
 fn main() {
     let opts = parse_args();
 
-    // Explicit files apply only when exactly one source is selected; with
-    // multiple sources there is no way to know which file belongs to
-    // which, so the files are ignored with a warning.
+    // Explicit files only apply with exactly one source selected: with
+    // several, there is no way to know which file belongs to which.
     let explicit_for_one = opts.sources.len() == 1 && !opts.explicit_files.is_empty();
     if !opts.explicit_files.is_empty() && !explicit_for_one {
         eprintln!(

@@ -1,46 +1,17 @@
-//! regex-engine/examples/demo_anchored_samples.rs
+//! examples/demo_samples_anchored.rs
 //!
-//! For patterns that carry a `^` and/or `$`, shows how the frontend's
-//! padding rule (`frontend::translate_as_search`) applies to that pattern's
-//! own anchor shape, running it through the project's own dataset pipeline
-//! (`src/data/`, the same code `examples/prepare_dataset.rs` drives):
+//! cargo run --release --example demo_samples_anchored -- <source> 
+//!          [--seed N] [--data-dir DIR] [--count N] 
+//!          [--diag 0|1|2|3] [file...]
 //!
-//!   1. the original raw regex
-//!   2. which anchors it has, via `frontend::detect_anchors`
-//!   3. the core `Regex`, via `data::prepare::core_regex`
-//!   4. up to 5 generated candidate inputs, via `data::generate`, each
-//!      labeled with its expected outcome (MATCH / NO MATCH) and a
-//!      plain-English reason -- `Category::Worst` covers both a genuine
-//!      match pushed to maximal repetition and a corrupted near-miss that
-//!      must fail late, so the raw category name alone does not say which
-//!      a given sample is
-//!   5. a diag trace for each input against the search-padded regex, via
-//!      `frontend::parse_pcre_rule` (default `--diag 1`: regex, input,
-//!      match, tree; raise it for the construction-step trace)
-//!
-//! `data::generate` samples straight from the core, with no padding at
-//! all, so a candidate starts and ends exactly where the core does. For a
-//! `^`-only or `$`-only sample that never exercises the padding: the
-//! padded and plain (unpadded) forms of the pattern would agree on every
-//! such candidate, and the demo would not show what the padding actually
-//! buys. Step 4 wraps each candidate with noise on the side(s) the
-//! padding covers (nothing for a fully-anchored `^...$` sample, which has
-//! no padding to exercise), and step 5 then runs it against both the
-//! padded regex and the plain one: they disagree exactly on the noise
-//! side, which is the demonstration.
-//!
-//! Only patterns that carry at least one anchor are drawn from: a
-//! pattern with neither is what `examples/demo_unanchored_samples.rs`
-//! covers. `--count` picks how many to show per run.
-//!
-//! Run:
-//!   cargo run --release --example demo_anchored_samples -- regexlib \
-//!     --data-dir data/raw/_Samples --seed 1 --count 3
-//!
-//! `--seed N` makes sample selection and input generation deterministic;
-//! omit it for a fresh set each run. `--data-dir DIR` overrides the sample
-//! directory (default `data/_Samples`). `--count N` is how many samples
-//! to show (default 3). `--diag 0|1|2|3` sets trace verbosity (default 1).
+//! For patterns carrying `^` and/or `$`: shows what padding buys on each anchor shape. 
+//! A generated candidate starts and ends exactly where the core does, 
+//! so for a `^`-only or `$`-only pattern it would match both the padded and the plain form,
+//! and the padding would appear to do nothing. 
+//! Extra text is therefore added on the side(s) that are actually padded 
+//! (nothing for `^...$`, which has no padding to test), 
+//! and the input is run through both forms: 
+//! the padded form still matches on that side, the plain form does not.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -75,10 +46,9 @@ fn noise(rng: &mut StdRng, len: usize) -> String {
     (0..len).map(|_| *chars.choose(rng).expect("alphabet() is non-empty")).collect()
 }
 
-/// A full-string translation of the same body the padded regex was built
-/// from, case-folded the same way, with no padding at all. Used so a
-/// noise-wrapped input can be checked against a version that has no
-/// padding to absorb the noise, isolating exactly what padding buys.
+/// Same body as the padded regex, case-folded the same way, no padding:
+/// so a noise-wrapped input can be checked against the plain form,
+/// isolating what padding buys.
 fn plain_translation(raw_pattern: &str) -> Regex {
     let (body, flags) = strip_pcre_delimiters(raw_pattern);
     let ep = parse_ext_pattern(body).expect("already accepted by parse_pcre_rule");
@@ -86,14 +56,8 @@ fn plain_translation(raw_pattern: &str) -> Regex {
     translate(&ep).expect("already accepted by parse_pcre_rule")
 }
 
-/// Wraps a generated candidate's text with noise on the side(s) that are
-/// actually padded, so the generated input exercises the padding instead
-/// of starting and ending exactly where the core does. Without this, a
-/// candidate drawn straight from `core_regex` (no padding at all) would
-/// match a `^`-only or `$`-only pattern's padded form and its plain
-/// (unpadded) form identically, never showing what the padding does.
-/// Returns `None` for a fully-anchored sample, since there is no padding
-/// to exercise.
+/// Add noise on the side(s) actually padded; `None` for `^...$` (no
+/// padding to exercise).
 fn wrap_for_anchor_shape(
     text: &str,
     start_anchored: bool,
@@ -114,8 +78,8 @@ struct Sample {
     end_anchored: bool,
 }
 
-/// Fixed sample-file names under `data_dir`, one set per source. Explicit
-/// file paths on the command line override this list (see `load_patterns`).
+/// Fixed sample files under `data_dir`, one set per source; explicit file
+/// paths override this list.
 fn dataset_files(source: SourceKind, dir: &str) -> Vec<PathBuf> {
     let names: &[&str] = match source {
         SourceKind::Suricata => &["emerging-exploit.rules", "emerging-web_client.rules"],
@@ -125,8 +89,8 @@ fn dataset_files(source: SourceKind, dir: &str) -> Vec<PathBuf> {
     names.iter().map(|n| Path::new(dir).join(n)).collect()
 }
 
-/// Read and extract every rule from each path. If `paths` is empty, fall
-/// back to the fixed sample file names under `data_dir` for this source.
+/// Extract every rule from `paths`; empty `paths` falls back to
+/// `dataset_files` for this source.
 fn load_patterns(source: SourceKind, data_dir: &str, paths: &[PathBuf]) -> Vec<String> {
     let files: Vec<PathBuf> = if paths.is_empty() {
         dataset_files(source, data_dir)
@@ -153,9 +117,7 @@ fn load_patterns(source: SourceKind, data_dir: &str, paths: &[PathBuf]) -> Vec<S
     patterns
 }
 
-/// The anchored subset of the patterns `parse_pcre_rule` accepts, using
-/// the same `strip_pcre_delimiters` + `detect_anchors` pair
-/// `examples/filter_dataset.rs` uses.
+/// Anchored subset of the patterns `parse_pcre_rule` accepts.
 fn anchored_patterns(patterns: &[String]) -> Vec<Sample> {
     let mut anchored = Vec::new();
     for p in patterns {
@@ -175,10 +137,9 @@ fn anchored_patterns(patterns: &[String]) -> Vec<Sample> {
     anchored
 }
 
-/// Up to 5 deduplicated candidate inputs from an already-prepared core
-/// `Regex`, using the same generators `data::run_pipeline` calls:
-/// 2 Best, 2 Neutral, then `generate_worst_structural(.., 6, 1)`, which
-/// yields at most one positive and one late-failing negative.
+/// Up to 5 deduplicated candidates: 2 Best, 2 Neutral, then
+/// `generate_worst_structural(.., 6, 1)` (one positive, one late-failing
+/// negative), same generators `data::run_pipeline` uses.
 fn generate_inputs(core: &Regex, rng: &mut StdRng) -> Vec<Candidate> {
     let mut inputs: Vec<Candidate> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -199,14 +160,9 @@ fn generate_inputs(core: &Regex, rng: &mut StdRng) -> Vec<Candidate> {
     inputs
 }
 
-/// Plain-English description of why this candidate was generated and what
-/// outcome to expect against the search-padded regex. `Category::Worst`
-/// covers two different things (see `data::generate::generate_worst_structural`
-/// and `data::prepare::verify_candidate`'s late-failure check): a genuinely
-/// matching input pushed to maximal repetition, and a corrupted near-miss
-/// that must fail *late* to count. This distinguishes the two explicitly
-/// instead of printing the raw `Category` name, which does not by itself
-/// say which of the two a given "Worst" sample is.
+/// Plain-English reason; `Category::Worst` covers both a maximal-repetition
+/// match and a late-failing near-miss, so the raw category name alone
+/// doesn't say which.
 fn describe(candidate: &Candidate) -> &'static str {
     match (candidate.category, candidate.provenance, candidate.claimed_match) {
         (Category::Best, ..) => "shortest matching input",
@@ -221,10 +177,9 @@ fn describe(candidate: &Candidate) -> &'static str {
     }
 }
 
-/// Picks a random sample from `pool` and runs it through all 5 steps. A
-/// pattern `parse_pcre_rule` accepts can still be rejected by
-/// `core_regex`; when that happens, retry with another sample from the
-/// same pool rather than aborting, noting the skip on stderr.
+/// Random sample from `pool` run through the five steps; a pattern
+/// `parse_pcre_rule` accepts but `core_regex` rejects is skipped with a
+/// note on stderr rather than aborting.
 fn show(index: usize, total: usize, pool: &[Sample], rng: &mut StdRng, parser: ParserType, diag: DiagLevel) {
     let mut order: Vec<usize> = (0..pool.len()).collect();
     order.shuffle(rng);
@@ -270,14 +225,8 @@ fn show(index: usize, total: usize, pool: &[Sample], rng: &mut StdRng, parser: P
         size_regex(&padded)
     );
 
-    // Each candidate is drawn straight from the core (data::generate never
-    // touches padding), so as generated it starts and ends exactly where
-    // the core does. For a `^`-only or `$`-only sample that never
-    // exercises the padding at all: the padded and plain (unpadded) forms
-    // would agree on every one of them, and the demo would not show what
-    // the padding actually does. Wrapping with noise on the padded
-    // side(s) makes the two forms disagree -- that disagreement is the
-    // demonstration.
+    // Noise on the padded side(s) only; without it, a candidate drawn
+    // from the core would match both forms identically and show nothing.
     let inputs: Vec<(String, &Candidate)> = candidates
         .iter()
         .map(|c| {
@@ -317,11 +266,8 @@ fn show(index: usize, total: usize, pool: &[Sample], rng: &mut StdRng, parser: P
             );
             run_parser(&sample.pattern, &padded, text, &config);
             println!();
-            // Always NO MATCH against the plain form, whether this
-            // candidate was positive or negative: for a positive one, the
-            // added noise breaks the exact full-string equality plain
-            // matching requires; for a negative one, the core already
-            // failed to match before any noise was added.
+            // Always NO MATCH: for a positive candidate the noise breaks
+            // plain full-string equality; a negative already failed.
             println!(
                 "-- same input, against the plain body with no padding at all -- \
                  expected NO MATCH: nothing absorbs the added noise --"
@@ -354,7 +300,7 @@ fn main() {
     };
 
     let mut seed: Option<u64> = None;
-    let mut data_dir = "data/_Samples".to_string();
+    let mut data_dir = "data/raw/_Samples".to_string();
     let mut count: usize = 3;
     let mut diag = DiagLevel::Basic;
     let mut explicit_files: Vec<PathBuf> = Vec::new();

@@ -1,16 +1,18 @@
-//! Section 5.5 table (doc/chapters/05_derivative_parser.tex): why simp's
-//! r + r = r rule never fires on (a+(b+ab))*.
+//! examples/demo_simp_branches.rs
 //!
-//! Run: cargo run --release --example demo_branches
+//! cargo run --release --example demo_simp_branches
 //!
-//! Deterministic; pinned by tests/test_thesis_figures.rs.
+//! Branch counts per derivative step for (a+(b+ab))*
+//! Shows why simp's r + r = r rule never fires on it: 
+//! branches carry bits that survive simplification even when their shape is the same. 
+//! Deterministic pinned by tests/test_thesis_figures.rs.
 
 #[path = "common/thesis_figures.rs"]
 mod common;
 use common::*;
 
 fn main() {
-    println!("Section 5.5: branch counts per derivative step.\n");
+    println!("Branch counts per derivative step.\n");
 
     let rows = series_branch_counts(&expr_paper_r2(), &"ab".repeat(6));
     println!("{:>5} {:>10} {:>10} {:>22}", "step", "branches", "distinct", "distinct ignoring bits");

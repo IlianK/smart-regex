@@ -1,37 +1,17 @@
-//! regex-engine/examples/demo_unanchored_samples.rs
+//! examples/demo_samples_unanchored.rs
 //!
-//! For real, unanchored patterns, shows concretely that "no anchor ->
-//! pad both sides with Sigma*" (`frontend::translate_as_search`) really
-//! is substring search, not just a name for it:
+//! cargo run --release --example demo_samples_unanchored -- <source> 
+//!          [--seed N] [--data-dir DIR] [--count N] 
+//!          [--diag 0|1|2|3] [file...]
 //!
-//!   1. generate a minimal matching input for the pattern's own core
-//!      (data::prepare::core_regex, data::generate::generate_best)
-//!   2. wrap it in arbitrary noise on both sides, drawn from the same
-//!      alphabet Sigma* itself is built from (frontend::alphabet)
-//!   3. run a diag trace on the wrapped, noisy input against the real
-//!      search-padded regex (frontend::parse_pcre_rule), labeled with the
-//!      expected outcome (MATCH) before the trace -- it matches, because
-//!      Sigma* absorbs the noise on each side
-//!   4. run the identical wrapped input against a PLAIN full-string
-//!      compile of the same core (frontend::parse_pattern, no padding
-//!      at all), labeled with the expected outcome (NO MATCH) -- it does
-//!      not match, because nothing absorbs the noise
-//!
-//! Steps 3 and 4 use the exact same input string and differ only in
-//! whether the pattern was padded; the difference in outcome is the
-//! padding's effect, isolated from everything else. Default `--diag 1`
-//! keeps each trace to regex/input/match/tree; raise it for the
-//! construction-step trace.
-//!
-//! Only patterns with neither `^` nor `$` are drawn from: a pattern with
-//! one or both anchors is what `examples/demo_anchored_samples.rs` covers.
-//! The two examples share the same argument surface (source, `--seed`,
-//! `--data-dir`, `--count`, `--diag`) so the same command line can be
-//! pointed at either pool.
-//!
-//! Run:
-//!   cargo run --release --example demo_unanchored_samples -- snort \
-//!     --data-dir data/raw/_Samples --seed 1 --count 3
+//! For unanchored patterns: 
+//! shows that padding both sides with Sigma* does mean "match anywhere, not just at the start". 
+//! A minimal match for the pattern is wrapped in arbitrary text on both sides, 
+//! then run through two versions of the regex.
+//! The search-padded version matches (Sigma* absorbs the extra text); 
+//! the plain version does not (it requires an exact full-string match). 
+//! The input is identical in both traces (only the regex differs) 
+//! so the difference in outcome is the padding's doing.
 
 use std::path::{Path, PathBuf};
 
@@ -60,6 +40,7 @@ fn size_regex(r: &Regex) -> usize {
     }
 }
 
+/// Fixed sample files under `data_dir`, one set per source.
 fn dataset_files(source: SourceKind, dir: &str) -> Vec<PathBuf> {
     let names: &[&str] = match source {
         SourceKind::Suricata => &["emerging-exploit.rules", "emerging-web_client.rules"],
@@ -69,6 +50,8 @@ fn dataset_files(source: SourceKind, dir: &str) -> Vec<PathBuf> {
     names.iter().map(|n| Path::new(dir).join(n)).collect()
 }
 
+/// Extract every rule from `paths`; empty `paths` falls back to
+/// `dataset_files`.
 fn load_patterns(source: SourceKind, data_dir: &str, paths: &[PathBuf]) -> Vec<String> {
     let files: Vec<PathBuf> = if paths.is_empty() {
         dataset_files(source, data_dir)
@@ -95,8 +78,7 @@ fn load_patterns(source: SourceKind, data_dir: &str, paths: &[PathBuf]) -> Vec<S
     patterns
 }
 
-/// Patterns `parse_pcre_rule` accepts and `detect_anchors` finds neither
-/// `^` nor `$` on.
+/// Patterns `parse_pcre_rule` accepts with no `^` and no `$`.
 fn unanchored_patterns(patterns: &[String]) -> Vec<String> {
     patterns
         .iter()
@@ -116,10 +98,9 @@ fn noise(rng: &mut StdRng, len: usize) -> String {
     (0..len).map(|_| *chars.choose(rng).expect("alphabet() is non-empty")).collect()
 }
 
-/// A full-string translation of the same body the padded regex was built
-/// from, case-folded the same way. Used so step 3 and step 4 differ only
-/// in padding: `parse_pattern` alone would drop the `i` flag and so not
-/// be a controlled comparison for an `/.../i` pattern.
+/// Same body as the padded regex, case-folded the same way, no padding:
+/// `parse_pattern` alone would drop the `i` flag, so this keeps the two
+/// traces a controlled comparison.
 fn plain_translation(raw_pattern: &str) -> Regex {
     let (body, flags) = strip_pcre_delimiters(raw_pattern);
     let ep = parse_ext_pattern(body).expect("already accepted by parse_pcre_rule");
@@ -127,6 +108,9 @@ fn plain_translation(raw_pattern: &str) -> Regex {
     translate(&ep).expect("already accepted by parse_pcre_rule")
 }
 
+/// Random sample: minimal core match wrapped in noise, traced against
+/// padded and plain forms. Skips patterns `core_regex` or `generate_best`
+/// can't handle, with a note on stderr.
 fn show(
     index: usize,
     total: usize,
