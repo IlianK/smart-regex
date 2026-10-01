@@ -1,3 +1,5 @@
+//! benches/bench_external.rs
+//! 
 //! Compares the four parsers, and this crate's tree-free matchers, against
 //! Rust's `regex` crate and Google's RE2
 //!

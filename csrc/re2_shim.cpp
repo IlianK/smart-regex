@@ -26,9 +26,8 @@ Re2Handle *re2_new(const char *pattern, size_t pattern_len, int posix, int case_
     if (posix) {
         opts.set_posix_syntax(true);
         opts.set_longest_match(true);
-        /* Keep the same escape dialect as non-POSIX mode, 
-         * so the two only differ in disambiguation policy, not what syntax they accept. 
-         */
+        /* Same escape dialect as non-POSIX, so the two modes differ only in
+         * disambiguation policy, not in what syntax they accept. */
         opts.set_perl_classes(true);
         opts.set_word_boundary(true);
     }

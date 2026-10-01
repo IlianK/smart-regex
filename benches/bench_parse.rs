@@ -1,4 +1,4 @@
-//! regex-engine/benches/bench_parse.rs
+//! benches/bench_parse.rs
 //!
 //! Benchmarks for the five parser combinations (3x posix + 2x greedy):
 

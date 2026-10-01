@@ -1,4 +1,4 @@
-//! regex-engine/benches/bench_match.rs
+//! benches/bench_match.rs
 //! 
 //! Benchmarks for basic matchers (naive, deriv, pderiv) 
 

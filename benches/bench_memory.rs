@@ -1,4 +1,6 @@
-//! Memory consumption
+//! benches/bench_match.rs
+//! 
+//! Investigates memory consumption of the four parsers against real corpus patterns
 
 //! Run: `cargo bench --bench bench_memory`
 

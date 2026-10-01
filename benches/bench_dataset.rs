@@ -1,3 +1,5 @@
+//! benches/bench_dataset.rs
+//! 
 //! Benchmarks the four parsers against real corpus patterns 
 //!
 //! Run: `cargo bench --bench bench_dataset`
