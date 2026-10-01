@@ -145,6 +145,13 @@ fn lookaround_variants_are_all_rejected() {
     }
 }
 
+#[test]
+fn word_boundary_variants_are_all_rejected() {
+    for p in [r"foo\bbar", r"foo\Bbar"] {
+        assert!(parse_dataset_pattern(p).is_err(), "expected {:?} to be rejected", p);
+    }
+}
+
 // -------------------------------
 // Differential: every pattern above, re-run through parse_pderiv_bc too,
 // confirming membership agreement with parse_recursive on every case

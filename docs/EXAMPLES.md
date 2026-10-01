@@ -81,16 +81,16 @@ cargo run --release --example demo_frontend_categories -- \
 ## Thesis figure demos
 
 ```bash
-# Section 5.5: why simp's r + r = r never fires on (a+(b+ab))*
+# Branch counts, and why simp's r + r = r never fires on (a+(b+ab))*
 cargo run --release --example demo_simp_branches
 
-# Figure 5.3: expression size per derivative step (simp vs. not)
+# Brzozowski derivative: expression size per step
 cargo run --release --example demo_growth_deriv
 
-# Figure 6.3: frontier size vs. distinct residual count
+# Antimirov partial derivative: frontier size per input char
 cargo run --release --example demo_growth_pderiv
 
-# Figure 7.4: lowered Regex node count, wildcard_run() size, case-fold cost
+# Sizes of the Regex produced by frontend translation, wildcard_run() size, case-fold cost
 cargo run --release --example demo_frontend_translation_sizes
 ```
 

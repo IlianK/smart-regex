@@ -1,3 +1,9 @@
+//! src/data/mod.rs
+//!
+//! Pipeline entry points: `run_pipeline` drives extract → generate →
+//! prepare for one source and writes `prepared.jsonl`; `load_prepared_cases`
+//! reads the result back for benchmarks.
+
 pub mod extract;
 pub mod generate;
 pub mod prepare;
@@ -10,39 +16,33 @@ use rand::SeedableRng;
 
 use types::{Category, PreparedCase, RuleContext, SourceKind};
 
-/// `patterns_unusable` is driven by `prepare::core_regex`, not
-/// `frontend::parse_pcre_rule`, so it will not exactly match
-/// `examples/filter_dataset.rs`'s "Rejected" count: `core_regex` has two
-/// extra safety caps `parse_pcre_rule` does not (`MAX_CORE_DEPTH`,
-/// `MAX_CORE_NODES`), so a handful of patterns `parse_pcre_rule` accepts
-/// -- typically ones with a very large repeat bound, like `{500}` or
-/// `{1000,}` -- still count as unusable here, before `patterns_not_faithful`
-/// is even checked. That is by design: generating samples for a
-/// 20,000-node regex is not worth doing even though the translation
-/// itself is fine.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PipelineReport {
     pub rules_extracted: usize,
+    /// Rejected by `prepare::core_regex`. Not the same set as
+    /// `frontend::parse_pcre_rule` rejects: `core_regex` adds two safety
+    /// caps (`MAX_CORE_DEPTH`, `MAX_CORE_NODES`) that reject a few
+    /// patterns translation alone accepts, typically ones with a very
+    /// large repeat bound like `{500}`. Generating samples for a
+    /// 20,000-node regex is not worth doing, even though translating it
+    /// is fine.
     pub patterns_unusable: usize,
+    /// Accepted by `core_regex` but not by `frontend::is_faithful`:
+    /// currently `R` or a nested anchor. Excluded from the benchmark.
     pub patterns_not_faithful: usize,
-    /// Patterns that passed both `core_regex` and `frontend::is_faithful`
-    /// and so actually had candidates generated for them: the count a
-    /// reader actually wants, rather than `rules_extracted -
-    /// patterns_unusable - patterns_not_faithful` computed by hand.
+    /// Passed both checks, and so had candidates generated. This is the
+    /// count of patterns actually in `prepared.jsonl`.
     pub patterns_faithful: usize,
     pub candidates_generated: usize,
     pub candidates_verified: usize,
 }
 
-/// Runs the full pipeline for one source: extract every rule from
-/// `raw_files`, generate candidates for each faithful rule, verify them,
-/// and write the survivors to `<data_root>/<source>/prepared.jsonl`. A
-/// rule whose translation is accepted but only an approximation of what
-/// the pattern means (`frontend::is_faithful` says so -- currently `R` or
-/// a nested anchor) is skipped, the same as a rule that fails to
-/// translate at all: this pipeline only ever benchmarks patterns whose
-/// produced `Regex` denotes exactly what the source pattern means. The
-/// output file is replaced, not appended to, at the start of each run.
+/// Runs extract → generate → prepare for one source, writing verified
+/// cases to `<data_root>/<source>/prepared.jsonl` (replaced, not
+/// appended). Only patterns for which `core_regex` succeeds and
+/// `frontend::is_faithful` is true are benchmarked: an accepted
+/// translation that is only an approximation of the source pattern's
+/// meaning is skipped, the same as one that fails to translate.
 pub fn run_pipeline(
     source: SourceKind,
     raw_files: &[PathBuf],
@@ -60,10 +60,12 @@ pub fn run_pipeline(
         let text = match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(e) => {
+                // Decode lossily rather than aborting: a corpus can carry
+                // legacy bytes (e.g. SpamAssassin's locale files), and a
+                // pattern touching the invalid bytes is a per-pattern
+                // problem `core_regex` can reject on its own merits.
                 eprintln!(
-                    "warning: {} is not valid UTF-8, decoding lossily rather than \
-                     aborting the run -- a pattern touching the invalid bytes may \
-                     come out corrupted, not just this file's progress lost: {}",
+                    "warning: {} is not valid UTF-8, decoding lossily: {}",
                     file.display(),
                     e
                 );
@@ -130,9 +132,8 @@ pub fn run_pipeline(
     Ok(report)
 }
 
-/// Loads every prepared case for the given sources (all three if none are
-/// given), optionally narrowed to one [`Category`], the shape a benchmark
-/// actually wants: one source or several, one category or every one.
+/// Loads every prepared case for the given sources (all three if empty),
+/// optionally narrowed to one `Category`.
 pub fn load_prepared_cases(
     data_root: &Path,
     sources: &[SourceKind],

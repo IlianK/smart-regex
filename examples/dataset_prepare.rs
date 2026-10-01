@@ -1,6 +1,6 @@
 //! examples/dataset_prepare.rs
 //!
-//! cargo run --release --example prepare_dataset -- <source> <file...> [--corpus-dir DIR] [--variants N]
+//! cargo run --release --example dataset_prepare -- <source> <file...> [--corpus-dir DIR] [--variants N]
 //!
 //! Extract patterns from the given raw file(s), 
 //! generate best/neutral/worst candidates for each, verify every one, 
@@ -18,7 +18,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
         eprintln!(
-            "usage: cargo run --example prepare_dataset -- <suricata|spamassassin|regexlib> <file> [file...] [--corpus-dir <dir>]"
+            "usage: cargo run --example dataset_prepare -- <suricata|spamassassin|regexlib> <file> [file...] [--corpus-dir <dir>]"
         );
         std::process::exit(2);
     }

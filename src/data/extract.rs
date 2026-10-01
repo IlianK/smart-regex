@@ -1,3 +1,5 @@
+//! src/data/extract.rs
+//!
 //! Per-source extraction: read a source's raw rule files and produce
 //! `ExtractedRule` values carrying both the bare pattern and whatever
 //! source-specific context (Suricata `content:` fields, SpamAssassin rule
@@ -5,8 +7,8 @@
 
 use crate::data::types::{ContentField, ExtractedRule, RuleContext, SaField, SourceKind};
 
-/// Finds the end of a `/PATTERN/FLAGS` span at the start of `s`, respecting
-/// escaped internal slashes (`\/`).
+/// End of the `/PATTERN/FLAGS` span at the start of `s`, 
+/// respecting escaped internal slashes (`\/`).
 fn find_pcre_span_end(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();
     if bytes.first() != Some(&b'/') {
@@ -30,11 +32,9 @@ fn find_pcre_span_end(s: &str) -> Option<usize> {
     Some(i)
 }
 
-/// Skips `n` leading whitespace-separated tokens in `s` and returns what
-/// is left, with any further leading whitespace trimmed. Used instead of
-/// `SplitWhitespace::as_str` (not available without a newer edition) to
-/// find where a `body NAME /pattern/flags` rule's pattern starts, after
-/// the `body` keyword and the rule name.
+/// Skip `n` leading whitespace-separated tokens in `s`, return the rest
+/// (further leading whitespace trimmed). 
+/// Stands in for `SplitWhitespace::as_str`, unavailable in this edition.
 fn skip_whitespace_tokens(s: &str, n: usize) -> &str {
     let mut rest = s;
     for _ in 0..n {
@@ -49,8 +49,8 @@ fn skip_whitespace_tokens(s: &str, n: usize) -> &str {
 // Suricata / Snort
 // -------------------------------
 
-/// Extracts every `pcre:"..."` rule from Suricata/Snort `.rules` text,
-/// paired with that rule's `content:` fields, `msg`, and `sid`.
+/// Every `pcre:"..."` rule in Suricata/Snort `.rules` text, paired with
+/// that rule's `content:` fields, `msg`, and `sid`.
 pub fn extract_suricata(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -78,7 +78,7 @@ pub fn extract_suricata(text: &str) -> Vec<ExtractedRule> {
     out
 }
 
-/// Reads a `key:"value";` or `key:value;` rule option's value.
+/// Value of a `key:"value";` or `key:value;` rule option.
 fn extract_option_value(line: &str, key: &str) -> Option<String> {
     let needle = format!("{key}:");
     let start = line.find(&needle)? + needle.len();
@@ -92,9 +92,9 @@ fn extract_option_value(line: &str, key: &str) -> Option<String> {
     }
 }
 
-/// Parses every `content:"..."` field on the line, with the modifiers
-/// (`nocase`, `distance`, `within`, `depth`, `offset`) that appear between
-/// it and the next `content:`/`pcre:`/end of the rule options.
+/// Every `content:"..."` field on the line, with the modifiers 
+/// (`nocase`, `distance`, `within`, `depth`, `offset`) 
+/// between it and the next `content:`/`pcre:`/end of options.
 fn extract_content_fields(line: &str) -> Vec<ContentField> {
     let mut fields = Vec::new();
     let mut search_from = 0usize;
@@ -105,9 +105,8 @@ fn extract_content_fields(line: &str) -> Vec<ContentField> {
         let raw = &line[content_start..content_end];
         let bytes = decode_content_bytes(raw);
 
-        // Modifiers run from just after the closing quote up to the next
-        // `content:` (or `pcre:`, or end of string), so this field's own
-        // slice never bleeds into the next one's.
+        // Modifiers span from just after the closing quote to the next `content:` 
+        // or `pcre:` (or end of line), so one field's slice never bleeds into the next field's.
         let mods_start = content_end + 1;
         let next_content = line[mods_start..]
             .find("content:")
@@ -134,7 +133,7 @@ fn extract_content_fields(line: &str) -> Vec<ContentField> {
     fields
 }
 
-/// Finds the first `"` in `s` not preceded by a backslash.
+/// First `"` in `s` not preceded by a backslash.
 fn find_unescaped_quote(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();
     let mut i = 0;
@@ -147,8 +146,8 @@ fn find_unescaped_quote(s: &str) -> Option<usize> {
     None
 }
 
-/// Decodes a Suricata `content:` payload: literal characters pass through
-/// as their bytes, and `|XX XX XX|` groups are hex byte pairs.
+/// Decode a Suricata `content:` payload: literal characters pass through
+/// as their bytes, `|XX XX|` groups are hex byte pairs.
 fn decode_content_bytes(raw: &str) -> Vec<u8> {
     let mut out = Vec::new();
     let mut chars = raw.chars().peekable();
@@ -198,14 +197,12 @@ fn read_modifier_str<'a>(modifiers: &'a str, key: &str) -> Option<&'a str> {
 // SpamAssassin
 // -------------------------------
 
-/// Extracts every `body`/`header` rule from a SpamAssassin `.cf` file.
+/// Every `body`/`header` rule from a SpamAssassin `.cf` file.
 ///
-/// The two kinds use different syntax: `body NAME /pattern/flags` has no
-/// operator at all, the pattern follows the rule name directly, while
-/// `header NAME Field =~ /pattern/flags` has the pattern follow `=~`.
-/// Requiring `=~` unconditionally (as an earlier version of this
-/// function did) silently drops every body rule, since real body rules
-/// never contain it.
+/// The two kinds differ in syntax: `header NAME Field =~ /pattern/flags`
+/// has the pattern after `=~`, while `body NAME /pattern/flags` has no
+/// operator at all. Requiring `=~` for both (as an earlier version did)
+/// silently drops every body rule.
 pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -246,8 +243,9 @@ pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
 // RegexLib
 // -------------------------------
 
-/// Extracts RegexLib's comment-delimited entries: a block of `#`-prefixed
-/// description lines followed by the bare pattern, separated by blank lines.
+/// RegexLib's comment-delimited entries: a block of `#`-prefixed
+/// description lines, then the bare pattern, entries separated by blank
+/// lines.
 pub fn extract_regexlib(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
     let mut description_lines: Vec<&str> = Vec::new();
@@ -319,9 +317,9 @@ mod tests {
 
     #[test]
     fn spamassassin_skips_commented_lines() {
-        // A real `body` rule has no `=~` operator: the pattern follows
-        // the rule name directly (unlike `header`, see
-        // `spamassassin_extracts_pattern_and_kind`).
+        // Real `body` rules have no `=~`: the pattern follows the rule
+        // name directly. See `spamassassin_extracts_pattern_and_kind`
+        // for the `header` form.
         let text = "#header FOO Subject =~ /a/\nbody BAR\t/b/";
         let rules = extract_spamassassin(text);
         assert_eq!(rules.len(), 1);
@@ -330,7 +328,7 @@ mod tests {
 
     #[test]
     fn spamassassin_extracts_body_rule_with_no_operator() {
-        // Real SpamAssassin syntax: `body NAME /pattern/flags`, no `=~`.
+        // Real `body` syntax: no `=~`.
         let text = "body WEIRD_QUOTING\t/[\\042\\223]{2}/";
         let rules = extract_spamassassin(text);
         assert_eq!(rules.len(), 1);
@@ -344,8 +342,8 @@ mod tests {
 
     #[test]
     fn spamassassin_skips_eval_body_rule() {
-        // `eval:...()` is a function call, not a pattern; no leading
-        // `/` for `find_pcre_span_end` to find.
+        // `eval:...()` is a function call, not a pattern: no leading
+        // `/` for `find_pcre_span_end`.
         let text = "body MPART_ALT_DIFF\teval:multipart_alternative_difference('99', '100')";
         assert_eq!(extract_spamassassin(text).len(), 0);
     }

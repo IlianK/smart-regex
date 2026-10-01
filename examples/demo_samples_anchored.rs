@@ -282,7 +282,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!(
-            "usage: cargo run --release --example demo_anchored_samples -- \
+            "usage: cargo run --release --example demo_samples_anchored -- \
              <suricata|spamassassin|regexlib> [--seed N] [--data-dir DIR] [--count N] \
              [--diag 0|1|2|3] [file...]"
         );

@@ -1,5 +1,7 @@
-//! Per-source input generation. Each source needs a different strategy,
-//! since each has a different kind of raw material to draw on:
+//! src/data/generate.rs
+//!
+//! Per-source input generation. Each source draws on different raw
+//! material:
 //!
 //! - Snort: the rule's own `content:` fields are real evidence of what a
 //!   triggering payload contains, so a candidate is assembled from them.
@@ -9,8 +11,8 @@
 //!   apply): there is no recoverable external source, so a candidate is
 //!   sampled by walking the pattern's own structure.
 //!
-//! Every `Candidate` carries a `claimed_match` that `prepare` verifies against the real
-//! parser before it becomes a `PreparedCase`
+//! Every `Candidate` carries a `claimed_match` that `prepare` verifies
+//! against the real parser before it becomes a `PreparedCase`.
 
 use std::path::Path;
 
@@ -21,22 +23,20 @@ use rand::Rng;
 use crate::data::types::{Candidate, Category, ContentField, Provenance};
 use crate::types::Regex;
 
-const OUT_OF_ALPHABET_CHAR: char = '\u{2603}'; 
+const OUT_OF_ALPHABET_CHAR: char = '\u{2603}';
 const DEFAULT_MAX_TOTAL_LEN: usize = 300;
 
-
 // SAMPLING
+
 pub fn sample_positive(r: &Regex, rng: &mut StdRng, max_star_iters: u32) -> Option<String> {
     let mut budget = DEFAULT_MAX_TOTAL_LEN;
     sample_positive_bounded(r, rng, max_star_iters, &mut budget)
 }
 
-/// The number of `Alt` leaves reachable under `r` without crossing into
-/// another `Alt`'s own children twice -- i.e. treating `r` as a flat list
-/// of alternatives if it is a (possibly unbalanced) chain of `Alt` nodes,
-/// and as a single alternative otherwise. Used to weight sampling so a
-/// left-folded `Alt` chain is chosen from uniformly; see the comment in
-/// `sample_positive_bounded`'s `Alt` case.
+/// Number of `Alt` leaves reachable under `r`, treating it as a flat list
+/// of alternatives when it is a chain of `Alt` nodes. Used to weight
+/// sampling so a left-folded chain is chosen from uniformly; see the
+/// comment in `sample_positive_bounded`'s `Alt` case.
 fn alt_leaf_count(r: &Regex) -> usize {
     match r {
         Regex::Alt(a, b) => alt_leaf_count(a) + alt_leaf_count(b),
@@ -64,16 +64,11 @@ fn sample_positive_bounded(
         }
         Regex::Alt(a, b) => {
             // `alt_of_chars` (frontend/translate.rs) builds a character
-            // class as a left-folded `Alt` chain: deeply left-nested, with
-            // each later character one level shallower on the right. A
-            // flat 50/50 choice here would pick the *last*-inserted
-            // character about half the time, the second-to-last about a
-            // quarter, and so on -- for a class of size N, roughly the
-            // first N-15 sorted characters (digits and early letters, in
-            // a typical [a-z0-9] class, since alt_of_chars sorts first)
-            // would never be sampled in practice. Weighting the choice by
-            // each branch's leaf count instead makes every leaf equally
-            // likely, regardless of how unbalanced the tree is.
+            // class as a deeply left-nested `Alt` chain: a flat 50/50
+            // choice would pick the last-inserted character about half
+            // the time, so for a class of size N most of its early-sorted
+            // members would never be sampled. Weighting by leaf count
+            // makes every leaf equally likely regardless of tree shape.
             let wa = alt_leaf_count(a) as f64;
             let wb = alt_leaf_count(b) as f64;
             if rng.gen_bool(wa / (wa + wb)) {
@@ -111,8 +106,8 @@ pub fn sample_negative_late(r: &Regex, rng: &mut StdRng, max_star_iters: u32) ->
     Some(s)
 }
 
-
 // BEST
+
 pub fn generate_best(r: &Regex, rng: &mut StdRng, count: usize) -> Vec<Candidate> {
     let count = count.max(1);
     let mut samples: Vec<String> = Vec::new();
@@ -136,8 +131,8 @@ pub fn generate_best(r: &Regex, rng: &mut StdRng, count: usize) -> Vec<Candidate
         .collect()
 }
 
-
 // NEUTRAL
+
 pub fn generate_neutral(r: &Regex, rng: &mut StdRng, count: usize) -> Vec<Candidate> {
     let count = count.max(1);
     let mut samples: Vec<String> = Vec::new();
@@ -164,6 +159,7 @@ pub fn generate_neutral(r: &Regex, rng: &mut StdRng, count: usize) -> Vec<Candid
 }
 
 // WORST
+
 pub fn generate_worst_structural(
     r: &Regex,
     rng: &mut StdRng,
@@ -213,8 +209,11 @@ pub fn generate_worst_structural(
         .collect()
 }
 
+// SOURCE-SPECIFIC
 
-// GENERATE INPUT
+/// Suricata: join the rule's own `content:` field bytes, inserting a short
+/// filler between consecutive fields. A rule with fewer than two fields has
+/// no filler to vary, so it converges on one candidate.
 pub fn generate_from_content_fields(
     fields: &[ContentField],
     pattern_core: &Regex,
@@ -255,9 +254,9 @@ pub fn generate_from_content_fields(
         .collect()
 }
 
-
-
-// SPAMASSASSIN FROM CORPUS
+/// SpamAssassin: sample real messages from a local corpus directory that
+/// actually match the pattern. Returns empty if the directory does not
+/// exist or the pattern does not parse.
 pub fn generate_from_corpus_dir(
     corpus_dir: &Path,
     raw_pattern: &str,
@@ -330,13 +329,10 @@ mod tests {
 
     #[test]
     fn sample_positive_from_a_large_class_reaches_every_member() {
-        // Regression test: `alt_of_chars` builds a 36-member class as a
-        // left-folded, deeply unbalanced `Alt` chain. A flat 50/50 choice
-        // at each `Alt` node used to make the last-sorted characters
-        // (here, letters near 'z') dominate almost completely, and the
-        // first ~20 sorted members (every digit, and letters up to
-        // around 'k') would in practice never be sampled at all -- 0 of
-        // 20,000 samples reached any of them before this was fixed.
+        // Regression: `alt_of_chars` builds a 36-member class as a
+        // left-folded `Alt` chain. A flat 50/50 choice used to make the
+        // last-sorted characters dominate almost completely, with the
+        // first ~20 members never sampled at all.
         let r = core("[a-z0-9]");
         let mut rng = StdRng::seed_from_u64(99);
         let mut seen: std::collections::BTreeSet<char> = std::collections::BTreeSet::new();

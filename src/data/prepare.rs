@@ -1,11 +1,13 @@
-//! Verification and categorization: the mandatory step every candidate from
-//! `generate` passes through before it is trusted. Nothing produced by
-//! `generate` is written out as a `PreparedCase` without first being
-//! checked against the real parser it claims an outcome for.
+//! src/data/prepare.rs
 //!
-//! For a `Category::Worst` negative specifically, verification also checks
-//! that the rejection is late: a candidate that fails on the first
-//! character is not a worst case, whatever its provenance claimed.
+//! Verification: the mandatory step every candidate from `generate`
+//! passes through before it is trusted. Nothing `generate` produces is
+//! written out as a `PreparedCase` without first being checked against
+//! the real parser it claims an outcome for.
+//!
+//! For a `Category::Worst` negative specifically, verification also
+//! checks that the rejection is late: a candidate that fails on the
+//! first character is not a worst case, whatever its provenance claimed.
 
 use crate::data::types::{Candidate, Category, PreparedCase, SourceKind};
 use crate::frontend::{
@@ -18,7 +20,7 @@ use crate::parsers::deriv_bc::nullable::{is_phi, nullable_bc};
 use crate::parsers::deriv_bc::simplify::simp;
 use crate::types::{ARegex, Regex};
 
-/// A running cap on the bit-coded annotated expression's own node count
+/// Cap on the bit-coded annotated expression's node count.
 const MAX_AREGEX_NODES: usize = 100_000;
 
 fn aregex_node_count(r: &ARegex) -> usize {
@@ -47,8 +49,8 @@ enum SteppedOutcome {
     TooExpensive,
 }
 
-/// Steps `r`'s bit-coded annotated form (`internalize`, then `deriv_bc` +
-/// `simp` per character) through `input`
+/// Steps `r`'s bit-coded annotated form through `input`:
+/// `internalize`, then `deriv_bc` + `simp` per character.
 fn step_bc_bounded(input: &str, r: &Regex) -> SteppedOutcome {
     let mut ri = internalize(r);
     if aregex_node_count(&ri) > MAX_AREGEX_NODES {
@@ -68,7 +70,8 @@ fn step_bc_bounded(input: &str, r: &Regex) -> SteppedOutcome {
     SteppedOutcome::Finished { nullable: nullable_bc(&ri) }
 }
 
-/// Whether `input` matches `r`, checked through `step_bc_bounded`
+/// Whether `input` matches `r`, via `step_bc_bounded`.
+/// `None` means the check exceeded its own node cap.
 pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
     match step_bc_bounded(input, r) {
         SteppedOutcome::DiedAt(_) => Some(false),
@@ -77,6 +80,8 @@ pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
     }
 }
 
+/// Number of characters consumed before the match becomes impossible, or
+/// the full length on a match. `None` when the check exceeds its node cap.
 pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
     match step_bc_bounded(input, r) {
         SteppedOutcome::DiedAt(consumed) => Some(consumed),
@@ -84,15 +89,19 @@ pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
         SteppedOutcome::TooExpensive => None,
     }
 }
+
+/// A `Worst` negative must fail at or past this fraction of the input;
+/// earlier failures are discarded.
 const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
 
 /// The bare core regex for a PCRE-rule body, with no search padding.
+///
 /// `parse_pcre_rule` performs the same steps (delimiter strip, flag
 /// check, parse, case-fold, dotall), then pads with `Σ*` on each
-/// un-anchored side. This function deliberately skips the padding,
-/// because it is used only to measure how far a failing input got into
-/// the core pattern -- against a padded regex, the leading `Σ*` would
-/// swallow the whole prefix and make that measurement meaningless.
+/// un-anchored side. This function skips the padding deliberately: it is
+/// used only to measure how far a failing input got into the core
+/// pattern, and against a padded regex the leading `Σ*` would swallow
+/// the whole prefix and make that measurement meaningless.
 pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
     let (body, flags) = strip_pcre_delimiters(raw_pattern);
     if let Some(reason) = flags.unsupported() {
@@ -127,7 +136,7 @@ fn estimated_translated_depth(ep: &ExtPat) -> usize {
     match ep {
         ExtPat::Empty | ExtPat::Eps | ExtPat::Never | ExtPat::Char(_) | ExtPat::Escape(_) => 1,
         ExtPat::Carat | ExtPat::Dollar => 1,
-        ExtPat::Dot => 98, // the full working alphabet, alt_of_chars(alphabet())'s Alt chain
+        ExtPat::Dot => 98, // full working alphabet, alt_of_chars(alphabet())'s Alt chain
         ExtPat::Any(cs) | ExtPat::NoneOf(cs) => cs.len().max(1),
         ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => estimated_translated_depth(inner),
         ExtPat::Opt(inner) => 1 + estimated_translated_depth(inner),
@@ -163,9 +172,18 @@ fn node_count(r: &Regex) -> usize {
     count
 }
 
+/// Reject a pattern before translating it if its estimated depth exceeds
+/// this. Catches a character class whose range expands into thousands of
+/// code points, where the translation itself is the risk.
 const MAX_CORE_DEPTH: usize = 2_000;
+
+/// Second, coarser cap: reject a translated pattern with more than this
+/// many nodes.
 const MAX_CORE_NODES: usize = 20_000;
 
+/// Verify one candidate: confirm its claimed outcome against the real
+/// parser, and for a `Worst` negative confirm the rejection is late.
+/// Returns the `PreparedCase` on success, `None` otherwise.
 pub fn verify_candidate(
     source: SourceKind,
     raw_pattern: &str,
@@ -202,7 +220,7 @@ pub fn verify_candidate(
     })
 }
 
-/// Verifies every candidate in `candidates`, keeping only the ones that
+/// Verify every candidate in `candidates`, keeping only the ones that
 /// hold up. Order is preserved among survivors.
 pub fn verify_all(
     source: SourceKind,
@@ -215,8 +233,8 @@ pub fn verify_all(
         .collect()
 }
 
-/// Appends `cases` to `path` as JSON lines, creating the file (and its
-/// parent directory) if it does not exist yet.
+/// Append `cases` to `path` as JSON lines, creating the file (and its
+/// parent directory) if needed.
 pub fn write_prepared_cases(
     path: &std::path::Path,
     cases: &[PreparedCase],
@@ -237,8 +255,8 @@ pub fn write_prepared_cases(
     Ok(())
 }
 
-/// Reads every prepared case out of a JSON-lines file written by
-/// `write_prepared_cases`. Blank lines are skipped;
+/// Read every prepared case from a JSON-lines file written by
+/// `write_prepared_cases`. Blank lines are skipped.
 pub fn read_prepared_cases(path: &std::path::Path) -> std::io::Result<Vec<PreparedCase>> {
     let text = std::fs::read_to_string(path)?;
     text.lines()
@@ -405,8 +423,8 @@ mod tests {
 
     #[test]
     fn core_regex_accepts_relative_flag() {
-        // `R` is a Snort positioning constraint; treated as an ordinary
-        // search pattern. See `frontend::PcreFlags`'s doc comment.
+        // `R` is a Snort positioning constraint, treated as an ordinary
+        // search pattern.
         assert!(core_regex("/abc/R").is_ok());
     }
 }

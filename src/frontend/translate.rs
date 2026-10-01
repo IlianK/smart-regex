@@ -1,4 +1,6 @@
-//! Lower an `ExtPat` into the core `Regex`.
+//! src/frontend/translate.rs
+//!
+//! Lower an `ExtPat` to the crate's core `Regex`.
 
 use super::alphabet;
 use super::ext_pattern::ExtPat;
@@ -63,7 +65,7 @@ fn translate_escape(c: char) -> Result<Regex, String> {
     }
 }
 
-/// `(alphabet)*`, i.e. "any run of characters".
+/// `Σ*`: any run of alphabet characters.
 pub(crate) fn wildcard_run() -> Regex {
     Regex::star(alt_of_chars(alphabet::alphabet()).expect("alphabet() is non-empty"))
 }

@@ -1,7 +1,8 @@
-//! regex-engine/src/frontend/alphabet.rs
+//! src/frontend/alphabet.rs
 //!
+//! The character sets `translate` expands shorthands into.
 
-/// The full alphabet: printable ASCII plus tab/newline/CR. 98 characters.
+/// Full alphabet: printable ASCII plus tab/newline/CR. 98 characters.
 pub fn alphabet() -> Vec<char> {
     let mut v: Vec<char> = (0x20u8..=0x7E).map(|b| b as char).collect();
     v.push('\t');
@@ -27,8 +28,7 @@ pub fn space_chars() -> Vec<char> {
     vec![' ', '\t', '\n', '\r']
 }
 
-/// The alphabet minus `of` -- used for `\D`/`\W`/`\S` and negated classes
-/// `[^...]`.
+/// `alphabet()` minus `of`; used for `\D`/`\W`/`\S` and negated classes.
 pub fn complement(of: &[char]) -> Vec<char> {
     alphabet().into_iter().filter(|c| !of.contains(c)).collect()
 }

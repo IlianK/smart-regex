@@ -1,6 +1,6 @@
 //! examples/dataset_stats.rs
 //!
-//! cargo run --release --example filter_dataset 
+//! cargo run --release --example dataset_stats 
 //!          [--source S] [--verbose] [--no-flags] 
 //!          [--no-anchors] [--no-caveats] [file...]
 //!

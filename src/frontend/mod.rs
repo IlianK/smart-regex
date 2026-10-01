@@ -1,4 +1,8 @@
-//! External surface-syntax pattern frontend.
+//! src/frontend/mod.rs
+//!
+//! External surface-syntax pattern frontend. Entry points differ in how
+//! much is applied on top of the shared parse-and-translate core; see
+//! `FRONTEND.md` for the comparison.
 
 pub mod alphabet;
 pub mod ext_pattern;
@@ -13,39 +17,21 @@ use crate::types::Regex;
 use ext_pattern::{contains_carat_anywhere, contains_dollar_anywhere, ends_with_dollar, starts_with_carat};
 use translate::wildcard_run;
 
-/// Flags read from a `/PATTERN/FLAGS` wrapper. Only the ones whose
-/// presence changes the meaning of the pattern in a way this frontend
-/// can represent are recorded; unknown flags are ignored.
+/// Flags from a `/PATTERN/FLAGS` wrapper. Only flags that change what the
+/// pattern denotes are recorded; unknown flags are ignored.
 ///
-/// Several flags that appear in Snort and SpamAssassin rules are
-/// deliberately not recorded and not rejected:
-///
-/// - Snort's buffer-selection and normalization flags (`U`, `H`, `P`,
-///   `C`, `D`, `I`, `K`, `M`, `G`, `B`, `O`, `S`) tell Snort *which
-///   buffer* to match and how to normalize it. They do not change what
-///   the pattern denotes.
-/// - `R` (relative) tells Snort where in the buffer to start the search
-///   -- after the previous `content:` match, not from the buffer start.
-///   That is a positioning constraint the frontend cannot see, since it
-///   receives only the pattern string, not the surrounding rule. The
-///   frontend treats an `R` pattern as an ordinary search pattern and
-///   documents that simplification; it does not reject it.
-///
-/// `A` is handled, not ignored: per PCRE/Suricata's own documentation,
-/// "a pattern has to match at the beginning of a buffer. (In pcre `^`
-/// is similar to `A`.)" It is a positional constraint the frontend
-/// *can* see (unlike `R`, it needs no context beyond the pattern
-/// string), so `/foo/A` is treated exactly like `/^foo/`: left padding
-/// is suppressed the same way an explicit leading `^` suppresses it.
-///
-/// `E` is handled too: per PCRE's own documentation (`PCRE_DOLLAR_ENDONLY`),
-/// without it "a dollar also matches immediately before a newline at the
-/// end of the string (but not before any other newlines)". With it (the
-/// default assumed by everything else in this frontend before this flag
-/// was read), `$` matches only at the true end. So a pattern ending in
-/// `$` without `/E` is translated to allow one optional trailing `\n`
-/// after the core that a strict `$` would not; see
-/// `translate_as_search`.
+/// - Buffer selectors (`U`, `H`, `P`, `C`, ...) name which buffer to
+///   match and how to normalize it. They do not change what the pattern
+///   denotes; recorded nowhere, never rejected.
+/// - `R` (relative) starts the search after the previous `content:`
+///   match. Not visible from the pattern string, so it is recorded but
+///   not rejected; treated as an ordinary search pattern.
+/// - `A` (anchored) matches at the start of the buffer, like a leading
+///   `^`. Visible from the pattern string, so handled: left padding
+///   suppressed.
+/// - `E` (dollar-endonly) forbids `$` from matching before a trailing
+///   newline. Handled: without `E`, a `$`-anchored end allows one
+///   optional trailing `\n`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PcreFlags {
     pub case_insensitive: bool,
@@ -58,9 +44,8 @@ pub struct PcreFlags {
 }
 
 impl PcreFlags {
-    /// Parse a flag string (the part after the closing `/`). A flag that
-    /// is present but not tracked here is silently ignored; this mirrors
-    /// the previous behaviour for anything other than `i`.
+    /// Parse the flag string after the closing `/`. Flags not tracked
+    /// here are silently ignored.
     fn parse(flags: &str) -> Self {
         let f = |c: char| flags.contains(c);
         PcreFlags {
@@ -74,16 +59,9 @@ impl PcreFlags {
         }
     }
 
-    /// A flag this frontend cannot honour. Returned as the reason string
-    /// for an error. `None` if every recorded flag is either handled or
-    /// has no effect on the translated `Regex`.
-    ///
-    /// Only `m` and `x` are rejected. `R` is recorded but not rejected:
-    /// it is a positioning constraint the frontend cannot see, and
-    /// treating an `R` pattern as an ordinary search pattern is a
-    /// documented simplification (see the struct's doc comment). The
-    /// buffer-modifier flags (`U`, `H`, `P`, `C`, ...) are not recorded
-    /// at all and never reach this method.
+    /// A recorded flag this frontend cannot honour, as a reason string.
+    /// `None` if every recorded flag is handled or has no effect on the
+    /// translated `Regex`. Only `m` and `x` are rejected.
     pub fn unsupported(&self) -> Option<&'static str> {
         if self.multiline {
             return Some(
@@ -107,9 +85,8 @@ pub fn parse_pattern(s: &str) -> Result<Regex, String> {
     translate(&ep)
 }
 
-/// Parse a pattern for substring search. Adds `Σ*` padding on any side
-/// not guarded by `^` / `$`. Rejects patterns whose PCRE flags (`m`, `x`)
-/// would change what `^` / `$` mean or how the pattern is tokenized.
+/// Parse a pattern for substring search: `Σ*` padding on any side not
+/// guarded by `^`/`$`.
 pub fn parse_dataset_pattern(s: &str) -> Result<Regex, String> {
     let (body, flags) = strip_pcre_delimiters(s);
     if let Some(reason) = flags.unsupported() {
@@ -121,14 +98,9 @@ pub fn parse_dataset_pattern(s: &str) -> Result<Regex, String> {
     translate_as_search(&ep, flags.anchored, flags.dollar_endonly)
 }
 
-/// Parse a `/PATTERN/FLAGS` PCRE rule for substring search. Case-folds
-/// when the `i` flag is present, excludes `\n` from `.` unless the
-/// dotall (`s`) flag is present, suppresses left padding when the `A`
-/// (anchored) flag is present (the same as an explicit leading `^`), and
-/// allows one optional trailing `\n` after a `$`-anchored end unless the
-/// `E` (dollar-endonly) flag is present. Rejects patterns whose flags
-/// (`m`, `x`) would change what `^` / `$` mean or how the pattern is
-/// tokenized. Inputs not delimited by `/` are passed through unchanged.
+/// Parse a `/PATTERN/FLAGS` PCRE rule for substring search: case-folds on
+/// `i`, excludes `\n` from `.` unless `s`, treats `A` like a leading `^`,
+/// allows one trailing `\n` after `$` unless `E`. Rejects `m` and `x`.
 pub fn parse_pcre_rule(s: &str) -> Result<Regex, String> {
     let (body, flags) = strip_pcre_delimiters(s);
     if let Some(reason) = flags.unsupported() {
@@ -140,11 +112,8 @@ pub fn parse_pcre_rule(s: &str) -> Result<Regex, String> {
     translate_as_search(&ep, flags.anchored, flags.dollar_endonly)
 }
 
-/// Report whether `s` parses and which anchors it carries -- including
-/// the `A` flag, which anchors the start exactly like a leading `^`.
-/// Returns an error for patterns whose flags this frontend does not
-/// support, so the caller sees the same set of patterns `parse_pcre_rule`
-/// accepts.
+/// Report whether `s` parses and which anchors it carries, including `A`
+/// (which anchors the start like a leading `^`).
 pub fn detect_anchors(s: &str) -> Result<(bool, bool), String> {
     let (body, flags) = strip_pcre_delimiters(s);
     if let Some(reason) = flags.unsupported() {
@@ -154,14 +123,9 @@ pub fn detect_anchors(s: &str) -> Result<(bool, bool), String> {
     Ok((starts_with_carat(&ep) || flags.anchored, ends_with_dollar(&ep)))
 }
 
-/// `force_left_anchor` is the `A` PCRE flag: it suppresses left padding
-/// exactly like a leading `^`, without the pattern needing to contain
-/// one. `dollar_endonly` is the `E` PCRE flag: when a `$` anchors the
-/// end and `E` is absent, PCRE's own semantics allow one optional
-/// trailing `\n` after it (`PCRE_DOLLAR_ENDONLY`'s documented default:
-/// "a dollar also matches immediately before a newline at the end of
-/// the string"); this frontend used to always require a strict end
-/// (equivalent to `E` always being set) regardless of the flag.
+/// Padding scheme. `force_left_anchor` is the `A` flag (suppresses left
+/// padding like a leading `^`). `dollar_endonly` is the `E` flag: without
+/// it, PCRE allows one optional trailing `\n` after a `$`-anchored end.
 fn translate_as_search(
     ep: &ExtPat,
     force_left_anchor: bool,
@@ -183,9 +147,8 @@ fn translate_as_search(
     })
 }
 
-/// Strip a `/PATTERN/FLAGS` wrapper, returning the body and the flags.
-/// A string not starting with `/` is returned with default (all-false)
-/// flags.
+/// Strip a `/PATTERN/FLAGS` wrapper. A string not starting with `/` is
+/// returned unchanged with default (all-false) flags.
 pub fn strip_pcre_delimiters(s: &str) -> (&str, PcreFlags) {
     let s = s.trim();
     if !s.starts_with('/') {
@@ -201,34 +164,26 @@ pub fn strip_pcre_delimiters(s: &str) -> (&str, PcreFlags) {
     }
 }
 
-/// A specific, known way an *accepted* pattern's translated `Regex` can
-/// fail to denote exactly what the source pattern means. See
-/// `faithfulness_gaps`. These are the only two gaps this frontend still
-/// has, as of the review that added this type: every other PCRE
-/// construct this frontend accepts is translated exactly, and everything
-/// else is rejected outright rather than silently approximated.
+/// A known way an accepted pattern's translated `Regex` fails to denote
+/// exactly what the source pattern means.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FaithfulnessGap {
     /// `R`: the match position is relative to the rule's previous
-    /// `content:` match. The frontend sees only the pattern string, not
-    /// the surrounding rule, so it cannot see that constraint; the
-    /// pattern is translated as an ordinary search pattern instead.
+    /// `content:` match, which the frontend cannot see from the pattern
+    /// string alone. Translated as an ordinary search pattern.
     Relative,
-    /// `^` or `$` appears somewhere in the pattern but not at its own
-    /// top-level edge (or not on every branch of the alternation it
-    /// sits in), so `translate` silently lowers it to `Eps` rather than
-    /// enforcing it or rejecting the pattern.
+    /// `^` or `$` present somewhere but not at its own top-level edge (or
+    /// not on every branch of the alternation it sits in). `translate`
+    /// lowers it to `Eps` rather than enforcing or rejecting it.
     NestedAnchor,
 }
 
 /// Every way `pattern`'s translation, if accepted, is a known
-/// approximation of what the pattern means rather than exactly faithful
-/// to it. Empty for a pattern with no known gap. This function does not
-/// itself check whether `pattern` is accepted at all; call
-/// `parse_pcre_rule` (or use `is_faithful`, which checks both) for that.
-/// A buffer-selector flag (`U`/`H`/`P`/...) is deliberately not a gap
-/// here: it says which buffer the pattern should be tested against, not
-/// what the pattern itself denotes as a regular language.
+/// approximation rather than faithful. Empty if there is no known gap.
+/// Does not itself check whether `pattern` is accepted; see
+/// `parse_pcre_rule` or `is_faithful`. A buffer-selector flag is
+/// deliberately not a gap: it says where to test the pattern, not what
+/// it denotes.
 pub fn faithfulness_gaps(pattern: &str) -> Vec<FaithfulnessGap> {
     let mut gaps = Vec::new();
     let (body, flags) = strip_pcre_delimiters(pattern);
@@ -245,11 +200,8 @@ pub fn faithfulness_gaps(pattern: &str) -> Vec<FaithfulnessGap> {
     gaps
 }
 
-/// Whether `pattern` is faithful: `parse_pcre_rule` accepts it, and the
-/// resulting `Regex` denotes exactly what the pattern means, with no
-/// known approximation (`faithfulness_gaps` is empty). A pattern
-/// `parse_pcre_rule` rejects outright is not faithful either -- there is
-/// no `Regex` for it to be faithful or unfaithful about.
+/// Whether `pattern` is faithful: accepted by `parse_pcre_rule` and with
+/// no known approximation.
 pub fn is_faithful(pattern: &str) -> bool {
     parse_pcre_rule(pattern).is_ok() && faithfulness_gaps(pattern).is_empty()
 }
@@ -348,9 +300,6 @@ mod tests {
 
     #[test]
     fn parse_pcre_rule_accepts_relative_flag() {
-        // `R` is a positioning constraint the frontend cannot see; it is
-        // recorded but not rejected. Treating an R pattern as an ordinary
-        // search pattern is the documented simplification.
         assert!(parse_pcre_rule("/abc/R").is_ok());
     }
 
@@ -374,7 +323,6 @@ mod tests {
     #[test]
     fn a_flag_anchors_the_start_like_a_leading_carat() {
         use crate::parsers::parse_deriv_std_rec;
-
         // Per Suricata's own docs: "A pattern has to match at the
         // beginning of a buffer. (In pcre ^ is similar to A.)"
         let anchored = parse_pcre_rule("/abc/A").expect("should parse");
@@ -388,8 +336,7 @@ mod tests {
     #[test]
     fn dollar_without_e_allows_one_trailing_newline_but_e_forbids_it() {
         use crate::parsers::parse_deriv_std_rec;
-
-        // Per PCRE's own docs (PCRE_DOLLAR_ENDONLY): without 'E', "a
+        // Per PCRE's docs (PCRE_DOLLAR_ENDONLY): without 'E', "a
         // dollar also matches immediately before a newline at the end
         // of the string (but not before any other newlines)".
         let lenient = parse_pcre_rule("/abc$/").expect("should parse");
@@ -411,8 +358,7 @@ mod tests {
 
     #[test]
     fn is_faithful_false_for_a_rejected_pattern() {
-        // Not accepted at all, so not faithful either -- there is no
-        // Regex for it to be faithful or unfaithful about.
+        // Not accepted at all, so not faithful either 
         assert!(!is_faithful("/abc/m"));
         assert!(!is_faithful("/(a)(b)\\1/"));
     }

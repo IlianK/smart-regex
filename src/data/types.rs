@@ -1,4 +1,9 @@
-//! Shared types for the dataset preparation pipeline
+//! src/data/types.rs
+//!
+//! Shared types for the dataset preparation pipeline: `ExtractedRule`
+//! (from `extract`), `Candidate` (from `generate`), `PreparedCase` (from
+//! `prepare`), plus the `Category`, `Provenance`, and `SourceKind` each
+//! one carries.
 
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +15,8 @@ pub enum SourceKind {
 }
 
 impl SourceKind {
-    /// The directory name this source's files live under, `data/<name>/`.
+    /// Directory under `data/processed/` this source writes to. Not the
+    /// same as the raw corpus directory name.
     pub fn dir_name(self) -> &'static str {
         match self {
             SourceKind::Suricata => "snort",
@@ -20,6 +26,7 @@ impl SourceKind {
     }
 }
 
+/// A Suricata `content:"..."` payload plus its modifiers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentField {
     pub bytes: Vec<u8>,
@@ -30,12 +37,15 @@ pub struct ContentField {
     pub offset: Option<u64>,
 }
 
+/// Which part of a message a SpamAssassin rule inspects.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SaField {
     Body,
     Header,
 }
 
+/// Source-specific context an `ExtractedRule` carries, one variant per
+/// `SourceKind`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleContext {
     Suricata {
@@ -52,6 +62,7 @@ pub enum RuleContext {
     },
 }
 
+/// One rule as read from a raw source file: the pattern text plus context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractedRule {
     pub source: SourceKind,
@@ -59,15 +70,21 @@ pub struct ExtractedRule {
     pub context: RuleContext,
 }
 
+/// Where a candidate's input came from, for the reader of a benchmark result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Provenance {
+    /// Real message sampled from a local corpus (SpamAssassin only).
     RealCorpus,
+    /// Assembled from the rule's own `content:` fields (Suricata only).
     ContentDerived,
+    /// Structural sample with a claimed match.
     Structural,
+    /// Structural sample with a claimed non-match, built by corrupting a
+    /// positive (see `generate::sample_negative_late`).
     StructuralNegative,
 }
 
-/// The three benchmark categories, decided per pattern.
+/// Benchmark category, decided per pattern.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Category {
     Best,
@@ -84,7 +101,8 @@ pub struct Candidate {
     pub claimed_match: bool,
 }
 
-/// A candidate after verification
+/// A candidate after `prepare::verify_candidate` accepted it: the claimed
+/// outcome was checked against the real parser and held.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreparedCase {
     pub source: SourceKind,
@@ -93,5 +111,7 @@ pub struct PreparedCase {
     pub category: Category,
     pub provenance: Provenance,
     pub verified_match: bool,
+    /// For a non-match, the number of characters consumed before rejection
+    /// became structurally impossible; `None` for a match.
     pub failed_after_chars: Option<usize>,
 }

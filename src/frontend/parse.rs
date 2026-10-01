@@ -1,6 +1,6 @@
-//! regex-engine/src/frontend/parse.rs
+//! src/frontend/parse.rs
 //!
-//! Recursive-descent parser: pattern string -> `ExtPat`.
+//! Recursive-descent parser: pattern string to `ExtPat`.
 //!
 //! Differences from `Text.Regex.PDeriv.Parse`:
 //! - `\d`/`\w`/`\s` and their negations are read as class shorthands.
@@ -81,7 +81,7 @@ fn parse_postfixed(chars: &mut Chars) -> Result<ExtPat, String> {
     }
 }
 
-/// Consumes a trailing `?` marking a quantifier lazy, if present. The
+/// Consume a trailing `?` marking a quantifier lazy, if present. The
 /// marker has no effect on the lowered `Regex`, so it is not recorded.
 fn discard_lazy_marker(chars: &mut Chars) {
     if chars.peek() == Some(&'?') {
@@ -250,6 +250,13 @@ fn parse_escape(chars: &mut Chars) -> Result<ExtPat, String> {
         't' => Ok(ExtPat::Char('\t')),
         'r' => Ok(ExtPat::Char('\r')),
         'x' => parse_hex_escape(chars),
+        // `\0` is never a backreference in PCRE: there is no group 0 for
+        // it to refer to, so it is always an octal escape (up to two
+        // further octal digits). `\1`-`\9` are ambiguous with
+        // backreferences in general (PCRE resolves that using the
+        // capture-group count, which this parser does not track), so
+        // they are conservatively rejected rather than guessed.
+        '0' => Ok(ExtPat::Char(read_class_octal(c, chars))),
         '1'..='9' => Err(format!(
             "backreference '\\{}' is not a regular-language construct -- unsupported",
             c
@@ -326,13 +333,12 @@ fn parse_class_enum(chars: &mut Chars) -> Result<Vec<char>, String> {
     Ok(members)
 }
 
-/// Looks ahead (without consuming) for a `[:name:]` POSIX class at the
-/// current position, e.g. the `[:alpha:]` in `[[:alpha:]]`. Returns the
-/// name if found. This frontend does not implement POSIX classes; without
-/// this check, `[:alpha:]` would be silently read as the literal members
-/// `[`, `:`, `a`, `l`, `p`, `h` followed by a literal `]` -- accepted, and
-/// translated into something that denotes almost nothing like what the
-/// pattern author meant, with no error and no caveat to catch it.
+/// Look ahead (without consuming) for a `[:name:]` POSIX class at the
+/// current position, e.g. the `[:alpha:]` in `[[:alpha:]]`. This frontend
+/// does not implement POSIX classes; without this check, `[:alpha:]`
+/// would be silently read as the literal members `[`, `:`, `a`, `l`, `p`,
+/// `h` followed by a literal `]` -- accepted, but denoting almost nothing
+/// like what the pattern author meant, with no error and no caveat.
 fn posix_class_name(chars: &Chars) -> Option<String> {
     let mut trial = chars.clone();
     if trial.next() != Some('[') || trial.next() != Some(':') {
@@ -406,8 +412,8 @@ fn parse_class_atom(chars: &mut Chars) -> Result<ClassAtom, String> {
     }
 }
 
-/// Reads up to two further octal digits after an already-consumed first
-/// octal digit `first`, and returns the resulting code point (0-255).
+/// Read up to two further octal digits after an already-consumed first
+/// octal digit `first`, and return the resulting code point (0-255).
 /// Three octal digits can specify up to 511; clamped to 255 rather than
 /// wrapped, since this frontend has no character above 255 to represent.
 fn read_class_octal(first: char, chars: &mut Chars) -> char {
@@ -603,6 +609,26 @@ mod tests {
         // Per PCRE: \8 and \9 inside a class are the literal characters
         // '8' and '9', not the start of an octal escape.
         assert_eq!(p("[\\8\\9]"), ExtPat::Any(vec!['8', '9']));
+    }
+
+    #[test]
+    fn bare_backslash_zero_outside_a_class_is_octal_not_literal() {
+        // Real RegexLib data has `\0`/`\1`/`\2` outside a class. `\0` is
+        // never ambiguous with a backreference in PCRE (there is no
+        // "group 0"), so it is always octal: '\0' is NUL, not the
+        // literal character '0'.
+        assert_eq!(p("\\0"), ExtPat::Char('\0'));
+        assert_eq!(p("\\012"), ExtPat::Char('\n')); // octal 012 = '\n'
+    }
+
+    #[test]
+    fn backreference_1_through_9_outside_a_class_still_rejected() {
+        // Unlike `\0`, single digits 1-9 outside a class are genuinely
+        // ambiguous with backreferences in PCRE; this parser does not
+        // track capture-group counts, so it conservatively rejects them
+        // rather than guessing octal.
+        assert!(parse_ext_pattern("\\1").is_err());
+        assert!(parse_ext_pattern("\\9").is_err());
     }
 
     #[test]
