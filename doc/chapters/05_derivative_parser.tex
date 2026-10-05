@@ -20,88 +20,90 @@ trees, and each algorithmic step is accompanied by its Rust implementation.
 
 \section{The Standard Derivative-Based Parser}
 \label{sec:core-algorithm}
-Consider the unambiguous example from ~\ref{par:unambigious-example}: 
-$r = a\cdot b$ with input $w = \mathtt{ab}$. 
-The question is whether its parse tree can be recovered from the derivation sequence:
-\begin{equation}\label{eq:deriv-std-example}
+
+Consider the ambiguous example from Section~\ref{par:ambigious-example}:
+\(r_0 = (a+ab)(b+\varepsilon)\) with input \(w = \mathtt{ab}\). The question now is,
+whether its parse tree can be recovered from the derivation sequence.
+\begin{equation}\label{eq:deriv-std-overview-example}
 \begin{aligned}
-a\cdot b &\xrightarrow{\ a\ } \varepsilon\cdot b \\
-\varepsilon\cdot b &\xrightarrow{\ b\ } \phi\cdot b+\varepsilon.
+r_0 = (a+ab)(b+\varepsilon)
+  &\xrightarrow{\ a\ }
+    r_1 = (\varepsilon+\varepsilon b)(b+\varepsilon) \\
+  &\xrightarrow{\ b\ }
+    r_2 = \underbrace{(\phi+(\phi b+\varepsilon))(b+\varepsilon)}_{X}
+        + \underbrace{(\varepsilon+\phi)}_{Y}.
 \end{aligned}
 \end{equation}
+The final expression \(r_2 = X + Y\) is nullable, confirming
+\(w \in L(r_0)\), but it is already a choice between two readings. \(X\)
+corresponds to the decomposition \(\mathtt{ab}\cdot\varepsilon\) and
+\(Y\) to \(a\cdot b\), matching~\eqref{eq:match-decompositions}. No
+consumed character survives in \(r_2\), so the parse tree cannot be read
+off it directly, and nothing in its shape says which reading is
+preferable.
 
-The final expression is nullable, confirming $w \in L(r)$, as
-established by the derivative construction in Chapter~\ref{sec:derivatives}.
-However, no consumed character survives in the final expression, so the parse
-tree $(a,b)$ cannot be recovered directly from $\phi\cdot b+\varepsilon$.
-
-The derivation sequence itself already contains the information needed to reconstruct
-the tree. Each step transforms the expression by consuming one character.
-Reversing these steps reinserts the characters into a parse tree, so it can be
-recovered by walking the same sequence backward. Figure~\ref{fig:two-pass}
-shows this process, with the forward pass showing the derivation
-sequence and the backward pass showing the corresponding tree reconstruction.
+The derivation sequence itself contains the information needed to build
+the parse tree. Each step consumes one character, so walking the
+sequence backward reinserts the characters and resolves \(X\) versus
+\(Y\). Figure~\ref{fig:two-pass} shows this process. 
 
 \begin{figure}[ht]
 \centering
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
   expr/.style={draw, rounded corners=2pt, minimum height=7mm,
                font=\small, inner xsep=4pt},
   tree/.style={draw, rounded corners=2pt, minimum height=7mm,
-               font=\small, inner xsep=4pt, fill=black!5},
+               font=\scriptsize, inner xsep=4pt, fill=black!5},
   lbl/.style={font=\scriptsize, inner sep=1.5pt},
 ]
-\node[expr] (r0) at (0,1.8)   {$a\cdot b$};
-\node[expr] (r1) at (3.6,1.8) {$\varepsilon\cdot b$};
-\node[expr] (r2) at (7.4,1.8) {$\phi\cdot b + \varepsilon$};
+\node[expr] (r0) at (0,1.8)   {$(a+ab)(b+\varepsilon)$};
+\node[expr] (r1) at (5.4,1.8) {$(\varepsilon+\varepsilon b)(b+\varepsilon)$};
+\node[expr] (r2) at (11.0,1.8) {$X+Y$};
 \draw[->] (r0) -- node[lbl, above] {$\backslash\,\mathtt{a}$} (r1);
 \draw[->] (r1) -- node[lbl, above] {$\backslash\,\mathtt{b}$} (r2);
 
-\node[tree] (v0) at (0,0)   {$(a,b)$};
-\node[tree] (v1) at (3.6,0) {$((\,),b)$};
-\node[tree] (v2) at (7.4,0) {$\mathit{Right}\,(\,)$};
-\draw[->] (v1) -- node[lbl, below] {$\mathit{inj}_{a\cdot b,\,\mathtt{a}}$} (v0);
-\draw[->] (v2) -- node[lbl, below] {$\mathit{inj}_{\varepsilon\cdot b,\,\mathtt{b}}$} (v1);
+\node[tree] (v0) at (0,0)   {$(\mathit{Right}(a,b),\mathit{Right}\,())$};
+\node[tree] (v1) at (5.4,0) {$(\mathit{Right}((),b),\mathit{Right}\,())$};
+\node[tree] (v2) at (11.0,0) {$\mathit{Left}(\mathit{Right}\,\mathit{Right}\,(),\mathit{Right}\,())$};
+\draw[->] (v1) -- node[lbl, below, pos=0.5, align=center] {$\mathit{inj}$\\$r_0,\mathtt{a}$} (v0);
+\draw[->] (v2) -- node[lbl, below, pos=0.5, align=center] {$\mathit{inj}$\\$r_1,\mathtt{b}$} (v1);
 
 \draw[->] (r2) -- node[lbl, right] {$\mathit{mkEps}$} (v2);
 
-\node[lbl, anchor=east, align=right] at (-0.8,1.8) {forward\\pass};
-\node[lbl, anchor=east, align=right] at (-0.8,0)   {backward\\pass};
-\end{tikzpicture}
-\caption{Direct construction with forward and backward pass:
-Forward derivative sequence (top row), Backward parse-tree reconstruction via $\mathit{mkEps}$ and
-$\mathit{inj}$ (bottom row)}
+\node[lbl, anchor=east, align=right] at (-1.9,1.8) {forward\\pass};
+\node[lbl, anchor=east, align=right] at (-1.9,0)   {backward\\pass};
+\end{tikzpicture}%
+}
+\caption{Direct construction on $r_0=(a+ab)(b+\varepsilon)$ and input
+\texttt{"ab"}: forward derivative sequence (top) and backward
+parse-tree reconstruction via $\mathit{mkEps}$ and $\mathit{inj}$
+(bottom).}
 \label{fig:two-pass}
 \end{figure}
 
 \paragraph{The two-pass pipeline.}
-The backward pass reconstructs the parse tree by walking the derivation
-sequence in reverse. $\mathit{mkEps}$ builds a parse tree for the empty word
-from the final nullable expression. Each injection step $\mathit{inj}$ then reinserts
-one character, moving right to left. After the first injection, the tree is
-$((\,),b)$, where $(\,)$ holds the position for $a$. After the second
-injection, that position receives $a$ and the tree $(a,b)$ is complete.
+The construction uses two passes. The forward pass applies
+\texttt{deriv}~\ref{fig:deriv-rust} and
+\texttt{nullable}~\ref{fig:nullable-rust} to process the input, and the backward
+pass applies \(\mathit{mkEps}\) and \(\mathit{inj}\) to reconstruct a
+parse tree~\ref{fig:parsetree-enum} from the derivation sequence,
+walking it in reverse.
 
-The example above is unambiguous and therefore does not address the
-disambiguation problem. The following section presents the standard
-derivative-based parser with its reconstruction operations,
-including $\mathit{mkEps}$ and $\mathit{inj}$, while showing how
-ambiguity is resolved using the POSIX disambiguation policy.
+First, \(\mathit{mkEps}\)
+builds a tree for the empty word from the final nullable expression
+\(r_2 = X + Y\). Since both disjuncts are nullable, the left one is
+preferred. Each remaining step is an injection that reinserts one
+character, moving right to left. The second step reinserts \(b\),
+leaving a placeholder for \(a\), and the third step reinserts \(a\) into
+that placeholder, completing the tree. The result matches the
+decomposition \(\mathtt{ab}\cdot\varepsilon\) from
+Section~\ref{sec:parse-trees-as-evidence}.
 
-
-The direct construction uses two passes. The forward pass applies
-\texttt{deriv} ~\ref{fig:deriv-rust} and \texttt{nullable} ~\ref{fig:nullable-rust} 
-from Chapter~\ref{sec:derivatives} to process the input. 
-The backward pass applies two new functions,
-$\mathit{mkEps}$ and $\mathit{inj}$, 
-to reconstruct a parse tree ~\ref{fig:parsetree-enum} 
-from the derivation sequence. 
-
-Unlike the matcher from Section~\ref{sec:derivative-matcher}, the direct
-construction does not simplify expressions during the forward pass.
-Simplification is deliberately omitted because the backward reconstruction
-depends on the explicit structure of the expressions. Removing nodes during
-simplification would discard information required for tree reconstruction.
+Unlike the matcher from Section~\ref{sec:derivative-matcher}, there
+is no simplification step during the forward pass, because the backward
+reconstruction depends on their explicit structure; removing nodes
+would discard information required for tree reconstruction.
 
 %
 
@@ -414,61 +416,98 @@ This construction stores three intermediate expressions: $r_0 \to r_1 \to r_2$.
 \section{The Bit-Coded Derivative-Based Parser}
 \label{sec:bitcoded-construction-formal}
 
-The direct construction cannot reconstruct the parse tree until input exhaustion, 
-because $\mathit{inj}$ requires each preceding expression $r_{i-1}$. Sulzmann and Lu's 
-bit-coded construction \citep{sulzmannlu2014} avoids this by recording reconstruction 
-information during the forward pass. Figure~\ref{fig:single-pass} shows this on pattern $a^{*}$ 
-and input \texttt{"aaa"}. A growing 
-bit-prefix records the choices needed to reconstruct the parse tree in a single forward pass:
+Consider the ambiguous example from Section~\ref{par:ambigious-example}:
+\(r_0 = (a+ab)(b+\varepsilon)\) with input \(w = \mathtt{ab}\).
+Sulzmann and Lu's bit-coded construction \citep{sulzmannlu2014} annotates
+each alternation branch with a bit as the choice is made, so the parse
+tree can be read directly off the accumulated bits once the input is
+exhausted. Writing \(P\) for the annotated first factor \(a+ab\) and
+\(Q\) for the annotated second factor \(b+\varepsilon\), internalizing
+and then deriving \(r_0\) by \texttt{ab} unfolds as:
+\begin{equation}\label{eq:bitcoded-overview-example}
+\begin{aligned}
+\mathit{ri}_0 &= [\,]@\Big(\underbrace{[0]@a \oplus [1]@(a\,b)}_{P}
+                 \,\cdot\, \underbrace{[0]@b \oplus [1]@\varepsilon}_{Q}\Big) \\[2pt]
+  &\xrightarrow{\ a\ }
+    \mathit{ri}_1 = [\,]@\big(\underbrace{[0]@\varepsilon \oplus [1]@b}_{P'} \cdot\, Q\big) \\[2pt]
+  &\xrightarrow{\ b\ }
+    \mathit{ri}_2 = [\,]@\big([1]@Q \,\oplus\, [0,0]@\varepsilon\big).
+\end{aligned}
+\end{equation}
+
 
 \begin{figure}[ht]
 \centering
 \begin{tikzpicture}[
-  expr/.style={draw, rounded corners=2pt, minimum height=6.5mm,
-               font=\scriptsize, inner xsep=3pt},
-  bits/.style={draw, rounded corners=2pt, minimum height=6.5mm,
-               font=\scriptsize, inner xsep=3pt, fill=black!5},
+  node distance=14mm,
+  expr/.style={draw, rounded corners=2pt, minimum height=7mm,
+               font=\small, inner xsep=4pt, align=center},
+  bits/.style={draw, rounded corners=2pt, minimum height=7mm,
+               font=\small, inner xsep=4pt, fill=black!5, align=center},
   lbl/.style={font=\scriptsize, inner sep=1.5pt},
+  >=stealth,
 ]
-\node[expr] (r)   at (0,0)    {$a^{*}$};
-\node[expr] (ri0) at (2.5,0)  {$[\,]@(a)^{*}$};
-\node[expr] (ri1) at (5.3,0)  {$[0]@(a)^{*}$};
-\node[expr] (ri2) at (8.1,0)  {$[0,0]@(a)^{*}$};
-\node[expr] (ri3) at (11.2,0) {$[0,0,0]@(a)^{*}$};
-\node[bits] (bs)  at (5.3,-1.9)  {$[0,0,0,1]$};
-\node[bits] (v)   at (9.0,-1.9)  {$[a,a,a]$};
+\node[expr] (r)    {$r_0$};
+\node[expr, right=of r]   (ri0) {$\mathit{ri}_0=[\,]@(P\cdot Q)$};
+\node[expr, right=of ri0] (ri1) {$\mathit{ri}_1=[\,]@(P'\cdot Q)$};
+\node[expr, right=of ri1] (ri2) {$\mathit{ri}_2=[\,]@([1]@Q\oplus[0,0]@\varepsilon)$};
 
 \draw[->] (r)   -- node[lbl, above] {$\mathit{internalize}$} (ri0);
-\draw[->] (ri0) -- node[lbl, above] {$\backslash_b \mathtt{a},\ \mathit{fuse}$}
-                   node[lbl, below] {$\mathit{simp}$} (ri1);
-\draw[->] (ri1) -- node[lbl, above] {$\backslash_b \mathtt{a},\ \mathit{fuse}$}
-                   node[lbl, below] {$\mathit{simp}$} (ri2);
-\draw[->] (ri2) -- node[lbl, above] {$\backslash_b \mathtt{a},\ \mathit{fuse}$}
-                   node[lbl, below] {$\mathit{simp}$} (ri3);
-\draw[->] (ri3.south) to[out=-90, in=25]
-  node[lbl, right, pos=0.45] {$\mathit{mkEpsBC}$} (bs.east);
-\draw[->] (bs) -- node[lbl, above] {$\mathit{decode}_r$} (v);
-\draw[->, dashed] (r.south) to[out=-90, in=180]
-  node[lbl, below, pos=0.6] {the original $r$} (bs.west);
+\draw[->] (ri0) -- node[lbl, above] {$\backslash_b\,\mathtt{a}$}
+                   node[lbl, below] {$\mathit{fuse},\ \mathit{simp}$} (ri1);
+\draw[->] (ri1) -- node[lbl, above] {$\backslash_b\,\mathtt{b}$}
+                   node[lbl, below] {$\mathit{fuse},\ \mathit{simp}$} (ri2);
+
+\node[bits, below=of ri1] (bs)  {$[1,1]$};
+\node[bits, right=of bs]  (v)   {$(\mathit{Right}(a,b),\mathit{Right}\,())$};
+
+\draw[->] (ri2.south) -- ++(0,-5mm) -| node[lbl, pos=0.3, above] {$\mathit{mkEpsBC}$} (bs.north);
+\draw[->] (bs) -- node[lbl, above] {$\mathit{decode}_{r_0}$} (v);
+\draw[->, dashed] (r.south) .. controls (0,-2.0) and ($(bs.west)+(-1.2,0)$) ..
+  node[lbl, below, pos=0.55] {the original $r_0$} (bs.west);
 \end{tikzpicture}
-\caption{The bit-coded construction on $a^{*}$ and input \texttt{"aaa"}.}
+\caption{The bit-coded construction on $r_0=(a+ab)(b+\varepsilon)$ and
+input \texttt{"ab"}.}
 \label{fig:single-pass}
 \end{figure}
 
 \paragraph{The bit-coded pipeline.}
-Figure~\ref{fig:single-pass} shows the four main operations.
-$\mathit{internalize}$ converts the pattern $r$
-into an annotated expression, tagging each alternation branch with an initial
-bit. $\mathit{fuse}$ prepends the bit-lists to the annotations of
-existing nodes, to allow this information to be carried between subexpressions.
-At each character, the annotated expression is derived using a bit-threaded
-derivative and simplified by $\mathit{simp}$. Unlike direct construction,
-simplification is safe because the bits preserve the information needed for
-backward reconstruction, while controlling expression growth.
+\(\mathit{internalize}\) turns the pattern into an annotated expression
+by tagging each alternation branch with a bit that identifies it:
+\([0]\) for the left branch, \([1]\) for the right. For \(r_0\), this
+gives \(P=[0]@a\oplus[1]@(a\,b)\) and
+\(Q=[0]@b\oplus[1]@\varepsilon\), with an empty bit-list \([\,]\) at the
+root, since no alternation has been resolved yet.
 
-Once input is consumed, $\mathit{mkEpsBC}$ extracts accumulated bits from the final expression, 
-applying the same left-preference rule at alternations. The function $\mathit{decode}_r$ then 
-interprets these bits using the original pattern $r$ to reconstruct the parse tree.
+Each input character is then consumed by a bit-threaded derivative.
+Deriving by \(\mathtt{a}\) affects only \(P\), and both of its branches
+are tried. The \([0]@a\) branch consumes the \(\mathtt{a}\) and becomes
+\([0]@\varepsilon\), while the \([1]@(a\,b)\) branch also consumes it
+and becomes \([1]@b\), still owing a \(\mathtt{b}\), giving \(P'=[0]@\varepsilon\oplus[1]@b\).
+Neither branch of \(Q\) can consume \(\mathtt{a}\), so \(Q\) is
+unchanged.
+
+Deriving by
+\(\mathtt{b}\) then forces a split. Either \(\mathtt{b}\) is consumed
+inside \(P'\)'s \([1]@b\) branch, leaving \(Q\) untouched and tagged
+\([1]\), or \(P'\)'s \([0]@\varepsilon\) branch consumes nothing and
+\(\mathtt{b}\) comes from \(Q\)'s \([0]@b\) branch, fusing the two
+\(0\)'s into \([0,0]\). This yields
+\(\mathit{ri}_2=[\,]@([1]@Q\oplus[0,0]@\varepsilon)\). Throughout,
+\(\mathit{simp}\) drops dead branches. Unlike direct construction,
+simplification can be used here, because the bits already preserve what is needed
+for reconstruction.
+
+Once the input is exhausted, \(\mathit{mkEpsBC}\) reads the bits off the
+final expression, applying the same left-preference rule at
+alternations. Of \(\mathit{ri}_2\)'s two nullable disjuncts it takes the
+left one, \([1]@Q\), and within \(Q\) prefers its right branch, giving
+\([1,1]\). \(\mathit{decode}_{r_0}\) then interprets these bits against
+the original pattern. The first selects \(a+ab\)'s right branch
+(\(ab\)), the second selects \(b+\varepsilon\)'s right branch
+(\(\varepsilon\)), yielding
+\((\mathit{Right}(a,b),\mathit{Right}\,())\), the same tree the direct
+construction reached by a separate backward pass.
 
 %
 %
@@ -477,14 +516,9 @@ interprets these bits using the original pattern $r$ to reconstruct the parse tr
 \subsection{Annotated Expressions}
 \label{sec:annotated-expressions}
 
-Building parse-tree information during the forward pass extends the
-derivative computation with bit-list annotations, propagated by the
-bit-threaded derivative $\mathit{ri}\backslash_b l$.
-
-An annotated expression $\mathit{ri}$ extends $r$ by associating each
-non-$\emptyset$ node with a bit-list $bs$ recording the reconstruction
-choices made during the forward pass.
-
+Formally, an annotated expression \(\mathit{ri}\) extends \(r\) by associating
+each non-\(\emptyset\) node with a bit-list \(bs\) recording the
+reconstruction choices made during the forward pass:
 \[
 \mathit{ri} ::= \emptyset \mid (bs@\varepsilon) \mid (bs@x) \mid
 (bs@\mathit{ri}_1 \oplus \mathit{ri}_2) \mid
@@ -492,19 +526,14 @@ choices made during the forward pass.
 (bs@\mathit{ri}^{*}).
 \]
 
-%
-
 \paragraph{In Rust.}
 \label{sec:aregex-type}
 
 Figure~\ref{fig:aregex-enum} defines \texttt{ARegex} as the annotated
-counterpart of \texttt{Regex}. Every variant except \texttt{Phi} carries a
-leading \texttt{Vec<bool>} corresponding to the theoretical bit-list $bs$,
-with one \texttt{bool} per bit. The \texttt{Phi} variant has no annotation
-because it cannot contribute to a successful parse. Thus, \texttt{ARegex}
-adds the storage needed to thread parse-tree information through the
-expression, directly mirroring the theoretical $bs$ lists in
-~\eqref{eq:bderiv}.
+counterpart of \texttt{Regex}: every variant except \texttt{Phi} carries
+a leading \texttt{Vec<bool>} mirroring the bit-list \(bs\), with one
+\texttt{bool} per bit. \texttt{Phi} has no annotation slot because it
+cannot contribute to a successful parse.
 
 \begin{figure}[H]
 \small
@@ -1042,93 +1071,100 @@ are stored.
 \subsection{Worked Example: Ambigious Expression}
 \label{sec:deriv-bc-worked}
 
-Consider the same input $\texttt{ab}$ and regular expression $r_0=(a\mid ab)(b\mid\varepsilon)$.
-
+The regular expression \(r_0=(a\mid ab)(b\mid\varepsilon)\) against
+input \(\texttt{ab}\):
 %
 
 \paragraph{Internalize.}
-Before consuming input, $\mathit{internalize}$ tags each alternative with $[0]$ for the left 
-branch and $[1]$ for the right branch:
-
+\(\mathit{internalize}\) tags left alternation branches with \([0]\) and
+right ones with \([1]\).
 \begin{equation}\label{eq:dpbc-internalize}
-\mathit{internalize}(r_0) = \mathit{ri}_0 =
+\mathit{ri}_0 =
 [\,]@\big(
-  [\,]@([0]@a \oplus [1]@(a\,b))
+  \underbrace{[\,]@([0]@a \oplus [1]@(a\,b))}_{P}
   \cdot
-  [\,]@([0]@b \oplus [1]@\varepsilon)
+  \underbrace{[\,]@([0]@b \oplus [1]@\varepsilon)}_{Q}
 \big).
 \end{equation}
+The \([0]\)/\([1]\) pairs are the only bits present, yet.
+Writing \(\mathit{ri}_0=[\,]@(P\cdot Q)\).
 
 %
 
-\paragraph{Forward pass.}
-The two input symbols are consumed by successive bit-threaded derivatives with $\mathit{simp}$ 
-applied after each step. The first derivative uses $\mathsf{B}_{\mathrm{seq}}$. After consuming $\mathtt{a}$, 
-the first factor becomes nullable, so the second derivative uses $\mathsf{B}_{\mathrm{seq}}^{\,n}$, 
-which propagates bits from the empty match of the first factor into the derivative of the second:
+\paragraph{Deriving by \texttt{a}.}
+Since \(P\) is not nullable, \(\mathsf{B}_{\mathrm{seq}}\) applies.
+Deriving descends into the left factor and leaves \(Q\) untouched.
+Both branches of \(P\) are tried, each residual keeping the bit of the
+branch that produced it:
+\[
+P\backslash_b\mathtt{a}
+  = [\,]@([0]@\varepsilon \oplus [1]@b) = P'.
+\]
+\([0]\) coming from the left branch \(a\), \([1]\) from the right branch \(ab\).
+Hence \(\mathit{ri}_1=[\,]@(P'\cdot Q)\).
 
+%
+
+\paragraph{Deriving by \texttt{b}.}
+Since now \(P'\) is nullable, \(\mathsf{B}_{\mathrm{seq}}^{\,n}\) applies,
+giving two branches.
+
+In the non-nullable branch, the \(\mathtt{b}\) is consumed inside \(P'\).
+Its \([1]@b\) disjunct becomes \([1]@\varepsilon\), while its
+\([0]@\varepsilon\) disjunct becomes \(\emptyset\) and is dropped by
+\(\mathit{simp}\). The residual \([1]@\varepsilon\cdot Q\) simplifies to
+\([1]@Q\), with \(\mathit{fuse}\) lifting \(P\)'s bit onto \(Q\). This
+\([1]\) records that the \(\mathtt{b}\) was consumed inside \(P'\)'s
+right branch, descended from \(ab\).
+
+In the nullable branch, \(P'\) is skipped and the \(\mathtt{b}\) is
+consumed at the start of \(Q\). The empty match of \(P'\) selects its
+nullable \([0]@\varepsilon\) disjunct, yielding \([0]\). \(Q\)'s
+\([0]@b\) disjunct becomes \([0]@\varepsilon\) and the two bits fuse into
+\([0,0]\), giving \([0,0]@\varepsilon\).
+
+Combining both branches,
 \begin{equation}\label{eq:dpbc-forward}
 \begin{aligned}
 \mathit{ri}_0
   &\xrightarrow[\mathsf{B}_{\mathrm{seq}}]{\ a\ }
   \mathit{ri}_1 =
-  [\,]@\big(
-    [\,]@([0]@\varepsilon \oplus [1]@b)
-    \cdot
-    [\,]@([0]@b \oplus [1]@\varepsilon)
-  \big) \\
+  [\,]@\big([\,]@([0]@\varepsilon \oplus [1]@b)\cdot Q\big) \\
 \mathit{ri}_1
   &\xrightarrow[\mathsf{B}_{\mathrm{seq}}^{\,n}]{\ b\ }
   \mathit{ri}_2 =
-  [\,]@\big(
-    [1]@([0]@b \oplus [1]@\varepsilon)
-    \oplus
-    [0,0]@\varepsilon
-  \big).
+  [\,]@\big([1]@Q \oplus [0,0]@\varepsilon\big).
 \end{aligned}
 \end{equation}
-
-The $[1]$ records the right alternative $ab$ of the first factor. The $[0,0]$ on the second 
-branch results from fusing bits during the derivative. Unlike the direct construction, where 
-$\mathit{inj}$ recovers this information later, the bit-coded method propagates it during 
-the forward pass.
 
 %
 
 \paragraph{Extracting and decoding the bits.}
-Both disjuncts of $\mathit{ri}_2$ are nullable, so $\mathit{mkEpsBC}$ applies the left-preference 
-rule and selects the left disjunct. Inside, $b$ is not nullable while $\varepsilon$ is, so 
-$\mathsf{EB}_{+}^{R}$ contributes its $[1]$ tag:
-
-\begin{equation}\label{eq:dpbc-mkepsbc}
+Both disjuncts of \(\mathit{ri}_2\) are nullable, so \(\mathit{mkEpsBC}\)
+applies left-preference at the outer alternation and selects the left
+disjunct:
+\[
 \mathit{mkEpsBC}(\mathit{ri}_2)
   \xrightarrow{\mathsf{EB}_{+}^{L}}
-  \mathit{mkEpsBC}\big(
-    [1]@([0]@b \oplus [1]@\varepsilon)
-  \big)
+  \mathit{mkEpsBC}\big([1]@Q\big)
   \xrightarrow{\mathsf{EB}_{+}^{R}}
   [1,1].
-\end{equation}
+\]
+Inside \(Q\), \(b\) is not nullable and \(\varepsilon\) is, so the inner
+alternation selects its right disjunct and appends its \([1]\). Unlike
+\(\mathit{mkEps}\), which builds a partial parse tree,
+\(\mathit{mkEpsBC}\) extracts only the committed choices. The tree is
+built at decoding.
 
-Unlike $\mathit{mkEps}$, which constructs a partial parse tree, $\mathit{mkEpsBC}$ extracts 
-only the committed choices as a bit-string. The decoder then interprets $[1,1]$ against the 
-original $r_0$: the first bit selects the right branch of $a+ab$ (producing $ab$), and the 
-second selects the right branch of $b+\varepsilon$:
-
+The decoder interprets \([1,1]\) against \(r_0\). The first bit selects
+the right branch of \(a+ab\) (\(ab\)), the second the right branch of
+\(b+\varepsilon\):
 \begin{equation}\label{eq:dpbc-decode}
 \mathit{decode}_{r_0}([1,1])
-  = \big(
-      \mathit{Right}(a,b),
-      \mathit{Right}(\,)
-    \big)
-  = v_0.
+  = (\mathit{Right}(a,b),\mathit{Right}\,()) = v_0,
+\qquad
+\mathit{flatten}(v_0) = \mathtt{ab}.
 \end{equation}
-
-Flattening validates the result:
-\begin{equation}\label{eq:dpbc-flatten}
-\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon = \mathtt{ab}.
-\end{equation}
-
-The bit-coded construction produces the same parse tree as the direct construction but stores 
-only the final annotated expression $\mathit{ri}_2$, not the intermediate expressions $r_0$ 
-and $r_1$.
+The result is the same parse tree as the direct construction, 
+but compared to storing the entire parse tree, only
+\(\mathit{ri}_2\) is stored, not \(r_0\) and \(r_1\).
