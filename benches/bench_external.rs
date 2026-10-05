@@ -68,9 +68,9 @@ struct Entry {
     re2_posix: Option<Re2>,
 }
 
-fn external_pattern(pattern: &str) -> (String, bool) {
+fn external_pattern(pattern: &str) -> (String, bool, bool) {
     let (body, flags) = strip_pcre_delimiters(pattern);
-    (body.to_string(), flags.case_insensitive)
+    (body.to_string(), flags.case_insensitive, flags.dot_all)
 }
 
 fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
@@ -78,8 +78,8 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
         .unwrap_or_else(|e| {
         panic!(
             "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-             prepare_dataset -- <suricata|spamassassin|regexlib> <file>...` first; see \
-             docs/DATASETS.md",
+             dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
+             docs/DATASET.md",
             DATA_ROOT
         )
     });
@@ -114,16 +114,16 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
             }
         };
 
-        let (body, case_insensitive) = external_pattern(&case.pattern);
-        let rust_regex = RustRegex::new(&body, case_insensitive).ok();
+        let (body, case_insensitive, dot_all) = external_pattern(&case.pattern);
+        let rust_regex = RustRegex::new(&body, case_insensitive, dot_all).ok();
         if rust_regex.is_none() {
             rust_regex_failures += 1;
         }
-        let re2_perl = Re2::new(&body, false, case_insensitive).ok();
+        let re2_perl = Re2::new(&body, false, case_insensitive, dot_all).ok();
         if re2_perl.is_none() {
             re2_perl_failures += 1;
         }
-        let re2_posix = Re2::new(&body, true, case_insensitive).ok();
+        let re2_posix = Re2::new(&body, true, case_insensitive, dot_all).ok();
         if re2_posix.is_none() {
             re2_posix_failures += 1;
         }
@@ -182,9 +182,9 @@ fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
         lines.push(format!("  {} -> {}", path.display(), status));
     }
     lines.push(format!(
-        "Run `cargo run --release --example prepare_dataset -- <suricata|spamassassin|regexlib> \
+        "Run `cargo run --release --example dataset_prepare -- <suricata|spamassassin|regexlib> \
          <file>...` for whichever source shows 0 lines or unreadable above; see \
-         docs/DATASETS.md. If a file shows nonzero lines here but the bench still reported \
+         docs/DATASET.md. If a file shows nonzero lines here but the bench still reported \
          0 entries loaded, every case in it was rejected during loading (each rejection is \
          eprintln'd above this panic) rather than missing on disk."
     ));

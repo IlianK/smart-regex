@@ -16,6 +16,7 @@ extern "C" {
         pattern_len: usize,
         posix: c_int,
         case_insensitive: c_int,
+        dot_all: c_int,
         error_out: *mut *mut c_char,
     ) -> *mut Re2HandleOpaque;
     fn re2_free(handle: *mut Re2HandleOpaque);
@@ -46,7 +47,9 @@ impl Re2 {
     /// `perl_classes`/`word_boundary`, so this is a disambiguation switch,
     /// not a syntax one. `case_insensitive` is a separate option because
     /// RE2's `(?i)` inline group is unavailable in posix_syntax mode.
-    pub fn new(pattern: &str, posix: bool, case_insensitive: bool) -> Result<Self, String> {
+    /// `dot_all` sets RE2's `dot_nl` option, so `.` also matches `\n`,
+    /// matching this crate's own `s`-flag handling (`strip_dot_newline`).
+    pub fn new(pattern: &str, posix: bool, case_insensitive: bool, dot_all: bool) -> Result<Self, String> {
         let mut error: *mut c_char = std::ptr::null_mut();
         let handle = unsafe {
             re2_new(
@@ -54,6 +57,7 @@ impl Re2 {
                 pattern.len(),
                 posix as c_int,
                 case_insensitive as c_int,
+                dot_all as c_int,
                 &mut error,
             )
         };
@@ -104,7 +108,7 @@ mod tests {
 
     #[test]
     fn compiles_and_matches() {
-        let re = Re2::new("ab*c", false, false).unwrap();
+        let re = Re2::new("ab*c", false, false, false).unwrap();
         assert!(re.full_match("abc"));
         assert!(re.is_match("xxabcyy"));
         assert!(!re.full_match("xxabcyy"));
@@ -113,7 +117,7 @@ mod tests {
 
     #[test]
     fn rejects_invalid_pattern() {
-        assert!(Re2::new("a(", false, false).is_err());
+        assert!(Re2::new("a(", false, false, false).is_err());
     }
 
     /// On `a|ab` against "ab": leftmost-first reports "a" (span (0,1)),
@@ -122,9 +126,19 @@ mod tests {
     /// shim have stopped doing anything.
     #[test]
     fn posix_mode_prefers_longest_match() {
-        let greedy = Re2::new("a|ab", false, false).unwrap();
-        let posix = Re2::new("a|ab", true, false).unwrap();
+        let greedy = Re2::new("a|ab", false, false, false).unwrap();
+        let posix = Re2::new("a|ab", true, false, false).unwrap();
         assert_eq!(greedy.find("ab"), Some((0, 1)));
         assert_eq!(posix.find("ab"), Some((0, 2)));
+    }
+
+    /// Without `dot_all`, `.` does not cross `\n` (RE2's own default);
+    /// with it, `.+` can span a newline.
+    #[test]
+    fn dot_all_flag_lets_dot_cross_newline() {
+        let without = Re2::new("a.+b", false, false, false).unwrap();
+        let with = Re2::new("a.+b", false, false, true).unwrap();
+        assert!(!without.is_match("a\nb"));
+        assert!(with.is_match("a\nb"));
     }
 }

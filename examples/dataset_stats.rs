@@ -4,15 +4,18 @@
 //!          [--source S] [--verbose] [--no-flags] 
 //!          [--no-anchors] [--no-caveats] [file...]
 //!
-//! Per-source corpus report: extraction counts, acceptance, rejection
-//! causes, faithful/approx split, PCRE flag and anchor usage. 
+//! Per-source corpus report: extraction counts, acceptance, rejection causes, direct/approx split, PCRE flag and anchor usage.
 //! Defaults to all three sources under `data/raw/`; explicit files need one `--source`.
 //!
-//! "Faithful" (from `frontend::faithfulness_gaps`) is exactly what
-//! `data::run_pipeline` feeds the benchmark; a buffer-selector flag
-//! (U/H/P/C/...) does not make a pattern approx. 
-//! `faithful + approx == accepted`classifies the *raw* corpus
-//! `dataset_prepare` keeps only the faithful subset, so `prepared.jsonl` contains no approx cases.
+//!   Direct = translated Regex denotes exactly what the pattern means.
+//!   Approx = accepted, but only an approximation (R flag, or a nested
+//!            anchor): a construct this frontend cannot represent exactly,
+//!            for which it substitutes a defined, sound stand-in rather
+//!            than rejecting.
+//!   Reject = no Regex produced at all: a construct this frontend cannot
+//!            represent at all, with no approximation attempted
+//!            (backreference, lookaround, \b/\B, the m flag, the x flag).
+
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -173,7 +176,7 @@ impl Caveat {
         }
     }
 
-    /// Only the two that move a pattern from faithful to approx.
+    /// Only the two that move a pattern from direct to approx.
     const TABLED: [Caveat; 2] = [Caveat::Relative, Caveat::NestedAnchor];
 }
 
@@ -198,7 +201,7 @@ fn classify(pattern: &str) -> Classification {
     }
 }
 
-/// Caveats an accepted pattern carries; empty means faithful.
+/// Caveats an accepted pattern carries; empty means direct.
 fn caveats_of(pattern: &str) -> Vec<Caveat> {
     let mut out: Vec<Caveat> = faithfulness_gaps(pattern)
         .into_iter()
@@ -233,9 +236,9 @@ struct SourceStats {
     extracted: usize,
     accepted: usize,
     /// Accepted with no R and no nested anchor; a buffer-selector flag
-    /// does not disqualify a pattern from faithful.
-    faithful: usize,
-    /// Accepted, but only an approximation. `faithful + approx == accepted`.
+    /// does not disqualify a pattern from direct.
+    direct: usize,
+    /// Accepted, but only an approximation. `direct + approx == accepted`.
     approx: usize,
     rejected_by: BTreeMap<Cause, usize>,
     anchors: BTreeMap<AnchorShape, usize>,
@@ -287,7 +290,7 @@ impl SourceStats {
                 if caveats.contains(&Caveat::Relative) || caveats.contains(&Caveat::NestedAnchor) {
                     self.approx += 1;
                 } else {
-                    self.faithful += 1;
+                    self.direct += 1;
                 }
             }
             Classification::Rejected(cause) => {
@@ -303,7 +306,7 @@ impl SourceStats {
         total.files_read += self.files_read;
         total.extracted += self.extracted;
         total.accepted += self.accepted;
-        total.faithful += self.faithful;
+        total.direct += self.direct;
         total.approx += self.approx;
         for (cause, n) in &self.rejected_by {
             *total.rejected_by.entry(*cause).or_default() += n;
@@ -420,16 +423,16 @@ fn header(title: &str) {
 fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
     header("Dataset coverage");
     println!(
-        "{:<13} {:>6} {:>10} {:>9} {:>7} {:>9} {:>11} {:>12} {:>11}",
+        "{:<13} {:>6} {:>10} {:>9} {:>9} {:>8} {:>9} {:>8} {:>9}",
         "Source",
         "Files",
-        "Extracted",
-        "Faithful",
-        "Approx",
-        "Rejected",
-        "Faithful %",
-        "Faith+App %",
-        "Rejected %"
+        "# RegExes",
+        "# Direct",
+        "% Direct",
+        "# Approx",
+        "% Approx",
+        "# Reject",
+        "% Reject",
     );
     println!("{}", "-".repeat(96));
 
@@ -442,15 +445,15 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
             }
         };
         println!(
-            "{:<13} {:>6} {:>10} {:>9} {:>7} {:>9} {:>11.1} {:>12.1} {:>11.1}",
+            "{:<13} {:>6} {:>10} {:>9} {:>9.1} {:>8} {:>9.1} {:>8} {:>9.1}",
             s.name(),
             s.files_read,
             s.extracted,
-            s.faithful,
+            s.direct,
+            pct(s.direct),
             s.approx,
+            pct(s.approx),
             s.rejected_total(),
-            pct(s.faithful),
-            pct(s.faithful + s.approx),
             pct(s.rejected_total()),
         );
     };
@@ -462,10 +465,15 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
     print_row(total);
     println!();
     println!(
-        "Faithful    = translated Regex denotes exactly what the pattern means\n\
-         Approx      = translated Regex drops a semantic detail (R, nested anchor)\n\
-         Rejected    = no Regex produced at all\n\
-         Faith+App % = (Faithful + Approx) / Extracted"
+        "Direct = translated Regex denotes exactly what the pattern means.\n\
+         Approx = accepted, but only an approximation (R flag, or a nested anchor): a\n\
+         \x20\x20\x20\x20\x20\x20\x20construct this frontend cannot represent exactly, for which it\n\
+         \x20\x20\x20\x20\x20\x20\x20substitutes a defined, sound stand-in rather than rejecting.\n\
+         Reject = no Regex produced at all: a construct this frontend cannot represent\n\
+         \x20\x20\x20\x20\x20\x20\x20at all, with no approximation attempted (backreference, lookaround,\n\
+         \x20\x20\x20\x20\x20\x20\x20\\b/\\B, the m flag, the x flag, or another unsupported construct).\n\
+         Direct, Approx and Reject are mutually exclusive and sum to # RegExes;\n\
+         each % is against that source's own # RegExes."
     );
 }
 
@@ -498,13 +506,13 @@ fn caveats_table(stats: &[SourceStats], total: &SourceStats, show_caveats: bool)
     if !show_caveats {
         return;
     }
-    header("Remaining caveats (accepted patterns, not mutually exclusive)");
+    header("Approx reasons (which gap each approximated pattern carries; not mutually exclusive)");
     let caveats = Caveat::TABLED;
     print!("{:<16}", "Source");
     for c in caveats {
         print!(" {:>14}", c.label());
     }
-    print!(" {:>14}", "faithful");
+    print!(" {:>14}", "direct");
     print!(" {:>14}", "approx");
     println!();
     println!("{}", "-".repeat(16 + 15 * caveats.len() + 30));
@@ -514,7 +522,7 @@ fn caveats_table(stats: &[SourceStats], total: &SourceStats, show_caveats: bool)
         for c in caveats {
             print!(" {:>14}", s.caveats.get(&c).copied().unwrap_or(0));
         }
-        print!(" {:>14}", s.faithful);
+        print!(" {:>14}", s.direct);
         print!(" {:>14}", s.approx);
         println!();
     };

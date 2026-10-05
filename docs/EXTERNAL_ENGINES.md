@@ -34,6 +34,11 @@ The external engines are:
 - `re2_posix`: RE2 with `posix_syntax` + `longest_match`, i.e. POSIX
   leftmost-longest.
 
+`case_insensitive` and `dot_all` (the `i`/`s` PCRE flags) are threaded
+through to all three engines, so a corpus pattern compiled with either
+flag is compared on equal footing. `anchored`/`dollar_endonly` (`A`/`E`)
+are not; patterns using those flags are compared as if neither were set.
+
 `re2_posix` rejects roughly half the corpus because POSIX ERE does not support
 Perl extensions such as `(?:...)` and lazy quantifiers. Rejected patterns are
 skipped inside that engine's timed loop, so all engines iterate the same corpus
@@ -69,4 +74,10 @@ information. They do not construct this project's `ParseTree`.
 - **Disambiguation:** No corpus-wide POSIX-vs-leftmost-first comparison
 - **Captures:** No capture/submatch comparison; the benchmark only calls
   `is_match`.
+- **Alphabet:** `external_agreement_smoke`'s remaining disagreements are
+  attributable to `.`/a shorthand class/a negated class being bounded to
+  the 98-character working alphabet (see FRONTEND.md), not to a
+  translation difference: this crate's own generated negative candidates
+  use an out-of-alphabet sentinel character that `regex`/RE2 (which are
+  not alphabet-bounded) still match against a negated class.
 

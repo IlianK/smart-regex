@@ -52,7 +52,7 @@ Benchmarks all five parsers (`deriv_std_rec`, `deriv_std_loop`, `deriv_bc`,
 
 ## `bench_dataset.rs`
 
-    cargo run --release --example prepare_dataset -- <source> <file>...
+    cargo run --release --example dataset_prepare -- <source> <file>...
     cargo bench --bench bench_dataset
 
 Benchmarks all five parsers on the real-world corpus, grouped into

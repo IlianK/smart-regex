@@ -64,7 +64,7 @@ fn is_dead(r: &Regex) -> bool {
         Lit(_)       => false,
         Star(_)      => false,
         Alt(r1, r2)  => is_dead(r1) && is_dead(r2),
-        Seq(r1, _)   => is_dead(r1),
+        Seq(r1, r2)  => is_dead(r1) || is_dead(r2),
     }
 }
 

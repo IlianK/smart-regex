@@ -16,8 +16,9 @@ typedef struct Re2Handle Re2Handle;
 
 /* Compile `pattern` (not necessarily NUL-terminated). `posix` selects
  * RE2::Options::posix_syntax + longest_match; the shim also enables
- * perl_classes/word_boundary so `\s`/`\d`/`\w`/`\b` still parse. */
-Re2Handle *re2_new(const char *pattern, size_t pattern_len, int posix, int case_insensitive, char **error_out);
+ * perl_classes/word_boundary so `\s`/`\d`/`\w`/`\b` still parse.
+ * `dot_all` sets RE2::Options::dot_nl, so `.` also matches `\n`. */
+Re2Handle *re2_new(const char *pattern, size_t pattern_len, int posix, int case_insensitive, int dot_all, char **error_out);
 
 void re2_free(Re2Handle *handle);
 void re2_free_error(char *error);

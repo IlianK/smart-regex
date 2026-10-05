@@ -39,11 +39,13 @@ cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_bc
 
 The same POSIX leftmost-longest result, computed in a single fused
 forward pass over a bit-annotated `ARegex`. `deriv_std_rec` and
-`deriv_std_loop` compute the same answer in two passes: a forward
-derivative that records where each match could have started, then a
-backward `inject` that reconstructs the parse tree. `deriv_bc` does both
-in one pass, carrying the positions forward as annotations on the
-expression itself.
+`deriv_std_loop` compute the same answer in two passes: a forward pass
+of successive derivatives, then a backward `inject` pass that
+reconstructs the parse tree from those same intermediate expressions.
+`deriv_bc` does both in one pass: each derivative step also records, as
+bits attached to the expression itself, which alternative was taken or
+whether a star took another iteration, so the tree can be read directly
+off the final bits instead of replaying a backward pass.
 
 
 ## Standard Partial-Derivative-Based Parser
@@ -68,10 +70,10 @@ cargo run -- parse "(a|ab)(b|ε)" "ab" --parser pderiv_bc
 Same Antimirov construction and same non-POSIX answers as `pderiv_std`,
 verified byte-identical by `tests/test_pderiv_std.rs`. The two differ in
 how the parse tree is reconstructed: `pderiv_std` carries explicit
-injection closures alongside each residual, while `pderiv_bc` annotates
-each node with a bit-vector recording which positions in the input the
-node could have started at, and reads the tree back out of those bits in
-a single pass.
+injection closures alongside each residual, while `pderiv_bc` carries a
+bit-vector alongside each residual recording which alternative was taken
+or whether a star took another iteration, and reads the tree back out of
+those bits in a single pass.
 
 
 ## Compare all parsers

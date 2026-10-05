@@ -8,9 +8,10 @@
 pub struct RustRegex(regex::Regex);
 
 impl RustRegex {
-    pub fn new(pattern: &str, case_insensitive: bool) -> Result<Self, regex::Error> {
+    pub fn new(pattern: &str, case_insensitive: bool, dot_all: bool) -> Result<Self, regex::Error> {
         regex::RegexBuilder::new(pattern)
             .case_insensitive(case_insensitive)
+            .dot_matches_new_line(dot_all)
             .build()
             .map(RustRegex)
     }
@@ -32,7 +33,7 @@ mod tests {
 
     #[test]
     fn compiles_and_matches() {
-        let re = RustRegex::new("ab*c", false).unwrap();
+        let re = RustRegex::new("ab*c", false, false).unwrap();
         assert!(re.full_match("abc"));
         assert!(re.is_match("xxabcyy"));
         assert!(!re.full_match("xxabcyy"));
@@ -41,13 +42,25 @@ mod tests {
 
     #[test]
     fn rejects_invalid_pattern() {
-        assert!(RustRegex::new("a(", false).is_err());
+        assert!(RustRegex::new("a(", false, false).is_err());
     }
 
     #[test]
     fn leftmost_first_like_greedy() {
-        let re = RustRegex::new("a|ab", false).unwrap();
+        let re = RustRegex::new("a|ab", false, false).unwrap();
         let m = re.0.find("ab").unwrap();
         assert_eq!((m.start(), m.end()), (0, 1));
+    }
+
+    /// Without `dot_all`, `.` does not cross `\n` (the crate's own
+    /// default); with it, `.+` can span a newline. This is what
+    /// `bench_external.rs` needs for a corpus pattern compiled with the
+    /// `s` (dot-all) PCRE flag to be compared fairly.
+    #[test]
+    fn dot_all_flag_lets_dot_cross_newline() {
+        let without = RustRegex::new("a.+b", false, false).unwrap();
+        let with = RustRegex::new("a.+b", false, true).unwrap();
+        assert!(!without.is_match("a\nb"));
+        assert!(with.is_match("a\nb"));
     }
 }

@@ -120,8 +120,8 @@ fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
         .unwrap_or_else(|e| {
             panic!(
                 "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-                 prepare_dataset -- <suricata|spamassassin|regexlib> <file>...` first; see \
-                 docs/DATASETS.md",
+                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
+                 docs/DATASET.md",
                 DATA_ROOT
             )
         });
@@ -156,7 +156,7 @@ fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     if best.is_empty() && neutral.is_empty() && worst.is_empty() {
         panic!(
             "bench_memory: no entries loaded under {DATA_ROOT} with category={:?}, sources={:?} \
-             (empty = all), pattern_limit={} -- run prepare_dataset first; see docs/DATASETS.md",
+             (empty = all), pattern_limit={} -- run dataset_prepare first; see docs/DATASET.md",
             sel.category, sel.sources, sel.pattern_limit
         );
     }

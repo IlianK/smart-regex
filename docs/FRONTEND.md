@@ -92,6 +92,18 @@ lowers each to `Regex`'s six constructors; a class becomes an `Alt`
 chain over the 98-character alphabet, and a bound unrolls into that many
 copies.
 
+Because of that chain, `.`, the shorthand classes (`\d \D \w \W \s \S`),
+and any negated class `[^...]` can only ever match a character from that
+98-character alphabet (printable ASCII plus tab/newline/CR,
+`alphabet.rs`) -- none of them matches a character outside it, even
+though real PCRE/POSIX semantics define a negated class as everything
+except the characters listed. A literal character written directly in
+the pattern is unaffected (`Regex::Lit` compares the full `char`, not
+just the working alphabet), so `café` still matches `"café"`; it is
+specifically `.`, a shorthand class, or negation that is bounded this
+way. Verified: `cargo run -- match "[^a]" "é"`, `match "\W" "é"`, and
+`match "." "é"` all print `false`.
+
 
 ## Search padding and anchoring
 

@@ -62,8 +62,8 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
         .unwrap_or_else(|e| {
             panic!(
                 "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-                 prepare_dataset -- <suricata|spamassassin|regexlib> <file>...` first; see \
-                 docs/DATASETS.md",
+                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
+                 docs/DATASET.md",
                 DATA_ROOT
             )
         });
@@ -122,9 +122,9 @@ fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
         lines.push(format!("  {} -> {}", path.display(), status));
     }
     lines.push(format!(
-        "Run `cargo run --release --example prepare_dataset -- <suricata|spamassassin|regexlib> \
+        "Run `cargo run --release --example dataset_prepare -- <suricata|spamassassin|regexlib> \
          <file>...` for whichever source shows 0 lines or unreadable above; see \
-         docs/DATASETS.md. If a file shows nonzero lines here but the bench still reported \
+         docs/DATASET.md. If a file shows nonzero lines here but the bench still reported \
          0 entries loaded, the entries were filtered out after loading (see the eprintln above \
          this panic for that count) rather than missing on disk."
     ));

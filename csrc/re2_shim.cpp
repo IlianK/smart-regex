@@ -20,7 +20,7 @@ static char *dup_error(const std::string &msg) {
     return out;
 }
 
-Re2Handle *re2_new(const char *pattern, size_t pattern_len, int posix, int case_insensitive, char **error_out) {
+Re2Handle *re2_new(const char *pattern, size_t pattern_len, int posix, int case_insensitive, int dot_all, char **error_out) {
     RE2::Options opts;
     opts.set_log_errors(false); /* callers get the error via error_out */
     if (posix) {
@@ -33,6 +33,9 @@ Re2Handle *re2_new(const char *pattern, size_t pattern_len, int posix, int case_
     }
     if (case_insensitive) {
         opts.set_case_sensitive(false);
+    }
+    if (dot_all) {
+        opts.set_dot_nl(true);
     }
 
     re2::StringPiece p(pattern, pattern_len);

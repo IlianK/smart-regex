@@ -103,3 +103,74 @@ fn bitcoded_agrees_on_k2_nonempty_preferred() {
     let r = Regex::star(Regex::alt(Regex::Eps, Regex::lit('a')));
     bitcoded_agrees_with_recursive("a", &r);
 }
+
+// Differential fuzz: parse_deriv_bc vs. parse_deriv_std_rec
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        self.0 = x;
+        x
+    }
+    fn below(&mut self, n: u64) -> u64 { self.next() % n }
+}
+
+fn gen_regex(rng: &mut Rng, depth: u32, alphabet: &[char]) -> Regex {
+    if depth == 0 {
+        match rng.below(2) {
+            0 => Regex::Eps,
+            _ => Regex::lit(alphabet[rng.below(alphabet.len() as u64) as usize]),
+        }
+    } else {
+        match rng.below(6) {
+            0 => Regex::Eps,
+            1 => Regex::lit(alphabet[rng.below(alphabet.len() as u64) as usize]),
+            2 => Regex::seq(gen_regex(rng, depth - 1, alphabet), gen_regex(rng, depth - 1, alphabet)),
+            3 => Regex::alt(gen_regex(rng, depth - 1, alphabet), gen_regex(rng, depth - 1, alphabet)),
+            4 => Regex::star(gen_regex(rng, depth - 1, alphabet)),
+            _ => Regex::seq(gen_regex(rng, depth - 1, alphabet), gen_regex(rng, depth - 1, alphabet)),
+        }
+    }
+}
+
+fn gen_word(rng: &mut Rng, len: u32, alphabet: &[char]) -> String {
+    (0..len).map(|_| alphabet[rng.below(alphabet.len() as u64) as usize]).collect()
+}
+
+#[test]
+fn fuzz_bc_matches_std_exactly() {
+    let alphabet = ['a', 'b', 'c'];
+    let mut rng = Rng(0xD1B54A32D192ED03);
+    let mut checked = 0u32;
+    let mut mismatches = Vec::new();
+
+    for _ in 0..20_000 {
+        let r = gen_regex(&mut rng, 6, &alphabet);
+        let wlen = rng.below(9) as u32;
+        let w = gen_word(&mut rng, wlen, &alphabet);
+        checked += 1;
+
+        let std_tree = parse_deriv_std_rec(&w, &r);
+        let bc_tree = parse_deriv_bc(&w, &r);
+
+        if std_tree != bc_tree {
+            mismatches.push((r.clone(), w.clone(), std_tree.clone(), bc_tree.clone()));
+            if mismatches.len() >= 5 { break; }
+        }
+    }
+
+    if !mismatches.is_empty() {
+        let mut msg = format!("{} mismatches out of {} checked:\n", mismatches.len(), checked);
+        for (r, w, std_tree, bc_tree) in &mismatches {
+            msg.push_str(&format!(
+                "regex = {:?}\n  word = {:?}\n  std = {:?}\n  bitcoded = {:?}\n\n",
+                r, w, std_tree, bc_tree
+            ));
+        }
+        panic!("{}", msg);
+    }
+    assert!(checked > 0);
+}
