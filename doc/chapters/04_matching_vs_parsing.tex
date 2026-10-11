@@ -108,7 +108,7 @@ pub enum ParseTree {
 \label{fig:parsetree-enum}
 \end{figure}
 
-The definitions above translate directly to Rust, except for the star case:
+The definitions above translate directly to Rust, except for the star case.
 $\mathsf{T}{\varepsilon}$ corresponds to \texttt{Empty} for the empty
 parse, $\mathsf{T}_{\mathrm{lit}}$ to \texttt{Char} for a literal,
 $\mathsf{T}_{\mathrm{seq}}$ to \texttt{Pair} for a concatenation of
@@ -124,7 +124,6 @@ The typing judgment describes the structure of a match, but a parse tree
 must also be related to the word that it matches. For this purpose, they
 define a \emph{flattening} function $\lvert v\rvert$ that maps a parse
 tree to the word represented by its structure:
-
 \begin{equation}
 \label{eq:flatten}
 \begin{aligned}
@@ -168,21 +167,23 @@ L(r)
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:flatten-rust} shows that the function takes \texttt{\&ParseTree}
-rather than consuming the tree, so it can be inspected, printed, and compared after flattening. 
-The star case similarly borrows its elements through \texttt{vs.iter()}.
+Figure~\ref{fig:flatten-rust} shows how \texttt{flatten} recursively
+traverses the parse tree and concatenates its leaf characters. The
+function borrows the tree to allow subsequent inspection and comparison.
+The \texttt{Pair} case concatenates the results of flattening both
+children, while \texttt{Left} and \texttt{Right} delegate to their child,
+and \texttt{Star} concatenates the results for each element.
 \begin{figure}[H]
 \small
 \begin{verbatim}
 pub fn flatten(v: &ParseTree) -> String {
     match v {
-        ParseTree::Empty       => String::new(),
-        ParseTree::Char(c)     => c.to_string(),
-        ParseTree::Pair(v1, v2) =>
-            format!("{}{}", flatten(v1), flatten(v2)),
-        ParseTree::Left(v)     => flatten(v),
-        ParseTree::Right(v)    => flatten(v),
-        ParseTree::Star(vs)    => vs.iter().map(flatten).collect(),
+        ParseTree::Empty        => String::new(),
+        ParseTree::Char(c)      => c.to_string(),
+        ParseTree::Pair(v1, v2) => format!("{}{}", flatten(v1), flatten(v2)),
+        ParseTree::Left(v)      => flatten(v),
+        ParseTree::Right(v)     => flatten(v),
+        ParseTree::Star(vs)     => vs.iter().map(flatten).collect(),
     }
 }
 \end{verbatim}
@@ -216,99 +217,122 @@ The parse tree $v=(a,b)$ flattens to $\lvert (a,b)\rvert = \mathtt{ab}$.
 
 %
 \paragraph{Ambiguous Example.}
-\label{par:ambigious-example}
-Recall $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$ from the example in
-Section~\ref{sec:matching-problem}, the two decompositions
-in~\eqref{eq:match-decompositions} correspond to two distinct parse
-trees.
+\label{par:ambiguous-example}
 
-The first decomposition uses the right alternatives of both subexpressiosn $a+ab$ and $b+\varepsilon$. 
-First deriving the parse tree for $a+ab$, gives:
-\begin{equation}\label{eq:mvp-7a}
+Recall $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$ from
+Section~\ref{sec:matching-problem}. The word admits two distinct
+decompositions, corresponding to different parse trees.
+
+The first decomposition uses the right alternatives of both
+subexpressions:
+\[
+\begin{array}{c@{\qquad\qquad}c}
+\underbrace{
 \begin{gathered}
-\dfrac{a \in \Sigma}{\vdash a : a}\;(\mathsf{T}_{\mathrm{lit}})
-\qquad\qquad
-\dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
-\\[1.6em]
-\dfrac{\vdash a : a \quad \vdash b : b}{\vdash (a,b) : ab}\;(\mathsf{T}_{\mathrm{seq}})
-\qquad\qquad
-\dfrac{\vdash (a,b) : ab}{\vdash \mathit{Right}(a,b) : a+ab}\;(\mathsf{T}_{+}^{R})
+\dfrac{a \in \Sigma}{\vdash a : a}
+\,(\mathsf{T}_{\mathrm{lit}})
+\qquad
+\dfrac{b \in \Sigma}{\vdash b : b}
+\,(\mathsf{T}_{\mathrm{lit}})
+\\[1em]
+\dfrac{\vdash a : a \quad \vdash b : b}
+      {\vdash (a,b) : ab}
+\,(\mathsf{T}_{\mathrm{seq}})
+\\[1em]
+\dfrac{\vdash (a,b) : ab}
+      {\vdash \mathit{Right}(a,b) : a+ab}
+\,(\mathsf{T}_{+}^{R})
 \end{gathered}
-\end{equation}
+}_{\text{$a+ab$}}
+&
+\underbrace{
+\begin{gathered}
+\dfrac{b \in \Sigma}{\vdash b : b}
+\,(\mathsf{T}_{\mathrm{lit}})
+\qquad
+\vdash () : \varepsilon
+\,(\mathsf{T}_{\varepsilon})
+\\[1em]
+\dfrac{\vdash () : \varepsilon}
+      {\vdash \mathit{Right}() : b+\varepsilon}
+\,(\mathsf{T}_{+}^{R})
+\end{gathered}
+}_{\text{$b+\varepsilon$}}
+\end{array}
+\]
 
-Then the parse tree for $b+\varepsilon$:
-\begin{equation}\label{eq:mvp-7b}
-\dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
-\qquad\qquad
-\vdash () : \varepsilon\;(\mathsf{T}_{\varepsilon})
-\qquad\qquad
-\dfrac{\vdash () : \varepsilon}{\vdash \mathit{Right}() : b+\varepsilon}\;(\mathsf{T}_{+}^{R})
-\end{equation}
+By $\mathsf{T}_{\mathrm{seq}}$, these derivations combine into
+the parse tree:
 
-
-By $\mathsf{T}_{\mathrm{seq}}$, the parse trees for $a+ab$ and $b+\varepsilon$ combine into one derivation for $r$:
 \begin{equation}
-\label{eq:mvp-7}
+\label{eq:decomposition-right}
+\begin{gathered}
 \dfrac{
   \dfrac{\vdash a : a \quad \vdash b : b}
         {\vdash (a,b) : ab}
 }{
-  \vdash \mathit{Right}(a,b) : a + ab
+  \vdash \mathit{Right}(a,b) : a+ab
 }
-\quad
-\dfrac{
-  \vdash () : \varepsilon
-}{
-  \vdash \mathit{Right}() : b + \varepsilon
-}
-\quad\Rightarrow\quad
+\qquad
+\dfrac{\vdash () : \varepsilon}
+      {\vdash \mathit{Right}() : b+\varepsilon}
+\\[1em]
 v_1 =
-\bigl(
-  \mathit{Right}(a,b),
-  \mathit{Right}()
-\bigr),
-\quad
-\lvert v_1\rvert = \mathtt{ab}.
+\bigl(\mathit{Right}(a,b),\mathit{Right}()\bigr),
+\qquad
+|v_1| = \mathtt{ab}.
+\end{gathered}
 \end{equation}
 
-The second decomposition matches $\mathtt{a}$ and $\mathtt{b}$ using
-the first alternatives of $a+ab$ and $b+\varepsilon$:
-\begin{equation}\label{eq:mvp-9a}
-\dfrac{a \in \Sigma}{\vdash a : a}\;(\mathsf{T}_{\mathrm{lit}})
-\qquad\qquad
-\dfrac{\vdash a : a}{\vdash \mathit{Left}\ a : a+ab}\;(\mathsf{T}_{+}^{L})
-\end{equation}
+The second decomposition uses the left alternatives of both
+subexpressions:
 
-Then the parse tree for $b+\varepsilon$:
-\begin{equation}\label{eq:mvp-9b}
-\dfrac{b \in \Sigma}{\vdash b : b}\;(\mathsf{T}_{\mathrm{lit}})
-\qquad\qquad
-\dfrac{\vdash b : b}{\vdash \mathit{Left}\ b : b+\varepsilon}\;(\mathsf{T}_{+}^{L})
-\end{equation}
-
-By $\mathsf{T}_{\mathrm{seq}}$, the parse trees for $a+ab$ and $b+\varepsilon$ 
-combine into one derivation for $r$:
-\begin{equation}
-\label{eq:mvp-9}
+\[
+\begin{array}{c@{\qquad\qquad}c}
+\underbrace{
+\begin{gathered}
+\dfrac{a \in \Sigma}{\vdash a : a}
+\,(\mathsf{T}_{\mathrm{lit}})
+\\[1em]
 \dfrac{\vdash a : a}
-      {\vdash \mathit{Left}\ a : a + ab}
-\quad
+      {\vdash \mathit{Left}\,a : a+ab}
+\,(\mathsf{T}_{+}^{L})
+\end{gathered}
+}_{\text{$a+ab$}}
+&
+\underbrace{
+\begin{gathered}
+\dfrac{b \in \Sigma}{\vdash b : b}
+\,(\mathsf{T}_{\mathrm{lit}})
+\\[1em]
 \dfrac{\vdash b : b}
-      {\vdash \mathit{Left}\ b : b + \varepsilon}
-\quad\Rightarrow\quad
+      {\vdash \mathit{Left}\,b : b+\varepsilon}
+\,(\mathsf{T}_{+}^{L})
+\end{gathered}
+}_{\text{$b+\varepsilon$}}
+\end{array}
+\]
+
+By $\mathsf{T}_{\mathrm{seq}}$, these derivations combine into
+the second parse tree:
+
+\begin{equation}
+\label{eq:decomposition-left}
+\begin{gathered}
+\dfrac{\vdash a : a}
+      {\vdash \mathit{Left}\,a : a+ab}
+\qquad
+\dfrac{\vdash b : b}
+      {\vdash \mathit{Left}\,b : b+\varepsilon}
+\\[1em]
 v_2 =
-\bigl(
-  \mathit{Left}\ a,
-  \mathit{Left}\ b
-\bigr),
-\quad
-\lvert v_2\rvert = \mathtt{ab}.
+\bigl(\mathit{Left}\,a,\mathit{Left}\,b\bigr),
+\qquad
+|v_2| = \mathtt{ab}.
+\end{gathered}
 \end{equation}
 
-
-Both trees are valid parse trees for the same expression and word, yet
-they differ in their structure. The typing judgment alone does not
-determine which should be selected. A \emph{disambiguation policy}
-specifies this choice.
-
-%
+Both trees are valid parse trees for the same expression and word,
+yet they differ in structure. The typing judgment alone does not
+determine which parse tree should be selected. A
+\emph{disambiguation policy} specifies this choice.
