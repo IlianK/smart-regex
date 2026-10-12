@@ -112,3 +112,12 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
         }
     }
 }
+
+/// `pderiv_tree`'s residual `Regex`es alone, discarding the injection
+/// closures: for measurement code that only needs the frontier's shape
+/// (size, strand count), not parse-tree reconstruction. `pderiv_bc`'s
+/// one-step primitive is `pub` for the same reason; `pderiv_tree` itself
+/// stays `pub(crate)` since `Inj` is not exported.
+pub fn pderiv_tree_residuals(r: &Regex, x: char) -> Vec<Regex> {
+    pderiv_tree(r, x).into_iter().map(|(r, _)| r).collect()
+}

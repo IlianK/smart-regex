@@ -11,6 +11,7 @@
 use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
 use regex_engine::parsers::deriv_bc::{deriv::deriv_bc, internalize::internalize, simplify::simp};
 use regex_engine::parsers::pderiv_bc::pderiv::pderiv_bc;
+use regex_engine::parsers::pderiv_std::pderiv_tree_residuals;
 use regex_engine::regex::deriv::deriv;
 use regex_engine::types::{ARegex, Regex};
 
@@ -164,6 +165,69 @@ pub fn series_frontier(r: &Regex, input: &str) -> Vec<(usize, usize)> {
             }
         }
         out.push((frontier.len(), distinct.len()));
+    }
+    out
+}
+
+/// `series_frontier`'s standard (non-bit-coded) counterpart: drives
+/// `pderiv_tree_residuals` instead of `pderiv_bc`. The two are not quite
+/// the same construction: `pderiv_bc` builds each successor with
+/// `smart_seq` (drops a redundant leading `Eps ·`), while `pderiv_tree`
+/// uses the plain, unconditional `Regex::seq`, so a standard-side residual
+/// can carry a few extra `Eps ·` nodes that the bit-coded side's
+/// `smart_seq` would have already dropped. Both sides dedup the frontier
+/// (`nub_tree` / `nub2`) before the next step, so strand *counts* are
+/// directly comparable; per-residual *node* size is not, without also
+/// accounting for that `Eps ·` difference.
+pub fn series_frontier_std(r: &Regex, input: &str) -> Vec<(usize, usize)> {
+    let mut frontier: Vec<Regex> = vec![r.clone()];
+    let mut out = vec![(1usize, 1usize)];
+    for c in input.chars() {
+        let mut next = Vec::new();
+        for res in &frontier {
+            next.extend(pderiv_tree_residuals(res, c));
+        }
+        frontier = next;
+        let mut distinct: Vec<&Regex> = Vec::new();
+        for res in frontier.iter() {
+            if !distinct.contains(&res) {
+                distinct.push(res);
+            }
+        }
+        out.push((frontier.len(), distinct.len()));
+    }
+    out
+}
+
+/// Total `size_regex` summed across every strand in a `pderiv_bc` frontier
+/// per step -- the memory-proxy figure comparable to `series_bitcoded_simplified`'s
+/// single-tree size, since a partial-derivative parser's live state is the
+/// whole frontier, not any one strand.
+pub fn series_frontier_total_size(r: &Regex, input: &str) -> Vec<usize> {
+    let mut frontier: Vec<Regex> = vec![r.clone()];
+    let mut out = vec![size_regex(r)];
+    for c in input.chars() {
+        let mut next = Vec::new();
+        for res in &frontier {
+            next.extend(pderiv_bc(res, c).into_iter().map(|(r, _)| r));
+        }
+        frontier = next;
+        out.push(frontier.iter().map(size_regex).sum());
+    }
+    out
+}
+
+/// `series_frontier_total_size`'s standard (non-bit-coded) counterpart.
+pub fn series_frontier_std_total_size(r: &Regex, input: &str) -> Vec<usize> {
+    let mut frontier: Vec<Regex> = vec![r.clone()];
+    let mut out = vec![size_regex(r)];
+    for c in input.chars() {
+        let mut next = Vec::new();
+        for res in &frontier {
+            next.extend(pderiv_tree_residuals(res, c));
+        }
+        frontier = next;
+        out.push(frontier.iter().map(size_regex).sum());
     }
     out
 }

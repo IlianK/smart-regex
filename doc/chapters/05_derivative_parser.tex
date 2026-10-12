@@ -1120,8 +1120,9 @@ $\mathsf{B}_{*}$.}
 \subsection{Decoding Bits}
 \label{sec:decode}
 
-With $\mathit{decode}_r$ a \texttt{ParseTree} gets reconstructed
-from the bit sequence produced by $\mathit{mkEpsBC}$:
+$\mathit{decode}_r$ reconstructs a \texttt{ParseTree} from the bit
+sequence produced by $\mathit{mkEpsBC}$. It walks the original,
+unannotated $r$ and uses one bit per alternation to choose a branch:
 {\small
 \begin{equation}\label{eq:decode}
 \begin{aligned}
@@ -1150,22 +1151,22 @@ from the bit sequence produced by $\mathit{mkEpsBC}$:
 \end{equation}
 }
 
-Since the annotated expression has been reduced to a bare bit sequence,
-$\mathit{decode}_r$ traverses the original, unannotated expression $r$,
-consuming one bit at each alternation and none at literal, concatenation,
-or star nodes. Its recursive worker, $\mathit{decodeInner}$, returns
-both the tree for the current subexpression and the unconsumed bits,
-allowing subsequent recursive calls to continue at the correct position.
+The annotated expression has been reduced to a bare bit sequence, so
+$\mathit{decode}_r$ walks the original $r$ and uses the bits only to
+choose between alternation branches. Its worker $\mathit{decodeInner}$
+returns both the tree for the current subexpression and the unconsumed
+bits, so the recursion can continue at the correct position.
 
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:decode-rust} shows \texttt{decode} and the \texttt{Alt}
-arm of its worker \texttt{decode\_inner}. The worker returns a pair,
+Figure~\ref{fig:decode-rust} shows \texttt{decode} and the three compound
+arms of its worker \texttt{decode\_inner}. The worker returns a pair,
 \texttt{(ParseTree, \&[bool])}, holding the tree for the current
-subexpression together with whatever bits remain. Rust's slice patterns
-make the leading-bit test direct, since \texttt{[false, rest @ ..]} and
-\texttt{[true, rest @ ..]} both check the bit and name the remainder in
+subexpression together with whatever bits remain, which is what lets the
+recursion continue at the correct position in the bit-string. Rust's slice
+patterns make the leading-bit test direct, since \texttt{[false, rest @ ..]}
+and \texttt{[true, rest @ ..]} both check the bit and name the remainder in
 one pattern.
 
 \begin{figure}[H]
@@ -1180,7 +1181,7 @@ pub fn decode(r: &Regex, bs: &[bool]) -> ParseTree {
 
 fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
     match r {
-        // Eps, Lit, Seq, Star: one direct recursive case each
+        // ...
         Regex::Alt(r1, r2) => match bs {
             [false, rest @ ..] => {
                 let (v, remaining) = decode_inner(r1, rest);
@@ -1190,30 +1191,58 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
                 let (v, remaining) = decode_inner(r2, rest);
                 (ParseTree::Right(Box::new(v)), remaining)
             }
-            [] => panic!("decode: unexpected end of bits at Alt"),
+            // ...
         },
-        // Phi: unreachable, decode never runs against a failed match
+        Regex::Seq(r1, r2) => {
+            let (v1, after_r1) = decode_inner(r1, bs);
+            let (v2, after_r2) = decode_inner(r2, after_r1);
+            (ParseTree::Pair(Box::new(v1), Box::new(v2)), after_r2)
+        }
+        Regex::Star(r1) => {
+            let mut items = Vec::new();
+            let mut remaining = bs;
+            loop {
+                match remaining {
+                    [true, rest @ ..] => { remaining = rest; break; }
+                    [false, rest @ ..] => {
+                        let (v, after) = decode_inner(r1, rest);
+                        items.push(v);
+                        remaining = after;
+                    }
+                    // ...
+                }
+            }
+            (ParseTree::Star(items), remaining)
+        }
     }
 }
 \end{verbatim}
-\caption{\texttt{decode} and the \texttt{Alt} arm of \texttt{decode\_inner}.}
+\caption{\texttt{decode} and the \texttt{Alt}, \texttt{Seq}, and
+\texttt{Star} arms of \texttt{decode\_inner}.}
 \label{fig:decode-rust}
 \end{figure}
 
-\texttt{decode} calls the worker and asserts no bits remain, enforcing
-$\mathit{decode}_r$'s side condition directly: leftover bits would mean
-the string did not correspond to a valid decoding of $r$. \texttt{Alt}
-tests the leading bit with a slice pattern and recurses into the branch
-it names, exactly the $0{=}\mathit{Left}/1{=}\mathit{Right}$ tags
-$\mathit{internalize}$ assigned, returning the remaining bits unchanged
-since only that one bit belongs to the alternation. \texttt{Eps} and
-\texttt{Lit} (elided above) return their tree without consuming a bit,
-since neither appears in the bit-string. \texttt{Seq} recurses into both
-factors in order, threading the bits left over from the first into the
-second. \texttt{Star} loops, consuming one $0$ per iteration, until the
-trailing $1$ that $\mathit{mkEpsBC}$ appended terminates it.
-\texttt{Phi} is unreachable, since decoding only ever runs after a
-successful match.
+\texttt{decode} calls the worker and asserts that no bits remain, which is
+exactly the side condition that $\mathit{decode}_r$ be defined only when
+the worker consumes the entire bit-string. The \texttt{Alt} arm tests the
+leading bit with a slice pattern and recurses into the branch it names,
+returning the remaining bits unchanged, since only the leading bit belongs
+to the alternation.
+
+The \texttt{Seq} arm shows why the worker returns a pair. It recurses into
+the first factor, receives both a tree and the bits the first factor left
+unconsumed, and passes those bits to the second factor. The second factor
+then returns its own tree and the bits that follow it, which are the bits
+for any enclosing expression. Returning only the tree would leave the
+second recursion with no way to know where to start.
+
+The \texttt{Star} arm loops, since the number of iterations is not known
+in advance and is itself encoded in the bits. Each leading \texttt{false}
+corresponds to one iteration, so the arm recurses into the body and then
+continues the loop from whatever bits the body left behind. The loop ends
+at the leading \texttt{true} that \texttt{mk\_eps\_bc} appended. The
+\texttt{Eps}, \texttt{Lit}, and \texttt{Phi} arms are elided, since the
+first two consume no bits and the third is unreachable.
 
 %
 %
