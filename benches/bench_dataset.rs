@@ -1,6 +1,6 @@
 //! benches/bench_dataset.rs
 //!
-//! Benchmarks the four parsers against real corpus patterns
+//! Benchmarks the four parsers against real corpus patterns.
 //!
 //! Run: `cargo bench --bench bench_dataset`
 
@@ -50,23 +50,13 @@ fn bench_selection() -> BenchSelection {
     BenchSelection { sources, pattern_limit }
 }
 
-/// One `Vec<Entry>` per source (Suricata, SpamAssassin, RegexLib), each
-/// capped at `pattern_limit` distinct patterns, so the benchmark surveys
-/// pattern diversity within a source rather than just repeating one
-/// pattern's candidates. There is no difficulty-category split left to
-/// bucket by -- `generate_sample` no longer has one (`data/generate.rs`);
-/// source is the dimension this project's examples (e.g.
-/// `demo_parser_agreement`) group by instead.
+/// One `Vec<Entry>` per source, each capped at `pattern_limit` distinct
+/// patterns.
+/// Surveys pattern diversity within a source, not one pattern's candidates.
+/// Source is the dimension examples like `demo_parser_agreement` group by.
 fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources)
-        .unwrap_or_else(|e| {
-            panic!(
-                "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
-                 docs/DATASET.md",
-                DATA_ROOT
-            )
-        });
+        .unwrap_or_else(|e| panic!("cannot read {DATA_ROOT}: {e} -- run dataset_prepare first"));
 
     let mut suricata = Vec::new();
     let mut spamassassin = Vec::new();
@@ -85,16 +75,16 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
         if !already_admitted && patterns.len() >= pattern_limit {
             continue;
         }
-        // `core_regex`, not `parse_pcre_rule`: `case.pattern` was accepted
-        // by `core_regex_tagged` to reach `prepared.jsonl` at all, and
-        // some accepted patterns (`MatchIntent::ExplicitFullMatch`) only
-        // translate through the `^...$`-stripping `core_regex` applies,
-        // which plain `parse_pcre_rule` does not -- using it here would
-        // silently drop every such pattern as "unparseable".
+        // `core_regex`, not `parse_pcre_rule`.
+        // `case.pattern` was accepted by `core_regex_tagged` to reach
+        // `prepared.jsonl` at all.
+        // Some accepted patterns (`MatchIntent::ExplicitFullMatch`) only
+        // translate through `core_regex`'s `^...$`-stripping.
+        // Plain `parse_pcre_rule` would silently drop them as unparseable.
         let regex = match core_regex(&case.pattern) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("skipping prepared case (should have been pre-verified): {} -- {}", case.pattern, e);
+                eprintln!("skipping pre-verified case: {} -- {e}", case.pattern);
                 continue;
             }
         };
@@ -111,12 +101,10 @@ fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
     let root = std::path::Path::new(DATA_ROOT);
     let resolved = std::fs::canonicalize(root)
         .map(|p| p.display().to_string())
-        .unwrap_or_else(|_| format!("{DATA_ROOT} (relative to the process's current directory; \
-             does not exist there)"));
+        .unwrap_or_else(|_| format!("{DATA_ROOT} (missing)"));
     let mut lines = vec![format!(
-        "bench: no entries loaded from any source under {DATA_ROOT} \
-         (resolved: {resolved}). Active selection: sources={:?} (empty = all), \
-         pattern_limit={}. Per-source check:",
+        "no entries loaded from {DATA_ROOT} ({resolved}); \
+         sources={:?} (empty = all) limit={}",
         sel.sources, sel.pattern_limit
     )];
     for source in [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib] {
@@ -127,13 +115,9 @@ fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
         };
         lines.push(format!("  {} -> {}", path.display(), status));
     }
-    lines.push(format!(
-        "Run `cargo run --release --example dataset_prepare -- <suricata|spamassassin|regexlib> \
-         <file>...` for whichever source shows 0 lines or unreadable above; see \
-         docs/DATASET.md. If a file shows nonzero lines here but the bench still reported \
-         0 entries loaded, the entries were filtered out after loading (see the eprintln above \
-         this panic for that count) rather than missing on disk."
-    ));
+    lines.push(
+        "run dataset_prepare for any source above showing 0 lines or unreadable".to_string(),
+    );
     lines.join("\n")
 }
 
@@ -150,14 +134,12 @@ fn bench_by_source(c: &mut Criterion) {
     let sel = bench_selection();
     let (suricata, spamassassin, regexlib) = load_corpus(&sel, sel.pattern_limit);
     eprintln!(
-        "bench_dataset: {} suricata, {} spamassassin, {} regexlib (pattern, input) entries loaded \
-         (up to {} distinct patterns each, sources={:?} [empty = all]) from {}",
+        "bench_dataset: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
         sel.pattern_limit,
         sel.sources,
-        DATA_ROOT
     );
 
     for (label, corpus) in [
@@ -166,7 +148,7 @@ fn bench_by_source(c: &mut Criterion) {
         ("dataset_regexlib", &regexlib),
     ] {
         if corpus.is_empty() {
-            eprintln!("bench_dataset: skipping {label}, no entries loaded");
+            eprintln!("skip {label}: no entries");
             continue;
         }
         let mut group = c.benchmark_group(label);

@@ -1,262 +1,129 @@
-# CLI Reference
+# External Pattern to Internal Regex
 
-Command reference for the `regex-engine` binary. 
+`src/frontend/` turns a pattern string into the crate's six-constructor
+core `Regex`.
 
-**By default, `match`/`parse` require the entire input to match the
-entire pattern**, and `^`/`$` do nothing. 
-- Full-string matching is what the core algorithm computes. 
-- Passing `--search` pads unanchored sides with `Σ*` (substring search), the same padding
-`src/data/`'s dataset pipeline uses. 
+For the CLI's own `match`/`parse` behavior, see [CLI.md](CLI.md).
 
----
 
-## Matcher
+## Entry points
 
-```bash
-# Default matcher (deriv), default diagnostics (off)
-cargo run -- match "a*" "aaa"
+`src/frontend/mod.rs` exposes two, both full-string match only --
+neither pads, searches, or otherwise changes what the translated pattern
+is matched against.
 
-# Specific matcher
-cargo run -- match "a*" "aaa" --matcher naive
-cargo run -- match "a*" "aaa" --matcher deriv
-cargo run -- match "a*" "aaa" --matcher pderiv
-
-# Compare all three matchers side by side
-cargo run -- match "a*" "aaa" --matcher all
-
-# Matcher with diagnostics (only adds error info on failure)
-cargo run -- match "a*" "aab" 
-cargo run -- match "(a|ab)(b|ε)" "b" --matcher naive 
-```
-
----
-
-## Parser
-
-```bash
-# Default parser (deriv_std_rec), default diagnostics (off)
-cargo run -- parse "(a|ab)(b|ε)" "ab"
-cargo run -- parse "(a|b|ab)*"   "ab"
-
-# Specific parser
-cargo run -- parse "a*" "aaa" --parser deriv_std_rec
-cargo run -- parse "a*" "aaa" --parser deriv_std_loop
-cargo run -- parse "a*" "aaa" --parser deriv_bc
-
-# Partial-derivative parsers compute GREEDY, not POSIX
-cargo run -- parse "a*" "aaa" --parser pderiv_std
-cargo run -- parse "a*" "aaa" --parser pderiv_bc 
-
-# Compare all parsers side by side
-cargo run -- parse "a*"          "aaa" --parser all
-cargo run -- parse "(a|ab)(b|ε)" "ab"  --parser all
-```
-
----
-
-## Parser with Diagnostics
-
-Diagnostics are controlled by `--diag` (0-3) and work with all parsers.
-
-### Level 1 - Basic (Regex, Input, Match, Tree / Error caret)
-
-```bash
-# Success
-cargo run -- parse "a*" "aaa" --diag 1
-cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_std_loop --diag 1
-
-# Failure (shows error position and caret)
-cargo run -- parse "a*" "aab" --diag 1
-cargo run -- parse "(a|ab)(b|ε)" "b" --parser deriv_std_loop --diag 1
-```
-
-### Level 2 - Verbose (+ time, step count, construction steps / bit trace)
-
-```bash
-# Standard success - shows mkEps(rN) and inject steps
-cargo run -- parse "a*" "aaa" --diag 2
-cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 2
-
-# Standard failure - shows partial tree recovery
-cargo run -- parse "a*" "aab" --diag 2
-
-# Bitcoded success - shows internalize, bit steps, mkEpsBC, decode
-cargo run -- parse "a*" "aaa" --parser deriv_bc --diag 2
-
-# Bitcoded failure - shows bits accumulated before failure
-cargo run -- parse "a*" "aab" --parser deriv_bc --diag 2
-
-# Paper examples
-cargo run -- parse "(a|ab)(b|ε)" "ab" --diag 2
-cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_bc --diag 2
-cargo run -- parse "(a|b|ab)*"   "ab" --diag 2
-```
-
-### Level 3 - Debug (full structural derivation trace, written to file or stdout)
-
-Level 3 writes to `reports/report.txt` by default. Override with `--diag-report`.
-
-```bash
-# Standard success - full forward + backward pass trace
-cargo run -- parse "a*" "aaa" --diag 3
-cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 3
-
-# Standard failure - full forward trace + partial recovery + error summary
-cargo run -- parse "a*" "aab" --diag 3
-
-# Bitcoded success - internalize + all deriv_bc steps + mkEpsBC + decode
-cargo run -- parse "a*" "aaa" --parser deriv_bc --diag 3
-
-# Bitcoded failure
-cargo run -- parse "a*" "aab" --parser deriv_bc --diag 3
-
-# Custom filename inside reports/
-cargo run -- parse "(a|ab)(b|ε)" "ab" --diag 3 --diag-report reports/paper_r1.txt
-cargo run -- parse "(a|b|ab)*"   "ab" --diag 3 --diag-report reports/paper_r2.txt
-
-# Confirm deriv_std_rec and deriv_std_loop produce identical derivation traces
-# (diff will show two expected differences -- the "Mode:" label and the
-# timing line -- and nothing else)
-cargo run -- parse "a*" "aaa" --diag 3 --diag-report reports/rec.txt
-cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 3 --diag-report reports/loop.txt
-diff reports/rec.txt reports/loop.txt
-
-# Read directly
-cat reports/report.txt
-```
-
----
-
-### Args
-
-| Flag | Values | Default | Use |
+| Function | Wrapper stripped? | Flags applied | Used by |
 |---|---|---|---|
-| `--parser` | `deriv_std_rec` `deriv_std_loop` `deriv_bc` `pderiv_std` `pderiv_bc` `all` | `deriv_std_rec` | Parser selection (`parse` only) |
-| `--matcher` | `naive` `deriv` `pderiv` `all` | `deriv` | Matcher selection (`match` only) |
-| `--diag`  | `0` `1` `2` `3` | `0` | Output verbosity level (`parse` only) |
-| `--diag-report` | file path | unset (`reports/report.txt` if `--diag 3` with no path given) | Level 3 report destination (`parse` only) |
-| `--search` | flag (present/absent) | absent | Pad unanchored sides with `Σ*` instead of requiring a full-string match; both `match` and `parse` |
+| `parse_pattern` | no | none | CLI `match`/`parse` |
+| `parse_pcre_rule` | yes (`/PATTERN/FLAGS`) | `i`, `s`; `m`/`x` rejected | worked examples, test fixtures |
 
-### Diag Verbosity levels
+`.` matches `\n` under `parse_pattern`. The `strip_dot_newline` pass that
+excludes `\n` runs only in `parse_pcre_rule`, where an `s` flag can be
+present or absent; `parse_pattern` reads no flags at all, so no such pass
+applies to it.
 
-| Level | Name | On success | On failure |
-|---|---|---|---|
-| `0` | Off | `true` | `false` |
-| `1` | Basic | Regex, Input, Match, Tree | + position, found, expected, caret |
-| `2` | Verbose | + time, step count, construction steps / bit trace | + partial match recovery |
-| `3` | Debug | + full structural derivation trace | + full trace to failure point; writes to `--diag-report` if set |
+The dataset pipeline (`src/data/`) does **not** call either of these
+directly. It has its own `core_regex`/`core_regex_tagged`
+(`src/data/prepare.rs`), which repeats `parse_pcre_rule`'s steps plus two
+size caps and one additional, narrow anchor recovery — see
+[DATASET.md](DATASET.md)'s "Match-intent reliability tiers". That
+recovery is specific to dataset preparation: it never changes what
+`translate`, `parse_pattern`, or `parse_pcre_rule` themselves do.
 
----
 
-## External Pattern: Anchoring
+## PCRE flags (`parse_pcre_rule` only)
 
-Without `--search`, both `match` and `parse` parse their `regex`
-argument with `frontend::parse_pattern`: the bare pattern text directly,
-**not** wrapped in PCRE `/pattern/flags` delimiters, and **not** padded
-into a search over `^`/`$`-unanchored substrings. `match`/`parse` ask
-whether the *entire* input matches the *entire* pattern; `^`/`$` are
-accepted but do nothing (`translate` maps both to `Eps`).
+`PcreFlags` reads the flags from a `/PATTERN/FLAGS` wrapper. Only the
+flags whose presence changes what the pattern denotes are recorded.
+Unrecognized letters and Snort's buffer selectors like `U`, `H`, `P`, `C`
+are ignored, since they name which buffer the rule is tested against, not
+what the pattern itself matches. So are `R` (relative), `A` (anchored),
+and `E` (dollar-endonly): each used to position or tune a search or an
+anchor this frontend no longer has a concept of, so each is now simply
+ignored, the same as an unrecognized buffer selector.
 
-With `--search`, both instead parse with `frontend::parse_dataset_pattern`
-(the same padding `src/data/`'s pipeline uses, minus its `/PATTERN/FLAGS`
-wrapper-stripping and `i`-flag case-folding, which `--search` doesn't
-add): whichever side of the pattern lacks a top-level `^`/`$` gets padded
-with `Σ*`. Verified live:
+| Flag | Meaning | Handled as |
+|---|---|---|
+| `i` | case-insensitive | case-folded (`case_fold`) |
+| `s` | dot-all | `.` includes `\n` (absent: excluded, `strip_dot_newline`) |
+| `m` | multiline | rejected: `^`/`$` would also match at newlines, and this frontend has no `^`/`$` to begin with |
+| `x` | extended | rejected: whitespace would stop being literal |
+| `R`, `A`, `E`, buffer selectors (`U`, `H`, `P`, `C`, ...) | ignored | positioned or tuned something (a search, an anchor) this frontend no longer has |
 
-```bash
-cargo run -- match "abc" "xabcx"            # no --search: full string only
-false
-cargo run -- match "abc" "xabcx" --search   # unanchored: padded both sides
-true
-cargo run -- match '^abc$' "xabcx" --search # fully anchored: no padding either side
-false
-cargo run -- match '^abc' "abcx" --search   # start-anchored: padded on the end only
-true
-cargo run -- match '^abc' "xabc" --search
-false
+
+## Pipeline
+
+```
+pattern string
+  -> strip_pcre_delimiters   parse_pcre_rule only; splits /PATTERN/FLAGS
+  -> parse_ext_pattern       string -> ExtPat; rejects backreferences and lookaround
+  -> case_fold               parse_pcre_rule only, if the i flag was set
+  -> strip_dot_newline       parse_pcre_rule only, if the s flag was not set
+  -> translate               ExtPat -> Regex; rejects ^, $, \b, \B wherever they appear
 ```
 
-See [FRONTEND.md](FRONTEND.md)'s "Search padding and anchoring" section
-for the full anchoring table (`(^abc)`, `a^b`, `(a|^b)c`, etc.).
-Every row of it applies identically under `--search`.
+`ExtPat` is the surface AST: literals, `.`, classes, grouping,
+quantifiers, bounds, alternation, anchors, and `\b`/`\B`. `translate`
+lowers each to `Regex`'s six constructors; a class becomes an `Alt` chain
+over the 98-character alphabet, and a bound unrolls into that many
+copies. Anchors and word-boundary assertions have no lowering: `translate`
+returns `Err` the moment it visits one, regardless of where in the
+pattern it sits (see "Anchors are rejected, not padded" below).
+
+Because of the `Alt`-chain lowering, `.`, the shorthand classes
+(`\d \D \w \W \s \S`), and any negated class `[^...]` can only ever match
+a character from that 98-character alphabet (printable ASCII plus
+tab/newline/CR, `alphabet.rs`) -- none of them matches a character
+outside it, even though real PCRE/POSIX semantics define a negated class
+as everything except the characters listed. A literal character written
+directly in the pattern is unaffected (`Regex::Lit` compares the full
+`char`, not just the working alphabet), so `café` still matches `"café"`;
+it is specifically `.`, a shorthand class, or negation that is bounded
+this way. Verified: `cargo run -- match "[^a]" "é"`, `match "\W" "é"`,
+and `match "." "é"` all print `false`.
 
 
-### Nested-anchor warning
+## Anchors are rejected, not padded
 
-A `^`/`$` that is present but isn't a real top-level anchor (nested
-inside a branch of an alternation, for example, as in `(a|^b)c`) is
-still accepted: `translate` silently lowers it to `Eps`, a no-op, same
-as any other interior position. 
+`^`, `$`, `\b`, and `\B` all parse successfully -- into `ExtPat::Carat`,
+`ExtPat::Dollar`, and `ExtPat::WordBoundary` -- and are rejected one
+stage later, by `translate`, rather than being desugared into an
+equivalent `Regex`. There used to be a padding scheme here
+(`wildcard_run`, a `Star` over the working alphabet inserted on whichever
+side was not explicitly anchored) that turned an unanchored pattern into
+a substring search; it no longer exists, at any entry point in
+`src/frontend/`.
 
-`match`/`parse` print a warning on stderr when it happens, with or
-without `--search`; the match/parse result and exit code are
-unaffected:
+Rejection is total, not positional: `translate` is structural recursion,
+and every compound `ExtPat` arm propagates a child's `Err` immediately
+(`?` in every case except `Group`/`GroupNonMarking`, which tail-call and
+so propagate it for free). An anchor buried behind an optional
+quantifier, inside one branch of an alternation, or under a `Star`/bound
+still reaches `translate` and still rejects the whole pattern, even
+though taking that branch is not required for the pattern to match at
+all.
 
-```bash
-cargo run -- match "(a|^b)c" "bc" --search
-warning: '^'/'$' appears but isn't a real anchor at that position -- translated as Eps (no-op) rather than enforced; see FRONTEND.md's faithfulness gaps
-true
+Verified against the built CLI, each rejecting with the same message
+(`anchor '^'/'$' is not supported by this frontend -- unsupported`):
+
+```
+$ cargo run -- parse "^?abc" "abc"        # optional, directly
+$ cargo run -- parse "(^)?abc" "abc"      # optional, behind a group
+$ cargo run -- parse "(^a|b)c" "bc"       # inside one alternation branch
+$ cargo run -- parse "(^a)*b" "b"         # under a star
+$ cargo run -- parse "(^a){0,1}b" "b"     # under an explicit bound
 ```
 
-See [FRONTEND.md](FRONTEND.md)'s "Faithfulness" section for the
-underlying rule, and why the analogous `R`/relative-match gap is not
-warned about here.
+`ε` and `∅` are unaffected: `translate(ExtPat::Eps) = Regex::Eps` and
+`translate(ExtPat::Never) = Regex::Phi` regardless of anchors elsewhere
+in the pattern (or the lack of them) -- they never contained one to
+reject in the first place.
 
 
+## Rejected Patterns
 
-### Supported syntax
-
-```bash
-# Literals, concatenation, alternation, grouping
-cargo run -- match "cat|dog" "dog"
-cargo run -- match "(a|b)c" "bc"
-cargo run -- match "(?:a|b)c" "bc"      # non-capturing group
-
-# Quantifiers: greedy and lazy (trailing ?)
-cargo run -- match "a*"  "aaa"
-cargo run -- match "a+"  "aaa"
-cargo run -- match "a?"  "a"
-cargo run -- match "a*?" "aaa"          # lazy star
-cargo run -- match "a+?" "aaa"          # lazy plus
-
-# Bounded repetition {m}, {m,}, {m,n}
-cargo run -- match "a{2,4}" "aaa"
-
-# Character classes, negation, ranges
-cargo run -- match "[abc]"   "b"
-cargo run -- match "[^abc]"  "d"
-cargo run -- match "[a-z0-9]+" "a1b2"
-
-# Shorthand classes: \d \D \w \W \s \S, and . (any character)
-cargo run -- match '\d{3}-\d{4}' "555-1234"
-cargo run -- match '\w+\s\w+' "hello world"
-cargo run -- match "a.c" "abc"
-
-# ^ and $: accepted, but a no-op under match/parse's default full-string
-# semantics -- they only start mattering with --search (see below)
-cargo run -- match "^abc$" "abc"
-```
-
-### Rejected outright, with a specific error
-
-Three constructs describe languages, or depend on position, in a way
-that isn't regular in the formal sense every parser depends on.
-`parse_pattern` rejects all three with a
-descriptive error.
-
-```bash
-cargo run -- match "(a)\1" "aa"
-Regex parse error: backreference '\1' is not a regular-language construct -- unsupported
-
-cargo run -- match "a(?=b)" "ab"
-Regex parse error: lookahead '(?=...)' is not a regular-language construct -- unsupported
-
-cargo run -- match '\bfoo\b' "foo"
-Regex parse error: word boundary '\b'/'\B' is position-dependent, not a regular-language construct -- unsupported
-```
-
-Lookahead, negative lookahead, lookbehind, and negative lookbehind
-(`(?=`, `(?!`, `(?<=`, `(?<!`) are all rejected the same way, at parse
-time, before any translation is attempted. `\b`/`\B` parse successfully
-(into an internal `WordBoundary` marker, so a literal `b` is never
-silently substituted) but are rejected one step later, at translation.
+| Construct | Rejected by | Why there |
+|---|---|---|
+| Backreferences (`\1`-`\9`, `(?P=name)`), lookaround (`(?=`, `(?!`, `(?<=`, `(?<!`) | `parse_ext_pattern` | not regular; no `ExtPat` constructor exists for them, so there is nowhere to defer to |
+| `^`, `$` | `translate` | parse succeeds into `ExtPat::Carat`/`ExtPat::Dollar` so rejection can name the construct instead of silently mismatching it |
+| `\b`, `\B` | `translate` | parse succeeds into `ExtPat::WordBoundary`, same reason; both are position-dependent, not regular-language, constructs |

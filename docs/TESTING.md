@@ -2,9 +2,6 @@
 
 - **Unit tests** - `#[cfg(test)] mod tests` inside each `src/` file, test private functions
 - **Integration tests** - `tests/` directory, public API only
-- **External-engine tests** (optional) - `src/external/{re2,rust_regex}.rs`'s own
-  `#[cfg(test)]` modules, compiled only under `--features external-engines`;
-  see [docs/EXTERNAL_ENGINES.md](../EXTERNAL_ENGINES.md)
 
 
 ```bash
@@ -33,10 +30,7 @@ cargo test bitcoded_agrees_on_paper_r2_ab
 cargo test loop_traced_inject_steps_are_in_forward_order
 cargo test recursive_traced_agrees_with_loop_traced
 
-# Unit tests for a specific module. Module-leaf names are reused across
-# src/ (e.g. both src/regex/nullable.rs and src/parsers/deriv_bc/nullable.rs
-# define a nullable::tests), so these are qualified with their parent
-# module wherever a bare leaf name would otherwise match more than one.
+# Unit tests for a specific module
 cargo test --lib regex::nullable::tests
 cargo test --lib deriv_bc::simplify::tests
 cargo test --lib mk_eps_bc::tests
@@ -49,8 +43,4 @@ cargo test -- --nocapture
 
 # List all tests without running
 cargo test -- --list
-
-# External-engine wrapper tests (requires the system RE2 library, see
-# docs/EXTERNAL_ENGINES.md)
-cargo test --features external-engines --lib external::
 ```

@@ -1,8 +1,8 @@
 //! benches/bench_match.rs
 //!
-//! Investigates memory consumption of the four parsers against real corpus patterns
-
-//! Run: `cargo bench --bench bench_memory`
+//! Memory consumption of the four parsers against real corpus patterns.
+//!
+//! Run: `cargo bench --bench bench_match`
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -109,19 +109,11 @@ struct Entry {
 }
 
 /// One `Vec<Entry>` per source, each capped at `pattern_limit` distinct
-/// patterns. There is no difficulty-category split left to bucket by
-/// (`data/generate.rs` no longer has one); source is the dimension this
-/// project's examples group by instead.
+/// patterns.
+/// Source is the dimension examples group by.
 fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources)
-        .unwrap_or_else(|e| {
-            panic!(
-                "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
-                 docs/DATASET.md",
-                DATA_ROOT
-            )
-        });
+        .unwrap_or_else(|e| panic!("cannot read {DATA_ROOT}: {e} -- run dataset_prepare first"));
 
     let mut suricata = Vec::new();
     let mut spamassassin = Vec::new();
@@ -140,13 +132,13 @@ fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
         if !already_admitted && patterns.len() >= sel.pattern_limit {
             continue;
         }
-        // `core_regex`, not `parse_pcre_rule`: see the matching comment
-        // in `bench_dataset.rs` -- an `ExplicitFullMatch` pattern only
-        // translates through `core_regex`'s `^...$` stripping.
+        // `core_regex`, not `parse_pcre_rule`.
+        // An `ExplicitFullMatch` pattern only translates through
+        // `core_regex`'s `^...$` stripping.
         let regex = match core_regex(&case.pattern) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("skipping prepared case (should have been pre-verified): {} -- {}", case.pattern, e);
+                eprintln!("skipping pre-verified case: {} -- {e}", case.pattern);
                 continue;
             }
         };
@@ -155,8 +147,7 @@ fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     }
     if suricata.is_empty() && spamassassin.is_empty() && regexlib.is_empty() {
         panic!(
-            "bench_memory: no entries loaded under {DATA_ROOT} with sources={:?} \
-             (empty = all), pattern_limit={} -- run dataset_prepare first; see docs/DATASET.md",
+            "no entries loaded from {DATA_ROOT} (sources={:?}, limit={}) -- run dataset_prepare first",
             sel.sources, sel.pattern_limit
         );
     }
@@ -178,7 +169,7 @@ const PARSERS: &[(ParserType, ParserFn)] = &[
 
 fn report(label: &str, corpus: &[Entry]) {
     if corpus.is_empty() {
-        eprintln!("bench_memory: skipping {label}, no entries loaded");
+        eprintln!("skip {label}: no entries");
         return;
     }
     println!("\n{label} ({} entries)", corpus.len());
@@ -201,18 +192,13 @@ fn main() {
     let sel = bench_selection();
     let (suricata, spamassassin, regexlib) = load_corpus(&sel);
     eprintln!(
-        "bench_memory: {} suricata, {} spamassassin, {} regexlib (pattern, input) entries loaded \
-         (up to {} distinct patterns each, sources={:?} [empty = all]) from {}",
+        "bench_match: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
         sel.pattern_limit,
         sel.sources,
-        DATA_ROOT
     );
-    println!("bytes allocated per parser per source (total = cumulative during the call, \
-               including freed churn; max peak = largest single entry's high-water mark above \
-               baseline)");
     report("dataset_suricata", &suricata);
     report("dataset_spamassassin", &spamassassin);
     report("dataset_regexlib", &regexlib);

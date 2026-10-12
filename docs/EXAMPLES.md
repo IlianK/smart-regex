@@ -2,10 +2,10 @@
 
 Runnable programs under `examples/`, invoked with `cargo run --example <name>`.
 Self-contained programs demonstrating matching and parsing on the worked examples
-(with and without diagnostics), search padding on a sample of the real corpus
-(`data/raw/_Samples`), frontend coverage (showing which PCRE features are
-supported, approximated, or rejected), stack-depth limits comparing the loop
-and recursive approaches for the derivative-based parsers only, 
+(with and without diagnostics), reject-cause coverage on a sample of the real
+corpus (`data/raw/_Samples`), frontend coverage (showing which PCRE features are
+supported or rejected), stack-depth limits comparing the loop and recursive
+approaches for the derivative-based parsers only, the dataset pipeline itself,
 and demos that reproduce the numbers behind the thesis figures.
 
 `demo_parse` reuses the CLI's `--parser`/`--diag`/`--diag-report` names.
@@ -54,17 +54,23 @@ cargo run --example demo_crash --release
 ```
 
 
-## Search-padding demos (anchored / unanchored samples)
+## Reject-cause demo
 
 ```bash
-# Unanchored: noisy input matches the padded regex, not the plain one
-cargo run --release --example demo_samples_unanchored -- snort \
-  --data-dir data/raw/_Samples --seed 1 --count 3
+# One real corpus pattern per rejection cause dataset_stats.rs counts
+# (backreference, lookaround, word-boundary, anchor, flag-m, flag-x, other),
+# read from the standard raw directories (data/raw/{snort,spamAssassin,regexLib})
+cargo run --release --example demo_canonical_reject
 
-# Anchored: same, noise only on the padded side(s)
-cargo run --release --example demo_samples_anchored -- regexlib \
-  --data-dir data/raw/_Samples --seed 1 --count 3
+# Or against an explicit file list instead of the standard directories
+cargo run --release --example demo_canonical_reject -- data/raw/_Samples/emerging-exploit.rules
 ```
+
+There is no accepted-but-approximate case left in this frontend -- a pattern
+is either translated as-is (`Direct`), has its redundant top-level `^...$`
+stripped first (`Explicit full-match`), or rejected outright. See
+[DATASET.md](DATASET.md) for what each tier means and how `dataset_stats`
+reports them.
 
 
 ## Frontend coverage demo (supported categories)
@@ -90,6 +96,11 @@ cargo run --release --example demo_growth_deriv
 # Antimirov partial derivative: frontier size per input char
 cargo run --release --example demo_growth_pderiv
 
+# All four growth families side by side (superset of the two demos above,
+# adding the two PartDeriv-standard series); those two files and their
+# pinning tests are untouched
+cargo run --release --example demo_growth_eval
+
 # Sizes of the Regex produced by frontend translation, wildcard_run() size, case-fold cost
 cargo run --release --example demo_frontend_translation_sizes
 ```
@@ -97,23 +108,41 @@ cargo run --release --example demo_frontend_translation_sizes
 
 ## Dataset pipeline examples
 
+Default focus is Suricata (`snort`) and SpamAssassin: both are real-world
+IDS/mail-filter rule sets with a maintained upstream. RegexLib is
+user-submitted with no correctness guarantee, so it is opt-in only -- pass
+it explicitly if you want it.
+
 ```bash
 # extract -> generate -> prepare; writes data/processed/<source>/prepared.jsonl
-cargo run --release --example dataset_prepare -- regexlib data/raw/regexlib/*.txt
-cargo run --release --example dataset_prepare -- snort data/raw/snort/*.rules
+cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules
 cargo run --release --example dataset_prepare -- spamassassin data/raw/spamAssassin/*.cf
 
+# opt-in, not run by default (see above)
+cargo run --release --example dataset_prepare -- regexlib data/raw/regexLib/*.txt
+
 # --variants controls verified inputs per pattern per category (default 5)
-cargo run --release --example dataset_prepare -- regexlib data/raw/regexlib/*.txt --variants 3
+cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules --variants 3
 ```
 
 ```bash
-# Coverage report: extraction counts, rejection causes, faithful/approx split
+# Coverage report: extraction counts, accepted/rejected split, rejection
+# causes, and anchor-shape distribution. No args needed -- reads
+# data/raw/{snort,spamAssassin} itself. --source regexlib opts it back in.
 cargo run --release --example dataset_stats
 cargo run --release --example dataset_stats -- --verbose
+cargo run --release --example dataset_stats -- --source regexlib
 ```
 
 ```bash
-# Cross-parser agreement over every prepared case (run dataset_prepare first)
+# Cross-parser agreement over every prepared case (run dataset_prepare first).
+# Each parser call runs in its own subprocess so a pathological case can be
+# killed outright instead of leaking a thread; build the worker first.
+cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
+
+# BENCH_SOURCE (comma-separated suricata/snort/spamassassin/regexlib),
+# BENCH_PATTERN_LIMIT (distinct patterns per source), and
+# AGREEMENT_TIMEOUT_MS (per-call kill timeout) narrow or retune a run:
+BENCH_SOURCE=spamassassin BENCH_PATTERN_LIMIT=10 cargo run --release --example demo_parser_agreement
 ```

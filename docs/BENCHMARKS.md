@@ -1,18 +1,18 @@
 # Benchmarks
 
-Five `cargo bench` targets are provided:
+Four `cargo bench` targets are provided:
 
 - `bench_match` / `bench_parse`: synthetic, hand-constructed patterns.
-- `bench_dataset` / `bench_external` / `bench_memory`: real-world corpus
+- `bench_dataset` / `bench_memory`: real-world corpus
   (see [DATASETS.md](DATASETS.md)).
 
-The first four use Criterion.rs; append `-- --test` to run each benchmark
+The first three use Criterion.rs; append `-- --test` to run each benchmark
 function once as a quick correctness check. `bench_memory` is a plain
 reporting binary rather than a Criterion target.
 
 ## Selecting a category, source, or sample size
 
-`bench_dataset`, `bench_external`, and `bench_memory` support the same
+`bench_dataset` and `bench_memory` support the same
 environment variables:
 
 | Variable | Values | Default |
@@ -66,24 +66,6 @@ individually rather than as a combined group.
 
 An empty result produces a per-source diagnostic instead of silently measuring
 an empty corpus.
-
-## `bench_external.rs`
-
-    cargo bench --bench bench_external --features external-engines
-
-Requires the system RE2 library and is disabled by default. It runs the same
-per-category corpus through:
-
-- all five internal parsers vs. Rust's `regex` crate and RE2;
-- the crate's tree-free matchers vs. the same three external engines;
-- `external_agreement_smoke`, a non-timed check comparing this crate's
-  membership results with `regex` and RE2 against the independently verified
-  expected outcomes.
-
-See [EXTERNAL_ENGINES.md](EXTERNAL_ENGINES.md) for the interpretation and
-limitations of these comparisons, including why `re2_posix` totals are not
-directly comparable and why `external_matcher_*` is the more like-for-like
-speed comparison.
 
 ## `bench_memory.rs`
 

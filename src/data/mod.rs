@@ -23,7 +23,6 @@ pub struct PipelineReport {
     /// Rejected by `prepare::core_regex_tagged`.
     /// Same set as `frontend::parse_pcre_rule` rejects, plus the two
     /// safety caps (`MAX_CORE_DEPTH`, `MAX_CORE_NODES`).
-    /// Accepted now means exactly faithful; no separate bucket.
     pub patterns_unusable: usize,
     /// Accepted patterns, i.e. what landed in `prepared.jsonl`.
     pub patterns_accepted: usize,

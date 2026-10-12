@@ -27,7 +27,7 @@ directly. It has its own `core_regex`/`core_regex_tagged`
 (`src/data/prepare.rs`), which repeats `parse_pcre_rule`'s steps plus two
 size caps and one additional, narrow anchor recovery — see
 [DATASET.md](DATASET.md)'s "Match-intent reliability tiers". That
-recovery is specific to dataset preparation: it never changes what
+recovery is specific to dataset preparation and never changes what
 `translate`, `parse_pattern`, or `parse_pcre_rule` themselves do.
 
 
@@ -38,17 +38,17 @@ flags whose presence changes what the pattern denotes are recorded.
 Unrecognized letters and Snort's buffer selectors like `U`, `H`, `P`, `C`
 are ignored, since they name which buffer the rule is tested against, not
 what the pattern itself matches. So are `R` (relative), `A` (anchored),
-and `E` (dollar-endonly): each used to position or tune a search or an
-anchor this frontend no longer has a concept of, so each is now simply
-ignored, the same as an unrecognized buffer selector.
+and `E` (dollar-endonly): each positions or tunes a search or an anchor
+this frontend has no concept of, so each is ignored like an unrecognized
+buffer selector.
 
 | Flag | Meaning | Handled as |
 |---|---|---|
 | `i` | case-insensitive | case-folded (`case_fold`) |
 | `s` | dot-all | `.` includes `\n` (absent: excluded, `strip_dot_newline`) |
-| `m` | multiline | rejected: `^`/`$` would also match at newlines, and this frontend has no `^`/`$` to begin with |
+| `m` | multiline | rejected: `^`/`$` would also match at newlines, and this frontend has no `^`/`$` |
 | `x` | extended | rejected: whitespace would stop being literal |
-| `R`, `A`, `E`, buffer selectors (`U`, `H`, `P`, `C`, ...) | ignored | positioned or tuned something (a search, an anchor) this frontend no longer has |
+| `R`, `A`, `E`, buffer selectors (`U`, `H`, `P`, `C`, ...) | ignored | positions or tunes something (a search, an anchor) this frontend has no concept of |
 
 
 ## Pipeline
@@ -68,7 +68,7 @@ lowers each to `Regex`'s six constructors; a class becomes an `Alt` chain
 over the 98-character alphabet, and a bound unrolls into that many
 copies. Anchors and word-boundary assertions have no lowering: `translate`
 returns `Err` the moment it visits one, regardless of where in the
-pattern it sits (see "Anchors are rejected, not padded" below).
+pattern it sits (see "Anchors are rejected" below).
 
 Because of the `Alt`-chain lowering, `.`, the shorthand classes
 (`\d \D \w \W \s \S`), and any negated class `[^...]` can only ever match
@@ -83,16 +83,14 @@ this way. Verified: `cargo run -- match "[^a]" "é"`, `match "\W" "é"`,
 and `match "." "é"` all print `false`.
 
 
-## Anchors are rejected, not padded
+## Anchors are rejected
 
 `^`, `$`, `\b`, and `\B` all parse successfully -- into `ExtPat::Carat`,
 `ExtPat::Dollar`, and `ExtPat::WordBoundary` -- and are rejected one
 stage later, by `translate`, rather than being desugared into an
-equivalent `Regex`. There used to be a padding scheme here
-(`wildcard_run`, a `Star` over the working alphabet inserted on whichever
-side was not explicitly anchored) that turned an unanchored pattern into
-a substring search; it no longer exists, at any entry point in
-`src/frontend/`.
+equivalent `Regex`. Every entry point in `src/frontend/` performs
+full-string matching only: no padding is inserted, and no substring
+search is performed.
 
 Rejection is total, not positional: `translate` is structural recursion,
 and every compound `ExtPat` arm propagates a child's `Err` immediately
@@ -116,8 +114,7 @@ $ cargo run -- parse "(^a){0,1}b" "b"     # under an explicit bound
 
 `ε` and `∅` are unaffected: `translate(ExtPat::Eps) = Regex::Eps` and
 `translate(ExtPat::Never) = Regex::Phi` regardless of anchors elsewhere
-in the pattern (or the lack of them) -- they never contained one to
-reject in the first place.
+in the pattern, since neither ever contains one.
 
 
 ## Rejected Patterns
