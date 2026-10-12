@@ -1,79 +1,54 @@
 # External Pattern to Internal Regex
 
 `src/frontend/` turns a pattern string into the crate's six-constructor
-core `Regex`. 
+core `Regex`.
 
-For the CLI's own `match`/`parse` behavior, see [CLI.md](CLI.md)'s "External Pattern:
-Anchoring" section.
+For the CLI's own `match`/`parse` behavior, see [CLI.md](CLI.md).
 
 
 ## Entry points
 
-`src/frontend/mod.rs` exposes three, differing only in what is applied
-on top of the shared parse-and-translate core.
+`src/frontend/mod.rs` exposes two, both full-string match only --
+neither pads, searches, or otherwise changes what the translated pattern
+is matched against.
 
-| Function | Wrapper stripped? | Flags applied | Padding | Used by |
-|---|---|---|---|---|
-| `parse_pattern` | no | none | none (full-string) | CLI `match`/`parse` (default) |
-| `parse_dataset_pattern` | no | none | search (`Σ*` on unanchored sides) | CLI `match`/`parse --search` |
-| `parse_pcre_rule` | yes (`/PATTERN/FLAGS`) | `i`, `s`, `A`, `E`; `R` recorded, `m`/`x` rejected | search | `src/data/` pipeline, `dataset_stats` |
+| Function | Wrapper stripped? | Flags applied | Used by |
+|---|---|---|---|
+| `parse_pattern` | no | none | CLI `match`/`parse` |
+| `parse_pcre_rule` | yes (`/PATTERN/FLAGS`) | `i`, `s`; `m`/`x` rejected | worked examples, test fixtures |
 
-`parse_dataset_pattern` is exactly `parse_pattern` plus padding: it
-applies no other transformation, so `--search` cannot change what a
-pattern means beyond adding padding. In particular, a `--search` pattern
-that happens to look like `/foo/i` is parsed as a literal pattern of
-those six characters, not as PCRE wrapper syntax.
+`.` matches `\n` under `parse_pattern`. The `strip_dot_newline` pass that
+excludes `\n` runs only in `parse_pcre_rule`, where an `s` flag can be
+present or absent; `parse_pattern` reads no flags at all, so no such pass
+applies to it.
 
-`.` matches `\n` under both `parse_pattern` and `parse_dataset_pattern`.
-The `strip_dot_newline` pass that excludes `\n` runs only in
-`parse_pcre_rule`, where an `s` flag can be present or absent; the other
-two entry points read no flags at all, so no such pass applies.
+The dataset pipeline (`src/data/`) does **not** call either of these
+directly. It has its own `core_regex`/`core_regex_tagged`
+(`src/data/prepare.rs`), which repeats `parse_pcre_rule`'s steps plus two
+size caps and one additional, narrow anchor recovery — see
+[DATASET.md](DATASET.md)'s "Match-intent reliability tiers". That
+recovery is specific to dataset preparation: it never changes what
+`translate`, `parse_pattern`, or `parse_pcre_rule` themselves do.
 
 
 ## PCRE flags (`parse_pcre_rule` only)
 
 `PcreFlags` reads the flags from a `/PATTERN/FLAGS` wrapper. Only the
 flags whose presence changes what the pattern denotes are recorded.
-Unrecognized letters and Snort's buffer selectors like `U`, `H`, `P`, `C` —
-are ignored, since they name which buffer the rule is tested against, not what
-the pattern itself matches.
+Unrecognized letters and Snort's buffer selectors like `U`, `H`, `P`, `C`
+are ignored, since they name which buffer the rule is tested against, not
+what the pattern itself matches. So are `R` (relative), `A` (anchored),
+and `E` (dollar-endonly): each used to position or tune a search or an
+anchor this frontend no longer has a concept of, so each is now simply
+ignored, the same as an unrecognized buffer selector.
 
 | Flag | Meaning | Handled as |
 |---|---|---|
 | `i` | case-insensitive | case-folded (`case_fold`) |
 | `s` | dot-all | `.` includes `\n` (absent: excluded, `strip_dot_newline`) |
-| `A` | anchored | left padding suppressed, like a leading `^` |
-| `E` | dollar-endonly | `$` only at the true end (absent: also allows one trailing `\n`) |
-| `R` | relative | recorded, not rejected; see faithfulness below |
-| `m` | multiline | rejected: `^`/`$` would also match at newlines |
+| `m` | multiline | rejected: `^`/`$` would also match at newlines, and this frontend has no `^`/`$` to begin with |
 | `x` | extended | rejected: whitespace would stop being literal |
-
-
-### Faithfulness
-
-An accepted pattern is not necessarily a faithful one. `parse_pcre_rule`
-can succeed on a pattern whose translated `Regex` is only an
-approximation of what the source pattern means, because the frontend
-does not have access to the surrounding rule (for `R`) or does not
-enforce an anchor in every position it could appear (for a nested
-anchor). `faithfulness_gaps` returns the specific approximations that
-apply to a given pattern; `is_faithful` is true when `parse_pcre_rule`
-accepts the pattern *and* `faithfulness_gaps` returns an empty list.
-
-The dataset pipeline (`src/data/`) keeps only faithful patterns: a
-pattern that is accepted but not faithful is skipped, the same as one
-that fails to parse. 
-
-The CLI's `match`/`parse` do not reject on
-faithfulness and only warn for `NestedAnchor`. `Relative` is
-not warned about, because `faithfulness_gaps` reads a `/PATTERN/R`
-wrapper that `parse_pattern`/`parse_dataset_pattern` never strip.
-A CLI pattern shaped like `/foo/R` is a literal, so no such gap applies.
-
-| Gap | Cause |
-|---|---|
-| `Relative` | The `R` flag positions the match after the rule's previous `content:` match, which the frontend cannot see from the pattern string alone. The pattern is translated as an ordinary search pattern instead. |
-| `NestedAnchor` | A `^` or `$` appears in the pattern but not at its own top-level edge, or not on every branch of its alternation. `translate` lowers it to `Eps` rather than enforcing it, so it has no effect on the translated regex. |
+| `R`, `A`, `E`, buffer selectors (`U`, `H`, `P`, `C`, ...) | ignored | positioned or tuned something (a search, an anchor) this frontend no longer has |
 
 
 ## Pipeline
@@ -83,54 +58,66 @@ pattern string
   -> strip_pcre_delimiters   parse_pcre_rule only; splits /PATTERN/FLAGS
   -> parse_ext_pattern       string -> ExtPat; rejects backreferences and lookaround
   -> case_fold               parse_pcre_rule only, if the i flag was set
-  -> translate / translate_as_search   ExtPat -> Regex; rejects \b/\B
+  -> strip_dot_newline       parse_pcre_rule only, if the s flag was not set
+  -> translate               ExtPat -> Regex; rejects ^, $, \b, \B wherever they appear
 ```
 
 `ExtPat` is the surface AST: literals, `.`, classes, grouping,
 quantifiers, bounds, alternation, anchors, and `\b`/`\B`. `translate`
-lowers each to `Regex`'s six constructors; a class becomes an `Alt`
-chain over the 98-character alphabet, and a bound unrolls into that many
-copies.
+lowers each to `Regex`'s six constructors; a class becomes an `Alt` chain
+over the 98-character alphabet, and a bound unrolls into that many
+copies. Anchors and word-boundary assertions have no lowering: `translate`
+returns `Err` the moment it visits one, regardless of where in the
+pattern it sits (see "Anchors are rejected, not padded" below).
 
-Because of that chain, `.`, the shorthand classes (`\d \D \w \W \s \S`),
-and any negated class `[^...]` can only ever match a character from that
-98-character alphabet (printable ASCII plus tab/newline/CR,
-`alphabet.rs`) -- none of them matches a character outside it, even
-though real PCRE/POSIX semantics define a negated class as everything
-except the characters listed. A literal character written directly in
-the pattern is unaffected (`Regex::Lit` compares the full `char`, not
-just the working alphabet), so `café` still matches `"café"`; it is
-specifically `.`, a shorthand class, or negation that is bounded this
-way. Verified: `cargo run -- match "[^a]" "é"`, `match "\W" "é"`, and
-`match "." "é"` all print `false`.
+Because of the `Alt`-chain lowering, `.`, the shorthand classes
+(`\d \D \w \W \s \S`), and any negated class `[^...]` can only ever match
+a character from that 98-character alphabet (printable ASCII plus
+tab/newline/CR, `alphabet.rs`) -- none of them matches a character
+outside it, even though real PCRE/POSIX semantics define a negated class
+as everything except the characters listed. A literal character written
+directly in the pattern is unaffected (`Regex::Lit` compares the full
+`char`, not just the working alphabet), so `café` still matches `"café"`;
+it is specifically `.`, a shorthand class, or negation that is bounded
+this way. Verified: `cargo run -- match "[^a]" "é"`, `match "\W" "é"`,
+and `match "." "é"` all print `false`.
 
 
-## Search padding and anchoring
+## Anchors are rejected, not padded
 
-Padding is decided from where `^`/`$` sit *structurally* in the `ExtPat`
-tree and not from the source text. `starts_with_carat`/`ends_with_dollar`
-recurse through `Concat`'s first/last element and through `Group`, and
-stop at every other constructor.
+`^`, `$`, `\b`, and `\B` all parse successfully -- into `ExtPat::Carat`,
+`ExtPat::Dollar`, and `ExtPat::WordBoundary` -- and are rejected one
+stage later, by `translate`, rather than being desugared into an
+equivalent `Regex`. There used to be a padding scheme here
+(`wildcard_run`, a `Star` over the working alphabet inserted on whichever
+side was not explicitly anchored) that turned an unanchored pattern into
+a substring search; it no longer exists, at any entry point in
+`src/frontend/`.
 
-| Pattern | Anchored? | Effective shape |
-|---|---|---|
-| `^abc` | start | `abc · Σ*` |
-| `abc$` | end | `Σ* · abc` |
-| `^abc$` | both | `abc` |
-| `abc` | neither | `Σ* · abc · Σ*` |
-| `(^abc)` | start | `abc · Σ*` |
-| `a^b` | neither | `Σ* · ab · Σ*` |
-| `(a\|^b)c` | neither | `Σ* · (a\|b)c · Σ*` |
-| `(a\|b)*` | neither | `Σ* · (a\|b)* · Σ*` |
+Rejection is total, not positional: `translate` is structural recursion,
+and every compound `ExtPat` arm propagates a child's `Err` immediately
+(`?` in every case except `Group`/`GroupNonMarking`, which tail-call and
+so propagate it for free). An anchor buried behind an optional
+quantifier, inside one branch of an alternation, or under a `Star`/bound
+still reaches `translate` and still rejects the whole pattern, even
+though taking that branch is not required for the pattern to match at
+all.
 
-An `ExtPat` built by hand is treated the same way: the anchor predicates
-are structural, not syntactic. `\b`/`\B` parse into
-`ExtPat::WordBoundary`, which `translate` rejects, so padding never
-reaches them.
+Verified against the built CLI, each rejecting with the same message
+(`anchor '^'/'$' is not supported by this frontend -- unsupported`):
 
-`ε` and `∅` participate in anchoring like any other atom. `^aε$` anchors
-both sides and matches exactly `"a"`. `^∅$` anchors both sides and
-matches nothing.
+```
+$ cargo run -- parse "^?abc" "abc"        # optional, directly
+$ cargo run -- parse "(^)?abc" "abc"      # optional, behind a group
+$ cargo run -- parse "(^a|b)c" "bc"       # inside one alternation branch
+$ cargo run -- parse "(^a)*b" "b"         # under a star
+$ cargo run -- parse "(^a){0,1}b" "b"     # under an explicit bound
+```
+
+`ε` and `∅` are unaffected: `translate(ExtPat::Eps) = Regex::Eps` and
+`translate(ExtPat::Never) = Regex::Phi` regardless of anchors elsewhere
+in the pattern (or the lack of them) -- they never contained one to
+reject in the first place.
 
 
 ## Rejected Patterns
@@ -138,5 +125,5 @@ matches nothing.
 | Construct | Rejected by | Why there |
 |---|---|---|
 | Backreferences (`\1`-`\9`, `(?P=name)`), lookaround (`(?=`, `(?!`, `(?<=`, `(?<!`) | `parse_ext_pattern` | not regular; no `ExtPat` constructor exists for them, so there is nowhere to defer to |
-| `\b`/`\B` | `translate` | parse succeeds into `ExtPat::WordBoundary` so it can be a descriptive error instead of falling into the `_ => Escape(c)` arm and silently becoming literal `b` |
-
+| `^`, `$` | `translate` | parse succeeds into `ExtPat::Carat`/`ExtPat::Dollar` so rejection can name the construct instead of silently mismatching it |
+| `\b`, `\B` | `translate` | parse succeeds into `ExtPat::WordBoundary`, same reason; both are position-dependent, not regular-language, constructs |

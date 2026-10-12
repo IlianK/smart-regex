@@ -1,30 +1,43 @@
 //! examples/dataset_stats.rs
 //!
-//! cargo run --release --example dataset_stats 
-//!          [--source S] [--verbose] [--no-flags] 
-//!          [--no-anchors] [--no-caveats] [file...]
+//! cargo run --release --example dataset_stats
+//!          [--source S] [--verbose] [--no-flags] [file...]
 //!
-//! Per-source corpus report: extraction counts, acceptance, rejection causes, direct/approx split, PCRE flag and anchor usage.
-//! Defaults to all three sources under `data/raw/`; explicit files need one `--source`.
+//! Per-source corpus report.
+//! Covers: extraction counts, acceptance, match-intent reliability,
+//! rejection causes, anchor shape distribution, PCRE flag usage.
+//! Defaults to Suricata and SpamAssassin under `data/raw/`.
+//! RegexLib is opt-in only (`--source regexlib`).
+//! It is crowd-sourced, with no correctness guarantee.
+//! The other two sources' rule sets are maintained.
+//! Explicit files need one `--source`.
 //!
-//!   Direct = translated Regex denotes exactly what the pattern means.
-//!   Approx = accepted, but only an approximation (R flag, or a nested
-//!            anchor): a construct this frontend cannot represent exactly,
-//!            for which it substitutes a defined, sound stand-in rather
-//!            than rejecting.
-//!   Reject = no Regex produced at all: a construct this frontend cannot
-//!            represent at all, with no approximation attempted
-//!            (backreference, lookaround, \b/\B, the m flag, the x flag).
-
+//!   Accepted = `core_regex_tagged` produced a Regex.
+//!              Same function and same depth/node caps `dataset_prepare`
+//!              benchmarks against, not plain `parse_pcre_rule`.
+//!              No approximate-but-accepted case exists.
+//!              Every accepted pattern's Regex denotes exactly what it
+//!              was translated from.
+//!              Accepted splits into two tiers -- see `match_intent_table`.
+//!              A tier records whether the denotation is the pattern's
+//!              own explicit `^...$` wrap, or this project's full-match
+//!              reading of an unanchored ("Direct") pattern.
+//!              `dataset_prepare` currently generates for the Direct
+//!              tier only.
+//!   Reject   = no Regex produced at all.
+//!              A construct this frontend cannot represent:
+//!              backreference, lookaround, \b/\B, an anchor placement
+//!              other than a top-level `^...$` wrap, the m flag, the x
+//!              flag, a translation too large for the pipeline's safety
+//!              caps, or another unsupported construct.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use regex_engine::data::extract::{extract_regexlib, extract_spamassassin, extract_suricata};
-use regex_engine::data::types::SourceKind;
-use regex_engine::frontend::{
-    detect_anchors, faithfulness_gaps, parse_pcre_rule, strip_pcre_delimiters, FaithfulnessGap,
-};
+use regex_engine::data::prepare::{anchor_shape, core_regex_tagged, AnchorShape};
+use regex_engine::data::types::{MatchIntent, SourceKind};
+use regex_engine::frontend::{parse_ext_pattern, strip_pcre_delimiters};
 
 // ---------------------------------------------------------------------
 // Standard corpus locations
@@ -39,12 +52,14 @@ fn default_dir(source: SourceKind) -> &'static str {
     }
 }
 
-fn all_sources() -> [SourceKind; 3] {
-    [
-        SourceKind::Suricata,
-        SourceKind::SpamAssassin,
-        SourceKind::RegexLib,
-    ]
+/// Default sweep when no `--source` is given.
+/// RegexLib is deliberately not in this list.
+/// It is crowd-sourced (regexlib.com via the rxxr2 mirror).
+/// It has no curation or correctness guarantee.
+/// Suricata's and SpamAssassin's maintained rule sets do.
+/// So RegexLib is opt-in only.
+fn all_sources() -> [SourceKind; 2] {
+    [SourceKind::Suricata, SourceKind::SpamAssassin]
 }
 
 /// Every regular file directly inside `dir`, sorted for determinism.
@@ -72,6 +87,7 @@ enum Cause {
     Backreference,
     Lookaround,
     WordBoundary,
+    Anchor,
     FlagMultiline,
     FlagExtended,
     Other,
@@ -83,6 +99,7 @@ impl Cause {
             Cause::Backreference => "backreference",
             Cause::Lookaround => "lookaround",
             Cause::WordBoundary => "word-boundary",
+            Cause::Anchor => "anchor",
             Cause::FlagMultiline => "flag-m",
             Cause::FlagExtended => "flag-x",
             Cause::Other => "other",
@@ -98,131 +115,44 @@ impl Cause {
         } else if e.contains("word boundary") {
             Cause::WordBoundary
         } else if e.contains("multiline") {
+            // Checked before "anchor": the multiline rejection mentions
+            // anchors in its own explanation.
+            // Checking "anchor" first would misclassify every multiline
+            // rejection.
             Cause::FlagMultiline
         } else if e.contains("extended") {
             Cause::FlagExtended
+        } else if e.contains("anchor") {
+            Cause::Anchor
         } else {
             Cause::Other
         }
     }
 
     /// Fixed order for the rejection table.
-    const ALL: [Cause; 6] = [
+    const ALL: [Cause; 7] = [
         Cause::Backreference,
         Cause::Lookaround,
         Cause::WordBoundary,
+        Cause::Anchor,
         Cause::FlagMultiline,
         Cause::FlagExtended,
         Cause::Other,
     ];
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum AnchorShape {
-    None,
-    StartOnly,
-    EndOnly,
-    Both,
-}
-
-impl AnchorShape {
-    fn from_anchors(start: bool, end: bool) -> Self {
-        match (start, end) {
-            (true, true) => AnchorShape::Both,
-            (true, false) => AnchorShape::StartOnly,
-            (false, true) => AnchorShape::EndOnly,
-            (false, false) => AnchorShape::None,
-        }
-    }
-
-    const ALL: [AnchorShape; 4] = [
-        AnchorShape::None,
-        AnchorShape::StartOnly,
-        AnchorShape::EndOnly,
-        AnchorShape::Both,
-    ];
-
-    fn label(&self) -> &'static str {
-        match self {
-            AnchorShape::None => "none",
-            AnchorShape::StartOnly => "^ only",
-            AnchorShape::EndOnly => "$ only",
-            AnchorShape::Both => "^...$",
-        }
-    }
-}
-
-/// A property an accepted pattern may carry. Relative and NestedAnchor move
-/// a pattern to approx; BufferFlag does not (see `Caveat::TABLED`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-enum Caveat {
-    /// `R`: position is relative to the rule's previous `content:` match;
-    /// the frontend cannot see that from the pattern string alone.
-    Relative,
-    /// Suricata buffer-selector flag (U/H/P/C/...): names the buffer the
-    /// rule targets, not what the pattern denotes.
-    BufferFlag,
-    /// `^`/`$` not present on every alternation branch; lowered to Eps,
-    /// so search padding can fire it at any stopping position.
-    NestedAnchor,
-}
-
-impl Caveat {
-    fn label(&self) -> &'static str {
-        match self {
-            Caveat::Relative => "R (relative)",
-            Caveat::BufferFlag => "buffer flag",
-            Caveat::NestedAnchor => "nested anchor",
-        }
-    }
-
-    /// Only the two that move a pattern from direct to approx.
-    const TABLED: [Caveat; 2] = [Caveat::Relative, Caveat::NestedAnchor];
-}
-
-/// What `parse_pcre_rule` does with one extracted pattern.
+/// What `core_regex_tagged` does with one extracted pattern.
 #[derive(Debug)]
 enum Classification {
-    Accepted { anchor_shape: AnchorShape },
+    Accepted(MatchIntent),
     Rejected(Cause),
 }
 
 fn classify(pattern: &str) -> Classification {
-    match parse_pcre_rule(pattern) {
-        Ok(_) => {
-            let (body, _flags) = strip_pcre_delimiters(pattern);
-            // Cannot fail: parse_pcre_rule ran the same check.
-            let (start, end) = detect_anchors(body).unwrap_or((false, false));
-            Classification::Accepted {
-                anchor_shape: AnchorShape::from_anchors(start, end),
-            }
-        }
+    match core_regex_tagged(pattern) {
+        Ok((_, intent)) => Classification::Accepted(intent),
         Err(e) => Classification::Rejected(Cause::classify(&e)),
     }
-}
-
-/// Caveats an accepted pattern carries; empty means direct.
-fn caveats_of(pattern: &str) -> Vec<Caveat> {
-    let mut out: Vec<Caveat> = faithfulness_gaps(pattern)
-        .into_iter()
-        .map(|gap| match gap {
-            FaithfulnessGap::Relative => Caveat::Relative,
-            FaithfulnessGap::NestedAnchor => Caveat::NestedAnchor,
-        })
-        .collect();
-
-    // Any letter outside "imsxRAE" is assumed to be a Suricata
-    // buffer-selector/no-op flag; wrong for a corpus using an
-    // undocumented PCRE flag, which would be silently ignored here.
-    let raw = raw_flags(pattern);
-    if raw
-        .chars()
-        .any(|c| c.is_ascii_alphabetic() && !"imsxRAE".contains(c))
-    {
-        out.push(Caveat::BufferFlag);
-    }
-
-    out
 }
 
 // ---------------------------------------------------------------------
@@ -234,15 +164,21 @@ struct SourceStats {
     source: Option<SourceKind>,
     files_read: usize,
     extracted: usize,
-    accepted: usize,
-    /// Accepted with no R and no nested anchor; a buffer-selector flag
-    /// does not disqualify a pattern from direct.
-    direct: usize,
-    /// Accepted, but only an approximation. `direct + approx == accepted`.
-    approx: usize,
+    /// MatchIntent::ExplicitFullMatch.
+    /// Pattern wrapped its whole self in `^...$`.
+    /// Anchors stripped before translation.
+    accepted_explicit: usize,
+    /// MatchIntent::UnanchoredAmbiguous.
+    /// No anchor at all; translated and benchmarked as a full match.
+    /// That reading is this project's own choice.
+    /// Not necessarily the source's.
+    accepted_ambiguous: usize,
     rejected_by: BTreeMap<Cause, usize>,
-    anchors: BTreeMap<AnchorShape, usize>,
-    caveats: BTreeMap<Caveat, usize>,
+    /// Where `^`/`$` sit structurally across *every* extracted pattern.
+    /// Independent of accept/reject.
+    /// This explains the "anchor" row of `rejected_by`.
+    /// It also explains the `accepted_explicit` count.
+    anchor_shapes: BTreeMap<AnchorShape, usize>,
     flag_usage: BTreeMap<char, usize>,
     flag_accepted: BTreeMap<char, usize>,
     /// Populated only when --verbose.
@@ -264,33 +200,37 @@ impl SourceStats {
         }
     }
 
+    fn accepted(&self) -> usize {
+        self.accepted_explicit + self.accepted_ambiguous
+    }
+
     fn add_pattern(&mut self, pattern: &str, verbose: bool) {
         self.extracted += 1;
 
-        // Flag usage is recorded for every extracted pattern, accepted or
-        // not -- the point is what the corpus contains, not what survives.
+        // Flags recorded for every extracted pattern, accepted or not.
+        // The point is what the corpus contains, not what survives.
         for flag in flags_of(pattern) {
             *self.flag_usage.entry(flag).or_default() += 1;
         }
 
+        // Anchor shape likewise computed independently of accept/reject.
+        // The point is what the corpus contains, including shapes that
+        // go on to be rejected.
+        // A pattern that fails to parse at all still gets a row.
+        // (Backreference, lookaround, or a syntax error.)
+        // So this always sums to `extracted`.
+        let (body, _flags) = strip_pcre_delimiters(pattern);
+        let shape = parse_ext_pattern(body).map(|ep| anchor_shape(&ep)).unwrap_or(AnchorShape::Unparseable);
+        *self.anchor_shapes.entry(shape).or_default() += 1;
+
         match classify(pattern) {
-            Classification::Accepted { anchor_shape } => {
-                self.accepted += 1;
-                *self.anchors.entry(anchor_shape).or_default() += 1;
+            Classification::Accepted(intent) => {
+                match intent {
+                    MatchIntent::ExplicitFullMatch => self.accepted_explicit += 1,
+                    MatchIntent::UnanchoredAmbiguous => self.accepted_ambiguous += 1,
+                }
                 for flag in flags_of(pattern) {
                     *self.flag_accepted.entry(flag).or_default() += 1;
-                }
-
-                let caveats = caveats_of(pattern);
-                for c in &caveats {
-                    *self.caveats.entry(*c).or_default() += 1;
-                }
-                // R or a nested anchor make the produced Regex an
-                // approximation; a buffer-selector flag alone does not.
-                if caveats.contains(&Caveat::Relative) || caveats.contains(&Caveat::NestedAnchor) {
-                    self.approx += 1;
-                } else {
-                    self.direct += 1;
                 }
             }
             Classification::Rejected(cause) => {
@@ -305,17 +245,13 @@ impl SourceStats {
     fn merge_into(&self, total: &mut SourceStats) {
         total.files_read += self.files_read;
         total.extracted += self.extracted;
-        total.accepted += self.accepted;
-        total.direct += self.direct;
-        total.approx += self.approx;
+        total.accepted_explicit += self.accepted_explicit;
+        total.accepted_ambiguous += self.accepted_ambiguous;
         for (cause, n) in &self.rejected_by {
             *total.rejected_by.entry(*cause).or_default() += n;
         }
-        for (shape, n) in &self.anchors {
-            *total.anchors.entry(*shape).or_default() += n;
-        }
-        for (caveat, n) in &self.caveats {
-            *total.caveats.entry(*caveat).or_default() += n;
+        for (shape, n) in &self.anchor_shapes {
+            *total.anchor_shapes.entry(*shape).or_default() += n;
         }
         for (flag, n) in &self.flag_usage {
             *total.flag_usage.entry(*flag).or_default() += n;
@@ -330,8 +266,8 @@ impl SourceStats {
     }
 }
 
-/// Flag letters attached to a `/PATTERN/FLAGS` wrapper; empty for a bare
-/// pattern.
+/// Flag letters attached to a `/PATTERN/FLAGS` wrapper.
+/// Empty for a bare pattern.
 fn flags_of(pattern: &str) -> Vec<char> {
     raw_flags(pattern)
         .chars()
@@ -382,9 +318,10 @@ fn read_source(source: SourceKind, paths: &[PathBuf], verbose: bool) -> SourceSt
                 continue;
             }
         };
-        // Some corpora are not clean UTF-8 (SpamAssassin's locale-specific
-        // files). Decode lossily rather than drop the whole file: a
-        // corrupted pattern is a per-pattern problem classify() can reject.
+        // Some corpora are not clean UTF-8 (SpamAssassin's locale files).
+        // Decode lossily rather than drop the whole file.
+        // A corrupted pattern is a per-pattern problem classify() can
+        // reject.
         let text = match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(e) => {
@@ -415,26 +352,17 @@ fn read_source(source: SourceKind, paths: &[PathBuf], verbose: bool) -> SourceSt
 
 fn header(title: &str) {
     println!();
-    println!("{}", "=".repeat(72));
     println!("{title}");
-    println!("{}", "=".repeat(72));
+    println!("{}", "─".repeat(72));
 }
 
 fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
     header("Dataset coverage");
     println!(
-        "{:<13} {:>6} {:>10} {:>9} {:>9} {:>8} {:>9} {:>8} {:>9}",
-        "Source",
-        "Files",
-        "# RegExes",
-        "# Direct",
-        "% Direct",
-        "# Approx",
-        "% Approx",
-        "# Reject",
-        "% Reject",
+        "{:<13} {:>6} {:>9} {:>9} {:>7} {:>9} {:>7}",
+        "Source", "Files", "Extracted", "Accepted", "%", "Rejected", "%",
     );
-    println!("{}", "-".repeat(96));
+    println!("{}", "-".repeat(60));
 
     let print_row = |s: &SourceStats| {
         let pct = |n: usize| {
@@ -445,14 +373,12 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
             }
         };
         println!(
-            "{:<13} {:>6} {:>10} {:>9} {:>9.1} {:>8} {:>9.1} {:>8} {:>9.1}",
+            "{:<13} {:>6} {:>9} {:>9} {:>7.1} {:>9} {:>7.1}",
             s.name(),
             s.files_read,
             s.extracted,
-            s.direct,
-            pct(s.direct),
-            s.approx,
-            pct(s.approx),
+            s.accepted(),
+            pct(s.accepted()),
             s.rejected_total(),
             pct(s.rejected_total()),
         );
@@ -461,20 +387,51 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
     for s in stats {
         print_row(s);
     }
-    println!("{}", "-".repeat(96));
+    println!("{}", "-".repeat(60));
     print_row(total);
     println!();
+    println!("Accepted = core_regex_tagged produced a Regex.");
+    println!("Rejected = no Regex produced: unsupported construct.");
+    println!("Accepted + Rejected sum to Extracted; each % is against that.");
+}
+
+fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
+    header("Accepted by match-intent reliability");
     println!(
-        "Direct = translated Regex denotes exactly what the pattern means.\n\
-         Approx = accepted, but only an approximation (R flag, or a nested anchor): a\n\
-         \x20\x20\x20\x20\x20\x20\x20construct this frontend cannot represent exactly, for which it\n\
-         \x20\x20\x20\x20\x20\x20\x20substitutes a defined, sound stand-in rather than rejecting.\n\
-         Reject = no Regex produced at all: a construct this frontend cannot represent\n\
-         \x20\x20\x20\x20\x20\x20\x20at all, with no approximation attempted (backreference, lookaround,\n\
-         \x20\x20\x20\x20\x20\x20\x20\\b/\\B, the m flag, the x flag, or another unsupported construct).\n\
-         Direct, Approx and Reject are mutually exclusive and sum to # RegExes;\n\
-         each % is against that source's own # RegExes."
+        "{:<13} {:>10} {:>7} {:>14} {:>7}",
+        "Source", "Direct", "%", "Explicit ^...$", "%",
     );
+    println!("{}", "-".repeat(56));
+
+    let print_row = |s: &SourceStats| {
+        let pct = |n: usize| {
+            if s.accepted() == 0 {
+                0.0
+            } else {
+                100.0 * n as f64 / s.accepted() as f64
+            }
+        };
+        println!(
+            "{:<13} {:>10} {:>7.1} {:>14} {:>7.1}",
+            s.name(),
+            s.accepted_ambiguous,
+            pct(s.accepted_ambiguous),
+            s.accepted_explicit,
+            pct(s.accepted_explicit),
+        );
+    };
+
+    for s in stats {
+        print_row(s);
+    }
+    println!("{}", "-".repeat(56));
+    print_row(total);
+    println!();
+    println!("Direct         = no anchor; translated as-is.");
+    println!("                 The tier dataset_prepare generates candidates for.");
+    println!("Explicit ^...$ = top-level ^...$ wrap; anchors stripped as redundant.");
+    println!("                 Accepted, but not currently generated for.");
+    println!("Any other anchor placement is rejected (see Rejection reasons).");
 }
 
 fn rejection_table(stats: &[SourceStats], total: &SourceStats) {
@@ -502,36 +459,34 @@ fn rejection_table(stats: &[SourceStats], total: &SourceStats) {
     print_row(&total.name(), total);
 }
 
-fn caveats_table(stats: &[SourceStats], total: &SourceStats, show_caveats: bool) {
-    if !show_caveats {
-        return;
-    }
-    header("Approx reasons (which gap each approximated pattern carries; not mutually exclusive)");
-    let caveats = Caveat::TABLED;
+fn anchor_shape_table(stats: &[SourceStats], total: &SourceStats) {
+    header("Anchor shape (every extracted pattern, accepted or not)");
+    let shapes = AnchorShape::ALL;
     print!("{:<16}", "Source");
-    for c in caveats {
-        print!(" {:>14}", c.label());
+    for s in shapes {
+        print!(" {:>14}", s.label());
     }
-    print!(" {:>14}", "direct");
-    print!(" {:>14}", "approx");
     println!();
-    println!("{}", "-".repeat(16 + 15 * caveats.len() + 30));
+    println!("{}", "-".repeat(16 + 15 * shapes.len()));
 
     let print_row = |name: &str, s: &SourceStats| {
         print!("{:<16}", name);
-        for c in caveats {
-            print!(" {:>14}", s.caveats.get(&c).copied().unwrap_or(0));
+        for shape in shapes {
+            print!(" {:>14}", s.anchor_shapes.get(&shape).copied().unwrap_or(0));
         }
-        print!(" {:>14}", s.direct);
-        print!(" {:>14}", s.approx);
         println!();
     };
 
     for s in stats {
         print_row(&s.name(), s);
     }
-    println!("{}", "-".repeat(16 + 15 * caveats.len() + 30));
+    println!("{}", "-".repeat(16 + 15 * shapes.len()));
     print_row(&total.name(), total);
+    println!();
+    println!("Rows sum to Extracted.");
+    println!("Unparseable   = rejected before an ExtPat even exists.");
+    println!("Fully-wrapped = recovered by core_regex_tagged (Accepted tier).");
+    println!("start/end/nested = unrecovered constraint; see Rejection reasons.");
 }
 
 fn flag_table(
@@ -558,9 +513,9 @@ fn flag_table(
     for s in stats {
         print!(" {:>14}", s.name());
     }
-    print!(" {:>10} {:<40}", "Total", "Effect");
+    print!(" {:>10} {:<48}", "Total", "Effect");
     println!();
-    println!("{}", "-".repeat(6 + 15 * stats.len() + 10 + 41));
+    println!("{}", "-".repeat(6 + 15 * stats.len() + 10 + 49));
 
     for flag in all_flags {
         print!("{:<6}", flag);
@@ -568,7 +523,7 @@ fn flag_table(
             print!(" {:>14}", select(s).get(&flag).copied().unwrap_or(0));
         }
         print!(
-            " {:>10} {:<40}",
+            " {:>10} {:<48}",
             select(total).get(&flag).copied().unwrap_or(0),
             flag_effect(flag)
         );
@@ -582,80 +537,10 @@ fn flag_effect(flag: char) -> &'static str {
         's' => "honoured (dotall: . matches \\n)",
         'm' => "REJECTED (multiline)",
         'x' => "REJECTED (extended)",
-        'R' => "ignored (position hint: R)",
-        'A' => "honoured (anchored: treated like a leading ^)",
-        'E' => "honoured (dollar-endonly: $ forbids a trailing \\n)",
+        'R' => "ignored (no search left to position relative to)",
+        'A' => "ignored (anchors are rejected outright, not honoured)",
+        'E' => "ignored ($ is rejected outright, nothing left to tune)",
         _ => "ignored (buffer selector, or unclassified)",
-    }
-}
-
-/// Buffer-selector flags name the buffer a rule targets, not what the
-/// pattern denotes, so they do not affect faithfulness -- but the
-/// generated inputs are not necessarily shaped like that buffer.
-fn buffer_flag_note(total: &SourceStats) {
-    let n = total.caveats.get(&Caveat::BufferFlag).copied().unwrap_or(0);
-    if n == 0 {
-        return;
-    }
-    println!();
-    println!("Note: {n} accepted patterns carry a buffer-selector flag (U, H, P, C, ...).");
-    println!("These name the buffer the rule targets, not what the pattern denotes, so they");
-    println!("do not affect faithfulness. They do mean the generated inputs are not guaranteed");
-    println!("to be suitable for the target buffer -- a `/x/U` rule is tested against generic");
-    println!("text, not a URI-normalized buffer. The pattern is right, but the input may not fit.");
-}
-
-fn anchor_table(stats: &[SourceStats], total: &SourceStats, show_anchors: bool) {
-    if !show_anchors {
-        return;
-    }
-    header("Anchor usage (accepted patterns only)");
-
-    print!("{:<16}", "Source");
-    for shape in AnchorShape::ALL {
-        print!(" {:>10}", shape.label());
-    }
-    print!(" {:>14}", "Total anchored");
-    println!();
-    println!("{}", "-".repeat(16 + 11 * AnchorShape::ALL.len() + 15));
-
-    let print_row = |name: &str, s: &SourceStats| {
-        print!("{:<16}", name);
-        let mut anchored = 0usize;
-        for shape in AnchorShape::ALL {
-            let n = s.anchors.get(&shape).copied().unwrap_or(0);
-            if shape != AnchorShape::None {
-                anchored += n;
-            }
-            print!(" {:>10}", n);
-        }
-        print!(" {:>14}", anchored);
-        println!();
-    };
-
-    for s in stats {
-        print_row(&s.name(), s);
-    }
-    println!("{}", "-".repeat(16 + 11 * AnchorShape::ALL.len() + 15));
-    print_row(&total.name(), total);
-}
-
-fn rejection_detail(stats: &[SourceStats], verbose: bool) {
-    if !verbose {
-        return;
-    }
-    header("Per-pattern rejections");
-    for s in stats {
-        if s.rejections.is_empty() {
-            continue;
-        }
-        println!();
-        println!("{} ({} rejections)", s.name(), s.rejections.len());
-        println!("{}", "-".repeat(72));
-        for (pattern, cause) in &s.rejections {
-            let shown: String = pattern.chars().take(58).collect();
-            println!("{:<14} {}", cause.label(), shown);
-        }
     }
 }
 
@@ -668,8 +553,6 @@ struct Options {
     explicit_files: Vec<PathBuf>,
     verbose: bool,
     show_flags: bool,
-    show_anchors: bool,
-    show_caveats: bool,
 }
 
 fn parse_args() -> Options {
@@ -678,8 +561,6 @@ fn parse_args() -> Options {
     let mut explicit_files: Vec<PathBuf> = Vec::new();
     let mut verbose = false;
     let mut show_flags = true;
-    let mut show_anchors = true;
-    let mut show_caveats = true;
 
     let mut i = 0;
     while i < args.len() {
@@ -694,11 +575,10 @@ fn parse_args() -> Options {
             }
             "--verbose" => verbose = true,
             "--no-flags" => show_flags = false,
-            "--no-anchors" => show_anchors = false,
-            "--no-caveats" => show_caveats = false,
             other if !other.starts_with("--") => {
-                // Bare positional: a source name selects it, anything
-                // else is a file path (only honored for a single source).
+                // Bare positional: a source name selects it.
+                // Anything else is a file path, only honored for a
+                // single source.
                 if let Ok(s) = std::str::from_utf8(other.as_bytes()) {
                     if is_source_name(s) {
                         sources.push(parse_source(s));
@@ -725,8 +605,6 @@ fn parse_args() -> Options {
         explicit_files,
         verbose,
         show_flags,
-        show_anchors,
-        show_caveats,
     }
 }
 
@@ -749,6 +627,25 @@ fn parse_source(s: &str) -> SourceKind {
     }
 }
 
+fn rejection_detail(stats: &[SourceStats], verbose: bool) {
+    if !verbose {
+        return;
+    }
+    header("Per-pattern rejections");
+    for s in stats {
+        if s.rejections.is_empty() {
+            continue;
+        }
+        println!();
+        println!("{} ({} rejections)", s.name(), s.rejections.len());
+        println!("{}", "-".repeat(72));
+        for (pattern, cause) in &s.rejections {
+            let shown: String = pattern.chars().take(58).collect();
+            println!("{:<14} {}", cause.label(), shown);
+        }
+    }
+}
+
 // ---------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------
@@ -756,8 +653,8 @@ fn parse_source(s: &str) -> SourceKind {
 fn main() {
     let opts = parse_args();
 
-    // Explicit files only apply with exactly one source selected: with
-    // several, there is no way to know which file belongs to which.
+    // Explicit files only apply with exactly one source selected.
+    // With several, there is no way to know which file belongs to which.
     let explicit_for_one = opts.sources.len() == 1 && !opts.explicit_files.is_empty();
     if !opts.explicit_files.is_empty() && !explicit_for_one {
         eprintln!(
@@ -782,8 +679,9 @@ fn main() {
     }
 
     coverage_table(&per_source, &total);
+    match_intent_table(&per_source, &total);
     rejection_table(&per_source, &total);
-    caveats_table(&per_source, &total, opts.show_caveats);
+    anchor_shape_table(&per_source, &total);
     flag_table(
         &per_source,
         &total,
@@ -798,9 +696,5 @@ fn main() {
         "PCRE flag distribution (accepted patterns only)",
         |s| &s.flag_accepted,
     );
-    if opts.show_flags {
-        buffer_flag_note(&total);
-    }
-    anchor_table(&per_source, &total, opts.show_anchors);
     rejection_detail(&per_source, opts.verbose);
 }

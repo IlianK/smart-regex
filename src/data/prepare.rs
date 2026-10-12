@@ -1,18 +1,18 @@
 //! src/data/prepare.rs
 //!
-//! Verification: the mandatory step every candidate from `generate`
-//! passes through before it is trusted. Nothing `generate` produces is
-//! written out as a `PreparedCase` without first being checked against
-//! the real parser it claims an outcome for.
+//! Verification: every candidate from `generate` is checked against the
+//! real parser before becoming a `PreparedCase`.
+//! `StructuralNegative` candidates must also fail *late*.
 //!
-//! For a `Category::Worst` negative specifically, verification also
-//! checks that the rejection is late: a candidate that fails on the
-//! first character is not a worst case, whatever its provenance claimed.
+//! `core_regex_tagged` accepts one anchor shape this pipeline recognizes:
+//! a top-level `^...$` wrap.
+//! The anchors are stripped before translation, since they are redundant
+//! under full-string matching.
+//! Any other anchor placement still reaches `translate` and is rejected.
 
-use crate::data::types::{Candidate, Category, PreparedCase, SourceKind};
+use crate::data::types::{Candidate, MatchIntent, PreparedCase, Provenance, SourceKind};
 use crate::frontend::{
-    case_fold, parse_ext_pattern, parse_pcre_rule, strip_dot_newline, strip_pcre_delimiters,
-    translate, ExtPat,
+    case_fold, parse_ext_pattern, strip_dot_newline, strip_pcre_delimiters, translate, ExtPat,
 };
 use crate::parsers::deriv_bc::deriv::deriv_bc;
 use crate::parsers::deriv_bc::internalize::internalize;
@@ -49,7 +49,6 @@ enum SteppedOutcome {
     TooExpensive,
 }
 
-/// Steps `r`'s bit-coded annotated form through `input`:
 /// `internalize`, then `deriv_bc` + `simp` per character.
 fn step_bc_bounded(input: &str, r: &Regex) -> SteppedOutcome {
     let mut ri = internalize(r);
@@ -80,8 +79,8 @@ pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
     }
 }
 
-/// Number of characters consumed before the match becomes impossible, or
-/// the full length on a match. `None` when the check exceeds its node cap.
+/// Chars consumed before the match becomes impossible.
+/// Full length on a match; `None` when the check exceeds its node cap.
 pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
     match step_bc_bounded(input, r) {
         SteppedOutcome::DiedAt(consumed) => Some(consumed),
@@ -90,19 +89,14 @@ pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
     }
 }
 
-/// A `Worst` negative must fail at or past this fraction of the input;
-/// earlier failures are discarded.
+/// A `Worst` negative must fail at or past this fraction of the input.
+/// Earlier failures are discarded.
 const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
 
-/// The bare core regex for a PCRE-rule body, with no search padding.
-///
-/// `parse_pcre_rule` performs the same steps (delimiter strip, flag
-/// check, parse, case-fold, dotall), then pads with `Σ*` on each
-/// un-anchored side. This function skips the padding deliberately: it is
-/// used only to measure how far a failing input got into the core
-/// pattern, and against a padded regex the leading `Σ*` would swallow
-/// the whole prefix and make that measurement meaningless.
-pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
+/// Core regex for a PCRE-rule body, plus which `MatchIntent` applied.
+/// Duplicates `parse_pcre_rule`'s steps to add depth/node caps and to
+/// strip a top-level `^...$` wrap before `translate` sees it.
+pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), String> {
     let (body, flags) = strip_pcre_delimiters(raw_pattern);
     if let Some(reason) = flags.unsupported() {
         return Err(format!("unsupported PCRE flag: {reason}"));
@@ -110,18 +104,25 @@ pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
     let ep = parse_ext_pattern(body)?;
     let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
     let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
+    let (ep, stripped) = strip_full_anchors(ep);
+    let intent = if stripped {
+        MatchIntent::ExplicitFullMatch
+    } else {
+        MatchIntent::UnanchoredAmbiguous
+    };
+
     let estimated_depth = estimated_translated_depth(&ep);
     if estimated_depth > MAX_CORE_DEPTH {
         return Err(format!(
             "pattern is estimated to translate to a nesting depth of at least {estimated_depth}, \
              exceeding this pipeline's cap of {MAX_CORE_DEPTH}; likely a character class whose \
-             range spans far more code points than intended (for example `[\\--\u{2013}]`, parsed \
-             as every code point from `-` to the en dash, found by running this pipeline against \
-             a real RegexLib pattern), rather than a pattern that is simply large. Rejected \
-             before translation, since translating a pattern this deep is itself the risk."
+             range spans far more code points than intended (for example `[\\--\u{2013}]`). \
+             Rejected before translation, since translating a pattern this deep is itself the risk."
         ));
     }
 
+    // Any anchor NOT in the one shape `strip_full_anchors` recognizes
+    // reaches `translate` unchanged and is rejected there.
     let r = translate(&ep)?;
     let nodes = node_count(&r);
     if nodes > MAX_CORE_NODES {
@@ -129,14 +130,139 @@ pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
             "translated pattern has {nodes} nodes, exceeding this pipeline's cap of {MAX_CORE_NODES}"
         ));
     }
-    Ok(r)
+    Ok((r, intent))
+}
+
+/// Core regex for a PCRE-rule body; discards `MatchIntent`.
+pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
+    core_regex_tagged(raw_pattern).map(|(r, _intent)| r)
+}
+
+/// Strips a top-level `^...$` wrap, the one shape whose anchors are
+/// provably redundant under full-string matching.
+/// Returns `(possibly-stripped ep, true)` if it stripped something,
+/// `(ep unchanged, false)` otherwise.
+fn strip_full_anchors(ep: ExtPat) -> (ExtPat, bool) {
+    match unwrap_shell(ep.clone()) {
+        ExtPat::Concat(mut parts)
+            if parts.len() >= 2
+                && parts.first() == Some(&ExtPat::Carat)
+                && parts.last() == Some(&ExtPat::Dollar) =>
+        {
+            parts.remove(parts.len() - 1);
+            parts.remove(0);
+            let stripped = if parts.is_empty() {
+                ExtPat::Eps
+            } else if parts.len() == 1 {
+                parts.into_iter().next().expect("checked len == 1")
+            } else {
+                ExtPat::Concat(parts)
+            };
+            (stripped, true)
+        }
+        _ => (ep, false),
+    }
+}
+
+/// Unwraps `Group`/`GroupNonMarking` shells to find the structure below.
+fn unwrap_shell(ep: ExtPat) -> ExtPat {
+    match ep {
+        ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => unwrap_shell(*inner),
+        other => other,
+    }
+}
+
+fn top_level_starts_with_carat(ep: &ExtPat) -> bool {
+    match unwrap_shell(ep.clone()) {
+        ExtPat::Concat(parts) => parts.first() == Some(&ExtPat::Carat),
+        ExtPat::Carat => true,
+        _ => false,
+    }
+}
+
+fn top_level_ends_with_dollar(ep: &ExtPat) -> bool {
+    match unwrap_shell(ep.clone()) {
+        ExtPat::Concat(parts) => parts.last() == Some(&ExtPat::Dollar),
+        ExtPat::Dollar => true,
+        _ => false,
+    }
+}
+
+fn contains_anchor(ep: &ExtPat) -> bool {
+    match ep {
+        ExtPat::Carat | ExtPat::Dollar => true,
+        ExtPat::Concat(parts) | ExtPat::Or(parts) => parts.iter().any(contains_anchor),
+        ExtPat::Group(inner)
+        | ExtPat::GroupNonMarking(inner)
+        | ExtPat::Opt(inner)
+        | ExtPat::Plus(inner)
+        | ExtPat::Star(inner) => contains_anchor(inner),
+        ExtPat::Bound(inner, _, _) => contains_anchor(inner),
+        _ => false,
+    }
+}
+
+/// Where `^`/`$` sit in a pattern's top-level shape.
+/// Diagnostic only; used by `dataset_stats` to explain "anchor" rejections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum AnchorShape {
+    /// Never reached `ExtPat`: backreference, lookaround, or syntax error.
+    Unparseable,
+    /// No `^`/`$` anywhere.
+    None,
+    /// `^` first and `$` last at the top level -- recoverable.
+    FullyWrapped,
+    /// `^` at the top level; no `$`.
+    StartOnly,
+    /// `$` at the top level; no `^`.
+    EndOnly,
+    /// An anchor present, but not in any of the shapes above.
+    NestedOrPartial,
+}
+
+impl AnchorShape {
+    pub fn label(&self) -> &'static str {
+        match self {
+            AnchorShape::Unparseable => "unparseable",
+            AnchorShape::None => "none",
+            AnchorShape::FullyWrapped => "fully-wrapped",
+            AnchorShape::StartOnly => "start-only",
+            AnchorShape::EndOnly => "end-only",
+            AnchorShape::NestedOrPartial => "nested",
+        }
+    }
+
+    /// Fixed order for a shape-distribution table.
+    pub const ALL: [AnchorShape; 6] = [
+        AnchorShape::Unparseable,
+        AnchorShape::None,
+        AnchorShape::FullyWrapped,
+        AnchorShape::StartOnly,
+        AnchorShape::EndOnly,
+        AnchorShape::NestedOrPartial,
+    ];
+}
+
+pub fn anchor_shape(ep: &ExtPat) -> AnchorShape {
+    if !contains_anchor(ep) {
+        return AnchorShape::None;
+    }
+    let (_, fully_wrapped) = strip_full_anchors(ep.clone());
+    if fully_wrapped {
+        return AnchorShape::FullyWrapped;
+    }
+    match (top_level_starts_with_carat(ep), top_level_ends_with_dollar(ep)) {
+        (true, false) => AnchorShape::StartOnly,
+        (false, true) => AnchorShape::EndOnly,
+        _ => AnchorShape::NestedOrPartial,
+    }
 }
 
 fn estimated_translated_depth(ep: &ExtPat) -> usize {
     match ep {
         ExtPat::Empty | ExtPat::Eps | ExtPat::Never | ExtPat::Char(_) | ExtPat::Escape(_) => 1,
         ExtPat::Carat | ExtPat::Dollar => 1,
-        ExtPat::Dot => 98, // full working alphabet, alt_of_chars(alphabet())'s Alt chain
+        ExtPat::Dot => 98, // full alphabet Alt chain
         ExtPat::Any(cs) | ExtPat::NoneOf(cs) => cs.len().max(1),
         ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => estimated_translated_depth(inner),
         ExtPat::Opt(inner) => 1 + estimated_translated_depth(inner),
@@ -172,34 +298,30 @@ fn node_count(r: &Regex) -> usize {
     count
 }
 
-/// Reject a pattern before translating it if its estimated depth exceeds
-/// this. Catches a character class whose range expands into thousands of
-/// code points, where the translation itself is the risk.
+/// Reject before translating if estimated depth exceeds this.
 const MAX_CORE_DEPTH: usize = 2_000;
 
-/// Second, coarser cap: reject a translated pattern with more than this
-/// many nodes.
+/// Coarser cap on the translated pattern's node count.
 const MAX_CORE_NODES: usize = 20_000;
 
-/// Verify one candidate: confirm its claimed outcome against the real
-/// parser, and for a `Worst` negative confirm the rejection is late.
+/// Verify one candidate against the real parser.
+/// For `StructuralNegative`, also confirm the rejection is late.
 /// Returns the `PreparedCase` on success, `None` otherwise.
 pub fn verify_candidate(
     source: SourceKind,
     raw_pattern: &str,
     candidate: Candidate,
 ) -> Option<PreparedCase> {
-    let r_search = parse_pcre_rule(raw_pattern).ok()?;
-    let verified_match = matches_bounded(&candidate.text, &r_search)?;
+    let (r, match_intent) = core_regex_tagged(raw_pattern).ok()?;
+    let verified_match = matches_bounded(&candidate.text, &r)?;
     if verified_match != candidate.claimed_match {
         return None;
     }
 
     let failed_after = if !verified_match {
-        let r_core = core_regex(raw_pattern).ok()?;
-        let consumed = failed_after_chars(&candidate.text, &r_core)?;
+        let consumed = failed_after_chars(&candidate.text, &r)?;
         let total = candidate.text.chars().count().max(1);
-        if candidate.category == Category::Worst
+        if candidate.provenance == Provenance::StructuralNegative
             && (consumed as f64) < LATE_FAILURE_THRESHOLD * (total as f64)
         {
             return None;
@@ -213,15 +335,14 @@ pub fn verify_candidate(
         source,
         pattern: raw_pattern.to_string(),
         input: candidate.text,
-        category: candidate.category,
         provenance: candidate.provenance,
         verified_match,
         failed_after_chars: failed_after,
+        match_intent,
     })
 }
 
-/// Verify every candidate in `candidates`, keeping only the ones that
-/// hold up. Order is preserved among survivors.
+/// Verify every candidate, keeping survivors in original order.
 pub fn verify_all(
     source: SourceKind,
     raw_pattern: &str,
@@ -233,8 +354,7 @@ pub fn verify_all(
         .collect()
 }
 
-/// Append `cases` to `path` as JSON lines, creating the file (and its
-/// parent directory) if needed.
+/// Append `cases` to `path` as JSON lines, creating parents if needed.
 pub fn write_prepared_cases(
     path: &std::path::Path,
     cases: &[PreparedCase],
@@ -306,7 +426,6 @@ mod tests {
         let pattern = r"[a-c]+\d{2}";
         let candidate = Candidate {
             text: "ab12".to_string(),
-            category: Category::Neutral,
             provenance: crate::data::types::Provenance::Structural,
             claimed_match: true,
         };
@@ -319,10 +438,9 @@ mod tests {
     fn a_false_claim_is_rejected() {
         let pattern = r"[a-c]+\d{2}";
         let candidate = Candidate {
-            text: "zzz".to_string(), // does not match
-            category: Category::Neutral,
+            text: "zzz".to_string(),
             provenance: crate::data::types::Provenance::Structural,
-            claimed_match: true, // wrongly claims it does
+            claimed_match: true,
         };
         assert!(verify_candidate(SourceKind::RegexLib, pattern, candidate).is_none());
     }
@@ -332,7 +450,6 @@ mod tests {
         let pattern = r#"</?(\w+)(\s*\w*\s*=\s*("[^"]*"|'[^']'|[^>]*))*|/?>"#;
         let candidate = Candidate {
             text: "<wxxzuzzwyyz=}| \n \r\r\r=\t\t \r\t\"}~~|~}\"\n\t\rzzy    \n\n=\r'~'\t \r\t =     \"~~}}~}\"y=\r \n\"~z}}\"\nz \r =\r\t~~~".to_string(),
-            category: Category::Worst,
             provenance: crate::data::types::Provenance::Structural,
             claimed_match: true,
         };
@@ -340,26 +457,24 @@ mod tests {
     }
 
     #[test]
-    fn a_trivially_failing_worst_case_candidate_is_rejected() {
+    fn a_trivially_failing_negative_candidate_is_rejected() {
         let pattern = r"[a-c]+\d{2}";
         let candidate = Candidate {
             text: "zzzzzzzzzz".to_string(),
-            category: Category::Worst,
-            provenance: crate::data::types::Provenance::Structural,
+            provenance: crate::data::types::Provenance::StructuralNegative,
             claimed_match: false,
         };
         assert!(verify_candidate(SourceKind::RegexLib, pattern, candidate).is_none());
     }
 
     #[test]
-    fn a_late_failing_worst_case_candidate_is_accepted() {
+    fn a_late_failing_negative_candidate_is_accepted() {
         let pattern = r"[a-c]+\d{2}";
         let mut rng = StdRng::seed_from_u64(7);
         let r = core(pattern);
         let text = generate::sample_negative_late(&r, &mut rng, 4).expect("should generate");
         let candidate = Candidate {
             text,
-            category: Category::Worst,
             provenance: crate::data::types::Provenance::StructuralNegative,
             claimed_match: false,
         };
@@ -380,13 +495,13 @@ mod tests {
             source: SourceKind::SpamAssassin,
             pattern: r"/x.{0,2}a.{0,2}n.{0,2}a.{0,2}x/i".to_string(),
             input: "buy xanax now".to_string(),
-            category: Category::Neutral,
             provenance: crate::data::types::Provenance::Structural,
             verified_match: true,
             failed_after_chars: None,
+            match_intent: crate::data::types::MatchIntent::UnanchoredAmbiguous,
         };
         write_prepared_cases(&path, std::slice::from_ref(&case)).unwrap();
-        write_prepared_cases(&path, std::slice::from_ref(&case)).unwrap(); // append
+        write_prepared_cases(&path, std::slice::from_ref(&case)).unwrap();
 
         let read_back = read_prepared_cases(&path).unwrap();
         assert_eq!(read_back.len(), 2);
@@ -406,8 +521,8 @@ mod tests {
 
     #[test]
     fn ordinary_real_patterns_with_several_classes_are_not_rejected() {
-        assert!(core_regex(r"^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:[a-zA-Z]{2}|aero|asia|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel)$").is_ok());
-        assert!(core_regex(r"^([\+][0-9]{1,3}([ \.\-])?)?([\(]{1}[0-9]{3}[\)])?([0-9A-Z \.\-]{1,32})((x|ext|extension)?[0-9]{1,4}?)$").is_ok());
+        assert!(core_regex(r"[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:[a-zA-Z]{2}|aero|asia|biz|cat|com|coop|edu|gov|info|int|jobs|mil|mobi|museum|name|net|org|pro|tel|travel)").is_ok());
+        assert!(core_regex(r"([\+][0-9]{1,3}([ \.\-])?)?([\(]{1}[0-9]{3}[\)])?([0-9A-Z \.\-]{1,32})((x|ext|extension)?[0-9]{1,4}?)").is_ok());
     }
 
     #[test]
@@ -423,8 +538,92 @@ mod tests {
 
     #[test]
     fn core_regex_accepts_relative_flag() {
-        // `R` is a Snort positioning constraint, treated as an ordinary
-        // search pattern.
         assert!(core_regex("/abc/R").is_ok());
+    }
+
+    #[test]
+    fn fully_wrapped_anchors_are_stripped_and_tagged_explicit() {
+        let (r, intent) = core_regex_tagged("^abc$").expect("should strip and translate");
+        assert_eq!(r, core("abc"));
+        assert_eq!(intent, MatchIntent::ExplicitFullMatch);
+    }
+
+    #[test]
+    fn unanchored_pattern_translates_unchanged_and_is_tagged_ambiguous() {
+        let (r, intent) = core_regex_tagged("abc").expect("should translate");
+        assert_eq!(r, core("abc"));
+        assert_eq!(intent, MatchIntent::UnanchoredAmbiguous);
+    }
+
+    #[test]
+    fn carat_dollar_only_pattern_strips_to_eps() {
+        let (r, intent) = core_regex_tagged("^$").expect("should strip to Eps");
+        assert_eq!(r, Regex::Eps);
+        assert_eq!(intent, MatchIntent::ExplicitFullMatch);
+    }
+
+    #[test]
+    fn fully_wrapped_anchors_inside_a_group_are_also_stripped() {
+        let (r, intent) = core_regex_tagged("(^abc$)").expect("should strip and translate");
+        assert_eq!(r, core("abc"));
+        assert_eq!(intent, MatchIntent::ExplicitFullMatch);
+    }
+
+    #[test]
+    fn start_anchor_only_is_still_rejected() {
+        assert!(core_regex_tagged("^abc").is_err());
+    }
+
+    #[test]
+    fn end_anchor_only_is_still_rejected() {
+        assert!(core_regex_tagged("abc$").is_err());
+    }
+
+    #[test]
+    fn anchor_nested_in_one_alternation_branch_is_still_rejected() {
+        assert!(core_regex_tagged("(^a|b)c").is_err());
+    }
+
+    #[test]
+    fn anchor_under_a_quantifier_is_still_rejected() {
+        assert!(core_regex_tagged("(^a)*b").is_err());
+    }
+
+    #[test]
+    fn stripping_is_specific_to_the_dataset_pipeline_not_the_frontend() {
+        assert!(crate::frontend::parse_pattern("^abc$").is_err());
+    }
+
+    fn shape_of(pattern: &str) -> AnchorShape {
+        let ep = crate::frontend::parse_ext_pattern(pattern).expect("should parse");
+        anchor_shape(&ep)
+    }
+
+    #[test]
+    fn anchor_shape_classifies_every_case() {
+        assert_eq!(shape_of("abc"), AnchorShape::None);
+        assert_eq!(shape_of("^abc$"), AnchorShape::FullyWrapped);
+        assert_eq!(shape_of("(^abc$)"), AnchorShape::FullyWrapped);
+        assert_eq!(shape_of("^abc"), AnchorShape::StartOnly);
+        assert_eq!(shape_of("abc$"), AnchorShape::EndOnly);
+        assert_eq!(shape_of("(^a|b)c"), AnchorShape::NestedOrPartial);
+        assert_eq!(shape_of("(^a)*b"), AnchorShape::NestedOrPartial);
+        assert_eq!(shape_of("^"), AnchorShape::StartOnly);
+        assert_eq!(shape_of("$"), AnchorShape::EndOnly);
+        assert_eq!(shape_of("^$"), AnchorShape::FullyWrapped);
+    }
+
+    #[test]
+    fn verify_candidate_tags_match_intent_on_the_prepared_case() {
+        let r = core("abc");
+        let candidate = Candidate {
+            text: "abc".to_string(),
+            provenance: crate::data::types::Provenance::Structural,
+            claimed_match: true,
+        };
+        let prepared = verify_candidate(SourceKind::RegexLib, "^abc$", candidate)
+            .expect("should verify");
+        assert_eq!(prepared.match_intent, MatchIntent::ExplicitFullMatch);
+        assert_eq!(matches_bounded("abc", &r), Some(true));
     }
 }

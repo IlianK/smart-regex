@@ -26,7 +26,7 @@ pub mod frontend;
 pub use types::{Regex, ARegex, ParseTree, flatten};
 
 // Re-export surface-syntax pattern AST
-pub use frontend::{ExtPat, parse_ext_pattern, parse_dataset_pattern, parse_pcre_rule};
+pub use frontend::{ExtPat, parse_ext_pattern, parse_pcre_rule};
 
 // Re-export matchers
 pub use matchers::{match_naive, match_deriv, match_pderiv};

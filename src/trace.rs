@@ -1,16 +1,19 @@
 //! src/trace.rs
 //!
-//! Trace data structures for the `*_traced` parser variants. 
-//! One type per parser family; consumed by `src/diagnostics/` 
-//! for `--diag 2`/`--diag 3` reports
+//! Trace data structures for the `*_traced` parser variants.
+//! One type per parser family.
+//! Consumed by `src/diagnostics/` for `--diag 2`/`--diag 3` reports.
 
 use crate::types::{Regex, ARegex, ParseTree};
 
+// -------------------------------
+// Standard derivative parser
+// (parse_loop_traced / parse_recursive_traced)
+// -------------------------------
 
-// Standard derivative-based parser (parse_loop_traced / parse_recursive_traced)
-
-/// One forward derivative step: `before`/`after` expressions 
-/// around `character`, and whether `after` is nullable.
+/// One forward derivative step.
+/// `before`/`after` expressions around `character`.
+/// `nullable` records whether `after` accepts the empty string.
 #[derive(Debug, Clone)]
 pub struct DerivStep {
     pub position: usize,
@@ -56,10 +59,14 @@ impl ParseTrace {
     }
 }
 
-// Bit-coded derivative-based parser (parse_bitcoded_traced)
+// -------------------------------
+// Bit-coded derivative parser
+// (parse_bitcoded_traced)
+// -------------------------------
 
-/// One bit-coded forward step: `before`/`after` annotated expressions
-/// around `deriv_bc + simp`, and whether `after` is nullable.
+/// One bit-coded forward step.
+/// `before`/`after` annotated expressions around `deriv_bc + simp`.
+/// `nullable` records whether `after` accepts the empty string.
 #[derive(Debug, Clone)]
 pub struct BitStep {
     pub position: usize,
@@ -85,12 +92,14 @@ impl BitTrace {
     }
 }
 
+// -------------------------------
+// Bit-coded partial-derivative parser
+// (parse_pderiv_bc_traced)
+// -------------------------------
 
-// Bit-coded partial-derivative parser (parse_pderiv_bc_traced)
-
-/// One frontier step: every `(residual, accumulated bits)` 
-/// pair still alive after consuming `character`, 
-/// one per surviving strand of nondeterminism.
+/// One frontier step.
+/// Each entry is a `(residual, accumulated bits)` pair still alive after
+/// consuming `character`, one per surviving strand of nondeterminism.
 #[derive(Debug, Clone)]
 pub struct PDerivBitStep {
     pub position: usize,
@@ -116,12 +125,15 @@ impl PDerivBitTrace {
     }
 }
 
+// -------------------------------
+// Standard partial-derivative parser
+// (parse_pderiv_std_traced)
+// -------------------------------
 
-// Standard partial-derivative parser (parse_pderiv_std_traced)
-
-/// One frontier step, residuals only. 
-/// Injections are `Rc<dyn Fn(ParseTree) -> ParseTree>` and have no printable form, 
-/// so a nullable strand carries its fully-built `ParseTree` directly
+/// One frontier step, residuals only.
+/// Injections are `Rc<dyn Fn(ParseTree) -> ParseTree>` and have no
+/// printable form, so a nullable strand carries its built `ParseTree`
+/// directly.
 #[derive(Debug, Clone)]
 pub struct PDerivStdStep {
     pub position: usize,

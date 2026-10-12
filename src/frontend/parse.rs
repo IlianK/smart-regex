@@ -15,8 +15,8 @@ use super::ext_pattern::ExtPat;
 
 type Chars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
 
-/// Characters with regex meaning outside a character class. `]` and `}`
-/// are absent: they only matter inside an already-open `[` or `{`.
+/// Characters with regex meaning outside a character class.
+/// `]` and `}` are absent: they only matter inside an open `[` or `{`.
 const SPECIALS: &str = "^.[$()|*+?{\\";
 
 pub fn parse_ext_pattern(s: &str) -> Result<ExtPat, String> {
@@ -81,8 +81,8 @@ fn parse_postfixed(chars: &mut Chars) -> Result<ExtPat, String> {
     }
 }
 
-/// Consume a trailing `?` marking a quantifier lazy, if present. The
-/// marker has no effect on the lowered `Regex`, so it is not recorded.
+/// Consume a trailing `?` marking a quantifier lazy, if present.
+/// The marker has no effect on the lowered `Regex`, so it is not recorded.
 fn discard_lazy_marker(chars: &mut Chars) {
     if chars.peek() == Some(&'?') {
         chars.next();
@@ -119,8 +119,9 @@ fn parse_atom(chars: &mut Chars) -> Result<ExtPat, String> {
     }
 }
 
-// {m,n} / {m,} / {m}. A '{' that does not form a valid bound is left
-// unconsumed, and the next `parse_atom` then errors on it.
+// {m,n} / {m,} / {m}
+// A '{' that does not form a valid bound is left unconsumed; the next
+// `parse_atom` then errors on it.
 
 fn parse_bound(chars: &mut Chars, atom: ExtPat) -> ExtPat {
     let mut trial = chars.clone();
@@ -250,12 +251,11 @@ fn parse_escape(chars: &mut Chars) -> Result<ExtPat, String> {
         't' => Ok(ExtPat::Char('\t')),
         'r' => Ok(ExtPat::Char('\r')),
         'x' => parse_hex_escape(chars),
-        // `\0` is never a backreference in PCRE: there is no group 0 for
-        // it to refer to, so it is always an octal escape (up to two
-        // further octal digits). `\1`-`\9` are ambiguous with
-        // backreferences in general (PCRE resolves that using the
-        // capture-group count, which this parser does not track), so
-        // they are conservatively rejected rather than guessed.
+        // `\0` is never a backreference in PCRE: no group 0 exists, so it
+        // is always octal (up to two further octal digits).
+        // `\1`-`\9` are ambiguous with backreferences in general (PCRE
+        // resolves that using the capture-group count, which this parser
+        // does not track), so they are conservatively rejected.
         '0' => Ok(ExtPat::Char(read_class_octal(c, chars))),
         '1'..='9' => Err(format!(
             "backreference '\\{}' is not a regular-language construct -- unsupported",
@@ -293,8 +293,8 @@ fn parse_charclass(chars: &mut Chars) -> Result<ExtPat, String> {
 
 fn parse_class_enum(chars: &mut Chars) -> Result<Vec<char>, String> {
     let mut members = Vec::new();
-    // A ']' or '-' immediately after '[' / '[^' is a literal member, so
-    // that "[]f-z]" and "[-a]" can be written.
+    // A ']' or '-' right after '[' / '[^' is a literal member, so that
+    // "[]f-z]" and "[-a]" can be written.
     match chars.peek() {
         Some(&']') => {
             chars.next();
@@ -334,11 +334,12 @@ fn parse_class_enum(chars: &mut Chars) -> Result<Vec<char>, String> {
 }
 
 /// Look ahead (without consuming) for a `[:name:]` POSIX class at the
-/// current position, e.g. the `[:alpha:]` in `[[:alpha:]]`. This frontend
-/// does not implement POSIX classes; without this check, `[:alpha:]`
-/// would be silently read as the literal members `[`, `:`, `a`, `l`, `p`,
-/// `h` followed by a literal `]` -- accepted, but denoting almost nothing
-/// like what the pattern author meant, with no error and no caveat.
+/// current position, e.g. the `[:alpha:]` in `[[:alpha:]]`.
+///
+/// This frontend does not implement POSIX classes.
+/// Without this check, `[:alpha:]` would be silently read as the literal
+/// members `[`, `:`, `a`, `l`, `p`, `h` followed by a literal `]` --
+/// accepted, but denoting almost nothing like what the author meant.
 fn posix_class_name(chars: &Chars) -> Option<String> {
     let mut trial = chars.clone();
     if trial.next() != Some('[') || trial.next() != Some(':') {
@@ -397,12 +398,13 @@ fn parse_class_atom(chars: &mut Chars) -> Result<ClassAtom, String> {
                 'W' => Ok(ClassAtom::Multi(alphabet::complement(&alphabet::word_chars()))),
                 's' => Ok(ClassAtom::Multi(alphabet::space_chars())),
                 'S' => Ok(ClassAtom::Multi(alphabet::complement(&alphabet::space_chars()))),
-                // Inside a class, PCRE never reads a digit-following-backslash
-                // as a backreference (backreferences don't exist in classes),
-                // so `\0`-`\7` are unambiguous: up to three octal digits are
-                // read to make one code point. `\8`/`\9` are not octal digits,
-                // so PCRE reads them as the literal characters '8'/'9' --
-                // that's already what the `other` fallthrough below does.
+                // Inside a class, PCRE never reads a digit-following
+                // backslash as a backreference (classes have none), so
+                // `\0`-`\7` are unambiguous: up to three octal digits
+                // make one code point.
+                // `\8`/`\9` are not octal digits, so PCRE reads them as
+                // the literal characters '8'/'9' -- what the fallthrough
+                // below already does.
                 '0'..='7' => Ok(ClassAtom::Single(read_class_octal(c, chars))),
                 other => Ok(ClassAtom::Single(other)),
             }
@@ -414,6 +416,7 @@ fn parse_class_atom(chars: &mut Chars) -> Result<ClassAtom, String> {
 
 /// Read up to two further octal digits after an already-consumed first
 /// octal digit `first`, and return the resulting code point (0-255).
+///
 /// Three octal digits can specify up to 511; clamped to 255 rather than
 /// wrapped, since this frontend has no character above 255 to represent.
 fn read_class_octal(first: char, chars: &mut Chars) -> char {
@@ -486,7 +489,6 @@ mod tests {
 
     #[test]
     fn ordinary_bracket_class_with_a_leading_open_bracket_char_still_works() {
-        // A literal '[' as a class member (not a POSIX class) must still parse.
         assert_eq!(
             p("[\\[ab]"),
             ExtPat::Any(vec!['[', 'a', 'b'])
@@ -598,35 +600,23 @@ mod tests {
 
     #[test]
     fn octal_escape_in_class_reads_up_to_three_digits() {
-        // Real SpamAssassin data: [\042\223\224\262\263\271]. \042 (octal)
-        // is '"', not the three literal characters '0', '4', '2'.
         assert_eq!(p("[\\042]"), ExtPat::Any(vec!['"']));
-        assert_eq!(p("[\\101]"), ExtPat::Any(vec!['A'])); // octal 101 = 'A'
+        assert_eq!(p("[\\101]"), ExtPat::Any(vec!['A']));
     }
 
     #[test]
     fn octal_8_and_9_are_not_octal_digits() {
-        // Per PCRE: \8 and \9 inside a class are the literal characters
-        // '8' and '9', not the start of an octal escape.
         assert_eq!(p("[\\8\\9]"), ExtPat::Any(vec!['8', '9']));
     }
 
     #[test]
     fn bare_backslash_zero_outside_a_class_is_octal_not_literal() {
-        // Real RegexLib data has `\0`/`\1`/`\2` outside a class. `\0` is
-        // never ambiguous with a backreference in PCRE (there is no
-        // "group 0"), so it is always octal: '\0' is NUL, not the
-        // literal character '0'.
         assert_eq!(p("\\0"), ExtPat::Char('\0'));
-        assert_eq!(p("\\012"), ExtPat::Char('\n')); // octal 012 = '\n'
+        assert_eq!(p("\\012"), ExtPat::Char('\n'));
     }
 
     #[test]
     fn backreference_1_through_9_outside_a_class_still_rejected() {
-        // Unlike `\0`, single digits 1-9 outside a class are genuinely
-        // ambiguous with backreferences in PCRE; this parser does not
-        // track capture-group counts, so it conservatively rejects them
-        // rather than guessing octal.
         assert!(parse_ext_pattern("\\1").is_err());
         assert!(parse_ext_pattern("\\9").is_err());
     }

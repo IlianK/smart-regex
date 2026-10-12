@@ -1,74 +1,69 @@
 \relax 
 \providecommand\zref@newlabel[2]{}
 \providecommand\hyper@newdestlabel[2]{}
+\citation{sulzmannlu2012}
 \@writefile{toc}{\contentsline {chapter}{\numberline {6}Partial-Derivative-Based Parser}{44}{chapter.6}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
 \newlabel{sec:partial-derivative-parser}{{6}{44}{Partial-Derivative-Based Parser}{chapter.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.1}The Standard Partial-Derivative-Based Parser}{44}{section.6.1}\protected@file@percent }
-\newlabel{sec:pderiv-std-theory-rust}{{6.1}{44}{The Standard Partial-Derivative-Based Parser}{section.6.1}{}}
-\citation{sulzmann_slides}
-\@writefile{toc}{\contentsline {paragraph}{Terminology.}{45}{section.6.1}\protected@file@percent }
-\newlabel{eq:pderiv-std-overview-example}{{6.1}{45}{Terminology}{equation.6.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces The standard partial-derivative construction on $a\cdot b$ and input \texttt  {"ab"}: states (top row) and their injection closures (bottom row) evolve together in one forward pass; the closure attached to the final state is applied once, to $\mathit  {mkEps}$ of that state's own residual.}}{45}{figure.caption.27}\protected@file@percent }
-\newlabel{fig:pderiv-std-single-pass}{{6.1}{45}{The standard partial-derivative construction on $a\cdot b$ and input \texttt {"ab"}: states (top row) and their injection closures (bottom row) evolve together in one forward pass; the closure attached to the final state is applied once, to $\mathit {mkEps}$ of that state's own residual}{figure.caption.27}{}}
-\@writefile{toc}{\contentsline {paragraph}{Single pass, not two.}{45}{figure.caption.27}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.1}Injection Closures}{46}{subsection.6.1.1}\protected@file@percent }
-\newlabel{sec:pderiv-std-strand-theory}{{6.1.1}{46}{Injection Closures}{subsection.6.1.1}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{46}{subsection.6.1.1}\protected@file@percent }
-\newlabel{sec:inj-type-impl}{{6.1.1}{46}{In Rust}{subsection.6.1.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.2}{\ignorespaces \texttt  {Inj}, its identity value, and \texttt  {nub\_tree}: stable deduplication on the residual alone, keeping the first occurrence.}}{46}{figure.caption.28}\protected@file@percent }
-\newlabel{fig:inj-type-rust}{{6.2}{46}{\texttt {Inj}, its identity value, and \texttt {nub\_tree}: stable deduplication on the residual alone, keeping the first occurrence}{figure.caption.28}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.2}The Partial Derivative with Injection}{46}{subsection.6.1.2}\protected@file@percent }
-\newlabel{sec:pderiv-tree-theory}{{6.1.2}{46}{The Partial Derivative with Injection}{subsection.6.1.2}{}}
-\newlabel{eq:pd-tree}{{6.2}{47}{The Partial Derivative with Injection}{equation.6.2}{}}
-\newlabel{eq:pd-tree-seq}{{6.3}{47}{The Partial Derivative with Injection}{equation.6.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{48}{equation.6.3}\protected@file@percent }
-\newlabel{sec:pderiv-tree-impl}{{6.1.2}{48}{In Rust}{equation.6.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.3}{\ignorespaces The alternation and sequence arms of \texttt  {pderiv\_tree}, transcribing Equations~\eqref  {eq:pd-tree} and~\eqref  {eq:pd-tree-seq}.}}{49}{figure.caption.29}\protected@file@percent }
-\newlabel{fig:pderiv-tree-rust}{{6.3}{49}{The alternation and sequence arms of \texttt {pderiv\_tree}, transcribing Equations~\eqref {eq:pd-tree} and~\eqref {eq:pd-tree-seq}}{figure.caption.29}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.3}Parser}{50}{subsection.6.1.3}\protected@file@percent }
-\newlabel{sec:pderiv-std-driver}{{6.1.3}{50}{Parser}{subsection.6.1.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.4}{\ignorespaces \texttt  {parse\_pderiv\_std}: build the closure chain forward, one character at a time, and apply it once, at the end.}}{50}{figure.caption.30}\protected@file@percent }
-\newlabel{fig:pderiv-std-driver-rust}{{6.4}{50}{\texttt {parse\_pderiv\_std}: build the closure chain forward, one character at a time, and apply it once, at the end}{figure.caption.30}{}}
-\citation{sulzmann_slides}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.4}Worked Example: Ambigious Expression}{51}{subsection.6.1.4}\protected@file@percent }
-\newlabel{sec:pderiv-std-worked}{{6.1.4}{51}{Worked Example: Ambigious Expression}{subsection.6.1.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Step 1.}{51}{subsection.6.1.4}\protected@file@percent }
-\newlabel{eq:pt-step1}{{6.4}{51}{Step 1}{equation.6.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Step 2.}{51}{equation.6.4}\protected@file@percent }
-\newlabel{eq:pt-step2}{{6.5}{51}{Step 2}{equation.6.5}{}}
-\@writefile{toc}{\contentsline {paragraph}{Selection and result.}{51}{equation.6.5}\protected@file@percent }
-\newlabel{eq:pt-result}{{6.6}{51}{Selection and result}{equation.6.6}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {6.2}The Bit-Coded Partial-Derivative-Based Parser}{51}{section.6.2}\protected@file@percent }
-\newlabel{sec:pderiv-bc-theory}{{6.2}{51}{The Bit-Coded Partial-Derivative-Based Parser}{section.6.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.5}{\ignorespaces The bit-coded partial-derivative construction on $a\cdot b$ and input \texttt  {"ab"}: $\mathit  {smartC}$ collapses $a\cdot b$ to $b$ and then to $\varepsilon $ as each factor is matched, while the bit list carried alongside stays empty, since neither factor is an alternation or a star.}}{52}{figure.caption.31}\protected@file@percent }
-\newlabel{fig:pderiv-bc-single-pass}{{6.5}{52}{The bit-coded partial-derivative construction on $a\cdot b$ and input \texttt {"ab"}: $\mathit {smartC}$ collapses $a\cdot b$ to $b$ and then to $\varepsilon $ as each factor is matched, while the bit list carried alongside stays empty, since neither factor is an alternation or a star}{figure.caption.31}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}The Bit-Coded Partial Derivative}{52}{subsection.6.2.1}\protected@file@percent }
-\newlabel{sec:pderivbc-rules-theory}{{6.2.1}{52}{The Bit-Coded Partial Derivative}{subsection.6.2.1}{}}
-\newlabel{eq:pderivbc}{{6.7}{52}{The Bit-Coded Partial Derivative}{equation.6.7}{}}
-\newlabel{eq:pderivbc-seq}{{6.8}{52}{The Bit-Coded Partial Derivative}{equation.6.8}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{53}{equation.6.8}\protected@file@percent }
-\newlabel{sec:pderiv-bc-impl}{{6.2.1}{53}{In Rust}{equation.6.8}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.6}{\ignorespaces \texttt  {nub2}: stable deduplication on the residual alone. The one place \texttt  {Regex}'s derived \texttt  {Hash} is load-bearing in the codebase, keeping this linear rather than quadratic in the number of states.}}{53}{figure.caption.32}\protected@file@percent }
-\newlabel{fig:nub2-rust}{{6.6}{53}{\texttt {nub2}: stable deduplication on the residual alone. The one place \texttt {Regex}'s derived \texttt {Hash} is load-bearing in the codebase, keeping this linear rather than quadratic in the number of states}{figure.caption.32}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.7}{\ignorespaces \texttt  {pderiv\_bc}'s \texttt  {Seq} arm, transcribing $\mathsf  {PB}_{\mathrm  {seq}}$ and $\mathsf  {PB}_{\mathrm  {seq}}^{\,n}$: the nullable branch's first strand uses plain \texttt  {Regex::seq}, matching Equation~\eqref  {eq:pderivbc-seq}'s plain $r's$; the non-nullable branch calls \texttt  {smart\_seq} instead. Not an inconsistency, a literal transcription of the reference's own asymmetry.}}{54}{figure.caption.33}\protected@file@percent }
-\newlabel{fig:pderivbc-rust}{{6.7}{54}{\texttt {pderiv\_bc}'s \texttt {Seq} arm, transcribing $\mathsf {PB}_{\mathrm {seq}}$ and $\mathsf {PB}_{\mathrm {seq}}^{\,n}$: the nullable branch's first strand uses plain \texttt {Regex::seq}, matching Equation~\eqref {eq:pderivbc-seq}'s plain $r's$; the non-nullable branch calls \texttt {smart\_seq} instead. Not an inconsistency, a literal transcription of the reference's own asymmetry}{figure.caption.33}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Parser}{54}{subsection.6.2.2}\protected@file@percent }
-\newlabel{sec:pderiv-bc-driver}{{6.2.2}{54}{Parser}{subsection.6.2.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.8}{\ignorespaces \texttt  {parse\_pderiv\_bc}: accumulate bits per state instead of composing closures; decode once, at the end, against the original \texttt  {Regex}.}}{55}{figure.caption.34}\protected@file@percent }
-\newlabel{fig:pderivbc-driver-rust}{{6.8}{55}{\texttt {parse\_pderiv\_bc}: accumulate bits per state instead of composing closures; decode once, at the end, against the original \texttt {Regex}}{figure.caption.34}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}Worked Example: Ambigious Expression}{55}{subsection.6.2.3}\protected@file@percent }
-\newlabel{sec:pderiv-bc-worked}{{6.2.3}{55}{Worked Example: Ambigious Expression}{subsection.6.2.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Step 1.}{55}{subsection.6.2.3}\protected@file@percent }
-\newlabel{eq:pdbc-step1}{{6.9}{55}{Step 1}{equation.6.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{Step 2.}{56}{equation.6.9}\protected@file@percent }
-\newlabel{eq:pdbc-step2}{{6.10}{56}{Step 2}{equation.6.10}{}}
-\@writefile{toc}{\contentsline {paragraph}{Selection and result.}{56}{equation.6.10}\protected@file@percent }
-\newlabel{eq:pdbc-result}{{6.11}{56}{Selection and result}{equation.6.11}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {6.1}The Standard Partial-Derivative Parser}{44}{section.6.1}\protected@file@percent }
+\newlabel{sec:pderiv-std}{{6.1}{44}{The Standard Partial-Derivative Parser}{section.6.1}{}}
+\newlabel{eq:pderiv-std-example}{{6.1}{44}{The Standard Partial-Derivative Parser}{equation.6.1}{}}
+\citation{sulzmannlu2012}
+\newlabel{eq:pderiv-std-step2}{{6.2}{45}{The Standard Partial-Derivative Parser}{equation.6.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.1}{\ignorespaces The standard partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt  {ab}$. Each box is a configuration: a residual expression and an injection $\iota _i$. The initial state set $S_0$ contains $(r_0, \mathit  {id})$. Applying $\mathit  {pderiv}(-,\mathtt  {a})$ advances every configuration by the character $\mathtt  {a}$, producing $S_1$ with two configurations. Applying $\mathit  {pderiv}(-,\mathtt  {b})$ advances $S_1$ to $S_2$, in which the first configuration has residual $\varepsilon $ and is accepting. Selecting that configuration's injection and applying it to $\mathit  {mkEps}_\varepsilon = ()$ yields the greedy parse tree $(\mathit  {Left}\,a, \mathit  {Left}\,b)$.}}{45}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:pderiv-std-overview}{{6.1}{45}{The standard partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt {ab}$. Each box is a configuration: a residual expression and an injection $\iota _i$. The initial state set $S_0$ contains $(r_0, \mathit {id})$. Applying $\mathit {pderiv}(-,\mathtt {a})$ advances every configuration by the character $\mathtt {a}$, producing $S_1$ with two configurations. Applying $\mathit {pderiv}(-,\mathtt {b})$ advances $S_1$ to $S_2$, in which the first configuration has residual $\varepsilon $ and is accepting. Selecting that configuration's injection and applying it to $\mathit {mkEps}_\varepsilon = ()$ yields the greedy parse tree $(\mathit {Left}\,a, \mathit {Left}\,b)$}{figure.caption.27}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.1}Partial Derivatives with Injections}{46}{subsection.6.1.1}\protected@file@percent }
+\newlabel{sec:pderiv-tree-theory}{{6.1.1}{46}{Partial Derivatives with Injections}{subsection.6.1.1}{}}
+\newlabel{eq:pderiv-tree}{{6.3}{46}{Partial Derivatives with Injections}{equation.6.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{46}{equation.6.3}\protected@file@percent }
+\newlabel{sec:pderiv-tree-impl}{{6.1.1}{46}{In Rust}{equation.6.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.2}{\ignorespaces \texttt  {pderiv\_tree}: one partial-derivative transition, producing a list of (residual, injection) states.}}{47}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:pderiv-tree-rust}{{6.2}{47}{\texttt {pderiv\_tree}: one partial-derivative transition, producing a list of (residual, injection) states}{figure.caption.28}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.2}State Sets and Selection}{48}{subsection.6.1.2}\protected@file@percent }
+\newlabel{sec:pderiv-state-set}{{6.1.2}{48}{State Sets and Selection}{subsection.6.1.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.3}{\ignorespaces \texttt  {step\_frontier}: one transition of the NFA state set on a single character. The function name retains the older ``frontier'' terminology; it computes the successor state set $\delta (S, x)$.}}{48}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:step-frontier-rust}{{6.3}{48}{\texttt {step\_frontier}: one transition of the NFA state set on a single character. The function name retains the older ``frontier'' terminology; it computes the successor state set $\delta (S, x)$}{figure.caption.29}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.4}{\ignorespaces \texttt  {select}: return the tree for the first accepting configuration in the state set.}}{49}{figure.caption.30}\protected@file@percent }
+\newlabel{fig:select-rust}{{6.4}{49}{\texttt {select}: return the tree for the first accepting configuration in the state set}{figure.caption.30}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.3}Parser}{49}{subsection.6.1.3}\protected@file@percent }
+\newlabel{sec:pderiv-std-parser}{{6.1.3}{49}{Parser}{subsection.6.1.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.5}{\ignorespaces The standard partial-derivative parser.}}{49}{figure.caption.31}\protected@file@percent }
+\newlabel{fig:pderiv-std-parser-rust}{{6.5}{49}{The standard partial-derivative parser}{figure.caption.31}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.1.4}Worked Example: Ambiguous Expression}{49}{subsection.6.1.4}\protected@file@percent }
+\newlabel{sec:pderiv-std-worked}{{6.1.4}{49}{Worked Example: Ambiguous Expression}{subsection.6.1.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{49}{subsection.6.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Selection.}{50}{subsection.6.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {6.2}The Bit-Coded Partial-Derivative Parser}{51}{section.6.2}\protected@file@percent }
+\newlabel{sec:pderiv-bc}{{6.2}{51}{The Bit-Coded Partial-Derivative Parser}{section.6.2}{}}
+\newlabel{eq:pderiv-bc-overview}{{6.4}{51}{The Bit-Coded Partial-Derivative Parser}{equation.6.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.6}{\ignorespaces Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt  {ab}$. Each box is a configuration: a residual expression and a bit-sequence, written $0$ for $\mathit  {false}$ and $1$ for $\mathit  {true}$. Selection takes the first accepting configuration in $S_2$ and appends $\mathit  {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit  {decode}_{r_0}$ reads against the original expression.}}{51}{figure.caption.32}\protected@file@percent }
+\newlabel{fig:pderiv-bc-overview}{{6.6}{51}{Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt {ab}$. Each box is a configuration: a residual expression and a bit-sequence, written $0$ for $\mathit {false}$ and $1$ for $\mathit {true}$. Selection takes the first accepting configuration in $S_2$ and appends $\mathit {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit {decode}_{r_0}$ reads against the original expression}{figure.caption.32}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}Bit-Coded Partial Derivatives}{51}{subsection.6.2.1}\protected@file@percent }
+\newlabel{sec:pderiv-bc-theory}{{6.2.1}{51}{Bit-Coded Partial Derivatives}{subsection.6.2.1}{}}
+\newlabel{eq:pderiv-bc}{{6.5}{52}{Bit-Coded Partial Derivatives}{equation.6.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{52}{equation.6.5}\protected@file@percent }
+\newlabel{sec:pderiv-bc-impl}{{6.2.1}{52}{In Rust}{equation.6.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.7}{\ignorespaces \texttt  {pderiv\_bc}: one bit-coded partial-derivative transition.}}{53}{figure.caption.33}\protected@file@percent }
+\newlabel{fig:pderiv-bc-rust}{{6.7}{53}{\texttt {pderiv\_bc}: one bit-coded partial-derivative transition}{figure.caption.33}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Extracting Bits}{54}{subsection.6.2.2}\protected@file@percent }
+\newlabel{sec:pderiv-bc-mkeps}{{6.2.2}{54}{Extracting Bits}{subsection.6.2.2}{}}
+\newlabel{eq:pderiv-mkepsbc}{{6.6}{54}{Extracting Bits}{equation.6.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.8}{\ignorespaces \texttt  {mk\_eps\_bits}: the bit-string analogue of \texttt  {mk\_eps} for plain \texttt  {Regex}.}}{54}{figure.caption.34}\protected@file@percent }
+\newlabel{fig:mk-eps-bits-rust}{{6.8}{54}{\texttt {mk\_eps\_bits}: the bit-string analogue of \texttt {mk\_eps} for plain \texttt {Regex}}{figure.caption.34}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}State Sets and Selection}{55}{subsection.6.2.3}\protected@file@percent }
+\newlabel{sec:pderiv-bc-state-set}{{6.2.3}{55}{State Sets and Selection}{subsection.6.2.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}Parser}{55}{subsection.6.2.4}\protected@file@percent }
+\newlabel{sec:pderiv-bc-parser}{{6.2.4}{55}{Parser}{subsection.6.2.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.9}{\ignorespaces The bit-coded partial-derivative parser.}}{56}{figure.caption.37}\protected@file@percent }
+\newlabel{fig:pderiv-bc-parser-rust}{{6.9}{56}{The bit-coded partial-derivative parser}{figure.caption.37}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.5}Worked Example: Ambiguous Expression}{56}{subsection.6.2.5}\protected@file@percent }
+\newlabel{sec:pderiv-bc-worked}{{6.2.5}{56}{Worked Example: Ambiguous Expression}{subsection.6.2.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{56}{subsection.6.2.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Selection and decoding.}{57}{subsection.6.2.5}\protected@file@percent }
 \@setckpt{chapters/06_partial_derivative_parser}{
-\setcounter{page}{57}
-\setcounter{equation}{11}
+\setcounter{page}{58}
+\setcounter{equation}{6}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}
@@ -78,11 +73,11 @@
 \setcounter{part}{0}
 \setcounter{chapter}{6}
 \setcounter{section}{2}
-\setcounter{subsection}{3}
+\setcounter{subsection}{5}
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{8}
+\setcounter{figure}{9}
 \setcounter{table}{0}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
@@ -98,6 +93,6 @@
 \setcounter{section@level}{0}
 \setcounter{Item}{6}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{41}
+\setcounter{bookmark@seq@number}{43}
 \setcounter{lstlisting}{0}
 }

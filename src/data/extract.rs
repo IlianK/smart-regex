@@ -1,14 +1,14 @@
 //! src/data/extract.rs
 //!
 //! Per-source extraction: read a source's raw rule files and produce
-//! `ExtractedRule` values carrying both the bare pattern and whatever
-//! source-specific context (Suricata `content:` fields, SpamAssassin rule
-//! kind, RegexLib description) `generate` needs to build inputs for it.
+//! `ExtractedRule` values carrying the bare pattern plus whatever
+//! source-specific context (`content:` fields, SpamAssassin rule kind,
+//! RegexLib description) `generate` needs.
 
 use crate::data::types::{ContentField, ExtractedRule, RuleContext, SaField, SourceKind};
 
-/// End of the `/PATTERN/FLAGS` span at the start of `s`, 
-/// respecting escaped internal slashes (`\/`).
+/// End of the `/PATTERN/FLAGS` span at the start of `s`.
+/// Respects escaped internal slashes (`\/`).
 fn find_pcre_span_end(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();
     if bytes.first() != Some(&b'/') {
@@ -32,8 +32,8 @@ fn find_pcre_span_end(s: &str) -> Option<usize> {
     Some(i)
 }
 
-/// Skip `n` leading whitespace-separated tokens in `s`, return the rest
-/// (further leading whitespace trimmed). 
+/// Skip `n` leading whitespace-separated tokens; return the rest with
+/// leading whitespace trimmed.
 /// Stands in for `SplitWhitespace::as_str`, unavailable in this edition.
 fn skip_whitespace_tokens(s: &str, n: usize) -> &str {
     let mut rest = s;
@@ -92,9 +92,8 @@ fn extract_option_value(line: &str, key: &str) -> Option<String> {
     }
 }
 
-/// Every `content:"..."` field on the line, with the modifiers 
-/// (`nocase`, `distance`, `within`, `depth`, `offset`) 
-/// between it and the next `content:`/`pcre:`/end of options.
+/// Every `content:"..."` field on the line, with modifiers scoped to
+/// just that field (`nocase`, `distance`, `within`, `depth`, `offset`).
 fn extract_content_fields(line: &str) -> Vec<ContentField> {
     let mut fields = Vec::new();
     let mut search_from = 0usize;
@@ -105,12 +104,11 @@ fn extract_content_fields(line: &str) -> Vec<ContentField> {
         let raw = &line[content_start..content_end];
         let bytes = decode_content_bytes(raw);
 
-        // Modifiers span from just after the closing quote to the next `content:` 
-        // or `pcre:` (or end of line), so one field's slice never bleeds into the next field's.
+        // Modifiers run from after the closing quote to the next
+        // `content:`/`pcre:` (or end of line).
+        // This keeps one field's slice from bleeding into the next's.
         let mods_start = content_end + 1;
-        let next_content = line[mods_start..]
-            .find("content:")
-            .map(|p| mods_start + p);
+        let next_content = line[mods_start..].find("content:").map(|p| mods_start + p);
         let next_pcre = line[mods_start..].find("pcre:").map(|p| mods_start + p);
         let mods_end = [next_content, next_pcre]
             .into_iter()
@@ -146,8 +144,9 @@ fn find_unescaped_quote(s: &str) -> Option<usize> {
     None
 }
 
-/// Decode a Suricata `content:` payload: literal characters pass through
-/// as their bytes, `|XX XX|` groups are hex byte pairs.
+/// Decode a Suricata `content:` payload.
+/// Literal characters pass through as bytes; `|XX XX|` groups are hex
+/// byte pairs.
 fn decode_content_bytes(raw: &str) -> Vec<u8> {
     let mut out = Vec::new();
     let mut chars = raw.chars().peekable();
@@ -199,10 +198,8 @@ fn read_modifier_str<'a>(modifiers: &'a str, key: &str) -> Option<&'a str> {
 
 /// Every `body`/`header` rule from a SpamAssassin `.cf` file.
 ///
-/// The two kinds differ in syntax: `header NAME Field =~ /pattern/flags`
-/// has the pattern after `=~`, while `body NAME /pattern/flags` has no
-/// operator at all. Requiring `=~` for both (as an earlier version did)
-/// silently drops every body rule.
+/// The two kinds differ: `header NAME Field =~ /pattern/flags` has the
+/// pattern after `=~`, while `body NAME /pattern/flags` has no operator.
 pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -243,9 +240,8 @@ pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
 // RegexLib
 // -------------------------------
 
-/// RegexLib's comment-delimited entries: a block of `#`-prefixed
-/// description lines, then the bare pattern, entries separated by blank
-/// lines.
+/// RegexLib's comment-delimited entries: `#`-prefixed description lines,
+/// then the bare pattern, entries separated by blank lines.
 pub fn extract_regexlib(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
     let mut description_lines: Vec<&str> = Vec::new();
@@ -317,9 +313,6 @@ mod tests {
 
     #[test]
     fn spamassassin_skips_commented_lines() {
-        // Real `body` rules have no `=~`: the pattern follows the rule
-        // name directly. See `spamassassin_extracts_pattern_and_kind`
-        // for the `header` form.
         let text = "#header FOO Subject =~ /a/\nbody BAR\t/b/";
         let rules = extract_spamassassin(text);
         assert_eq!(rules.len(), 1);
@@ -328,7 +321,6 @@ mod tests {
 
     #[test]
     fn spamassassin_extracts_body_rule_with_no_operator() {
-        // Real `body` syntax: no `=~`.
         let text = "body WEIRD_QUOTING\t/[\\042\\223]{2}/";
         let rules = extract_spamassassin(text);
         assert_eq!(rules.len(), 1);
@@ -342,8 +334,6 @@ mod tests {
 
     #[test]
     fn spamassassin_skips_eval_body_rule() {
-        // `eval:...()` is a function call, not a pattern: no leading
-        // `/` for `find_pcre_span_end`.
         let text = "body MPART_ALT_DIFF\teval:multipart_alternative_difference('99', '100')";
         assert_eq!(extract_spamassassin(text).len(), 0);
     }

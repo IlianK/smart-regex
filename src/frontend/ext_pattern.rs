@@ -1,7 +1,8 @@
 //! src/frontend/ext_pattern.rs
 //!
-//! Surface-syntax pattern AST. Parsed from a pattern string by
-//! `parse_ext_pattern`, then lowered to `Regex` by `translate`.
+//! Surface-syntax pattern AST.
+//! Parsed from a pattern string by `parse_ext_pattern`.
+//! Lowered to `Regex` by `translate`.
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExtPat {
@@ -77,71 +78,13 @@ pub fn case_fold(ep: &ExtPat) -> ExtPat {
     }
 }
 
-/// Whether `ep` opens with a top-level `^`, or every branch of a
-/// top-level `Or` does.
-pub(crate) fn starts_with_carat(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Carat => true,
-        ExtPat::Concat(parts) => parts.first().is_some_and(starts_with_carat),
-        ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => starts_with_carat(inner),
-        ExtPat::Or(branches) => branches.iter().all(starts_with_carat),
-        _ => false,
-    }
-}
-
-/// `$` counterpart of `starts_with_carat`.
-pub(crate) fn ends_with_dollar(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Dollar => true,
-        ExtPat::Concat(parts) => parts.last().is_some_and(ends_with_dollar),
-        ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => ends_with_dollar(inner),
-        ExtPat::Or(branches) => branches.iter().all(ends_with_dollar),
-        _ => false,
-    }
-}
-
-/// Whether `^` appears anywhere in `ep`, at any depth.
-///
-/// Unlike `starts_with_carat`, this treats a `^` inside an `Or` branch as
-/// present even when that branch isn't the whole pattern's first node.
-/// Used to detect a nested anchor: a `^`/`$` present but not recognized
-/// as a real top-level anchor, which `translate` silently lowers to `Eps`
-/// -- see `faithfulness_gaps` in `frontend::mod`.
-pub(crate) fn contains_carat_anywhere(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Carat => true,
-        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_carat_anywhere),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner)
-        | ExtPat::Bound(inner, ..) => contains_carat_anywhere(inner),
-        _ => false,
-    }
-}
-
-/// `$` counterpart of `contains_carat_anywhere`.
-pub(crate) fn contains_dollar_anywhere(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Dollar => true,
-        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_dollar_anywhere),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner)
-        | ExtPat::Bound(inner, ..) => contains_dollar_anywhere(inner),
-        _ => false,
-    }
-}
-
 /// Rewrite every `Dot` into `NoneOf(['\n'])`: without the dotall (`s`)
-/// flag, PCRE's `.` excludes `\n`. `translate` itself always lowers `Dot`
-/// to the full alphabet including `\n` and has no flag awareness, so this
-/// is where the `s` flag's absence is honoured -- applied before
-/// `translate` by the PCRE-flag-aware entry points, the same way
-/// `case_fold` is where the `i` flag's presence is honoured.
+/// flag, PCRE's `.` excludes `\n`.
+///
+/// `translate` always lowers `Dot` to the full alphabet including `\n`,
+/// with no flag awareness, so this is where the `s` flag's absence is
+/// honoured -- applied before `translate` by the PCRE-flag-aware entry
+/// points, the same way `case_fold` is where the `i` flag is honoured.
 pub fn strip_dot_newline(ep: &ExtPat) -> ExtPat {
     match ep {
         ExtPat::Empty => ExtPat::Empty,

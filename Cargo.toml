@@ -55,14 +55,6 @@ path = "examples/demo_simp_branches.rs"
 name = "demo_frontend_translation_sizes"
 path = "examples/demo_frontend_translation_sizes.rs"
 
-[[example]]
-name = "demo_samples_anchored"
-path = "examples/demo_samples_anchored.rs"
-
-[[example]]
-name = "demo_samples_unanchored"
-path = "examples/demo_samples_unanchored.rs"
-
 # One real corpus pattern per verified frontend behaviour
 [[example]]
 name = "demo_frontend_categories"
@@ -73,10 +65,17 @@ path = "examples/demo_frontend_categories.rs"
 name = "demo_parser_agreement"
 path = "examples/demo_parser_agreement.rs"
 
-# Approximated and Reject Demo
+# Worker for demo_parser_agreement: one isolated (parser, pattern, input)
+# job per process, so a pathological case can be killed outright instead
+# of orphaning an uncancellable thread (see that file's module doc comment)
 [[example]]
-name = "demo_canonical_approx_reject"
-path = "examples/demo_canonical_approx_reject.rs"
+name = "demo_parser_agreement_worker"
+path = "examples/demo_parser_agreement_worker.rs"
+
+# Reject-cause demo (replaces demo_canonical_approx_reject.rs: no more Approx)
+[[example]]
+name = "demo_canonical_reject"
+path = "examples/demo_canonical_reject.rs"
 
 
 # Benchmarks
@@ -111,7 +110,8 @@ chrono      = { version = "0.4", default-features = false, features = ["clock"] 
 regex       = { version = "1", optional = true }
 rand        = "0.8"
 serde       = { version = "1", features = ["derive"] }
-serde_json  = "1"
+serde_json  = { version = "1", features = ["unbounded_depth"] }
+serde_stacker = "0.1"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

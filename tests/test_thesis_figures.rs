@@ -13,7 +13,7 @@
 //!   cargo run --release --example demo_growth_pderiv
 //!   cargo run --release --example demo_frontend_translation_sizes
 
-use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
+use regex_engine::frontend::parse_pattern;
 use regex_engine::parsers::deriv_bc::{
     deriv::deriv_bc, internalize::internalize, simplify::simp,
 };
@@ -314,40 +314,28 @@ fn fig_7_4_lowered_sizes() {
     }
 }
 
+/// Section 7.4: `^`/`$` are rejected outright, not padded into a search --
+/// there is no padded size to pin down any more (Chapter 7's "Anchors and
+/// the Two Entry Points"). `fig_7_4_lowered_sizes` above already covers
+/// the plain, unanchored sizes this test's "abc"/`[a-c]+\d{2}` rows used
+/// to duplicate under padding.
 #[test]
-fn fig_7_4_search_padding_sizes() {
-    let cases: &[(&str, usize)] = &[
-        ("^abc$", 13),
-        ("^abc", 204),
-        ("abc$", 208),
-        ("abc", 399),
-        (r"[a-c]+\d{2}", 448),
-    ];
-    for &(pat, want) in cases {
-        let r = parse_dataset_pattern(pat).unwrap_or_else(|e| panic!("{:?}: {}", pat, e));
-        assert_eq!(
-            size_regex(&r),
-            want,
-            "Figure 7.3/7.4: lowered size of {:?} under substring search",
-            pat
-        );
+fn section_7_4_anchors_are_rejected_not_padded() {
+    for pat in ["^abc$", "^abc", "abc$"] {
+        assert!(parse_pattern(pat).is_err(), "expected {:?} to be rejected", pat);
     }
 }
 
-/// Section 7.4 caption: one `wildcard_run()` is 196 nodes.
-#[test]
-fn section_7_4_wildcard_run_is_196_nodes() {
-    let padded = size_regex(&parse_dataset_pattern("^abc").unwrap());
-    let core = size_regex(&parse_pattern("^abc").unwrap());
-    assert_eq!(padded - core - 1, 196);
-}
-
-/// Section 7.5: case folding adds two nodes per folded letter.
+/// Section 7.5: case folding adds two nodes per folded letter. `/abc/`
+/// carries no search padding any more (Chapter 7), so its baseline size
+/// is just the plain translated size of "abc" (5, `fig_7_4_lowered_sizes`),
+/// not the old padded 399.
 #[test]
 fn section_7_5_case_folding_cost() {
     use regex_engine::frontend::parse_pcre_rule;
     let plain = size_regex(&parse_pcre_rule("/abc/").unwrap());
     let folded = size_regex(&parse_pcre_rule("/abc/i").unwrap());
-    assert_eq!(plain, 399);
-    assert_eq!(folded, 405);
+    assert_eq!(plain, 5);
+    assert_eq!(folded, 11);
+    assert_eq!(folded - plain, 2 * 3, "two extra nodes per folded letter, three letters");
 }

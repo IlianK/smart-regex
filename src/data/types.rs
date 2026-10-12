@@ -1,9 +1,6 @@
 //! src/data/types.rs
 //!
-//! Shared types for the dataset preparation pipeline: `ExtractedRule`
-//! (from `extract`), `Candidate` (from `generate`), `PreparedCase` (from
-//! `prepare`), plus the `Category`, `Provenance`, and `SourceKind` each
-//! one carries.
+//! Shared types for the dataset preparation pipeline.
 
 use serde::{Deserialize, Serialize};
 
@@ -15,8 +12,7 @@ pub enum SourceKind {
 }
 
 impl SourceKind {
-    /// Directory under `data/processed/` this source writes to. Not the
-    /// same as the raw corpus directory name.
+    /// Dir under `data/processed/` (not the raw corpus dir name).
     pub fn dir_name(self) -> &'static str {
         match self {
             SourceKind::Suricata => "snort",
@@ -26,7 +22,7 @@ impl SourceKind {
     }
 }
 
-/// A Suricata `content:"..."` payload plus its modifiers.
+/// Suricata `content:"..."` payload plus modifiers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ContentField {
     pub bytes: Vec<u8>,
@@ -44,8 +40,7 @@ pub enum SaField {
     Header,
 }
 
-/// Source-specific context an `ExtractedRule` carries, one variant per
-/// `SourceKind`.
+/// Source-specific context, one variant per `SourceKind`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleContext {
     Suricata {
@@ -62,7 +57,7 @@ pub enum RuleContext {
     },
 }
 
-/// One rule as read from a raw source file: the pattern text plus context.
+/// One rule read from a raw source file: pattern text plus context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractedRule {
     pub source: SourceKind,
@@ -70,48 +65,50 @@ pub struct ExtractedRule {
     pub context: RuleContext,
 }
 
-/// Where a candidate's input came from, for the reader of a benchmark result.
+/// How reliably a pattern's full-string-match reading reflects the
+/// original author's intent (about the *pattern*, not the *input*).
+///
+/// Only `data/prepare.rs::core_regex_tagged` strips anchors.
+/// Every other frontend entry point rejects `^`/`$` unconditionally.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MatchIntent {
+    /// Top-level `^...$` wrap; redundant under full-string matching.
+    ExplicitFullMatch,
+    /// No anchor anywhere; source tools search by default.
+    UnanchoredAmbiguous,
+}
+
+/// Where a candidate's input came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Provenance {
-    /// Real message sampled from a local corpus (SpamAssassin only).
+    /// Real corpus message (SpamAssassin only).
     RealCorpus,
     /// Assembled from the rule's own `content:` fields (Suricata only).
     ContentDerived,
-    /// Structural sample with a claimed match.
+    /// Structural sample, claimed match.
     Structural,
-    /// Structural sample with a claimed non-match, built by corrupting a
-    /// positive (see `generate::sample_negative_late`).
+    /// Structural sample, claimed non-match (see `sample_negative_late`).
     StructuralNegative,
 }
 
-/// Benchmark category, decided per pattern.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Category {
-    Best,
-    Neutral,
-    Worst,
-}
-
-/// One generated input, not yet checked against a real parser.
+/// One generated input, not yet verified.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Candidate {
     pub text: String,
-    pub category: Category,
     pub provenance: Provenance,
     pub claimed_match: bool,
 }
 
-/// A candidate after `prepare::verify_candidate` accepted it: the claimed
-/// outcome was checked against the real parser and held.
+/// A candidate after `prepare::verify_candidate` accepted it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreparedCase {
     pub source: SourceKind,
     pub pattern: String,
     pub input: String,
-    pub category: Category,
     pub provenance: Provenance,
     pub verified_match: bool,
-    /// For a non-match, the number of characters consumed before rejection
-    /// became structurally impossible; `None` for a match.
+    /// Chars consumed before rejection became impossible; `None` for a match.
     pub failed_after_chars: Option<usize>,
+    /// See `MatchIntent`.
+    pub match_intent: MatchIntent,
 }

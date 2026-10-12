@@ -33,17 +33,12 @@ pub fn complement(of: &[char]) -> Vec<char> {
     alphabet().into_iter().filter(|c| !of.contains(c)).collect()
 }
 
-// -------------------------------
-// Tests
-// -------------------------------
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn alphabet_size() {
-        // 0x20..=0x7E is 95 chars, plus \t \n \r
         assert_eq!(alphabet().len(), 98);
     }
 

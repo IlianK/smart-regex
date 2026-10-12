@@ -2,45 +2,30 @@
 //!
 //! cargo run --release --example demo_frontend_categories -- <file...> [--seed N] [--diag 0|1|2|3]
 //!
-//! For each verified category of frontend behaviour 
-//! (flags, class/escape handling, outright rejections, the two faithfulness gaps), 
-//! finds a REAL pattern in the given corpus files that exercises it, then shows the actual behaviour: 
-//! - translated Regex and a few traces, 
-//! - the exact rejection
-//! - the error or gap
-//! 
-//! A category with no real example in the given files is reported as "no example found" and skipped
+//! For each verified category of frontend behaviour, finds a real pattern
+//! in the given corpus files that exercises it.
+//! Categories: flags, class/escape handling, outright rejections.
+//! Then shows the actual behaviour: either the translated Regex with
+//! traces, or the exact rejection.
+//! A category with no real example is reported and skipped.
 //!
-//! Files are classified by extension: 
-//! `.rules` -> Suricata, `.cf` -> SpamAssassin, anything else -> RegexLib. 
-//! `--seed N` makes candidate generation deterministic; 
+//! Files classified by extension:
+//! `.rules` -> Suricata, `.cf` -> SpamAssassin, anything else -> RegexLib.
+//! `--seed N` makes candidate generation deterministic.
 //! `--diag 0|1|2|3` sets trace verbosity (default 1).
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 use regex_engine::data::extract::{extract_regexlib, extract_spamassassin, extract_suricata};
-use regex_engine::data::generate::{generate_best, generate_neutral, generate_worst_structural};
+use regex_engine::data::generate::generate_sample;
 use regex_engine::data::prepare::core_regex;
-use regex_engine::data::types::{Candidate, Category, Provenance, SourceKind};
+use regex_engine::data::types::SourceKind;
 use regex_engine::diagnostics::{run_parser, DiagConfig, DiagLevel};
-use regex_engine::frontend::{
-    detect_anchors, faithfulness_gaps, is_faithful, parse_ext_pattern, parse_pcre_rule,
-    strip_pcre_delimiters, ExtPat, FaithfulnessGap,
-};
+use regex_engine::frontend::{parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters, ExtPat};
 use regex_engine::parsers::ParserType;
-use regex_engine::types::Regex;
-
-fn size_regex(r: &Regex) -> usize {
-    match r {
-        Regex::Phi | Regex::Eps | Regex::Lit(_) => 1,
-        Regex::Alt(a, b) | Regex::Seq(a, b) => 1 + size_regex(a) + size_regex(b),
-        Regex::Star(a) => 1 + size_regex(a),
-    }
-}
 
 fn invert_ascii_case(s: &str) -> String {
     s.chars()
@@ -70,8 +55,8 @@ fn contains_dot(ep: &ExtPat) -> bool {
     }
 }
 
-/// Textual scan for a backslash-octal escape inside a `[...]` class; not a
-/// full PCRE parse, just enough to pick one real example from the corpus.
+/// Textual scan for a backslash-octal escape inside a `[...]` class.
+/// Not a full PCRE parse; just enough to pick one real corpus example.
 fn has_octal_in_class(body: &str) -> bool {
     let chars: Vec<char> = body.chars().collect();
     let mut in_class = false;
@@ -107,8 +92,8 @@ fn has_bare_backslash_zero(body: &str) -> bool {
     false
 }
 
-fn accepted_and_faithful(p: &str) -> bool {
-    parse_pcre_rule(p).is_ok() && is_faithful(p)
+fn accepted(p: &str) -> bool {
+    parse_pcre_rule(p).is_ok()
 }
 
 fn rejected_because(p: &str, needle: &str) -> bool {
@@ -120,11 +105,11 @@ fn rejected_because(p: &str, needle: &str) -> bool {
 // -------------------------------
 
 fn is_case_insensitive(p: &str) -> bool {
-    accepted_and_faithful(p) && strip_pcre_delimiters(p).1.case_insensitive
+    accepted(p) && strip_pcre_delimiters(p).1.case_insensitive
 }
 
 fn is_dot_without_s(p: &str) -> bool {
-    if !accepted_and_faithful(p) {
+    if !accepted(p) {
         return false;
     }
     let (body, flags) = strip_pcre_delimiters(p);
@@ -132,44 +117,26 @@ fn is_dot_without_s(p: &str) -> bool {
 }
 
 fn is_dot_with_s(p: &str) -> bool {
-    if !accepted_and_faithful(p) {
+    if !accepted(p) {
         return false;
     }
     let (body, flags) = strip_pcre_delimiters(p);
     flags.dot_all && parse_ext_pattern(body).map(|ep| contains_dot(&ep)).unwrap_or(false)
 }
 
-fn is_anchored_flag(p: &str) -> bool {
-    accepted_and_faithful(p) && strip_pcre_delimiters(p).1.anchored
-}
-
-fn is_dollar_lenient_default(p: &str) -> bool {
-    if !accepted_and_faithful(p) || strip_pcre_delimiters(p).1.dollar_endonly {
-        return false;
-    }
-    matches!(detect_anchors(p), Ok((_, true)))
-}
-
-fn is_dollar_endonly_flag(p: &str) -> bool {
-    if !accepted_and_faithful(p) || !strip_pcre_delimiters(p).1.dollar_endonly {
-        return false;
-    }
-    matches!(detect_anchors(p), Ok((_, true)))
-}
-
-/// Real `[:name:]` POSIX class, rejected outright. Checking the rejection
-/// reason (not a `[:` substring test) matters: `[:*:]` contains that text
-/// but is an ordinary class of three literals, and is accepted.
+/// Real `[:name:]` POSIX class, rejected outright.
+/// Checks the rejection reason, not a `[:` substring: `[:*:]` contains
+/// that text but is an ordinary class of three literals, accepted.
 fn is_posix_class_rejected(p: &str) -> bool {
     rejected_because(p, "POSIX class")
 }
 
 fn is_octal_in_class(p: &str) -> bool {
-    accepted_and_faithful(p) && has_octal_in_class(strip_pcre_delimiters(p).0)
+    accepted(p) && has_octal_in_class(strip_pcre_delimiters(p).0)
 }
 
 fn is_bare_backslash_zero(p: &str) -> bool {
-    accepted_and_faithful(p) && has_bare_backslash_zero(strip_pcre_delimiters(p).0)
+    accepted(p) && has_bare_backslash_zero(strip_pcre_delimiters(p).0)
 }
 
 fn is_multiline_rejected(p: &str) -> bool {
@@ -192,190 +159,47 @@ fn is_word_boundary_rejected(p: &str) -> bool {
     rejected_because(p, "word boundary")
 }
 
-fn is_relative_gap(p: &str) -> bool {
-    parse_pcre_rule(p).is_ok() && faithfulness_gaps(p).contains(&FaithfulnessGap::Relative)
-}
-
-fn is_nested_anchor_gap(p: &str) -> bool {
-    parse_pcre_rule(p).is_ok() && faithfulness_gaps(p).contains(&FaithfulnessGap::NestedAnchor)
-}
-
-// -------------------------------
-// Shared candidate machinery (same generators and wrapping as
-// examples/demo_anchored_samples.rs)
-// -------------------------------
-
-fn describe(candidate: &Candidate) -> &'static str {
-    match (candidate.category, candidate.provenance, candidate.claimed_match) {
-        (Category::Best, ..) => "shortest matching input",
-        (Category::Neutral, ..) => "typical matching input (moderate repetition)",
-        (Category::Worst, Provenance::Structural, true) => {
-            "hardest matching input (maximal repetition)"
-        }
-        (Category::Worst, Provenance::StructuralNegative, false) => {
-            "near-miss: corrupted late, must NOT match"
-        }
-        _ => "generated input",
-    }
-}
-
-fn generate_inputs(core: &Regex, rng: &mut StdRng) -> Vec<Candidate> {
-    let mut inputs: Vec<Candidate> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-
-    let mut absorb = |cands: Vec<Candidate>, inputs: &mut Vec<Candidate>| {
-        for c in cands {
-            if seen.insert(c.text.clone()) {
-                inputs.push(c);
-            }
-        }
-    };
-
-    absorb(generate_best(core, rng, 2), &mut inputs);
-    absorb(generate_neutral(core, rng, 2), &mut inputs);
-    absorb(generate_worst_structural(core, rng, 6, 1), &mut inputs);
-
-    inputs.truncate(3);
-    inputs
-}
-
-fn noise(rng: &mut StdRng, len: usize) -> String {
-    use rand::seq::SliceRandom;
-    let chars = regex_engine::frontend::alphabet::alphabet();
-    (0..len).map(|_| *chars.choose(rng).expect("alphabet() is non-empty")).collect()
-}
-
-/// Same purpose as `demo_anchored_samples::wrap_for_anchor_shape`: a
-/// candidate drawn straight from the core starts and ends exactly where
-/// the core does, so a partially-anchored pattern's padding is never
-/// actually exercised unless noise is added on the padded side.
-fn wrap_for_anchor_shape(text: &str, start_anchored: bool, end_anchored: bool, rng: &mut StdRng) -> String {
-    match (start_anchored, end_anchored) {
-        (true, true) => text.to_string(),
-        (true, false) => format!("{text}{}", noise(rng, 4)),
-        (false, true) => format!("{}{text}", noise(rng, 4)),
-        (false, false) => format!("{}{text}{}", noise(rng, 4), noise(rng, 4)),
-    }
+fn is_anchor_rejected(p: &str) -> bool {
+    rejected_because(p, "anchor")
 }
 
 // -------------------------------
 // Demo kinds
 // -------------------------------
 
-/// Generic accepted pattern: core/padded sizes, then up to 3 generated
-/// candidates traced against the real padded regex.
+/// Generic accepted pattern: translated size, then up to 3 generated
+/// candidates traced against the real regex (full-string match only).
 fn demo_accepted(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     let core = core_regex(pattern).expect("category detector already required acceptance");
-    let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
-    let (start, end) = detect_anchors(pattern).expect("category detector already required acceptance");
 
-    println!(
-        "Translation: core {} nodes -> search-padded {} nodes \
-         (data::prepare::core_regex, frontend::parse_pcre_rule)",
-        size_regex(&core),
-        size_regex(&padded)
-    );
-    println!(
-        "Anchors: {}",
-        match (start, end) {
-            (true, true) => "^...$ (no padding either side)",
-            (true, false) => "^... (padded on the right)",
-            (false, true) => "...$ (padded on the left)",
-            (false, false) => "... (padded on both sides)",
-        }
-    );
-
-    let candidates = generate_inputs(&core, rng);
+    let candidates = generate_sample(&core, rng, 3, 0);
     let config = DiagConfig::new(diag, ParserType::DerivStdRec, None);
-    println!("Generated {} input(s) against the padded regex:", candidates.len());
+    println!("generated {} input(s)", candidates.len());
     for c in &candidates {
-        let text = wrap_for_anchor_shape(&c.text, start, end, rng);
-        let expect = if c.claimed_match { "MATCH" } else { "NO MATCH" };
-        println!("{}", "-".repeat(70));
-        println!("  [expected {expect}] {:?}  -- {}", text, describe(c));
-        println!("{}", "-".repeat(70));
-        run_parser(pattern, &padded, &text, &config);
-        println!();
+        println!("  match?  {:?}", c.text);
+        run_parser(pattern, &core, &c.text, &config);
     }
 }
 
-/// Targeted extra check: flips the ASCII case of every letter in the
-/// shortest match and shows it still matches -- isolates what `case_fold`
-/// buys, rather than hoping a generic candidate differs in case.
+/// Targeted extra check: flips the ASCII case of every letter in a
+/// generated match and shows it still matches.
+/// Isolates what `case_fold` buys, rather than hoping a generic candidate
+/// differs in case.
 fn extra_case_insensitive(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
     let core = core_regex(pattern).expect("category detector already required acceptance");
-    let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
-    let Some(best) = generate_best(&core, rng, 1).into_iter().next() else {
+    let Some(sample) = generate_sample(&core, rng, 1, 0).into_iter().next() else {
         println!("extra check: no generated input available, skipped");
         return;
     };
-    let flipped = invert_ascii_case(&best.text);
-    println!("Extra check (case invariance): {:?} case-flipped to {:?}", best.text, flipped);
+    let flipped = invert_ascii_case(&sample.text);
+    println!("case-flip: {:?} -> {:?}", sample.text, flipped);
     let config = DiagConfig::new(diag, ParserType::DerivStdRec, None);
-    println!("  expected MATCH:");
-    run_parser(pattern, &padded, &flipped, &config);
-}
-
-/// Targeted extra check: appends a trailing '\n' and shows it still matches,
-/// isolating the default `$` leniency `translate_as_search` builds in.
-fn extra_dollar_lenient(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
-    let core = core_regex(pattern).expect("category detector already required acceptance");
-    let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
-    let Some(best) = generate_best(&core, rng, 1).into_iter().next() else {
-        println!("extra check: no generated input available, skipped");
-        return;
-    };
-    let with_newline = format!("{}\n", best.text);
-    println!("Extra check (lenient '$'): {:?} with one trailing '\\n' appended", best.text);
-    let config = DiagConfig::new(diag, ParserType::DerivStdRec, None);
-    println!("  expected MATCH (one trailing '\\n' is allowed without 'E'):");
-    run_parser(pattern, &padded, &with_newline, &config);
-}
-
-/// Symmetric counterpart for a real `/E` pattern: the same trailing '\n'
-/// must now be rejected, since 'E' makes '$' strict.
-fn extra_dollar_strict(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
-    let core = core_regex(pattern).expect("category detector already required acceptance");
-    let padded = parse_pcre_rule(pattern).expect("category detector already required acceptance");
-    let Some(best) = generate_best(&core, rng, 1).into_iter().next() else {
-        println!("extra check: no generated input available, skipped");
-        return;
-    };
-    let with_newline = format!("{}\n", best.text);
-    println!("Extra check (strict '$'): {:?} with one trailing '\\n' appended", best.text);
-    let config = DiagConfig::new(diag, ParserType::DerivStdRec, None);
-    println!("  expected NO MATCH ('E' forbids a trailing '\\n'):");
-    run_parser(pattern, &padded, &with_newline, &config);
+    run_parser(pattern, &core, &flipped, &config);
 }
 
 fn demo_rejected(pattern: &str) {
     let err = parse_pcre_rule(pattern).expect_err("category detector already required rejection");
-    println!("frontend::parse_pcre_rule(..) = Err({err:?})");
-}
-
-/// Accepted but not faithful: prints each gap and what it costs, then runs
-/// the generic accepted demo on the same pattern.
-fn demo_gap(pattern: &str, rng: &mut StdRng, diag: DiagLevel) {
-    let gaps = faithfulness_gaps(pattern);
-    println!("frontend::parse_pcre_rule(..) = Ok(..) -- accepted, but:");
-    for gap in &gaps {
-        match gap {
-            FaithfulnessGap::Relative => println!(
-                "  FaithfulnessGap::Relative -- the 'R' flag means \"relative to the \
-                 previous content match\", a positioning constraint the frontend cannot \
-                 see from the pattern string alone. It is translated as an ordinary \
-                 search pattern instead."
-            ),
-            FaithfulnessGap::NestedAnchor => println!(
-                "  FaithfulnessGap::NestedAnchor -- a '^' or '$' appears somewhere in the \
-                 pattern that is not a real top-level anchor (or not present on every \
-                 branch of the alternation it sits in). translate() silently lowers it \
-                 to Eps rather than enforcing or rejecting it."
-            ),
-        }
-    }
-    println!("is_faithful(..) = {}", is_faithful(pattern));
-    demo_accepted(pattern, rng, diag);
+    println!("rejected: {err}");
 }
 
 struct Entry {
@@ -388,7 +212,6 @@ struct Entry {
 enum Kind {
     Accepted,
     Rejected,
-    Gap,
 }
 
 fn entries() -> Vec<Entry> {
@@ -410,24 +233,6 @@ fn entries() -> Vec<Entry> {
             detect: is_dot_with_s,
             kind: Kind::Accepted,
             extra: None,
-        },
-        Entry {
-            name: "start-anchored ('A' flag)",
-            detect: is_anchored_flag,
-            kind: Kind::Accepted,
-            extra: None,
-        },
-        Entry {
-            name: "'$' allows one trailing '\\n' (default, no 'E' flag)",
-            detect: is_dollar_lenient_default,
-            kind: Kind::Accepted,
-            extra: Some(extra_dollar_lenient),
-        },
-        Entry {
-            name: "'$' matches only at true end ('E' flag)",
-            detect: is_dollar_endonly_flag,
-            kind: Kind::Accepted,
-            extra: Some(extra_dollar_strict),
         },
         Entry {
             name: "octal escape inside a class",
@@ -472,21 +277,15 @@ fn entries() -> Vec<Entry> {
             extra: None,
         },
         Entry {
-            name: "rejected: POSIX class (e.g. [:alpha:])",
-            detect: is_posix_class_rejected,
+            name: "rejected: anchor ('^' or '$')",
+            detect: is_anchor_rejected,
             kind: Kind::Rejected,
             extra: None,
         },
         Entry {
-            name: "gap: relative ('R' flag)",
-            detect: is_relative_gap,
-            kind: Kind::Gap,
-            extra: None,
-        },
-        Entry {
-            name: "gap: nested anchor",
-            detect: is_nested_anchor_gap,
-            kind: Kind::Gap,
+            name: "rejected: POSIX class (e.g. [:alpha:])",
+            detect: is_posix_class_rejected,
+            kind: Kind::Rejected,
             extra: None,
         },
     ]
@@ -568,7 +367,8 @@ fn main() {
     }
 
     let patterns = load_all_patterns(&files);
-    println!("{} raw patterns extracted from {} file(s)\n", patterns.len(), files.len());
+    println!("{} patterns from {} file(s)", patterns.len(), files.len());
+    println!();
 
     let mut rng = match seed {
         Some(s) => StdRng::seed_from_u64(s),
@@ -576,27 +376,25 @@ fn main() {
     };
 
     for entry in entries() {
-        println!("{}", "=".repeat(70));
-        println!("{}", entry.name);
-        println!("{}", "=".repeat(70));
+        println!("[{}]", entry.name);
+        println!("{}", "-".repeat(60));
 
-        // Deterministic selection (shortest real example), independent of
-        // --seed: --seed only controls candidate generation below.
+        // Shortest real example; independent of --seed (which only
+        // controls candidate generation below).
         let found = patterns.iter().filter(|p| (entry.detect)(p)).min_by_key(|p| p.len());
 
         let Some(pattern) = found else {
-            println!("no example found in this dataset -- skipped\n");
+            println!("  no example in this dataset -- skipped");
+            println!();
             continue;
         };
 
-        println!("Raw pattern: {pattern}\n");
+        println!("  raw: {pattern}");
         match entry.kind {
             Kind::Accepted => demo_accepted(pattern, &mut rng, diag),
             Kind::Rejected => demo_rejected(pattern),
-            Kind::Gap => demo_gap(pattern, &mut rng, diag),
         }
         if let Some(extra) = entry.extra {
-            println!();
             extra(pattern, &mut rng, diag);
         }
         println!();

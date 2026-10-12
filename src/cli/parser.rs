@@ -1,38 +1,26 @@
 //! src/cli/parser.rs
 //!
-//! `parse` subcommand: parse tree with optional diagnostics. `--parser all`
+//! `parse` subcommand: parse tree with optional diagnostics.
+//! `--parser all` runs every parser.
 
 use regex_engine::diagnostics::{DiagConfig, DiagLevel, run_parser};
 use regex_engine::{parse_deriv_std_rec, parse_deriv_std_loop, parse_deriv_bc, parse_pderiv_bc, flatten};
 use regex_engine::parsers::{ParserType, parse_pderiv_std};
 use regex_engine::types::ParseTree;
-use regex_engine::frontend::{parse_dataset_pattern, parse_pattern, faithfulness_gaps, FaithfulnessGap};
-
-fn parse(regex_str: &str, search: bool) -> Result<regex_engine::types::Regex, String> {
-    let r: Result<regex_engine::Regex, String> = if search { parse_dataset_pattern(regex_str) } else { parse_pattern(regex_str) };
-    // Warning about nested anchors, which are a known faithfulness gap.
-    if r.is_ok() && faithfulness_gaps(regex_str).contains(&FaithfulnessGap::NestedAnchor) {
-        eprintln!(
-            "warning: {regex_str:?}: '^'/'$' present but not a top-level anchor; \
-            treated as a no-op (see FRONTEND.md, NestedAnchor)"
-        );
-    }
-    r
-}
+use regex_engine::frontend::parse_pattern;
 
 /// Single parser, with diagnostics.
 ///
-/// `diag = Debug` with no `--diag-report` writes to `reports/report.txt`;
-/// the CLI's own default, not `demo_parse`'s per-parser path.
+/// `diag = Debug` with no `--diag-report` writes to `reports/report.txt`.
+/// That is the CLI's own default, not `demo_parse`'s per-parser path.
 pub fn run_parse_single(
     regex_str: &str,
     input: &str,
     parser: ParserType,
     diag: DiagLevel,
     diag_report: Option<String>,
-    search: bool,
 ) {
-    let r = match parse(regex_str, search) {
+    let r = match parse_pattern(regex_str) {
         Ok(r)  => r,
         Err(e) => { eprintln!("Regex parse error: {}", e); std::process::exit(2); }
     };
@@ -49,12 +37,15 @@ pub fn run_parse_single(
 
 /// All five parsers in one table, then a summary block.
 ///
-/// Three checks, all bugs if they fail: POSIX parsers agree with each
-/// other, Greedy parsers agree with each other, and all five agree on
-/// membership. The fourth line, `Greedy vs POSIX`, is informational: the
-/// two policies are allowed to differ on tree shape (see `PARSERS.md`).
-pub fn run_parse_all(regex_str: &str, input: &str, search: bool) {
-    let r = match parse(regex_str, search) {
+/// Three checks, all bugs if they fail:
+/// POSIX parsers agree with each other;
+/// Greedy parsers agree with each other;
+/// All five agree on membership.
+///
+/// The fourth line, `Greedy vs POSIX`, is informational: the two policies
+/// may differ on tree shape (see `PARSERS.md`).
+pub fn run_parse_all(regex_str: &str, input: &str) {
+    let r = match parse_pattern(regex_str) {
         Ok(r)  => r,
         Err(e) => {
             eprintln!("Regex parse error: {}", e);
@@ -88,7 +79,7 @@ pub fn run_parse_all(regex_str: &str, input: &str, search: bool) {
         results.push(result);
     }
 
-    // results[0..3] POSIX, results[3..5] Greedy, in `rows` order.
+    // results[0..3] POSIX, results[3..5] Greedy, matching `rows` order.
     let posix  = &results[0..3];
     let greedy = &results[3..5];
 
@@ -97,7 +88,7 @@ pub fn run_parse_all(regex_str: &str, input: &str, search: bool) {
     let membership_agree =
         results.iter().map(|t| t.is_some()).all(|m| m == results[0].is_some());
 
-    // Informational: whether pderiv_bc produced the same tree as deriv_bc.
+    // Informational: does pderiv_bc produce the same tree as deriv_bc?
     let greedy_vs_posix = if results[4] == results[2] { "agree" } else { "disagree" };
 
     let membership = if membership_agree {

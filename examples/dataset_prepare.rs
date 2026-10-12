@@ -2,12 +2,12 @@
 //!
 //! cargo run --release --example dataset_prepare -- <source> <file...> [--corpus-dir DIR] [--variants N]
 //!
-//! Extract patterns from the given raw file(s), 
-//! generate best/neutral/worst candidates for each, verify every one, 
-//! and write the survivors to `data/processed/<source>/prepared.jsonl`.
+//! Extract patterns from the given raw file(s).
+//! Generate up to N positive and N negative samples per pattern, verify
+//! each, and write survivors to `data/processed/<source>/prepared.jsonl`.
 //!
-//! `--variants N` (default 5) is inputs per category per pattern, not a
-//! total: up to N Best, N Neutral, and 2N Worst (N positive, N negative).
+//! `--variants N` (default 5) is samples per pattern: up to N positives
+//! and N negatives, not a combined total.
 
 use std::path::{Path, PathBuf};
 
@@ -54,7 +54,7 @@ fn main() {
     }
 
     let data_root = Path::new("data/processed");
-    let seed = 20260101; // fixed, so a re-run reproduces the same dataset
+    let seed = 20260101; // fixed, so re-runs reproduce the same dataset
 
     let report = run_pipeline(source, &files, data_root, corpus_dir.as_deref(), seed, variants)
         .unwrap_or_else(|e| {
@@ -62,19 +62,22 @@ fn main() {
             std::process::exit(1);
         });
 
-    println!("=== {:?} (variants per category: {}) ===", source, variants);
-    println!("rules extracted:      {}", report.rules_extracted);
-    println!("patterns unusable:    {}", report.patterns_unusable);
+    println!("{:?}  ({} variants/pattern)", source, variants);
+    println!("  extracted   {:>6} rules",     report.rules_extracted);
+    println!("  unusable    {:>6} patterns",  report.patterns_unusable);
     println!(
-        "patterns not faithful: {} (accepted, but only an approximation -- R or a nested anchor; \
-         skipped, not included in the dataset)",
-        report.patterns_not_faithful
+        "  accepted    {:>6} patterns  [{} direct, {} full-match]",
+        report.patterns_accepted,
+        report.patterns_unanchored_ambiguous,
+        report.patterns_explicit_full_match,
     );
-    println!("patterns faithful (used): {}", report.patterns_faithful);
-    println!("candidates generated: {}", report.candidates_generated);
-    println!("candidates verified:  {}", report.candidates_verified);
-    println!(
-        "-> data/processed/{}/prepared.jsonl",
-        source.dir_name()
-    );
+    if report.patterns_explicit_full_match_skipped > 0 {
+        println!(
+            "    skipped   {:>6} full-match (generation is direct-only)",
+            report.patterns_explicit_full_match_skipped
+        );
+    }
+    println!("  generated   {:>6} candidates", report.candidates_generated);
+    println!("  verified    {:>6} candidates", report.candidates_verified);
+    println!("  wrote       data/processed/{}/prepared.jsonl", source.dir_name());
 }

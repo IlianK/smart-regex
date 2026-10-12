@@ -4,7 +4,9 @@
 
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseTree {
     /// Empty parse tree (for epsilon)
     Empty,

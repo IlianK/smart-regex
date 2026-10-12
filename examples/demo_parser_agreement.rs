@@ -2,56 +2,59 @@
 //!
 //! cargo run --release --example demo_parser_agreement
 //!
-//! Cross-parser agreement over the prepared dataset 
-//! (`data/processed/`, from `dataset_prepare`). 
-//! For every (pattern, input) entry, all five parsers run and three separate checks apply: 
-//! - POSIX among themselves, 
-//! - Greedy among themselves 
-//! - Membership agreement on all
+//! Cross-parser agreement over the prepared dataset.
+//! Reads `data/processed/`, written by `dataset_prepare`.
+//! For each (pattern, input) entry, all five parsers run.
+//! Three checks:
+//!   - POSIX parsers agree among themselves;
+//!   - Greedy parsers agree among themselves;
+//!   - all five agree on membership.
+//!
+//! Each parser call runs in its own subprocess, not a thread.
+//! An earlier version used threads with a channel-based timeout.
+//! `rx.recv_timeout` gives up waiting, but Rust cannot cancel the thread.
+//! A hung call keeps running and keeps allocating in the background.
+//! Enough of those piling up is what OOM-killed full differential sweeps.
+//! A process can be killed outright (`Child::kill()`), reclaiming memory.
+//! Cost: up to five short-lived processes per entry, not five threads.
+//! Slower in wall-clock terms when parsers finish quickly.
+//! Bounded, correct memory over raw throughput is the point.
+//! `BENCH_PATTERN_LIMIT` caps a sweep's size.
+//!
+//! Build the worker first:
+//!   cargo build --release --example demo_parser_agreement_worker
 
+use std::io::{Read, Write};
+use std::path::PathBuf;
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use regex_engine::data::load_prepared_cases;
-use regex_engine::data::types::{Category, PreparedCase, SourceKind};
-use regex_engine::frontend::parse_pcre_rule;
-use regex_engine::parsers::{
-    parse_deriv_bc, parse_deriv_std_loop, parse_deriv_std_rec, parse_pderiv_bc, parse_pderiv_std,
-    ParseTree,
-};
-use regex_engine::types::Regex;
+use regex_engine::data::prepare::core_regex;
+use regex_engine::data::types::{PreparedCase, SourceKind};
+use regex_engine::types::ParseTree;
 
 const DATA_ROOT: &str = "data/processed";
 const DEFAULT_TIMEOUT_MS: u64 = 2000;
-/// Cap on printed instances per bug kind; beyond this, tally only -- a
-/// corpus-wide bug would otherwise flood the terminal with the same finding.
+/// Cap on printed instances per bug/outcome kind; beyond this, tally only.
 const MAX_PRINTED_PER_BUG_KIND: usize = 20;
+const WORKER_NAME: &str = "demo_parser_agreement_worker";
+const PARSER_NAMES: [&str; 5] = ["rec", "loop", "bc", "pstd", "pbc"];
 
 const SOURCES: [SourceKind; 3] = [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib];
-const CATEGORIES: [Category; 3] = [Category::Best, Category::Neutral, Category::Worst];
 
-/// `Category` derives Eq but not Hash, so grouping uses a positional index.
 fn source_idx(s: SourceKind) -> usize {
     SOURCES.iter().position(|&x| x == s).expect("exhaustive")
 }
-fn category_idx(c: Category) -> usize {
-    CATEGORIES.iter().position(|&x| x == c).expect("exhaustive")
-}
 
 struct Selection {
-    category: Option<Category>,
     sources: Vec<SourceKind>,
     pattern_limit: Option<usize>,
     timeout: Duration,
 }
 
 fn selection() -> Selection {
-    let category = std::env::var("BENCH_CATEGORY").ok().map(|s| match s.to_lowercase().as_str() {
-        "best" => Category::Best,
-        "neutral" => Category::Neutral,
-        "worst" => Category::Worst,
-        other => panic!("BENCH_CATEGORY must be best, neutral, or worst, got {other:?}"),
-    });
     let sources = std::env::var("BENCH_SOURCE")
         .ok()
         .map(|s| {
@@ -76,64 +79,151 @@ fn selection() -> Selection {
             s.parse().unwrap_or_else(|_| panic!("AGREEMENT_TIMEOUT_MS must be a positive integer, got {s:?}"))
         })
         .unwrap_or(DEFAULT_TIMEOUT_MS);
-    Selection { category, sources, pattern_limit, timeout: Duration::from_millis(timeout_ms) }
+    Selection { sources, pattern_limit, timeout: Duration::from_millis(timeout_ms) }
 }
 
-/// Runs `f` on its own thread with a wall-clock budget. `None` means the
-/// call did not return in time; that thread runs to completion (or forever)
-/// in the background, since Rust cannot cancel it.
-fn with_timeout<F, T>(timeout: Duration, f: F) -> Option<T>
-where
-    F: FnOnce() -> T + Send + 'static,
-    T: Send + 'static,
-{
-    let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let _ = tx.send(f());
-    });
-    rx.recv_timeout(timeout).ok()
+/// Deserializes a worker's one-line `Option<ParseTree>` output.
+///
+/// Plain `serde_json::from_str` enforces a fixed logical recursion limit.
+/// That default is well short of what a large corpus match nests to.
+/// Recursing natively to deserialize a deep tree risks a stack overflow.
+/// That is the same risk as building a deep tree in the worker.
+/// `serde_stacker` grows the stack as needed instead.
+fn deserialize_tree(json: &str) -> serde_json::Result<Option<ParseTree>> {
+    let mut de = serde_json::Deserializer::from_str(json);
+    de.disable_recursion_limit();
+    let de = serde_stacker::Deserializer::new(&mut de);
+    serde::Deserialize::deserialize(de)
+}
+
+/// Path of the worker binary next to this executable.
+fn worker_path() -> PathBuf {
+    let exe = std::env::current_exe().expect("reading this process's own exe path");
+    let dir = exe.parent().expect("exe has a parent directory");
+    let path = dir.join(WORKER_NAME);
+    if !path.exists() {
+        panic!(
+            "worker not found at {path:?} -- build it first:\n  \
+             cargo build --release --example {WORKER_NAME}"
+        );
+    }
+    path
 }
 
 /// One parser's outcome for one entry.
 enum Outcome {
     Done(Option<ParseTree>),
+    /// Worker did not exit within the timeout; killed.
     TimedOut,
+    /// Worker exited (or was killed by a signal) without a usable result.
+    Crashed(String),
 }
 
-fn run_parser(
+/// Spawns the worker for one (parser, pattern, input) job and waits.
+/// On timeout, kills the child.
+/// Killing a process reclaims its whole address space.
+/// Giving up on waiting for a thread does not.
+fn run_parser_isolated(
+    worker: &PathBuf,
     timeout: Duration,
-    parser: fn(&str, &Regex) -> Option<ParseTree>,
+    parser_idx: usize,
+    pattern: &str,
     input: &str,
-    regex: &Regex,
 ) -> Outcome {
-    let input = input.to_string();
-    let regex = regex.clone();
-    match with_timeout(timeout, move || parser(&input, &regex)) {
-        Some(result) => Outcome::Done(result),
-        None => Outcome::TimedOut,
+    let mut child: Child = match Command::new(worker)
+        .arg(parser_idx.to_string())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => panic!("failed to spawn {worker:?}: {e}"),
+    };
+
+    // Pattern/input travel over stdin as one line of JSON, not argv.
+    // `Command::arg` cannot carry a string with an embedded NUL byte at all.
+    // OS process arguments are C strings; some Suricata candidates contain a NUL.
+    // Written and stdin dropped before the reader thread starts.
+    // So this write cannot block on a pipe nothing is draining yet.
+    {
+        let mut stdin = child.stdin.take().expect("piped stdin");
+        let job = serde_json::json!({ "pattern": pattern, "input": input }).to_string();
+        if let Err(e) = stdin.write_all(job.as_bytes()) {
+            panic!("failed to write job to {worker:?}'s stdin: {e}");
+        }
+    }
+
+    // Drain stdout/stderr on a background thread while polling for exit.
+    // This thread's lifetime is bounded by the child's.
+    // A pipe read returns as soon as the child closes it.
+    let mut stdout = child.stdout.take().expect("piped stdout");
+    let mut stderr = child.stderr.take().expect("piped stderr");
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut out = String::new();
+        let _ = stdout.read_to_string(&mut out);
+        let mut err = String::new();
+        let _ = stderr.read_to_string(&mut err);
+        let _ = tx.send((out, err));
+    });
+
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                // Process has exited, so the pipes are closed.
+                // The reader thread is finishing; this recv does not block on new work.
+                let (out, err) = rx.recv().unwrap_or_default();
+                if !status.success() {
+                    let reason = match status.code() {
+                        Some(code) => format!("exit code {code}"),
+                        None => "killed by signal (likely stack overflow)".to_string(),
+                    };
+                    return Outcome::Crashed(format!("{reason}; stderr={}", err.trim()));
+                }
+                return match deserialize_tree(out.trim()) {
+                    Ok(tree) => Outcome::Done(tree),
+                    Err(e) => Outcome::Crashed(format!(
+                        "worker exited 0 but its output did not parse: {e}; stdout={:?} stderr={:?}",
+                        out.trim(),
+                        err.trim()
+                    )),
+                };
+            }
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait(); // reap; do not leave a zombie
+                    return Outcome::TimedOut;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(e) => panic!("error polling worker process: {e}"),
+        }
     }
 }
 
-/// Loads `sel`'s cases; `pattern_limit` caps distinct patterns per category,
-/// matching `bench_dataset.rs`'s `load_corpus`. Unset loads everything.
+/// Loads `sel`'s cases; `pattern_limit` caps distinct patterns per source.
+/// Unset loads everything.
 fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
-    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources, sel.category)
+    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources)
         .unwrap_or_else(|e| {
             panic!(
                 "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
                  dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
-                 docs/DATASETS.md",
+                 docs/DATASET.md",
                 DATA_ROOT
             )
         });
     let Some(limit) = sel.pattern_limit else {
         return cases;
     };
-    let mut admitted: [[std::collections::HashSet<String>; 3]; 3] = Default::default();
+    let mut admitted: [std::collections::HashSet<String>; 3] = Default::default();
     cases
         .into_iter()
         .filter(|case| {
-            let patterns = &mut admitted[source_idx(case.source)][category_idx(case.category)];
+            let patterns = &mut admitted[source_idx(case.source)];
             let already_admitted = patterns.contains(&case.pattern);
             if !already_admitted && patterns.len() >= limit {
                 return false;
@@ -149,17 +239,18 @@ struct Tally {
     entries: usize,
     /// At least one parser timed out -- not a bug.
     timeouts: usize,
+    /// At least one worker crashed -- not a membership/shape bug.
+    /// But not dismissed the way a timeout is either.
+    crashes: usize,
     membership_bugs: usize,
     posix_shape_bugs: usize,
     greedy_shape_bugs: usize,
-    /// Entries where both families were internally consistent and matched,
-    /// so the POSIX-vs-Greedy shape comparison was meaningful.
+    /// Entries where both families were internally consistent and matched.
+    /// So the POSIX-vs-Greedy shape comparison was meaningful.
     cross_compared: usize,
     cross_same_shape: usize,
     cross_different_shape: usize,
 }
-
-const PARSER_NAMES: [&str; 5] = ["rec", "loop", "bc", "pstd", "pbc"];
 
 /// Names of whichever parsers timed out, in call order; `None` if none did.
 fn timed_out_names(outcomes: &[Outcome; 5]) -> Option<Vec<&'static str>> {
@@ -172,6 +263,18 @@ fn timed_out_names(outcomes: &[Outcome; 5]) -> Option<Vec<&'static str>> {
     if names.is_empty() { None } else { Some(names) }
 }
 
+/// Names of whichever parsers crashed, with reason; empty if none did.
+fn crashed_names(outcomes: &[Outcome; 5]) -> Vec<(&'static str, &str)> {
+    outcomes
+        .iter()
+        .zip(PARSER_NAMES)
+        .filter_map(|(o, name)| match o {
+            Outcome::Crashed(reason) => Some((name, reason.as_str())),
+            _ => None,
+        })
+        .collect()
+}
+
 fn truncate(s: &str, n: usize) -> String {
     if s.chars().count() <= n {
         s.to_string()
@@ -182,56 +285,71 @@ fn truncate(s: &str, n: usize) -> String {
 
 fn main() {
     let sel = selection();
+    let worker = worker_path();
     let cases = select_cases(&sel);
     if cases.is_empty() {
         panic!(
-            "no prepared cases loaded from {DATA_ROOT} for category={:?} sources={:?} -- see \
-             docs/DATASETS.md",
-            sel.category, sel.sources
+            "no prepared cases loaded from {DATA_ROOT} for sources={:?} -- see docs/DATASET.md",
+            sel.sources
         );
     }
 
-    let mut tallies: [[Tally; 3]; 3] = Default::default();
+    let mut tallies: [Tally; 3] = Default::default();
     let mut printed_membership = 0usize;
     let mut printed_posix = 0usize;
     let mut printed_greedy = 0usize;
     let mut printed_timeout = 0usize;
+    let mut printed_crash = 0usize;
 
     for case in &cases {
-        let regex = match parse_pcre_rule(&case.pattern) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("skipping prepared case (should have been pre-verified): {} -- {}", case.pattern, e);
-                continue;
-            }
-        };
+        // Translation itself is not the source of the memory-pileup problem.
+        // Only running a parser is, so this call stays in-process.
+        // `core_regex`, not `parse_pcre_rule`: `case.pattern` was accepted via `core_regex_tagged`.
+        if let Err(e) = core_regex(&case.pattern) {
+            eprintln!("skipping prepared case (should have been pre-verified): {} -- {}", case.pattern, e);
+            continue;
+        }
 
-        let outcomes = [
-            run_parser(sel.timeout, parse_deriv_std_rec, &case.input, &regex),
-            run_parser(sel.timeout, parse_deriv_std_loop, &case.input, &regex),
-            run_parser(sel.timeout, parse_deriv_bc, &case.input, &regex),
-            run_parser(sel.timeout, parse_pderiv_std, &case.input, &regex),
-            run_parser(sel.timeout, parse_pderiv_bc, &case.input, &regex),
-        ];
+        let outcomes = std::array::from_fn(|i| {
+            run_parser_isolated(&worker, sel.timeout, i, &case.pattern, &case.input)
+        });
 
-        let tally = &mut tallies[source_idx(case.source)][category_idx(case.category)];
+        let tally = &mut tallies[source_idx(case.source)];
         tally.entries += 1;
 
         if let Some(names) = timed_out_names(&outcomes) {
             tally.timeouts += 1;
             if printed_timeout < MAX_PRINTED_PER_BUG_KIND {
                 println!(
-                    "TIMEOUT (>{}ms)  {:?}/{:?}  pattern={:?}  input={:?}  timed_out=[{}]",
-                    sel.timeout.as_millis(), case.source, case.category, truncate(&case.pattern, 60),
+                    "TIMEOUT >{}ms  {:?}  pat={:?}  in={:?}  [{}]",
+                    sel.timeout.as_millis(), case.source, truncate(&case.pattern, 60),
                     truncate(&case.input, 40), names.join(",")
                 );
                 printed_timeout += 1;
             }
             continue;
         }
+
+        let crashed = crashed_names(&outcomes);
+        if !crashed.is_empty() {
+            tally.crashes += 1;
+            if printed_crash < MAX_PRINTED_PER_BUG_KIND {
+                let detail: Vec<String> = crashed.iter().map(|(n, r)| format!("{n}: {r}")).collect();
+                println!(
+                    "CRASH  {:?}  pat={:?}  in={:?}  {}",
+                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
+                    detail.join(" | ")
+                );
+                printed_crash += 1;
+            }
+            continue;
+        }
+
         let [rec, loop_, bc, pstd, pbc] = outcomes.map(|o| match o {
             Outcome::Done(r) => r,
-            Outcome::TimedOut => unreachable!("checked by timed_out_names above"),
+            Outcome::TimedOut | Outcome::Crashed(_) => {
+                unreachable!("checked by timed_out_names/crashed_names above")
+            }
         });
 
         let all_matched = [rec.is_some(), loop_.is_some(), bc.is_some(), pstd.is_some(), pbc.is_some()];
@@ -240,11 +358,10 @@ fn main() {
             tally.membership_bugs += 1;
             if printed_membership < MAX_PRINTED_PER_BUG_KIND {
                 println!(
-                    "MEMBERSHIP BUG  {:?}/{:?}  pattern={:?}  input={:?}  expected_match={}  \
-                     got=[rec={} loop={} bc={} pstd={} pbc={}]",
-                    case.source, case.category, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                    case.verified_match, all_matched[0], all_matched[1], all_matched[2], all_matched[3],
-                    all_matched[4]
+                    "MEMBERSHIP BUG  {:?}  pat={:?}  in={:?}  expected={}  got=[rec={} loop={} bc={} pstd={} pbc={}]",
+                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
+                    case.verified_match, all_matched[0], all_matched[1], all_matched[2],
+                    all_matched[3], all_matched[4]
                 );
                 printed_membership += 1;
             }
@@ -252,7 +369,7 @@ fn main() {
         }
 
         if !case.verified_match {
-            // Verified non-match: every parser returned None; no trees to compare.
+            // Verified non-match: every parser returned None; no trees.
             continue;
         }
 
@@ -261,8 +378,8 @@ fn main() {
             tally.posix_shape_bugs += 1;
             if printed_posix < MAX_PRINTED_PER_BUG_KIND {
                 println!(
-                    "POSIX SHAPE BUG  {:?}/{:?}  pattern={:?}  input={:?}\n  rec:  {:?}\n  loop: {:?}\n  bc:   {:?}",
-                    case.source, case.category, truncate(&case.pattern, 60), truncate(&case.input, 40),
+                    "POSIX SHAPE BUG  {:?}  pat={:?}  in={:?}  rec={:?} loop={:?} bc={:?}",
+                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     rec, loop_, bc
                 );
                 printed_posix += 1;
@@ -274,8 +391,8 @@ fn main() {
             tally.greedy_shape_bugs += 1;
             if printed_greedy < MAX_PRINTED_PER_BUG_KIND {
                 println!(
-                    "GREEDY SHAPE BUG  {:?}/{:?}  pattern={:?}  input={:?}\n  pstd: {:?}\n  pbc:  {:?}",
-                    case.source, case.category, truncate(&case.pattern, 60), truncate(&case.input, 40),
+                    "GREEDY SHAPE BUG  {:?}  pat={:?}  in={:?}  pstd={:?} pbc={:?}",
+                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     pstd, pbc
                 );
                 printed_greedy += 1;
@@ -296,73 +413,73 @@ fn main() {
 
     println!();
     println!(
-        "{:<13} {:<8} {:>8} {:>9} {:>10} {:>11} {:>12} {:>11} {:>11} {:>9}",
-        "Source", "Category", "Entries", "Timeouts", "Mem.bugs", "POSIX-bugs", "Greedy-bugs", "Compared",
-        "Same", "Diff"
+        "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>7}",
+        "Source", "Entries", "Timeouts", "Crashes", "Mem.bugs", "POSIX-bugs", "Greedy-bugs",
+        "Compared", "Same", "Diff%"
     );
-    println!("{}", "-".repeat(117));
+    println!("{}", "-".repeat(105));
 
     let mut total = Tally::default();
     for &source in &SOURCES {
-        for &category in &CATEGORIES {
-            let t = &tallies[source_idx(source)][category_idx(category)];
-            if t.entries == 0 {
-                continue;
-            }
-            let diff_pct = if t.cross_compared > 0 {
-                100.0 * t.cross_different_shape as f64 / t.cross_compared as f64
-            } else {
-                0.0
-            };
-            println!(
-                "{:<13} {:<8} {:>8} {:>9} {:>10} {:>11} {:>12} {:>11} {:>11} {:>8.1}%",
-                format!("{:?}", source), format!("{:?}", category), t.entries, t.timeouts,
-                t.membership_bugs, t.posix_shape_bugs, t.greedy_shape_bugs, t.cross_compared,
-                t.cross_same_shape, diff_pct
-            );
-            total.entries += t.entries;
-            total.timeouts += t.timeouts;
-            total.membership_bugs += t.membership_bugs;
-            total.posix_shape_bugs += t.posix_shape_bugs;
-            total.greedy_shape_bugs += t.greedy_shape_bugs;
-            total.cross_compared += t.cross_compared;
-            total.cross_same_shape += t.cross_same_shape;
-            total.cross_different_shape += t.cross_different_shape;
+        let t = &tallies[source_idx(source)];
+        if t.entries == 0 {
+            continue;
         }
+        let diff_pct = if t.cross_compared > 0 {
+            100.0 * t.cross_different_shape as f64 / t.cross_compared as f64
+        } else {
+            0.0
+        };
+        println!(
+            "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>6.1}",
+            format!("{:?}", source), t.entries, t.timeouts, t.crashes,
+            t.membership_bugs, t.posix_shape_bugs, t.greedy_shape_bugs, t.cross_compared,
+            t.cross_same_shape, diff_pct
+        );
+        total.entries += t.entries;
+        total.timeouts += t.timeouts;
+        total.crashes += t.crashes;
+        total.membership_bugs += t.membership_bugs;
+        total.posix_shape_bugs += t.posix_shape_bugs;
+        total.greedy_shape_bugs += t.greedy_shape_bugs;
+        total.cross_compared += t.cross_compared;
+        total.cross_same_shape += t.cross_same_shape;
+        total.cross_different_shape += t.cross_different_shape;
     }
-    println!("{}", "-".repeat(117));
+    println!("{}", "-".repeat(105));
     let total_diff_pct = if total.cross_compared > 0 {
         100.0 * total.cross_different_shape as f64 / total.cross_compared as f64
     } else {
         0.0
     };
     println!(
-        "{:<13} {:<8} {:>8} {:>9} {:>10} {:>11} {:>12} {:>11} {:>11} {:>8.1}%",
-        "Total", "-", total.entries, total.timeouts, total.membership_bugs, total.posix_shape_bugs,
-        total.greedy_shape_bugs, total.cross_compared, total.cross_same_shape, total_diff_pct
+        "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>6.1}",
+        "Total", total.entries, total.timeouts, total.crashes, total.membership_bugs,
+        total.posix_shape_bugs, total.greedy_shape_bugs, total.cross_compared,
+        total.cross_same_shape, total_diff_pct
     );
     println!();
-    println!(
-        "\"Compared\" = matching entries where both families were internally consistent, so a \
-         POSIX-vs-Greedy shape comparison was meaningful; \"Same\"/\"Diff\" split that count. \
-         Diff is not a bug: Chapter 6 only requires membership agreement across policies. \
-         \"Timeouts\" is also not a bug: deriv_std_rec/deriv_std_loop run unsimplified, so a \
-         large search-padded pattern can make them infeasible regardless of category -- see the \
-         module doc comment."
-    );
+    println!("Compared = matching entries where both families were internally consistent.");
+    println!("Same / Diff = their POSIX-vs-Greedy shape agreement.");
+    println!("Diff is not a bug: the two policies may pick different trees for an ambiguous match.");
+    println!("Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or");
+    println!("  ambiguous pattern can be infeasible in the configured budget.");
+    println!("Crashes are counted, not dismissed (usually a stack overflow on a deep expression),");
+    println!("  but are not membership/shape disagreements -- nothing was produced to compare.");
 
     let bugs = total.membership_bugs + total.posix_shape_bugs + total.greedy_shape_bugs;
     if bugs > 0 {
+        println!();
         println!(
-            "\n{} BUG(S) FOUND across {} entries -- see the lines above (capped at {} per kind).",
+            "{} BUG(S) across {} entries (printed details capped at {} per kind).",
             bugs, total.entries, MAX_PRINTED_PER_BUG_KIND
         );
         std::process::exit(1);
     } else {
+        println!();
         println!(
-            "\nNo membership or within-policy shape bugs found across {} entries ({} timed out, \
-             not counted as bugs).",
-            total.entries, total.timeouts
+            "No bugs across {} entries ({} timed out, {} crashed).",
+            total.entries, total.timeouts, total.crashes
         );
     }
 }

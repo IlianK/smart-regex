@@ -40,7 +40,9 @@ pub fn translate(ep: &ExtPat) -> Result<Regex, String> {
         }
         ExtPat::Star(inner) => Ok(Regex::star(translate(inner)?)),
         ExtPat::Bound(inner, lo, hi) => desugar_bound(translate(inner)?, *lo, *hi),
-        ExtPat::Carat | ExtPat::Dollar => Ok(Regex::Eps),
+        ExtPat::Carat | ExtPat::Dollar => {
+            Err("anchor '^'/'$' is not supported by this frontend -- unsupported".to_string())
+        }
         ExtPat::Dot => alt_of_chars(alphabet::alphabet()),
         ExtPat::Any(cs) => alt_of_chars(cs.clone()),
         ExtPat::NoneOf(cs) => alt_of_chars(alphabet::complement(cs)),
@@ -63,11 +65,6 @@ fn translate_escape(c: char) -> Result<Regex, String> {
         'S' => alt_of_chars(alphabet::complement(&alphabet::space_chars())),
         _ => Ok(Regex::lit(c)),
     }
-}
-
-/// `Σ*`: any run of alphabet characters.
-pub(crate) fn wildcard_run() -> Regex {
-    Regex::star(alt_of_chars(alphabet::alphabet()).expect("alphabet() is non-empty"))
 }
 
 fn alt_of_chars(mut cs: Vec<char>) -> Result<Regex, String> {
@@ -175,9 +172,9 @@ mod tests {
     }
 
     #[test]
-    fn anchors_are_eps() {
-        assert_eq!(t(ExtPat::Carat), Regex::Eps);
-        assert_eq!(t(ExtPat::Dollar), Regex::Eps);
+    fn anchors_are_rejected() {
+        assert!(translate(&ExtPat::Carat).is_err());
+        assert!(translate(&ExtPat::Dollar).is_err());
     }
 
     #[test]

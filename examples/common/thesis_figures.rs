@@ -1,14 +1,13 @@
 //! examples/common/thesis_figures.rs
 
-//! Shared measurement helpers for the `demo_*` example binaries. Not an
-//! example itself (nested under `examples/common/`, so cargo's example
-//! autodiscovery doesn't pick it up); included via
-//! `#[path = "common/thesis_figures.rs"] mod common;` from each demo that
-//! needs it. Deterministic: no randomness, no timing, no environment
-//! dependence.
-#![allow(dead_code)] // each demo_*.rs only uses a subset of these
+//! Shared measurement helpers for the `demo_*` examples.
+//! Not an example itself (under `examples/common/`, so cargo's example
+//! autodiscovery skips it).
+//! Included via `#[path = "common/thesis_figures.rs"] mod common;`.
+//! Deterministic: no randomness, no timing, no environment dependence.
+#![allow(dead_code)] // each demo uses a subset
 
-use regex_engine::frontend::{parse_dataset_pattern, parse_pattern};
+use regex_engine::frontend::parse_pattern;
 use regex_engine::parsers::deriv_bc::{deriv::deriv_bc, internalize::internalize, simplify::simp};
 use regex_engine::parsers::pderiv_bc::pderiv::pderiv_bc;
 use regex_engine::parsers::pderiv_std::pderiv_tree_residuals;
@@ -19,7 +18,7 @@ use regex_engine::types::{ARegex, Regex};
 // Size measures
 // -------------------------------
 
-/// Node count of a plain `Regex`, counting every constructor once.
+/// Node count of a plain `Regex`, every constructor counted once.
 pub fn size_regex(r: &Regex) -> usize {
     match r {
         Regex::Phi | Regex::Eps | Regex::Lit(_) => 1,
@@ -28,8 +27,9 @@ pub fn size_regex(r: &Regex) -> usize {
     }
 }
 
-/// Node count of an annotated `ARegex`; bit-lists are not counted, so this
-/// measures the expression the derivative walks, not the bits it carries.
+/// Node count of an annotated `ARegex`.
+/// Bit-lists not counted: measures the expression the derivative walks,
+/// not the bits it carries.
 pub fn size_aregex(ri: &ARegex) -> usize {
     match ri {
         ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => 1,
@@ -42,16 +42,17 @@ pub fn size_aregex(ri: &ARegex) -> usize {
 // The two expressions the growth figures use
 // -------------------------------
 
-/// `a*`, the case Sulzmann and Lu's own simplification example uses.
+/// `a*`, the case the standard simplification example uses.
 pub fn expr_astar() -> Regex {
     Regex::star(Regex::lit('a'))
 }
 
-/// `(a + (b + ab))*`, the `paper_r2` expression of Section 4.3.
+/// `(a + (b + ab))*`, right-associated.
 ///
-/// Note the right-associated grouping: the CLI spelling `"(a|b|ab)*"` parses
-/// to the left-associated `((a+b)+ab)*` instead. Both produce identical size
-/// series, which `tests/test_thesis_figures.rs` asserts.
+/// The CLI spelling `"(a|b|ab)*"` parses to left-associated
+/// `((a+b)+ab)*` instead.
+/// Both produce identical size series; `tests/test_thesis_figures.rs`
+/// asserts this.
 pub fn expr_paper_r2() -> Regex {
     let ab = Regex::seq(Regex::lit('a'), Regex::lit('b'));
     Regex::star(Regex::alt(Regex::lit('a'), Regex::alt(Regex::lit('b'), ab)))
@@ -87,8 +88,9 @@ pub fn series_plain_unsimplified(r: &Regex, input: &str) -> Vec<usize> {
 // Branch counts: why simp's dedup never fires
 // -------------------------------
 
-/// Top-level alternation branches of `ri`, flattened through unannotated
-/// `Alt` nodes exactly as `simp`'s own `push_branches` does.
+/// Top-level alternation branches of `ri`.
+/// Flattened through unannotated `Alt` nodes, matching `simp`'s own
+/// `push_branches`.
 pub fn alt_branches(ri: &ARegex, out: &mut Vec<ARegex>) {
     match ri {
         ARegex::Alt(bs, a, b) if bs.is_empty() => {
@@ -142,9 +144,10 @@ pub fn series_branch_counts(r: &Regex, input: &str) -> Vec<(usize, usize, usize)
 
 /// Per character: (strands in the frontier, distinct residuals among them).
 ///
-/// This drives the frontier exactly as `pderiv_bc::parse::step_frontier` does,
-/// including the fact that `nub2` is applied inside `pderiv_bc` only and never
-/// across the flattened frontier. Step 0 is the one-strand starting state.
+/// Drives the frontier as `pderiv_bc::parse::step_frontier` does.
+/// `nub2` is applied inside `pderiv_bc` only, never across the flattened
+/// frontier.
+/// Step 0 is the one-strand starting state.
 pub fn series_frontier(r: &Regex, input: &str) -> Vec<(usize, usize)> {
     let mut frontier: Vec<(Regex, Vec<bool>)> = vec![(r.clone(), Vec::new())];
     let mut out = vec![(1usize, 1usize)];
@@ -169,16 +172,17 @@ pub fn series_frontier(r: &Regex, input: &str) -> Vec<(usize, usize)> {
     out
 }
 
-/// `series_frontier`'s standard (non-bit-coded) counterpart: drives
-/// `pderiv_tree_residuals` instead of `pderiv_bc`. The two are not quite
-/// the same construction: `pderiv_bc` builds each successor with
-/// `smart_seq` (drops a redundant leading `Eps ·`), while `pderiv_tree`
-/// uses the plain, unconditional `Regex::seq`, so a standard-side residual
-/// can carry a few extra `Eps ·` nodes that the bit-coded side's
-/// `smart_seq` would have already dropped. Both sides dedup the frontier
-/// (`nub_tree` / `nub2`) before the next step, so strand *counts* are
-/// directly comparable; per-residual *node* size is not, without also
-/// accounting for that `Eps ·` difference.
+/// `series_frontier`'s standard (non-bit-coded) counterpart.
+///
+/// The two are not the same construction.
+/// `pderiv_bc` builds each successor with `smart_seq` (drops a redundant
+/// leading `Eps ·`).
+/// `pderiv_tree` uses the plain, unconditional `Regex::seq`, so a
+/// standard residual can carry a few extra `Eps ·` nodes.
+/// Both sides dedup the frontier (`nub_tree` / `nub2`) before the next
+/// step, so strand *counts* are directly comparable.
+/// Per-residual *node* size is not, without accounting for that
+/// `Eps ·` difference.
 pub fn series_frontier_std(r: &Regex, input: &str) -> Vec<(usize, usize)> {
     let mut frontier: Vec<Regex> = vec![r.clone()];
     let mut out = vec![(1usize, 1usize)];
@@ -199,10 +203,11 @@ pub fn series_frontier_std(r: &Regex, input: &str) -> Vec<(usize, usize)> {
     out
 }
 
-/// Total `size_regex` summed across every strand in a `pderiv_bc` frontier
-/// per step -- the memory-proxy figure comparable to `series_bitcoded_simplified`'s
-/// single-tree size, since a partial-derivative parser's live state is the
-/// whole frontier, not any one strand.
+/// Total `size_regex` summed across every strand in a `pderiv_bc`
+/// frontier, per step.
+/// Comparable to `series_bitcoded_simplified`'s single-tree size, since
+/// a partial-derivative parser's live state is the whole frontier, not
+/// any one strand.
 pub fn series_frontier_total_size(r: &Regex, input: &str) -> Vec<usize> {
     let mut frontier: Vec<Regex> = vec![r.clone()];
     let mut out = vec![size_regex(r)];
@@ -236,31 +241,14 @@ pub fn series_frontier_std_total_size(r: &Regex, input: &str) -> Vec<usize> {
 // Frontend translation sizes
 // -------------------------------
 
-/// The patterns plotted in the translation-sizes figure, with the entry
-/// point each goes through.
-pub const LOWERED_PATTERNS: &[(&str, bool)] = &[
-    // (pattern, is_substring_search)
-    ("a*", false),
-    ("abc", false),
-    ("a{2,4}", false),
-    (r"\d", false),
-    (r"\d{2}", false),
-    (r"[a-c]+\d{2}", false),
-    (r"\w", false),
-    ("[^a]", false),
-    (".", false),
-    (r"\w+", false),
-    ("abc", true),
-    (r"[a-c]+\d{2}", true),
-];
+/// The patterns plotted in the translation-sizes figure.
+/// `parse_pattern` is the only entry point left, so there is nothing to
+/// pair a pattern against.
+pub const LOWERED_PATTERNS: &[&str] =
+    &["a*", "abc", "a{2,4}", r"\d", r"\d{2}", r"[a-c]+\d{2}", r"\w", "[^a]", ".", r"\w+"];
 
-pub fn lowered_size(pattern: &str, search: bool) -> Result<usize, String> {
-    let r = if search {
-        parse_dataset_pattern(pattern)?
-    } else {
-        parse_pattern(pattern)?
-    };
-    Ok(size_regex(&r))
+pub fn lowered_size(pattern: &str) -> Result<usize, String> {
+    Ok(size_regex(&parse_pattern(pattern)?))
 }
 
 // -------------------------------

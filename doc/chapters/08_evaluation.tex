@@ -24,8 +24,11 @@ corpus was independently assembled and prepared.
 Section~\ref{sec:correctness-verification} checks the four parsers, and
 the three Boolean matchers of Chapter~\ref{sec:derivatives}, against each
 other and against the paper's own worked examples.
-Section~\ref{sec:dataset-preparation} describes both input sources:
-synthetic patterns and the real-world corpus.
+Section~\ref{sec:dataset-preparation} describes how the real-world
+corpus specifically is assembled and prepared into a benchmarkable
+dataset; the small hand-constructed patterns used directly in
+Section~\ref{sec:performance-analysis}'s own benchmark families need no
+such preparation and are introduced there instead.
 Section~\ref{sec:performance-analysis} measures where the four parsers'
 costs diverge on each and the final Section~\ref{sec:results-discussion} draws the
 two together.
@@ -72,50 +75,25 @@ $r_2 = (a+b+ab)^{\ast}$ against $w=\mathtt{ab}$,
 \section{Dataset Preparation}
 \label{sec:dataset-preparation}
 
-Two kinds of input drive the measurements in this chapter, and they are
-kept deliberately distinct rather than pooled into one corpus.
+This section builds the one dataset the measurements later in this
+chapter run against: real-world regular expressions drawn from Suricata,
+SpamAssassin, and RegexLib rule text, carried through extraction,
+acceptance, input generation, and verification. The small
+hand-constructed patterns used elsewhere in this thesis -- the
+$(a+ab)(b+\varepsilon)$ worked example, $(a^{*})^{*}$-style pathological
+expressions, and similar -- are not part of it: each exists to isolate
+one specific algorithmic property for one specific figure or trace, and
+pooling them with a real-world corpus would blur exactly the property
+each one is there to isolate. Only the real-world corpus is prepared as
+a reusable, benchmarkable dataset; it is the sole input to everything
+that follows in this chapter.
 
-\subsection{Synthetic Patterns}
-\label{sec:synthetic-patterns}
-
-The synthetic patterns used throughout this thesis, \texttt{paper\_r1},
-\texttt{paper\_r2}, the pathological $(a^{*})^{*}$-style expressions of
-Section~\ref{sec:membership-overview}, and the benchmark families of
-Section~\ref{sec:performance-analysis}, are deliberately small and
-hand-constructed, each chosen to isolate one specific algorithmic
-property at a time rather than to resemble real regex use:
-
-\begin{center}
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{4.8cm}@{}}
-\hline
-Family & Pattern shape & Property isolated \\
-\hline
-\texttt{small\_patterns} & \texttt{a}, \texttt{a*} against \texttt{""}/\texttt{"a"}/\texttt{"aaa"} & fixed per-call overhead \\
-\texttt{scaling\_a\_star} & \texttt{a*} against $\mathtt{a}^n$ & cost as a function of input length alone \\
-\texttt{deep\_expression} & $\mathtt{a}\cdot\mathtt{a}\cdots\mathtt{a}$, depth $n$ & cost as a function of expression size \\
-\texttt{ambiguous\_star} & $(a+aa)^{*}$ against $\mathtt{a}^n$ & branching from genuine ambiguity \\
-\texttt{pathological}, \texttt{benign} & $(a^{*})^{*}$ vs.\ $(a+b)^{*}$ & the naive matcher's worst and ordinary case \\
-\texttt{nesting\_depth} & $a^{*}$ nested $n$ times & cost as a function of nesting, not length \\
-\hline
-\end{tabular}
-\end{center}
-
-They say little on their own about how any of the four parsers behaves
-on the regular expressions people actually write, which is what
-Section~\ref{sec:mamouras-dataset} closes the gap on; kept separate,
-each still isolates one variable the mixed real-world corpus cannot.
-
-%
-%
-%
-
-\subsection{The Mamouras Regex Dataset}
+\subsection{The Real-World Corpus}
 \label{sec:mamouras-dataset}
 
-This thesis's own real-world corpus was independently assembled from
-three families of real-world regular expression sources chosen to cover
-different "shapes" of real regex use, not three samples of the same
-thing:
+This thesis's corpus is independently assembled from three families of
+real-world regular-expression sources, chosen to cover different
+"shapes" of real regex use rather than three samples of the same thing:
 
 \begin{itemize}
   \item \textbf{Snort/Suricata} network intrusion-detection signatures
@@ -126,30 +104,210 @@ thing:
   (\texttt{body}/\texttt{header} Perl-regex rules), content matching
   over unstructured text, a different shape than network signatures.
   \item \textbf{RegexLib} crowd-sourced general-purpose patterns
-  (validators, extractors), the opposite end, where chained lookahead
-  assertions are idiomatic, stress-testing the frontend's rejection path
-  hardest of the three.
+  (validators, extractors), the opposite end, where anchors and chained
+  lookahead assertions are both idiomatic, stress-testing the frontend's
+  rejection path hardest of the three.
 \end{itemize}
 
-\paragraph{Extraction.} 
+Assembling a real-world corpus this way, rather than relying only on
+hand-constructed patterns, follows the motivation in Mamouras et al.'s
+disambiguation-robustness study \citep{mamouras2024}: that paper studies
+exactly the POSIX-versus-Greedy question this thesis studies, via real
+intrusion-detection signatures, and finds concrete real-world patterns
+where the two policies visibly diverge. It publishes no dataset artifact
+of its own, so the corpus used here was assembled independently.
 
-\paragraph{Filtering.} 
+\paragraph{Extraction.}
+A separate extractor reads each source's native text format directly,
+rather than a shared one assuming a structure the three formats do not
+actually have in common. \texttt{extract\_suricata} scans each line of a
+\texttt{.rules} file for a \texttt{pcre:"..."} option, pulling out the
+pattern together with that rule's \texttt{content:} fields, \texttt{msg},
+and \texttt{sid} as context input generation uses later.
+\texttt{extract\_spamassassin} reads a \texttt{.cf} file's
+\texttt{body NAME /pattern/flags} and
+\texttt{header NAME Field =\textasciitilde{} /pattern/flags} lines; the
+two genuinely differ in syntax, since a \texttt{body} rule carries no
+\texttt{=\textasciitilde{}} operator at all, and requiring one, as an
+earlier version of this extractor did, silently dropped every
+\texttt{body} rule rather than just failing loudly on it.
+\texttt{extract\_regexlib} reads RegexLib's comment-delimited export
+format directly: a block of \texttt{\#}-prefixed description lines
+followed by the bare pattern, one entry per blank-line-separated block.
+All three produce the same \texttt{ExtractedRule}: a source tag, the raw
+pattern text, and whatever source-specific context only that source
+provides.
+
+\paragraph{Acceptance.}
+An extracted rule's raw pattern is handed to \texttt{core\_regex}
+(\texttt{data/prepare.rs}), which repeats \texttt{parse\_pcre\_rule}'s own
+steps (Section~\ref{sec:frontend-anchors}) -- delimiter stripping, the
+\texttt{m}/\texttt{x} flag check, parsing, case-folding, \texttt{dotall}
+-- rather than calling it directly, so that two further, pipeline-only
+safety caps can run around translation: a pattern whose \emph{estimated}
+translated depth already exceeds 2\,000 is rejected before translation is
+attempted at all, and a pattern that translates to more than 20\,000
+\texttt{Regex} nodes is rejected after. Both exist for the same reason
+\texttt{MAX\_BOUND} does in Section~\ref{sec:frontend-translate}: a
+character-class range can expand from a few source characters into
+thousands of code points -- one RegexLib pattern in this corpus does
+exactly this, with a range spanning from \texttt{-} to the en dash -- and
+translating a pattern that large is itself the risk these caps exist to
+avoid, independently of whether \texttt{translate} would otherwise
+succeed on it. A pattern surviving every check \texttt{core\_regex}
+applies -- the rejections Section~\ref{sec:frontend-anchors} already
+described, plus these two size caps -- is \emph{accepted}; every other
+pattern is \emph{unusable} and takes no further part in the pipeline.
+There is no accepted-but-approximate middle case left to report: a
+pattern is either translated exactly or not translated at all.
+
+The following reports both numbers against this project's own sample
+corpus, \texttt{data/raw/\_Samples/}: six files split across the three
+sources, small enough to check into the repository itself. The same
+extraction and acceptance code applies unchanged at whatever scale the
+corpus is eventually grown to; only the counts below are specific to
+this sample.
 
 \begin{center}
-\begin{tabular}{lrrrrr}
+\begin{tabular}{lrrrr}
 \hline
-Format & Extracted & Accepted & Backreference & Lookaround & Other \\
+Source & Files & Extracted & Accepted & Unusable \\
 \hline
-Suricata & 231 & 209 (90.5\%) & 5 & 11 & 6 \\
-SpamAssassin & 82 & 69 (84.1\%) & 1 & 11 & 1 \\
-RegexLib & 499 & 407 (81.6\%) & 8 & 55 & 29 \\
+Suricata & 2 & 177 & 42 (23.7\%) & 135 \\
+SpamAssassin & 3 & 156 & 49 (31.4\%) & 107 \\
+RegexLib & 1 & 500 & 108 (21.6\%) & 392 \\
 \hline
-\textbf{Total} & \textbf{812} & \textbf{685 (84.4\%)} & \textbf{14} & \textbf{77} & \textbf{36} \\
+\textbf{Total} & \textbf{6} & \textbf{833} & \textbf{199 (23.9\%)} & \textbf{634} \\
 \hline
 \end{tabular}
 \end{center}
 
-\paragraph{Generating Input.} 
+Splitting the unusable count by cause shows the three sources are not
+rejected for the same reason:
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lrrrrrr}
+\hline
+Source & Backref. & Lookaround & Word-bound. & Anchor & Other & Too large$^{\dagger}$ \\
+\hline
+Suricata & 4 & 8 & 1 & 109 & 5 & 8 \\
+SpamAssassin & 1 & 13 & 76 & 16 & 1 & 0 \\
+RegexLib & 8 & 55 & 5 & 291 & 31 & 2 \\
+\hline
+\textbf{Total} & \textbf{13} & \textbf{76} & \textbf{82} & \textbf{416} & \textbf{37} & \textbf{10} \\
+\hline
+\end{tabular}
+\end{center}
+
+$^{\dagger}$the two pipeline-only size caps above, not a rejected
+construct. Anchors dominate Suricata's and RegexLib's rejections, as
+Section~\ref{sec:frontend-anchors} already expects of signature and
+validator patterns; SpamAssassin inverts this, with the word-boundary
+assertions \texttt{\textbackslash{}b}/\texttt{\textbackslash{}B}
+responsible for most of its rejections instead, 76 of 107, consistent
+with spam rules matching whole words rather than positions in a line.
+This is exactly the kind of difference the three sources were chosen to
+expose, not a flaw in any one of them.
+
+\paragraph{Generating Input.}
+Every accepted pattern's \texttt{Regex} is handed to
+\texttt{generate\_sample} (\texttt{data/generate.rs}), which samples up
+to \texttt{count} distinct positive matches directly from the pattern's
+own structure -- walking each constructor, choosing an \texttt{Alt}
+branch by its relative leaf count so a large character class is sampled
+uniformly rather than biased toward whichever side of a left-folded chain
+happens to be smaller, and taking a star between zero and a fixed four
+iterations -- plus up to \texttt{negative\_count} negatives, each a
+positive sample with its last character replaced by a character outside
+the working alphabet. This replaces the three-tier
+Best/Neutral/Worst difficulty split used earlier in this project with one
+plain setting: generating a realistic match is the goal here, not
+adversarial growth, which Section~\ref{sec:performance-analysis}'s own
+benchmark families handle separately and deliberately. \texttt{dataset\_prepare}
+calls this with \texttt{count = negative\_count = 5} for every pattern.
+
+Suricata patterns additionally draw on \texttt{generate\_from\_content\_fields},
+which assembles a candidate from the rule's own \texttt{content:} bytes
+with a short sampled filler between consecutive fields -- real evidence
+of what a triggering payload contains, not a structural guess.
+SpamAssassin patterns additionally draw on
+\texttt{generate\_from\_corpus\_dir} when a local ham/spam corpus is
+configured, keeping only messages whose \emph{entire} content matches; without
+the search padding Section~\ref{sec:frontend-anchors} removed, this
+finds far fewer candidates against a real corpus than it once did; kept
+for the rare whole-message pattern it still finds, not removed, since it
+costs nothing when it finds nothing.
+
+\paragraph{Verification.}
+Nothing \texttt{generate\_sample} or its source-specific companions
+produce is trusted as written: \texttt{verify\_candidate}
+(\texttt{data/prepare.rs}) re-derives each candidate's claimed outcome
+against the real bit-coded parser, bounded by a 100\,000-node cap so a
+pathological candidate is dropped rather than left to run unbounded, and
+keeps the candidate only if the claim holds. A claimed negative is held
+to a second, stronger standard: its failure must fall at or past
+two-thirds of the input, since a candidate that fails on its first
+character exercises the frontend barely at all. Verification therefore
+drops some fraction of what was generated, and that fraction is not the
+same across sources. Against this project's sample corpus:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\hline
+Source & Candidates Generated & Candidates Verified & Dropped \\
+\hline
+Suricata & 513 & 404 & 109 (21.3\%) \\
+SpamAssassin & 440 & 440 & 0 (0.0\%) \\
+RegexLib & 1\,026 & 987 & 39 (3.8\%) \\
+\hline
+\textbf{Total} & \textbf{1\,979} & \textbf{1\,831} & \textbf{148 (7.5\%)} \\
+\hline
+\end{tabular}
+\end{center}
+
+Suricata's much larger drop is not noise: it is the only source using
+\texttt{generate\_from\_content\_fields}, whose candidates come from a
+rule's raw \texttt{content:} bytes rather than from the translated
+pattern's own structure, so nothing guarantees they satisfy it, unlike a
+\texttt{generate\_sample} candidate, which is sampled from that structure
+directly and almost always verifies. SpamAssassin's and RegexLib's
+smaller, nonzero drops come from the same two sources as any
+\texttt{generate\_sample}-only pipeline: a corrupted negative that
+happens to fail too early, and, rarely, a candidate against a pattern
+expensive enough to hit the node cap.
+
+Figure~\ref{fig:dataset-prepare-run} shows one source run end to end
+against the real sample files, matching the totals above.
+
+\begin{figure}[htbp]
+\small
+\centering
+\begin{verbatim}
+$ cargo run --example dataset_prepare -- regexlib \
+    data/raw/_Samples/regexlib-manual-processed.sample.txt
+=== RegexLib (variants per pattern: 5) ===
+rules extracted:      500
+patterns unusable:    392 (rejected -- anchors, lookaround, backreferences,
+                       word boundaries, unsupported flags, or too large to
+                       translate safely)
+patterns accepted (used): 108
+candidates generated: 1026
+candidates verified:  987
+-> data/processed/regexlib/prepared.jsonl
+\end{verbatim}
+\caption{\texttt{dataset\_prepare} run against the RegexLib sample file,
+reporting the same extraction, acceptance, and verification counts
+tabulated above for this source.}
+\label{fig:dataset-prepare-run}
+\end{figure}
+
+What survives verification is written to \texttt{prepared.jsonl} per
+source and read back by \texttt{load\_prepared\_cases} -- 1\,831 cases
+in this sample corpus, each an input together with the pattern it was
+generated from, its provenance, and its verified outcome. This is the
+dataset the remainder of this chapter benchmarks all four parsers
+against.
 
 %
 %

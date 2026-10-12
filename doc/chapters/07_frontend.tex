@@ -27,9 +27,31 @@ PCRE-oriented frontend.
 The real-world corpus described in
 Section~\ref{sec:dataset-preparation} depends on this frontend to convert
 Suricata, SpamAssassin, and RegexLib rule patterns into \texttt{Regex}
-values. This conversion includes parsing the surface syntax, desugaring
-constructs that are not represented by \texttt{Regex}, and applying the
-substring-search padding scheme.
+values. This conversion includes parsing the surface syntax and
+desugaring constructs that are not represented by \texttt{Regex}; a
+construct the algebra cannot express at all is rejected rather than
+desugared.
+
+\paragraph{This frontend accepts a strict subset of PCRE syntax.}
+Three categories of construct are rejected outright: backreferences
+(\texttt{\textbackslash{}1}--\texttt{\textbackslash{}9}), lookaround
+assertions (\texttt{(?=...)}, \texttt{(?!...)}, \texttt{(?<=...)},
+\texttt{(?<!...)}), and anchors, which this frontend takes to include
+both the string anchors \texttt{\^{}}/\texttt{\$} and the word-boundary
+assertions \texttt{\textbackslash{}b}/\texttt{\textbackslash{}B}. None of
+the three denote a regular language over \texttt{Regex}'s six
+constructors: a backreference requires matching against a previously
+captured substring, which no alphabet-indexed derivative can express;
+and lookaround and word boundaries test the input around the current
+position without consuming it, a property of a match \emph{position}
+rather than of a language. String anchors are the same kind of problem
+one level up: they constrain \emph{where} in the input a pattern may
+match, and Section~\ref{sec:frontend-anchors} discusses why this
+frontend has nothing left to attach that constraint to once it performs
+no search at all. Rejecting all three explicitly, rather than silently
+ignoring or mistranslating them, is what lets corpus extraction
+(Section~\ref{sec:dataset-preparation}) identify unsupported patterns
+instead of miscounting them as supported.
 
 %
 %
@@ -65,12 +87,15 @@ Section~\ref{sec:regex-rust-implementation}, is the internal
 six-constructor representation
 \texttt{Phi | Eps | Lit | Seq | Alt | Star}. It has no representation for
 groups, repetition bounds, anchors, or quantifier laziness. Constructs
-expressible in \texttt{ExtPat} but absent from \texttt{Regex} are therefore
-desugared by \texttt{translate}
-(Section~\ref{sec:frontend-translate}). Anchors are handled separately:
-\texttt{\textbackslash{}\^{}} and \texttt{\$} are translated to
-\texttt{Eps}, while their effect on substring search is handled by the
-frontend entry points described in Section~\ref{sec:frontend-substring-search}.
+expressible in \texttt{ExtPat} but absent from \texttt{Regex} are
+desugared by \texttt{translate} (Section~\ref{sec:frontend-translate})
+whenever a \texttt{Regex} equivalent exists. Anchors have none: unlike
+groups or bounds, \texttt{\^{}} and \texttt{\$} are not desugared into an
+equivalent combination of the six constructors, they are rejected by
+\texttt{translate}, the same treatment the word-boundary assertions
+\texttt{\textbackslash{}b}/\texttt{\textbackslash{}B} already receive.
+Section~\ref{sec:frontend-anchors} returns to this once the rest of
+translation has been presented.
 
 The explicit intermediate representation also isolates parsing from
 translation. The unit tests in \texttt{translate.rs}, for example, can
@@ -114,14 +139,24 @@ The implementation differs from the reference parser in several respects.
   (Section~\ref{sec:frontend-translate}). This interpretation corresponds
   to their use in the external patterns processed by the project.
 
-  \item \textbf{Backreferences and lookaround are rejected.}
-  Constructs such as \texttt{\textbackslash{}1}--\texttt{\textbackslash{}9}
-  and lookaround assertions result in parse errors. Backreferences and
-  lookaround are not represented by the regular-expression algebra used by
-  the derivative constructions. Rejecting them explicitly prevents constructs
-  outside the supported formal model from being silently misinterpreted. This
-  is important for corpus extraction described in Section~\ref{sec:dataset-preparation},
-  where unsupported constructs must be identified explicitly.
+  \item \textbf{Backreferences, lookaround, and anchors are all
+  rejected, at two different stages.} Constructs such as
+  \texttt{\textbackslash{}1}--\texttt{\textbackslash{}9} and lookaround
+  assertions have no \texttt{ExtPat} constructor to parse into at all,
+  so \texttt{parse\_ext\_pattern} itself returns a parse error the
+  moment it encounters one. Anchors are different: \texttt{\^{}},
+  \texttt{\$}, and the word-boundary escapes
+  \texttt{\textbackslash{}b}/\texttt{\textbackslash{}B} each parse
+  successfully, into \texttt{ExtPat::Carat}, \texttt{ExtPat::Dollar},
+  and \texttt{ExtPat::WordBoundary}; it is \texttt{translate}
+  (Section~\ref{sec:frontend-translate}) that rejects them, one stage
+  later. Both stages exist for the same reason: none of the five
+  constructs are represented by the regular-expression algebra used by
+  the derivative constructions, and rejecting them explicitly, rather
+  than silently ignoring or mistranslating them, is what corpus
+  extraction (Section~\ref{sec:dataset-preparation}) relies on to
+  identify unsupported patterns instead of miscounting them as
+  supported.
 
   \item \textbf{Named groups are accepted.}
   Both \texttt{(?<name>...)} and \texttt{(?P<name>...)} are parsed and
@@ -182,19 +217,25 @@ a corresponding match arm that either maps directly to a
   & \texttt{Seq(translate(r), Star(translate(r)))} \\
 \texttt{Star(r)}
   & \texttt{Star(translate(r))} \\
-\texttt{Carat}, \texttt{Dollar}
-  & \texttt{Eps} \\
 \texttt{Dot}, \texttt{Any(cs)}, \texttt{NoneOf(cs)}
   & \text{sorted, deduplicated } \texttt{Alt} \text{ of } \texttt{Lit} \\
 \texttt{Bound(r, lo, hi)}
   & \text{unrolled exact/optional repetition} \\
+\texttt{Carat}, \texttt{Dollar}
+  & \text{rejected} \\
+\texttt{WordBoundary(b)}
+  & \text{rejected} \\
 \hline
 \end{array}
 \end{equation*}
 
 The translation therefore removes all surface constructs that are not
 present in the core algebra while preserving the language represented by
-the supported constructs.
+the supported constructs, with one exception: the last two rows above
+have no \texttt{Regex} to remove them \emph{into}, so \texttt{translate}
+reports an error instead of returning one at all.
+Section~\ref{sec:frontend-anchors} discusses the consequences once the
+rest of translation has been presented.
 
 \paragraph{Character classes are represented by alternation.}
 
@@ -256,8 +297,8 @@ distinguished by the internal representation.
 %
 %
 %
-\section{Substring Search}
-\label{sec:frontend-substring-search}
+\section{Anchors and the Two Entry Points}
+\label{sec:frontend-anchors}
 
 The parsers in Chapters~\ref{sec:derivative-parser} and
 \ref{sec:partial-derivative-parser} perform full-string matching: after
@@ -265,51 +306,127 @@ the input has been consumed, the resulting expression is tested for
 nullability. They do not provide a separate operation for determining
 whether a pattern occurs as a substring of a longer input. The derivative
 constructions of \citet{sulzmannlu2014} and the corresponding teaching
-material likewise define matching over the complete input.
+material likewise define matching over the complete input, and this
+frontend makes no attempt to build a search operation on top of them:
+every pattern is matched against the whole of its input, nothing less
+and nothing more. The two entry points below, \texttt{parse\_pattern}
+and \texttt{parse\_pcre\_rule}, both end by calling \texttt{translate}
+and handing its result straight to a parser; neither pads, searches, or
+otherwise changes what the translated pattern is matched against.
+Section~\ref{sec:dataset-preparation} discusses what this costs against
+a real-world corpus whose rules generally do expect search semantics;
+this section is only concerned with what the frontend itself does,
+which is to reject any construct whose behaviour depends on
+\emph{where} in the input it appears, since \texttt{Regex} has no
+notion of where at all.
 
-The external patterns used by Suricata and SpamAssassin generally have
-search semantics, where a rule is triggered when its pattern occurs within
-a larger payload. The frontend therefore implements substring search before
-the resulting \texttt{Regex} is passed to a parser. The translated pattern
-is surrounded by \texttt{wildcard\_run()}, a \texttt{Star} over a
-98-character alternation representing an arbitrary sequence of input
-characters. Padding is added only on sides that are not explicitly
-anchored:
+\paragraph{\texttt{\^{}}, \texttt{\$}, and \texttt{\textbackslash{}b}/\texttt{\textbackslash{}B} are rejected at the same site, for the same reason.}
+Figure~\ref{fig:anchor-rejection-rust} is the two match arms of
+\texttt{translate} (\texttt{frontend/translate.rs}) responsible, already
+marked as rejected in the table of Section~\ref{sec:frontend-translate}.
+Both produce a descriptive \texttt{Err} rather than silently
+approximating the construct with something else, such as the
+\texttt{Eps} this frontend used to lower anchors to.
 
-\begin{equation*}
-\begin{array}{ll}
-\texttt{\textbackslash{}\^{}abc}
-  &\to \texttt{abc} \cdot \Sigma^{*}
-  \quad\text{(leading anchor: pad the end only)} \\[2pt]
-\texttt{abc\$}
-  &\to \Sigma^{*} \cdot \texttt{abc}
-  \quad\text{(trailing anchor: pad the start only)} \\[2pt]
-\texttt{abc}
-  &\to \Sigma^{*} \cdot \texttt{abc} \cdot \Sigma^{*}
-  \quad\text{(no anchor: pad both sides)} \\[2pt]
-\texttt{\textbackslash{}\^{}abc\$}
-  &\to \texttt{abc}
-  \quad\text{(fully anchored: no padding)}
-\end{array}
-\end{equation*}
+\begin{figure}[H]
+\small
+\begin{verbatim}
+ExtPat::Carat | ExtPat::Dollar => {
+    Err("anchor '^'/'$' is not supported by this frontend -- unsupported".to_string())
+}
+// ...
+ExtPat::WordBoundary(_) => {
+    Err("word boundary '\b'/'\B' is position-dependent, not a regular-language \
+         construct -- unsupported".to_string())
+}
+\end{verbatim}
+\caption{The two rejecting arms of \texttt{translate}. Unlike
+backreferences and lookaround (Section~\ref{sec:frontend-parsing}), which
+have no \texttt{ExtPat} constructor and are rejected while parsing, these
+four constructs parse successfully into \texttt{ExtPat::Carat},
+\texttt{ExtPat::Dollar}, and \texttt{ExtPat::WordBoundary} and are
+rejected one stage later, during translation.}
+\label{fig:anchor-rejection-rust}
+\end{figure}
 
-The functions \texttt{starts\_with\_carat} and
-\texttt{ends\_with\_dollar}, defined in \texttt{ext\_pattern.rs}, determine
-whether padding is required. They inspect the structure of
-\texttt{Concat} and \texttt{Group} nodes to identify leading
-\texttt{\textbackslash{}\^{}} and trailing \texttt{\$} anchors, including
-anchors nested inside groups. The anchors themselves are subsequently
-translated to \texttt{Eps}, since their effect has already been accounted
-for when determining the padding.
+\paragraph{Rejection is total, not local.}
+\texttt{translate} is defined by structural recursion
+(Section~\ref{sec:frontend-translate}), and every recursive call site
+either passes its result through Rust's \texttt{?} operator or, for
+\texttt{Group}/\texttt{GroupNonMarking}, returns it directly as a tail
+call. Figure~\ref{fig:anchor-propagation-rust} shows three representative
+arms: \texttt{Group} forwards whatever its inner call returns, unchanged;
+\texttt{Or} accumulates over a list, applying \texttt{?} to each
+element's translation in turn; \texttt{Star} applies \texttt{?} inline to
+its one recursive call. \texttt{Concat}, \texttt{Plus}, and
+\texttt{Bound}'s \texttt{desugar\_bound} all propagate the same way,
+through a loop-accumulated or inline \texttt{?}. An \texttt{Err} returned
+by any recursive call is therefore returned immediately by its caller,
+without constructing a partial \texttt{Regex} around it, and that
+caller's own caller does the same, all the way back to \texttt{translate}'s
+original entry point.
 
-This behaviour applies to the search-oriented entry points
-\texttt{parse\_dataset\_pattern} and \texttt{parse\_pcre\_rule}. The
-function \texttt{parse\_pattern}, used for full-string examples throughout
-the thesis, does not introduce padding and retains ordinary full-string
-matching semantics.
+\begin{figure}[H]
+\small
+\begin{verbatim}
+ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => translate(inner),
+// ...
+ExtPat::Or(alts) => {
+    let mut iter = alts.iter();
+    let mut acc = translate(iter.next().ok_or("empty alternation")?)?;
+    for a in iter {
+        acc = Regex::alt(acc, translate(a)?);
+    }
+    Ok(acc)
+}
+// ...
+ExtPat::Star(inner) => Ok(Regex::star(translate(inner)?)),
+\end{verbatim}
+\caption{Three of \texttt{translate}'s recursive arms. Every other
+compound arm (\texttt{Concat}, \texttt{Opt}, \texttt{Plus},
+\texttt{Bound}) follows the same \texttt{?}-propagation shape.}
+\label{fig:anchor-propagation-rust}
+\end{figure}
 
-\paragraph{\texttt{parse\_pcre\_rule} additionally unwraps PCRE delimiters
-and case-folds on the \texttt{i} flag.}
+The practical consequence is that an anchor anywhere in a pattern
+rejects the pattern as a whole, regardless of how deeply it is nested or
+whether it sits behind an optional quantifier that would, if taken,
+not require it at all. Figure~\ref{fig:anchor-rejection-cli} confirms
+this against the built CLI for five increasingly indirect placements of
+\texttt{\^{}}: directly optional, optional behind a group, inside one
+branch of an alternation, under a star, and under an explicit bound.
+
+\begin{figure}[htbp]
+\small
+\centering
+\begin{verbatim}
+$ cargo run -- parse "^?abc" "abc"
+Regex parse error: anchor '^'/'$' is not supported by this frontend -- unsupported
+
+$ cargo run -- parse "(^)?abc" "abc"
+Regex parse error: anchor '^'/'$' is not supported by this frontend -- unsupported
+
+$ cargo run -- parse "(^a|b)c" "bc"
+Regex parse error: anchor '^'/'$' is not supported by this frontend -- unsupported
+
+$ cargo run -- parse "(^a)*b" "b"
+Regex parse error: anchor '^'/'$' is not supported by this frontend -- unsupported
+
+$ cargo run -- parse "(^a){0,1}b" "b"
+Regex parse error: anchor '^'/'$' is not supported by this frontend -- unsupported
+\end{verbatim}
+\caption{Every placement is rejected identically, including the three
+where the anchor is reachable only through an optional, alternative, or
+bounded branch that need not be taken at all. \texttt{translate} never
+gets the chance to discover that: structural recursion visits the anchor
+node regardless of what quantifier or alternation surrounds it, and
+Figure~\ref{fig:anchor-propagation-rust}'s \texttt{?} chain reports it
+immediately.}
+\label{fig:anchor-rejection-cli}
+\end{figure}
+
+\paragraph{\texttt{parse\_pcre\_rule} additionally unwraps PCRE delimiters,
+case-folds on \texttt{i}, and rejects two more flags outright.}
 
 Suricata and SpamAssassin rule text is not a bare pattern: it carries its
 own \texttt{/PATTERN/FLAGS} wrapper, the same convention PCRE tools use to
@@ -321,51 +438,17 @@ flag is present, applies \texttt{case\_fold} to the resulting
 literal character into an \texttt{Any} of both cases, so \texttt{a}
 becomes \texttt{Any(['a','A'])}; the fold happens at the \texttt{ExtPat}
 level rather than at match time because \texttt{Regex} itself has no
-case-insensitivity concept for a parser to consult. \texttt{parse\_dataset\_pattern}
-has no such flag to inspect and is always case-sensitive.
-\texttt{parse\_pattern} passes any input through unchanged if it is not
-\texttt{/}-delimited, so a bare pattern with no wrapper is accepted by
-either search entry point exactly as written.
-
-\paragraph{Search finds \emph{a} match, not necessarily the first one.}
-\label{sec:search-first-occurrence}
-Padding turns "found somewhere in this input" into an ordinary
-full-match question over a larger expression, and that substitution is
-not free: it inherits whichever iteration count a $\mathtt{Star}$
-prefers under the policy in force, and both policies this thesis
-implements prefer \emph{more} iterations of the leading $\Sigma^{*}$
-when the rest of the input can still be consumed, exactly as either
-would prefer more iterations of any other $\mathtt{Star}$.
-
-At every character, the leading $\Sigma^{*}$ faces the same fork any
-nullable first factor of a $\mathtt{Seq}$ produces: keep deriving into
-the $\mathtt{Star}$ itself (treat this character as filler), or also
-derive into what follows starting here (try to begin the core pattern
-at this position). Both survive as one $\mathtt{Alt}$; whichever
-survives to the end is read off by the disambiguation policy in force.
-The following uses a reduced three-letter alphabet $\{a,b,c\}$ in
-place of the real 98-character $\Sigma$, purely so the resulting parse
-tree stays short enough to display; the mechanism is identical either
-way. With $r = \Sigma^{*}\,ab\,\Sigma^{*}$ against \texttt{"cabc"},
-which contains \texttt{ab} once, at position~1:
-
-\begin{equation}\label{eq:search-single}
-v_1 = \big(\big((\mathit{Star}[\mathit{Right}(c)],\,a),\,b\big),\,\mathit{Star}[\mathit{Right}(c)]\big)
-\end{equation}
-
-the leading $\Sigma^{*}$ takes one iteration ($c$), the literal $ab$
-matches, and the trailing $\Sigma^{*}$ takes one iteration ($c$) —
-exactly where \texttt{ab} sits. Against \texttt{"abcab"}, which
-contains \texttt{ab} \emph{twice}, at position~0 and position~3:
-
-\begin{equation}\label{eq:search-multi}
-v_2 = \big(\big((\mathit{Star}[\mathit{Left}(\mathit{Left}(a)),\,\mathit{Left}(\mathit{Right}(b)),\,\mathit{Right}(c)],\,a),\,b\big),\,\mathit{Star}[\,]\big)
-\end{equation}
-
-the leading $\Sigma^{*}$ instead runs \emph{three} iterations
-($a$, $b$, $c$) before yielding to the literal $ab$, and the trailing
-$\Sigma^{*}$ is empty: at position~0, consuming $a$ as filler and
-finding $ab$ later is a complete, valid parse, so the policy takes it,
-and \eqref{eq:search-multi} reports the \emph{second} occurrence, not
-the first.
+case-insensitivity concept for a parser to consult. The \texttt{m}
+(multiline) and \texttt{x} (extended) flags are rejected outright by
+\texttt{PcreFlags::unsupported}, for the same underlying reason as
+anchors: \texttt{m} only changes where \texttt{\^{}}/\texttt{\$} match,
+which no longer exists to be changed, and \texttt{x} makes pattern
+whitespace insignificant, which this parser does not model. \texttt{R}
+(relative), \texttt{A} (anchored), and \texttt{E} (dollar-endonly) are
+treated differently again: each used to position or tune a search or an
+anchor this frontend no longer has, so each is now simply ignored, the
+same way an unrecognized buffer-selector flag such as Snort's \texttt{U}
+or \texttt{H} always was. \texttt{parse\_pattern} passes any input
+through unchanged if it is not \texttt{/}-delimited, so a bare pattern
+with no wrapper is accepted by either entry point exactly as written.
 

@@ -2,22 +2,22 @@
 //!
 //! cargo run --release --example demo_growth_eval
 //!
-//! Chapter 8 (Evaluation) memory-growth figure: all four parsers side by
-//! side on the same two canonical expressions `demo_growth_deriv.rs` and
-//! `demo_growth_pderiv.rs` already use for the chapter 5/6 figures, so
-//! this is a superset comparison, not a new scenario. Those two files
-//! and the tests pinning them are untouched; this one only adds the two
-//! missing series (PartDeriv standard) and prints all four together.
+//! Memory-growth figure: all four parsers side by side on the same two
+//! canonical expressions the deriv/pderiv growth demos already use.
+//! A superset comparison, not a new scenario.
+//! Those files and their pinning tests are untouched.
+//! This one adds the two missing series (PartDeriv standard) and prints
+//! all four together.
 //!
-//! "Size" means different things for the two families: Deriv keeps one
-//! expression, so its size is that expression's node count. PartDeriv
-//! keeps a frontier (a set of residual terms), so its size is the
-//! strand count and, for a size comparable to Deriv's, the total node
-//! count summed across the whole frontier. Neither family's bitcoded
-//! and standard sides are quite the same construction either: the
-//! bitcoded side applies `smart_seq`/dedup the standard side does not
-//! always match exactly (see `series_frontier_std`'s doc comment) --
-//! printed here rather than smoothed over.
+//! "Size" means different things per family.
+//! Deriv keeps one expression: size is its node count.
+//! PartDeriv keeps a frontier (a set of residual terms): size is the
+//! strand count, plus total node count summed across the frontier for a
+//! value comparable to Deriv's.
+//! Bitcoded and standard sides are not quite the same construction
+//! either: bitcoded applies `smart_seq`/dedup the standard side does not
+//! always match.
+//! Printed, not smoothed over.
 
 #[path = "common/thesis_figures.rs"]
 mod common;
