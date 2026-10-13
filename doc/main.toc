@@ -91,46 +91,47 @@
 \contentsline {chapter}{\numberline {7}External To Internal Regex}{58}{chapter.7}%
 \contentsline {paragraph}{This frontend accepts a strict subset of PCRE syntax.}{58}{chapter.7}%
 \contentsline {section}{\numberline {7.1}Two ASTs}{59}{section.7.1}%
-\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{59}{section.7.2}%
-\contentsline {section}{\numberline {7.3}Translating \texttt {ExtPat} into \texttt {Regex}}{60}{section.7.3}%
+\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{60}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Translating \texttt {ExtPat} into \texttt {Regex}}{61}{section.7.3}%
 \contentsline {paragraph}{Character classes are represented by alternation.}{61}{section.7.3}%
 \contentsline {paragraph}{Bounds are desugared by explicit repetition.}{61}{section.7.3}%
-\contentsline {paragraph}{Greedy and lazy quantifiers are parsed but not distinguished.}{61}{section.7.3}%
-\contentsline {section}{\numberline {7.4}Anchors and the Two Entry Points}{62}{section.7.4}%
-\contentsline {paragraph}{\texttt {\^{}}, \texttt {\$}, and \texttt {\textbackslash {}b}/\texttt {\textbackslash {}B} are rejected at the same site, for the same reason.}{62}{section.7.4}%
-\contentsline {paragraph}{Rejection is total, not local.}{62}{figure.caption.38}%
-\contentsline {paragraph}{\texttt {parse\_pcre\_rule} additionally unwraps PCRE delimiters, case-folds on \texttt {i}, and rejects two more flags outright.}{63}{figure.caption.40}%
-\contentsline {chapter}{\numberline {8}Evaluation}{65}{chapter.8}%
-\contentsline {section}{\numberline {8.1}Parser Agreement}{65}{section.8.1}%
-\contentsline {paragraph}{Paper A1 Example:.}{65}{section.8.1}%
-\contentsline {paragraph}{Paper A2 Example:.}{66}{figure.caption.41}%
-\contentsline {section}{\numberline {8.2}Dataset Preparation}{66}{section.8.2}%
-\contentsline {subsection}{\numberline {8.2.1}The Real-World Corpus}{66}{subsection.8.2.1}%
-\contentsline {paragraph}{Extraction.}{66}{subsection.8.2.1}%
-\contentsline {paragraph}{Acceptance.}{67}{subsection.8.2.1}%
-\contentsline {paragraph}{Generating Input.}{67}{subsection.8.2.1}%
-\contentsline {paragraph}{Verification.}{68}{subsection.8.2.1}%
-\contentsline {section}{\numberline {8.3}Performance Analysis}{69}{section.8.3}%
-\contentsline {subsection}{\numberline {8.3.1}Performance on Synthetic Patterns}{69}{subsection.8.3.1}%
-\contentsline {paragraph}{Comparing The Three Matchers.}{69}{subsection.8.3.1}%
-\contentsline {paragraph}{Stack depth: recursive vs.\ iterative construction.}{69}{subsection.8.3.1}%
-\contentsline {paragraph}{Heap allocation: \texttt {deriv\_std} vs.\ \texttt {deriv\_bc}.}{69}{subsection.8.3.1}%
-\contentsline {paragraph}{Derivative-based vs.\ partial-derivative-based.}{69}{subsection.8.3.1}%
-\contentsline {paragraph}{Benchmark results.}{70}{subsection.8.3.1}%
-\contentsline {subsection}{\numberline {8.3.2}Evaluation on the Mamouras Regex Dataset}{70}{subsection.8.3.2}%
-\contentsline {section}{\numberline {8.4}Discussion of Results}{70}{section.8.4}%
-\contentsline {subsection}{\numberline {8.4.1}Optimization Challenges and Insights}{70}{subsection.8.4.1}%
-\contentsline {paragraph}{Character classes in place of literal alternation.}{70}{subsection.8.4.1}%
-\contentsline {paragraph}{Frontier-wide deduplication.}{70}{subsection.8.4.1}%
-\contentsline {chapter}{\numberline {9}Related Work and Conclusion}{71}{chapter.9}%
-\contentsline {section}{\numberline {9.1}Related Work}{71}{section.9.1}%
-\contentsline {section}{\numberline {9.2}Conclusion}{71}{section.9.2}%
-\contentsline {chapter}{\numberline {A}Diagnostics}{73}{appendix.A}%
-\contentsline {section}{\numberline {A.1}\texttt {deriv\_std\_rec}, match}{73}{section.A.1}%
-\contentsline {section}{\numberline {A.2}\texttt {deriv\_bc}, match}{75}{section.A.2}%
-\contentsline {section}{\numberline {A.3}\texttt {pderiv\_std}, match}{76}{section.A.3}%
-\contentsline {section}{\numberline {A.4}\texttt {pderiv\_bc}, match}{78}{section.A.4}%
-\contentsline {section}{\numberline {A.5}\texttt {deriv\_std\_rec}, no match}{79}{section.A.5}%
-\contentsline {section}{\numberline {A.6}\texttt {deriv\_bc}, no match}{80}{section.A.6}%
-\contentsline {section}{\numberline {A.7}\texttt {pderiv\_std}, no match}{81}{section.A.7}%
-\contentsline {section}{\numberline {A.8}\texttt {pderiv\_bc}, no match}{83}{section.A.8}%
+\contentsline {paragraph}{Greedy and lazy quantifiers are parsed but not distinguished.}{63}{section.7.3}%
+\contentsline {section}{\numberline {7.4}Anchors and the Two Entry Points}{63}{section.7.4}%
+\contentsline {paragraph}{\texttt {\^{}}, \texttt {\$}, and \texttt {\textbackslash {}b}/\texttt {\textbackslash {}B} are rejected at the same site, for the same reason.}{63}{section.7.4}%
+\contentsline {paragraph}{Rejection is total, not local.}{64}{figure.caption.38}%
+\contentsline {paragraph}{\texttt {parse\_pcre\_rule} additionally unwraps PCRE delimiters, case-folds on \texttt {i}, and rejects two more flags outright.}{64}{figure.caption.40}%
+\contentsline {paragraph}{A third, narrower entry point recovers one further anchor shape, for the dataset pipeline only.}{66}{figure.caption.40}%
+\contentsline {chapter}{\numberline {8}Evaluation}{68}{chapter.8}%
+\contentsline {section}{\numberline {8.1}Parser Agreement}{68}{section.8.1}%
+\contentsline {paragraph}{Paper A1 Example:.}{68}{section.8.1}%
+\contentsline {paragraph}{Paper A2 Example:.}{69}{figure.caption.41}%
+\contentsline {section}{\numberline {8.2}Dataset Preparation}{69}{section.8.2}%
+\contentsline {subsection}{\numberline {8.2.1}The Real-World Corpus}{69}{subsection.8.2.1}%
+\contentsline {paragraph}{Extraction.}{69}{subsection.8.2.1}%
+\contentsline {paragraph}{Acceptance.}{70}{subsection.8.2.1}%
+\contentsline {paragraph}{Generating Input.}{70}{subsection.8.2.1}%
+\contentsline {paragraph}{Verification.}{71}{subsection.8.2.1}%
+\contentsline {section}{\numberline {8.3}Performance Analysis}{72}{section.8.3}%
+\contentsline {subsection}{\numberline {8.3.1}Performance on Synthetic Patterns}{72}{subsection.8.3.1}%
+\contentsline {paragraph}{Comparing The Three Matchers.}{72}{subsection.8.3.1}%
+\contentsline {paragraph}{Stack depth: recursive vs.\ iterative construction.}{72}{subsection.8.3.1}%
+\contentsline {paragraph}{Heap allocation: \texttt {deriv\_std} vs.\ \texttt {deriv\_bc}.}{72}{subsection.8.3.1}%
+\contentsline {paragraph}{Derivative-based vs.\ partial-derivative-based.}{72}{subsection.8.3.1}%
+\contentsline {paragraph}{Benchmark results.}{73}{subsection.8.3.1}%
+\contentsline {subsection}{\numberline {8.3.2}Evaluation on the Mamouras Regex Dataset}{73}{subsection.8.3.2}%
+\contentsline {section}{\numberline {8.4}Discussion of Results}{73}{section.8.4}%
+\contentsline {subsection}{\numberline {8.4.1}Optimization Challenges and Insights}{73}{subsection.8.4.1}%
+\contentsline {paragraph}{Character classes in place of literal alternation.}{73}{subsection.8.4.1}%
+\contentsline {paragraph}{Frontier-wide deduplication.}{73}{subsection.8.4.1}%
+\contentsline {chapter}{\numberline {9}Related Work and Conclusion}{74}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Related Work}{74}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Conclusion}{74}{section.9.2}%
+\contentsline {chapter}{\numberline {A}Diagnostics}{76}{appendix.A}%
+\contentsline {section}{\numberline {A.1}\texttt {deriv\_std\_rec}, match}{76}{section.A.1}%
+\contentsline {section}{\numberline {A.2}\texttt {deriv\_bc}, match}{78}{section.A.2}%
+\contentsline {section}{\numberline {A.3}\texttt {pderiv\_std}, match}{79}{section.A.3}%
+\contentsline {section}{\numberline {A.4}\texttt {pderiv\_bc}, match}{81}{section.A.4}%
+\contentsline {section}{\numberline {A.5}\texttt {deriv\_std\_rec}, no match}{82}{section.A.5}%
+\contentsline {section}{\numberline {A.6}\texttt {deriv\_bc}, no match}{83}{section.A.6}%
+\contentsline {section}{\numberline {A.7}\texttt {pderiv\_std}, no match}{84}{section.A.7}%
+\contentsline {section}{\numberline {A.8}\texttt {pderiv\_bc}, no match}{86}{section.A.8}%

@@ -12,7 +12,7 @@ reporting binary rather than a Criterion target.
 
 
 
-## Bench Match & Parse
+## Bench Simple
 
 Both targets below measure the same stack on synthetic, hand-constructed 
 inputs rather than the real corpus (`bench_dataset` / `bench_memory` cover that).
@@ -61,7 +61,8 @@ sample count (100) unless `BENCH_SAMPLE_SIZE` overrides it (see above).
 
 
 
-## Selecting a source, match-intent, sample size, or statistical sample count
+## Bench Corpus
+**Selecting a source, match-intent, sample size, or statistical sample count**
 
 `bench_dataset` and `bench_memory` support the same three environment
 variables:

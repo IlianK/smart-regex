@@ -53,6 +53,44 @@ ignoring or mistranslating them, is what lets corpus extraction
 (Section~\ref{sec:dataset-preparation}) identify unsupported patterns
 instead of miscounting them as supported.
 
+The dataset-preparation tooling (\texttt{dataset\_stats},
+\texttt{demo\_canonical\_reject}) splits every rejection into seven
+causes. The first four above account for most of them directly; the
+remaining three are specific to \texttt{parse\_pcre\_rule}'s own flag
+handling and a catch-all, and are listed here for completeness:
+
+\begin{center}
+\begin{tabular}{llp{6.3cm}}
+\hline
+Cause & Example & Reason \\
+\hline
+Backreference & \texttt{\textbackslash{}1} & Requires matching a
+  previously captured substring; no alphabet-indexed derivative
+  expresses that. \\
+Lookaround & \texttt{(?!...)} & Tests the input around the current
+  position without consuming it. \\
+Word boundary & \texttt{\textbackslash{}b} & Position-dependent, for
+  the same reason as lookaround. \\
+Anchor & \texttt{\^{}}, \texttt{\$} & Constrains \emph{where} a match
+  may sit (Section~\ref{sec:frontend-anchors}). \\
+Flag \texttt{m} & \texttt{/\^{}a\$/m} & Changes where \texttt{\^{}}/\texttt{\$}
+  match, which no longer exist to be changed. \\
+Flag \texttt{x} & \texttt{/a b/x} & Makes pattern whitespace
+  insignificant, which this parser does not model. \\
+Other & \texttt{.\{1586,\}} & Everything matching none of the above:
+  an ambiguous POSIX class such as \texttt{[:punct:]} inside a
+  character class, a bound exceeding \texttt{MAX\_BOUND}
+  (Section~\ref{sec:frontend-translate}), or an ordinary syntax error
+  such as an unmatched \texttt{(}. \\
+\hline
+\end{tabular}
+\end{center}
+
+Every example above except the last two flags is drawn from the
+real-world corpus (Section~\ref{sec:dataset-preparation}); flag
+\texttt{x} does not occur there at all, and the flag \texttt{m} example
+is simplified from the corpus pattern that triggers it.
+
 %
 %
 %
@@ -295,6 +333,46 @@ backstop beyond \texttt{MAX\_BOUND} itself, so a bound that passes the
 cap but wraps an expensive sub-expression can still produce a
 disproportionately large \texttt{Regex}.
 
+\texttt{demo\_frontend\_translation\_sizes} measures the translated node
+count of a representative sample directly, and
+\texttt{test\_thesis\_figures.rs} pins the same numbers:
+
+\begin{center}
+\begin{tabular}{lr}
+\hline
+Pattern & Nodes \\
+\hline
+\texttt{a*} & 2 \\
+\texttt{a?} & 3 \\
+\texttt{a+} & 4 \\
+\texttt{abc} & 5 \\
+\texttt{a\{2\}} & 5 \\
+\texttt{a\{2,\}} & 8 \\
+\texttt{a\{2,4\}} & 15 \\
+\texttt{\textbackslash{}d} & 19 \\
+\texttt{\textbackslash{}d\{2\}} & 41 \\
+\texttt{[a-c]+\textbackslash{}d\{2\}} & 54 \\
+\texttt{\textbackslash{}w} & 125 \\
+\texttt{[\^{}a]} & 193 \\
+\texttt{.} & 195 \\
+\texttt{\textbackslash{}w+} & 252 \\
+\hline
+\end{tabular}
+\end{center}
+
+The shorthand classes grow with alphabet coverage rather than with
+pattern length: \texttt{\textbackslash{}d} (ten digits) costs 19 nodes,
+while \texttt{\textbackslash{}w} (alphanumeric and underscore, 63
+characters under this project's 98-character alphabet) costs 125, and
+\texttt{.} and the negated class \texttt{[\^{}a]}, which must enumerate
+the alphabet's remaining 97 characters, cost 195 and 193 respectively --
+all three several times larger than \texttt{abc}, a literal three
+characters long. Case-folding adds a fixed two nodes per letter
+regardless of which letter: \texttt{/abc/} translates to 5 nodes,
+\texttt{/abc/i} to 11, since \texttt{case\_fold} rewrites each
+\texttt{Lit(c)} into \texttt{Any([c, C])}, an alternation of two
+characters in place of one.
+
 \paragraph{Greedy and lazy quantifiers are parsed but not distinguished.}
 
 The translation of \texttt{Opt}, \texttt{Plus}, \texttt{Star}, and
@@ -471,4 +549,114 @@ same way an unrecognized buffer-selector flag such as Snort's \texttt{U}
 or \texttt{H} always was. \texttt{parse\_pattern} passes any input
 through unchanged if it is not \texttt{/}-delimited, so a bare pattern
 with no wrapper is accepted by either entry point exactly as written.
+
+One flag remains: \texttt{s} (dot-all) is honoured rather than rejected
+or ignored. \texttt{parse\_pattern} has no flags to read at all, so
+\texttt{.} matches \texttt{\textbackslash{}n} under it unconditionally.
+\texttt{parse\_pcre\_rule} instead applies \texttt{strip\_dot\_newline}
+to the parsed \texttt{ExtPat} whenever \texttt{s} is \emph{absent},
+removing \texttt{\textbackslash{}n} from \texttt{.}'s expansion; when
+\texttt{s} is present, the pass is skipped and \texttt{.} expands over
+the full alphabet exactly as \texttt{parse\_pattern} already does.
+\texttt{PcreFlags} tracks exactly these four letters -- \texttt{i},
+\texttt{s}, \texttt{m}, \texttt{x} -- and nothing else; every other
+letter reaching \texttt{parse\_pcre\_rule} is an unrecognized
+buffer-selector by elimination, handled identically to \texttt{R},
+\texttt{A}, and \texttt{E}:
+
+\begin{center}
+\begin{tabular}{llp{5.6cm}}
+\hline
+Flag & Meaning & Handling \\
+\hline
+\texttt{i} & case-insensitive & Honoured: \texttt{case\_fold} rewrites
+  every \texttt{Lit(c)} to \texttt{Any([c, C])} before translation. \\
+\texttt{s} & dot-all & Honoured: absent, \texttt{strip\_dot\_newline}
+  excludes \texttt{\textbackslash{}n} from \texttt{.}; present, \texttt{.}
+  expands over the whole alphabet. \\
+\texttt{m} & multiline & Rejected: would change where \texttt{\^{}}/\texttt{\$}
+  match, which no longer exist to be changed. \\
+\texttt{x} & extended & Rejected: makes pattern whitespace insignificant,
+  which this parser does not model. \\
+\texttt{R}, \texttt{A}, \texttt{E} & relative, anchored, dollar-endonly &
+  Ignored: positioned or tuned a search or an anchor this frontend no
+  longer has. \\
+other (\texttt{U}, \texttt{H}, \texttt{P}, \texttt{C}, \ldots) & buffer
+  selectors & Ignored: name which buffer a rule is tested against, not
+  what the pattern itself matches. \\
+\hline
+\end{tabular}
+\end{center}
+
+\paragraph{A third, narrower entry point recovers one further anchor
+shape, for the dataset pipeline only.}
+\label{par:match-intent}
+
+Suricata and SpamAssassin rule text rarely omits \texttt{\^{}}/\texttt{\$}
+by accident: a pattern wrapped in \texttt{\^{}...\$} at its own top level
+is the source author's own explicit statement that the whole pattern,
+not a part of it, is what is meant to match. Once matching is full-string
+only, that wrap is provably redundant -- full-string matching already
+requires consuming the entire input, so stripping the two anchor nodes
+and translating what remains changes which inputs match not at all.
+\texttt{core\_regex\_tagged} (\texttt{src/data/prepare.rs}) performs
+exactly this recovery, and only this recovery: it recognizes the one
+shape where \texttt{\^{}} is the pattern's literal top-level-first
+element and \texttt{\$} its literal top-level-last element -- seeing
+through \texttt{Group}/\texttt{GroupNonMarking} wrappers to find them,
+but nothing else -- and strips exactly those two nodes before handing
+the rest to \texttt{translate}. A lone \texttt{\^{}} or \texttt{\$}, one
+nested inside an \texttt{Or} branch or under a \texttt{Star}/\texttt{Bound},
+or any placement other than this one, falls through unchanged and is
+rejected by \texttt{translate} exactly as above.
+
+This recovery exists only for \texttt{core\_regex\_tagged}: neither
+\texttt{translate} itself nor the two entry points \texttt{parse\_pattern}
+and \texttt{parse\_pcre\_rule} strip or special-case this shape. A
+pattern such as \texttt{\^{}abc\$} fed directly to \texttt{parse\_pcre\_rule}
+is still rejected, because \texttt{translate} still visits
+\texttt{ExtPat::Carat} and \texttt{ExtPat::Dollar} and still returns an
+error the moment it does. Only the dataset-preparation pipeline
+(Section~\ref{sec:dataset-preparation}) calls \texttt{core\_regex\_tagged}
+when converting corpus rule text into \texttt{Regex} values for
+benchmarking.
+
+\texttt{core\_regex\_tagged} returns not just a \texttt{Regex} but a
+\texttt{MatchIntent}, recording which of the two accepted shapes a
+pattern had: \texttt{ExplicitFullMatch} for the
+\texttt{\^{}...\$}-wrapped shape just described, and
+\texttt{UnanchoredAmbiguous} for a pattern with no anchor at all,
+translated as-is. The two names mark a real asymmetry rather than a
+cosmetic one. Suricata's and SpamAssassin's own tools treat an
+anchor-free pattern as a substring search within a buffer by default,
+not a full match; this project's parsers perform full-string matching
+only, so every \texttt{UnanchoredAmbiguous} pattern is benchmarked as a
+full match regardless -- this project's own interpretive choice, not the
+source tool's stated convention, which the tag name is meant to keep
+visible rather than let a reader assume the pattern's author intended a
+full match. \texttt{ExplicitFullMatch} carries no such ambiguity: the
+source author's own \texttt{\^{}...\$} already says full match, so that
+tag records only that the pattern reached \texttt{Regex} by a different
+route, not that its match semantics are in question.
+
+The following gives both tiers' share of every pattern this frontend
+accepts from the real-world corpus (Section~\ref{sec:dataset-preparation}).
+\texttt{ExplicitFullMatch} is the smaller tier for both sources, but not
+negligible: roughly one accepted pattern in eleven states its own
+full-match intent explicitly rather than leaving it to this project's
+own reading.
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\hline
+ & \multicolumn{2}{c}{\texttt{UnanchoredAmbiguous}} & \multicolumn{2}{c}{\texttt{ExplicitFullMatch}} \\
+Source & Count & \% & Count & \% \\
+\hline
+Suricata & 5573 & 91.0 & 550 & 9.0 \\
+SpamAssassin & 139 & 85.8 & 23 & 14.2 \\
+\hline
+\textbf{Total} & \textbf{5712} & \textbf{90.9} & \textbf{573} & \textbf{9.1} \\
+\hline
+\end{tabular}
+\end{center}
 
