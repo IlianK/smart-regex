@@ -8,10 +8,15 @@
 //!
 //! The parent enforces the per-entry timeout by killing this process.
 //! A killed process reclaims its memory; a thread cannot be killed.
+//! Killing is immediate and blocking, so entries no longer overlap:
+//! a timed-out entry holds its caller for the full cap before the
+//! next one starts, so a corpus with many slow entries pays close to
+//! `N_timed_out x cap` in wall clock on top of what completes normally.
 //!
 //! argv: <prog> <parser_idx 0..=4>
-//!   Index order: deriv_std_rec, deriv_std_loop, deriv_bc, pderiv_bc,
-//!   pderiv_std -- matches both callers' `PARSERS` ordering.
+//!   Index order is `regex_engine::parsers::ALL`, the one shared
+//!   constant this file and both callers index by -- no file keeps
+//!   its own copy of the order, so they cannot disagree.
 //! stdin: one line of JSON `{"pattern": "...", "input": "..."}`.
 //!   Pattern and input travel over stdin, not argv: some real
 //!   candidates contain a raw NUL byte, which `Command::arg` cannot
@@ -34,11 +39,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use regex_engine::data::prepare::core_regex;
-use regex_engine::parsers::{
-    parse_deriv_bc, parse_deriv_std_loop, parse_deriv_std_rec, parse_pderiv_bc, parse_pderiv_std,
-    ParseTree,
-};
-use regex_engine::types::Regex;
+use regex_engine::parsers::ALL;
 
 // Safe here because this process measures exactly one job then exits.
 struct CountingAllocator;
@@ -94,11 +95,6 @@ struct JobResult {
     peak_bytes: usize,
 }
 
-type ParserFn = fn(&str, &Regex) -> Option<ParseTree>;
-// Both callers' `PARSERS` must match this order position for position.
-const PARSERS: [ParserFn; 5] =
-    [parse_deriv_std_rec, parse_deriv_std_loop, parse_deriv_bc, parse_pderiv_bc, parse_pderiv_std];
-
 // Deep recursion on deriv_std_rec needs more than the default stack.
 const WORKER_STACK_BYTES: usize = 256 * 1024 * 1024;
 
@@ -112,10 +108,11 @@ fn main() {
         eprintln!("parser_idx must be 0..=4, got {:?}", args[1]);
         std::process::exit(2);
     });
-    let Some(&parser) = PARSERS.get(parser_idx) else {
+    let Some(parser_type) = ALL.get(parser_idx) else {
         eprintln!("parser_idx must be 0..=4, got {parser_idx}");
         std::process::exit(2);
     };
+    let parser = parser_type.parser();
 
     let mut stdin_bytes = Vec::new();
     if let Err(e) = std::io::stdin().read_to_end(&mut stdin_bytes) {

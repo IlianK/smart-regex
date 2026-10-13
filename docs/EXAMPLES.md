@@ -24,21 +24,16 @@ cargo run --example demo_match
 
 ```bash
 # Any one of the five parsers, with optional diagnostics
-cargo run --example demo_parse -- --parser deriv_std_rec       # default
-cargo run --example demo_parse -- --parser deriv_std_loop
-cargo run --example demo_parse -- --parser deriv_bc
-cargo run --example demo_parse -- --parser pderiv_std          # Greedy, not POSIX
-cargo run --example demo_parse -- --parser pderiv_bc
+# --diag 1|2|3 (single parser only; --parser all --diag > 0 errors)
+# --diag 3 writes reports/diag/<parser>/demo_NN.txt per test case
+cargo run --example demo_parse -- --diag 3 --parser deriv_std_rec       
+cargo run --example demo_parse -- --diag 3 --parser deriv_std_loop
+cargo run --example demo_parse -- --diag 3 --parser deriv_bc
+cargo run --example demo_parse -- --diag 3 --parser pderiv_std         
+cargo run --example demo_parse -- --diag 3 --parser pderiv_bc
 
 # All five in one table plus a summary block
 cargo run --example demo_parse -- --parser all
-
-# --diag 1|2|3 (single parser only; --parser all --diag > 0 errors)
-# --diag 3 writes reports/diag/<parser>/demo_NN.txt per test case
-cargo run --example demo_parse -- --diag 3 --parser deriv_bc
-
-# Individual path
-cargo run --example demo_parse -- --diag 3 --parser deriv_bc --diag-report reports/diag/own_name.txt
 ```
 
 

@@ -102,6 +102,19 @@ abandoned thread could inflate the *next* entry's reported total/peak.
 Each worker now measures exactly one entry and exits, so there is no
 next entry for it to contaminate.
 
+Two costs come with that safety. First, killing is immediate and
+blocking, with no overlap between entries: a timed-out entry holds up
+its caller for the *entire* cap before the next entry starts, so a
+corpus with many slow entries pays close to `N_timed_out × cap` in
+wall clock on top of everything that completes normally -- summing
+the reported per-entry figures will not predict the whole run's wall
+time. Second, each worker re-runs `core_regex` on the pattern itself
+rather than reusing a parsed `Regex` across all five parsers the way
+the old single-process version did; this cost is excluded from the
+reported per-entry timing (see `bench_corpus_time.rs`'s `wall (s)` vs.
+`mean (ms)` below) and is small next to the process-spawn cost, but it
+is real work that previously did not exist.
+
 **`BENCH_SIZE_LIMIT=N`.** Caps each synthetic family's hardcoded
 size/depth sweep to values at or below N. A family with no value at or
 below the limit contributes nothing for that run.
@@ -165,6 +178,8 @@ default sample count (100) unless `BENCH_SAMPLE_SIZE` overrides.
 
 ## `bench_corpus_time.rs`
 
+Build `bench_worker` first (see above), then:
+
 ```
 cargo bench --bench bench_corpus_time
 BENCH_PATTERN_LIMIT=5     cargo bench --bench bench_corpus_time
@@ -174,20 +189,36 @@ BENCH_SPLIT_OUTCOME=1     cargo bench --bench bench_corpus_time
 
 One pass per source, every admitted entry timed individually in its
 own `bench_worker` process, bounded by `BENCH_ENTRY_TIMEOUT_MS`.
-Reports, per parser:
+Writes its latest run to `reports/benches/bench_corpus_time.csv` (see
+below). Reports, per parser:
 
+- **measured**: entries that neither timed out nor crashed -- the
+  count the distribution columns are actually computed over. Not the
+  same as the entry count printed in the section header; the gap is
+  `timed_out + crashed`.
 - **timed_out**: entries that exceeded the cap and were killed,
   excluded from every column below rather than folded in as if they
   were real measurements.
 - **crashed**: entries whose worker exited non-zero or died by signal
   (e.g. a stack overflow) before the cap -- a different failure from a
   timeout, also excluded from the columns below.
-- **total (s)**: whole-corpus wall time.
-- **mean (ms)**: per-entry average, over the entries that did not time out.
-- **median / p99 / max (ms)**: how skewed the per-entry distribution is.
-  `n/a` if every entry for that parser timed out.
+- **wall (s)**: this process's own wall-clock time around the whole
+  per-parser loop -- *not* the sum of the distribution columns below.
+  It includes one `bench_worker` process spawn and one pipe round
+  trip per entry, which `mean`/`median`/`p99`/`max` do not (those come
+  from each worker's self-reported time around the parser call only).
+  On sources of individually cheap patterns, spawn overhead can
+  dominate `wall` while barely moving `mean` at all, so `wall ÷
+  entries` and `mean` can differ by an order of magnitude or more and
+  both still be correct -- they are not measuring the same thing.
+- **mean (ms)**: per-entry average, over `measured` entries.
+- **median / p99 / max (ms)**: how skewed the per-entry distribution is,
+  over `measured` entries. `n/a` if every entry for that parser timed
+  out or crashed. Because the entries most likely to time out are the
+  ones process isolation exists to contain, `max` is a lower bound on
+  the corpus's true worst case, not the true worst case itself.
 
-The distribution columns show whether the total is dominated by a
+The distribution columns show whether wall time is dominated by a
 handful of expensive patterns, which a single aggregate figure cannot.
 
 With `BENCH_SPLIT_OUTCOME` set, a second table splits each parser's
@@ -209,26 +240,41 @@ persisted once the terminal scrolls away.
 
 ## `bench_memory.rs`
 
+Build `bench_worker` first (see above), then:
+
 ```
 cargo bench --bench bench_memory
 ```
 
-The memory counterpart to `bench_corpus_time`: reports bytes allocated
-per parser per source. Not a Criterion target — allocation counts are
-deterministic per input, so repeated sampling would only measure
-Criterion's own overhead.
+The heap-allocation counterpart to `bench_corpus_time`: reports bytes
+allocated per parser per source. "Heap" specifically, not memory in
+general -- the counting allocator sees `GlobalAlloc` traffic only, so
+a cost dominated by stack depth rather than allocation would not show
+up here. Not a Criterion target -- allocation counts are deterministic
+per input, so repeated sampling would only measure Criterion's own
+overhead.
 
 The counting `#[global_allocator]` lives in `bench_worker`, not in
 this binary -- each entry's worker process measures its own
 allocations from a clean baseline and reports them back, so this file
-itself does no allocation counting. For each source reports total
-allocated bytes (including freed-and-reallocated churn), average bytes
-per entry (over entries that did not time out or crash), the largest
-entry's peak live-byte high-water mark, `timed_out`, and `crashed` --
-see `BENCH_ENTRY_TIMEOUT_MS` above for both.
+itself does no allocation counting. Writes its latest run to
+`reports/benches/bench_memory.csv` (replacing any file from a
+previous run). For each source reports, per parser:
 
-Also writes `reports/benches/bench_memory.csv`, replacing any file
-from a previous run.
+- **measured**: entries that neither timed out nor crashed -- the
+  count `avg_bytes`/`max peak` are actually computed over.
+- **timed_out** / **crashed**: see `BENCH_ENTRY_TIMEOUT_MS` above for
+  both. A `timed_out` entry's worker is killed before it ever writes a
+  result line, so it contributes nothing to `max peak` below -- not a
+  value capped at the timeout cap, a full exclusion. The entries most
+  likely to time out are exactly the ones process isolation exists to
+  contain, so `max peak` is a lower bound on the corpus's true worst
+  case, not the true worst case itself.
+- **total bytes**: every allocation during a call, including freed
+  -and-reallocated churn, over `measured` entries.
+- **avg/entry**: `total bytes` divided by `measured`.
+- **max peak**: the highest live-byte high-water mark seen on any
+  single `measured` entry.
 
 The three partial-derivative parsers (`deriv_bc`, `pderiv_bc`,
 `pderiv_std`) allocate noticeably fewer total bytes than the two

@@ -1,6 +1,16 @@
 //! benches/bench_memory.rs
 //!
-//! Memory consumption of the five parsers against real corpus patterns.
+//! Heap allocation of the five parsers against real corpus patterns.
+//! "Heap", specifically: the counting allocator hooks `GlobalAlloc`,
+//! which sees heap traffic only. Each worker's 256 MB call-thread
+//! stack (see `bench_worker.rs`) is invisible to it, so a pattern
+//! whose cost were dominated by recursion depth rather than
+//! allocation would under-report here. The patterns that motivated
+//! process isolation reached multiple GB; a fixed 256 MB stack cannot
+//! account for that on its own (it would overflow and crash well
+//! before contributing gigabytes), so the heap figures below are the
+//! right number for those cases specifically -- but they are heap
+//! numbers, not a general memory bound.
 //!
 //! Each entry runs in its own worker *process* (`bench_worker`, shared
 //! with `bench_corpus_time`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
@@ -29,6 +39,15 @@
 //! unlike the old thread-based version, that failure now only takes
 //! down one worker process instead of this whole run.
 //!
+//! `max_peak` is a lower bound on the corpus's true worst case, not
+//! the true worst case itself: a `timed_out` entry's worker is killed
+//! before it ever writes a result line, so it contributes nothing to
+//! `max_peak` -- not a value capped at the timeout, a full exclusion.
+//! The entries most likely to time out are exactly the ones process
+//! isolation exists to contain, so they are also the ones most likely
+//! to have had the largest true peak. `measured` is how many entries
+//! `avg_bytes`/`max_peak` are actually computed over.
+//!
 //! Writes a CSV summary to `reports/benches/bench_memory.csv`,
 //! replacing any existing file.
 //!
@@ -45,7 +64,7 @@ use std::time::{Duration, Instant};
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
 use regex_engine::data::types::{MatchIntent, SourceKind};
-use regex_engine::parsers::ParserType;
+use regex_engine::parsers::ALL;
 
 const DATA_ROOT: &str = "data/processed";
 /// Default when `BENCH_PATTERN_LIMIT` is unset: no cap. See the same
@@ -189,16 +208,6 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
 // Isolated call
 // -------------------------------
 
-/// Index order fixed by `bench_worker.rs`'s own `PARSERS` array; this
-/// list's position is what `run_entry_isolated` sends as `parser_idx`.
-const PARSERS: &[ParserType] = &[
-    ParserType::DerivStdRec,
-    ParserType::DerivStdLoop,
-    ParserType::DerivBc,
-    ParserType::PDerivBc,
-    ParserType::PDerivStd,
-];
-
 /// Path of the shared worker binary. See the identical function in
 /// `bench_corpus_time.rs` for why this exact relative path is correct.
 fn worker_path() -> PathBuf {
@@ -291,7 +300,9 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
             }
             Ok(None) => {
                 if Instant::now() >= deadline {
-                    let _ = child.kill();
+                    if let Err(e) = child.kill() {
+                        eprintln!("warning: failed to kill timed-out worker: {e}");
+                    }
                     let _ = child.wait(); // reap; do not leave a zombie
                     return Outcome::TimedOut;
                 }
@@ -310,6 +321,7 @@ struct SummaryRow {
     source: &'static str,
     parser: &'static str,
     entries: usize,
+    measured: usize,
     timed_out: usize,
     crashed: usize,
     total_bytes: usize,
@@ -324,13 +336,13 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
     }
     println!("\n{label} ({} entries)", corpus.len());
     println!(
-        "{:<16} {:>9} {:>7} {:>14} {:>14} {:>14}",
-        "parser", "timed_out", "crashed", "total bytes", "avg/entry", "max peak"
+        "{:<16} {:>9} {:>9} {:>7} {:>14} {:>14} {:>14}",
+        "parser", "measured", "timed_out", "crashed", "total bytes", "avg/entry", "max peak"
     );
-    println!("{:-<16} {:->9} {:->7} {:->14} {:->14} {:->14}", "", "", "", "", "", "");
+    println!("{:-<16} {:->9} {:->9} {:->7} {:->14} {:->14} {:->14}", "", "", "", "", "", "", "");
 
     let mut rows = Vec::new();
-    for (parser_idx, parser_type) in PARSERS.iter().enumerate() {
+    for (parser_idx, parser_type) in ALL.iter().enumerate() {
         let mut total_sum = 0usize;
         let mut peak_max = 0usize;
         let mut measured = 0usize;
@@ -357,8 +369,9 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
         }
         let avg = if measured > 0 { Some(total_sum / measured) } else { None };
         println!(
-            "{:<16} {:>9} {:>7} {:>14} {:>14} {:>14}",
+            "{:<16} {:>9} {:>9} {:>7} {:>14} {:>14} {:>14}",
             parser_type.name(),
+            measured,
             timed_out,
             crashed,
             total_sum,
@@ -369,6 +382,7 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
             source: label,
             parser: parser_type.name(),
             entries: corpus.len(),
+            measured,
             timed_out,
             crashed,
             total_bytes: total_sum,
@@ -385,14 +399,15 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "source,parser,entries,timed_out,crashed,total_bytes,avg_bytes,max_peak_bytes")?;
+    writeln!(f, "source,parser,entries,measured,timed_out,crashed,total_bytes,avg_bytes,max_peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{}",
             r.source,
             r.parser,
             r.entries,
+            r.measured,
             r.timed_out,
             r.crashed,
             r.total_bytes,

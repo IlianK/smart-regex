@@ -40,6 +40,24 @@
 //! unlike the old thread-based version, that failure now only takes
 //! down one worker process instead of this whole run.
 //!
+//! `wall (s)` and the distribution columns measure different things,
+//! and do not satisfy `wall ~= entries x mean`: `wall` is this file's
+//! own wall clock around the whole per-source loop, so it includes
+//! one process spawn and one pipe round trip per entry; the
+//! distribution columns come from each worker's self-reported
+//! `micros`, which covers only the parser call itself (see
+//! `bench_worker.rs`'s module doc for exactly what that excludes).
+//! On sources whose patterns are individually cheap, spawn overhead
+//! can dominate `wall` while barely showing up in `mean` at all.
+//!
+//! `median`/`p99`/`max` are computed over entries that completed --
+//! `timed_out` and `crashed` entries contribute nothing to them, not
+//! a value capped at the timeout. The entries most likely to be
+//! excluded are the ones process isolation exists to contain, so
+//! `max` is a lower bound on the corpus's true worst case, not the
+//! true worst case itself. The `measured` column is how many entries
+//! those statistics are actually computed over.
+//!
 //! Writes a CSV summary to `reports/benches/bench_corpus_time.csv`
 //! (and `..._by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`), replacing
 //! any existing file -- the same "latest run, not a log" convention
@@ -58,7 +76,7 @@ use std::time::{Duration, Instant};
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
 use regex_engine::data::types::{MatchIntent, SourceKind};
-use regex_engine::parsers::ParserType;
+use regex_engine::parsers::ALL;
 
 const DATA_ROOT: &str = "data/processed";
 /// Default when `BENCH_PATTERN_LIMIT` is unset: no cap.
@@ -209,16 +227,6 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
 // Isolated call
 // -------------------------------
 
-/// Index order fixed by `bench_worker.rs`'s own `PARSERS` array; this
-/// list's position is what `run_entry_isolated` sends as `parser_idx`.
-const PARSERS: &[ParserType] = &[
-    ParserType::DerivStdRec,
-    ParserType::DerivStdLoop,
-    ParserType::DerivBc,
-    ParserType::PDerivBc,
-    ParserType::PDerivStd,
-];
-
 /// Path of the shared worker binary. Bench binaries land in
 /// `target/<profile>/deps/<name>-<hash>`; examples land in
 /// `target/<profile>/examples/<name>`, a sibling of `deps/`. So the
@@ -321,7 +329,16 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
             }
             Ok(None) => {
                 if Instant::now() >= deadline {
-                    let _ = child.kill();
+                    // A failure here is rare (the process already
+                    // exited is the only common case, and wait()
+                    // below reaps it immediately either way) but not
+                    // impossible; if it ever happens for a real
+                    // reason, the following wait() could block
+                    // indefinitely on a process nothing told to die,
+                    // so it is worth a log line rather than silence.
+                    if let Err(e) = child.kill() {
+                        eprintln!("warning: failed to kill timed-out worker: {e}");
+                    }
                     let _ = child.wait(); // reap; do not leave a zombie
                     return Outcome::TimedOut;
                 }
@@ -340,9 +357,10 @@ struct SummaryRow {
     source: &'static str,
     parser: &'static str,
     entries: usize,
+    measured: usize,
     timed_out: usize,
     crashed: usize,
-    total_s: f64,
+    wall_s: f64,
     mean_ms: Option<f64>,
     median_ms: Option<f64>,
     p99_ms: Option<f64>,
@@ -386,15 +404,15 @@ fn report(
 
     println!("\n{label} ({} entries)", corpus.len());
     println!(
-        "{:<16} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12}",
-        "parser", "timed_out", "crashed", "total (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)"
+        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12}",
+        "parser", "measured", "timed_out", "crashed", "wall (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)"
     );
     println!(
-        "{:-<16} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12}",
-        "", "", "", "", "", "", "", ""
+        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12}",
+        "", "", "", "", "", "", "", "", ""
     );
 
-    for (parser_idx, parser_type) in PARSERS.iter().enumerate() {
+    for (parser_idx, parser_type) in ALL.iter().enumerate() {
         let mut all: Vec<Duration> = Vec::with_capacity(corpus.len());
         let mut matches: Vec<Duration> = Vec::new();
         let mut non_matches: Vec<Duration> = Vec::new();
@@ -440,8 +458,9 @@ fn report(
         };
 
         println!(
-            "{:<16} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12}",
+            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12}",
             parser_type.name(),
+            all.len(),
             timed_out,
             crashed,
             total.as_secs_f64(),
@@ -455,9 +474,10 @@ fn report(
             source: label,
             parser: parser_type.name(),
             entries: corpus.len(),
+            measured: all.len(),
             timed_out,
             crashed,
-            total_s: total.as_secs_f64(),
+            wall_s: total.as_secs_f64(),
             mean_ms: mean,
             median_ms: median,
             p99_ms: p99,
@@ -506,17 +526,18 @@ fn report(
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "source,parser,entries,timed_out,crashed,total_s,mean_ms,median_ms,p99_ms,max_ms")?;
+    writeln!(f, "source,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{:.6},{},{},{},{}",
+            "{},{},{},{},{},{},{:.6},{},{},{},{}",
             r.source,
             r.parser,
             r.entries,
+            r.measured,
             r.timed_out,
             r.crashed,
-            r.total_s,
+            r.wall_s,
             r.mean_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.median_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.p99_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),

@@ -11,6 +11,18 @@ pub enum ParserType {
     PDerivBc,
 }
 
+/// Canonical, index-addressable parser order. The one place
+/// `bench_worker` and its two callers get the order from, instead of
+/// each declaring its own copy and trusting a comment to keep them
+/// in agreement.
+pub const ALL: [ParserType; 5] = [
+    ParserType::DerivStdRec,
+    ParserType::DerivStdLoop,
+    ParserType::DerivBc,
+    ParserType::PDerivBc,
+    ParserType::PDerivStd,
+];
+
 impl ParserType {
     pub fn name(&self) -> &'static str {
         match self {

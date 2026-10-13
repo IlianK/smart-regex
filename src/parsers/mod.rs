@@ -16,4 +16,4 @@ pub use pderiv_bc::{parse_pderiv_bc, parse_pderiv_bc_traced};
 
 // Re-export types
 pub use crate::types::{ParseTree, flatten};
-pub use selection::ParserType;
+pub use selection::{ParserType, ALL};
