@@ -37,11 +37,22 @@ fn size_limit() -> usize {
         .unwrap_or(usize::MAX)
 }
 
+/// Overrides a group's Criterion sample count. Unset keeps the caller's
+/// own default.
+fn sample_size_override(default: usize) -> usize {
+    let Some(s) = std::env::var("BENCH_SAMPLE_SIZE").ok() else {
+        return default;
+    };
+    let n: usize = s.parse().unwrap_or_else(|_| panic!("BENCH_SAMPLE_SIZE must be a positive integer, got {s:?}"));
+    assert!(n >= 10, "BENCH_SAMPLE_SIZE must be >= 10 (Criterion's own minimum), got {n}");
+    n
+}
+
 
 // 1. Small patterns
 fn bench_small_patterns(c: &mut Criterion) {
     let mut group = c.benchmark_group("small_patterns");
-    group.sample_size(100);
+    group.sample_size(sample_size_override(100));
 
     let test_cases: Vec<(&str, Regex, &str)> = vec![
         ("literal_a", Regex::lit('a'), "a"),
@@ -90,6 +101,7 @@ fn bench_small_patterns(c: &mut Criterion) {
 fn bench_scaling_a_star(c: &mut Criterion) {
     let limit = size_limit();
     let mut group = c.benchmark_group("scaling_a_star");
+    group.sample_size(sample_size_override(100));
     let r = star_a();
 
     for n in [10, 50, 100, 200, 400, 600, 800, 1000].into_iter().filter(|&n| n <= limit) {
@@ -134,6 +146,7 @@ fn bench_scaling_a_star(c: &mut Criterion) {
 fn bench_deep_expression(c: &mut Criterion) {
     let limit = size_limit();
     let mut group = c.benchmark_group("deep_expression");
+    group.sample_size(sample_size_override(100));
 
     for depth in [50, 100, 200, 400, 600, 800, 1000].into_iter().filter(|&n| n <= limit) {
         let r = deep_sequence(depth);
@@ -178,6 +191,7 @@ fn bench_deep_expression(c: &mut Criterion) {
 fn bench_ambiguous_star(c: &mut Criterion) {
     let limit = size_limit();
     let mut group = c.benchmark_group("ambiguous_star_a_or_aa");
+    group.sample_size(sample_size_override(100));
 
     let r = Regex::star(Regex::alt(
         Regex::lit('a'),

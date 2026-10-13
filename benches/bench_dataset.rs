@@ -16,6 +16,21 @@ use regex_engine::types::Regex;
 
 const DATA_ROOT: &str = "data/processed";
 const PATTERN_LIMIT_PER_SOURCE: usize = 30;
+
+/// Overrides a group's hardcoded Criterion sample count. Unset keeps the
+/// caller's own default -- lower than Criterion's own default of 100,
+/// since one sample here is a full corpus pass, not a single cheap call.
+/// Deliberately opt-in: a reader who wants more statistical power at the
+/// cost of runtime asks for it explicitly, rather than a casual run
+/// silently losing precision.
+fn sample_size_override(default: usize) -> usize {
+    let Some(s) = std::env::var("BENCH_SAMPLE_SIZE").ok() else {
+        return default;
+    };
+    let n: usize = s.parse().unwrap_or_else(|_| panic!("BENCH_SAMPLE_SIZE must be a positive integer, got {s:?}"));
+    assert!(n >= 10, "BENCH_SAMPLE_SIZE must be >= 10 (Criterion's own minimum), got {n}");
+    n
+}
 struct Entry {
     regex: Regex,
     input: String,
@@ -152,7 +167,7 @@ fn bench_by_source(c: &mut Criterion) {
             continue;
         }
         let mut group = c.benchmark_group(label);
-        group.sample_size(20);
+        group.sample_size(sample_size_override(20));
         for (parser_type, parser) in PARSERS {
             group.bench_function(parser_type.name(), |b| {
                 b.iter(|| {
@@ -173,7 +188,7 @@ fn bench_per_pattern(c: &mut Criterion) {
     let combined: Vec<Entry> = suricata.into_iter().chain(spamassassin).chain(regexlib).collect();
 
     let mut group = c.benchmark_group("dataset_per_pattern");
-    group.sample_size(10);
+    group.sample_size(sample_size_override(10));
 
     for (i, entry) in combined.iter().enumerate() {
         let label = format!("{}_{}", i, truncate(&entry.input, 24));

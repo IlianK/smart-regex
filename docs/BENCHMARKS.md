@@ -10,10 +10,62 @@ The first three use Criterion.rs; append `-- --test` to run each benchmark
 function once as a quick correctness check. `bench_memory` is a plain
 reporting binary rather than a Criterion target.
 
-## Selecting a source or sample size
 
-`bench_dataset` and `bench_memory` support the same
-environment variables:
+
+## Bench Match & Parse
+
+Both targets below measure the parser stack on synthetic, hand-constructed
+inputs rather than the real corpus (`bench_dataset` / `bench_memory` cover
+that).
+
+
+### `bench_match.rs`
+
+    cargo bench --bench bench_match
+    BENCH_SIZE_LIMIT=100 cargo bench --bench bench_match
+    BENCH_SAMPLE_SIZE=50 cargo bench --bench bench_match
+
+Benchmarks `match_naive`, `match_deriv`, and `match_pderiv` on four synthetic
+families: `pathological` (`(a*)*`), `benign` (`(a|b)*`), `nesting_depth`
+(`a*` nested 1–4 times), and `sequence_a_repeated` (a flat `a·a·...·a`
+chain). This measures boolean membership only; no parse tree is involved.
+All four groups run at Criterion's own default sample count (100) unless
+`BENCH_SAMPLE_SIZE` overrides it (see above).
+
+`BENCH_SIZE_LIMIT` (positive integer, unset = unlimited) caps every
+family's hardcoded size/depth sweep to values at or below it, so a run can
+be narrowed without recompiling. A family with no value at or below the
+limit contributes nothing for that run, rather than erroring.
+
+
+### `bench_parse.rs`
+
+    cargo bench --bench bench_parse
+    BENCH_SIZE_LIMIT=200 cargo bench --bench bench_parse
+    BENCH_SAMPLE_SIZE=50 cargo bench --bench bench_parse
+
+Benchmarks all five parsers (`deriv_std_rec`, `deriv_std_loop`, `deriv_bc`,
+`pderiv_std`, `pderiv_bc`) on four families:
+
+- `small_patterns`: fixed per-call overhead -- four fixed cases, not
+  affected by `BENCH_SIZE_LIMIT`.
+- `scaling_a_star`: cost as a function of input length.
+- `deep_expression`: cost as a function of expression size.
+- `ambiguous_star_a_or_aa`: genuine ambiguity from `(a+aa)*`.
+
+`BENCH_SIZE_LIMIT` works the same way as in `bench_match.rs`, for the
+three sweepable families. All four groups run at Criterion's own default
+sample count (100) unless `BENCH_SAMPLE_SIZE` overrides it (see above).
+
+
+---
+
+
+
+## Selecting a source, sample size, or statistical sample count
+
+`bench_dataset` and `bench_memory` support the same two environment
+variables:
 
 | Variable | Values | Default |
 |---|---|---|
@@ -32,42 +84,23 @@ opt-in only; pass it explicitly.
 If filtering loads nothing, the benchmark panics with a per-source diagnosis
 and the active filters rather than silently running an empty benchmark.
 
-## `bench_match.rs`
+All three Criterion targets (`bench_match`, `bench_parse`, `bench_dataset`
+-- not `bench_memory`, which isn't one) also read `BENCH_SAMPLE_SIZE`
+(positive integer, `>= 10`, Criterion's own floor -- anything lower fails
+with a clear message instead of Criterion's own cryptic internal assert).
+Unset keeps each group's own hardcoded default; set, it replaces every
+group's sample count in that bench binary. This is deliberately opt-in
+rather than a new lower hardcoded default: raising it trades runtime for
+statistical power, and lowering it below what's hardcoded trades away
+precision, so a reader has to ask for either explicitly rather than get
+it by accident.
 
-    cargo bench --bench bench_match
-    BENCH_SIZE_LIMIT=100 cargo bench --bench bench_match
-
-Benchmarks `match_naive`, `match_deriv`, and `match_pderiv` on four synthetic
-families: `pathological` (`(a*)*`), `benign` (`(a|b)*`), `nesting_depth`
-(`a*` nested 1–4 times), and `sequence_a_repeated` (a flat `a·a·...·a`
-chain). This measures boolean membership only; no parse tree is involved.
-
-`BENCH_SIZE_LIMIT` (positive integer, unset = unlimited) caps every
-family's hardcoded size/depth sweep to values at or below it, so a run can
-be narrowed without recompiling. A family with no value at or below the
-limit contributes nothing for that run, rather than erroring.
-
-## `bench_parse.rs`
-
-    cargo bench --bench bench_parse
-    BENCH_SIZE_LIMIT=200 cargo bench --bench bench_parse
-
-Benchmarks all five parsers (`deriv_std_rec`, `deriv_std_loop`, `deriv_bc`,
-`pderiv_std`, `pderiv_bc`) on four families:
-
-- `small_patterns`: fixed per-call overhead -- four fixed cases, not
-  affected by `BENCH_SIZE_LIMIT`.
-- `scaling_a_star`: cost as a function of input length.
-- `deep_expression`: cost as a function of expression size.
-- `ambiguous_star_a_or_aa`: genuine ambiguity from `(a+aa)*`.
-
-`BENCH_SIZE_LIMIT` works the same way as in `bench_match.rs`, for the
-three sweepable families.
 
 ## `bench_dataset.rs`
 
     cargo run --release --example dataset_prepare -- <source> <file>...
     cargo bench --bench bench_dataset
+    BENCH_SAMPLE_SIZE=30 cargo bench --bench bench_dataset
 
 Two Criterion groups:
 
@@ -84,6 +117,14 @@ Two Criterion groups:
 
 An empty result produces a per-source diagnostic instead of silently measuring
 an empty corpus.
+
+Both groups lower Criterion's sample count from its own default of 100:
+`dataset_<source>` to 20, `dataset_per_pattern` to 10. Each sample in
+either group is one full pass over a real-corpus workload rather than a
+single cheap call, so 100 samples at `deriv_std_rec`'s speed would put a
+single (parser, source) combination at several minutes. `BENCH_SAMPLE_SIZE`
+(see above) overrides both of these hardcoded defaults if set.
+
 
 ## `bench_memory.rs`
 
@@ -104,3 +145,25 @@ The three partial-derivative parsers (`deriv_bc`, `pderiv_bc`,
 derivative parsers (`deriv_std_rec`, `deriv_std_loop`). The reason is
 structural: `deriv_std` retains its derivation sequence, whereas
 `deriv_bc` reassigns one `ARegex` in place.
+
+
+```bash
+
+# Only spamassassin / only snort / both
+BENCH_SOURCE=spamassassin cargo bench --bench bench_dataset
+BENCH_SOURCE=snort        cargo bench --bench bench_dataset
+BENCH_SOURCE=snort,spamassassin cargo bench --bench bench_dataset 
+
+# BENCH_PATTERN_LIMIT at sizes worth comparing
+BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_dataset   # smoke-sized, fast
+BENCH_PATTERN_LIMIT=15  cargo bench --bench bench_dataset
+BENCH_PATTERN_LIMIT=30  cargo bench --bench bench_dataset   
+BENCH_PATTERN_LIMIT=50  cargo bench --bench bench_dataset   
+BENCH_PATTERN_LIMIT=150 cargo bench --bench bench_dataset  
+
+# bench_memory configs
+cargo bench --bench bench_memory                                        
+BENCH_SOURCE=spamassassin BENCH_PATTERN_LIMIT=5  cargo bench --bench bench_memory
+BENCH_SOURCE=snort        BENCH_PATTERN_LIMIT=5  cargo bench --bench bench_memory
+BENCH_SOURCE=snort,spamassassin BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_memory
+```

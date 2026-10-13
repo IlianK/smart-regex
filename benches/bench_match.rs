@@ -48,10 +48,22 @@ fn size_limit() -> usize {
         .unwrap_or(usize::MAX)
 }
 
+/// Overrides a group's Criterion sample count. Unset keeps Criterion's
+/// own default (100).
+fn sample_size_override() -> usize {
+    let Some(s) = std::env::var("BENCH_SAMPLE_SIZE").ok() else {
+        return 100;
+    };
+    let n: usize = s.parse().unwrap_or_else(|_| panic!("BENCH_SAMPLE_SIZE must be a positive integer, got {s:?}"));
+    assert!(n >= 10, "BENCH_SAMPLE_SIZE must be >= 10 (Criterion's own minimum), got {n}");
+    n
+}
+
 // 1. Pathological patterns: (a*)* on "aaa...a"
 fn bench_pathological(c: &mut Criterion) {
     let limit = size_limit();
     let mut group = c.benchmark_group("pathological_(a*)star");
+    group.sample_size(sample_size_override());
 
     // Naive matcher (small inputs only)
     for n in [5, 8, 10, 12, 15].into_iter().filter(|&n| n <= limit) {
@@ -97,6 +109,7 @@ fn bench_pathological(c: &mut Criterion) {
 fn bench_benign(c: &mut Criterion) {
     let limit = size_limit();
     let mut group = c.benchmark_group("benign_(a|b)star");
+    group.sample_size(sample_size_override());
 
     for n in [5, 10, 20, 50, 100].into_iter().filter(|&n| n <= limit) {
         group.bench_with_input(
@@ -138,6 +151,7 @@ fn bench_benign(c: &mut Criterion) {
 fn bench_nesting(c: &mut Criterion) {
     let limit = size_limit();
     let mut group = c.benchmark_group("nesting_depth");
+    group.sample_size(sample_size_override());
 
     for n in (1..=4).filter(|&n| n <= limit) {
         group.bench_with_input(
@@ -179,6 +193,7 @@ fn bench_nesting(c: &mut Criterion) {
 fn bench_sequence(c: &mut Criterion) {
     let limit = size_limit();
     let mut group = c.benchmark_group("sequence_a_repeated");
+    group.sample_size(sample_size_override());
 
     for n in [3, 5, 8, 10].into_iter().filter(|&n| n <= limit) {
         group.bench_with_input(
