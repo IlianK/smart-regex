@@ -23,12 +23,20 @@
 //!
 //! Build the worker first:
 //!   cargo build --release --example demo_parser_agreement_worker
+//!
+//! Also saves its output to reports/demos/parser_agreement.txt,
+//! replacing any previous run. This is the one demo in that family
+//! whose exit code matters (1 on a real bug) and whose "last known
+//! clean" state is worth a persisted record rather than only ever
+//! existing in scrollback.
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
+
+use std::fmt::Write as _;
 
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
@@ -116,6 +124,24 @@ fn worker_path() -> PathBuf {
         );
     }
     path
+}
+
+/// Prints `body` and also saves it to `reports/demos/parser_agreement.txt`,
+/// replacing any previous run -- the same "latest run, not a log"
+/// convention the corpus benches use for their CSVs.
+fn save_report(body: &str) {
+    print!("{body}");
+    let dir = "reports/demos";
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        eprintln!("could not create {dir}: {e}");
+        return;
+    }
+    let path = format!("{dir}/parser_agreement.txt");
+    if let Err(e) = std::fs::write(&path, body) {
+        eprintln!("could not write {path}: {e}");
+    } else {
+        eprintln!("wrote {path}");
+    }
 }
 
 /// One parser's outcome for one entry.
@@ -301,6 +327,7 @@ fn main() {
         );
     }
 
+    let mut buf = String::new();
     let mut tallies: [Tally; 5] = Default::default();
     let mut printed_membership = 0usize;
     let mut printed_posix = 0usize;
@@ -327,11 +354,12 @@ fn main() {
         if let Some(names) = timed_out_names(&outcomes) {
             tally.timeouts += 1;
             if printed_timeout < MAX_PRINTED_PER_BUG_KIND {
-                println!(
+                writeln!(
+                    buf,
                     "TIMEOUT >{}ms  {:?}  pat={:?}  in={:?}  [{}]",
                     sel.timeout.as_millis(), case.source, truncate(&case.pattern, 60),
                     truncate(&case.input, 40), names.join(",")
-                );
+                ).unwrap();
                 printed_timeout += 1;
             }
             continue;
@@ -342,11 +370,12 @@ fn main() {
             tally.crashes += 1;
             if printed_crash < MAX_PRINTED_PER_BUG_KIND {
                 let detail: Vec<String> = crashed.iter().map(|(n, r)| format!("{n}: {r}")).collect();
-                println!(
+                writeln!(
+                    buf,
                     "CRASH  {:?}  pat={:?}  in={:?}  {}",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     detail.join(" | ")
-                );
+                ).unwrap();
                 printed_crash += 1;
             }
             continue;
@@ -364,12 +393,13 @@ fn main() {
         if !membership_ok {
             tally.membership_bugs += 1;
             if printed_membership < MAX_PRINTED_PER_BUG_KIND {
-                println!(
+                writeln!(
+                    buf,
                     "MEMBERSHIP BUG  {:?}  pat={:?}  in={:?}  expected={}  got=[rec={} loop={} bc={} pstd={} pbc={}]",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     case.verified_match, all_matched[0], all_matched[1], all_matched[2],
                     all_matched[3], all_matched[4]
-                );
+                ).unwrap();
                 printed_membership += 1;
             }
             continue;
@@ -384,11 +414,12 @@ fn main() {
         if !posix_shape_ok {
             tally.posix_shape_bugs += 1;
             if printed_posix < MAX_PRINTED_PER_BUG_KIND {
-                println!(
+                writeln!(
+                    buf,
                     "POSIX SHAPE BUG  {:?}  pat={:?}  in={:?}  rec={:?} loop={:?} bc={:?}",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     rec, loop_, bc
-                );
+                ).unwrap();
                 printed_posix += 1;
             }
         }
@@ -397,11 +428,12 @@ fn main() {
         if !greedy_shape_ok {
             tally.greedy_shape_bugs += 1;
             if printed_greedy < MAX_PRINTED_PER_BUG_KIND {
-                println!(
+                writeln!(
+                    buf,
                     "GREEDY SHAPE BUG  {:?}  pat={:?}  in={:?}  pstd={:?} pbc={:?}",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     pstd, pbc
-                );
+                ).unwrap();
                 printed_greedy += 1;
             }
         }
@@ -418,13 +450,14 @@ fn main() {
         }
     }
 
-    println!();
-    println!(
+    writeln!(buf).unwrap();
+    writeln!(
+        buf,
         "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>7}",
         "Source", "Entries", "Timeouts", "Crashes", "Mem.bugs", "POSIX-bugs", "Greedy-bugs",
         "Compared", "Same", "Diff%"
-    );
-    println!("{}", "-".repeat(105));
+    ).unwrap();
+    writeln!(buf, "{}", "-".repeat(105)).unwrap();
 
     let mut total = Tally::default();
     for &source in &SOURCES {
@@ -437,12 +470,13 @@ fn main() {
         } else {
             0.0
         };
-        println!(
+        writeln!(
+            buf,
             "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>6.1}",
             format!("{:?}", source), t.entries, t.timeouts, t.crashes,
             t.membership_bugs, t.posix_shape_bugs, t.greedy_shape_bugs, t.cross_compared,
             t.cross_same_shape, diff_pct
-        );
+        ).unwrap();
         total.entries += t.entries;
         total.timeouts += t.timeouts;
         total.crashes += t.crashes;
@@ -453,40 +487,48 @@ fn main() {
         total.cross_same_shape += t.cross_same_shape;
         total.cross_different_shape += t.cross_different_shape;
     }
-    println!("{}", "-".repeat(105));
+    writeln!(buf, "{}", "-".repeat(105)).unwrap();
     let total_diff_pct = if total.cross_compared > 0 {
         100.0 * total.cross_different_shape as f64 / total.cross_compared as f64
     } else {
         0.0
     };
-    println!(
+    writeln!(
+        buf,
         "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>6.1}",
         "Total", total.entries, total.timeouts, total.crashes, total.membership_bugs,
         total.posix_shape_bugs, total.greedy_shape_bugs, total.cross_compared,
         total.cross_same_shape, total_diff_pct
-    );
-    println!();
-    println!("Compared = matching entries where both families were internally consistent.");
-    println!("Same / Diff = their POSIX-vs-Greedy shape agreement.");
-    println!("Diff is not a bug: the two policies may pick different trees for an ambiguous match.");
-    println!("Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or");
-    println!("  ambiguous pattern can be infeasible in the configured budget.");
-    println!("Crashes are counted, not dismissed (usually a stack overflow on a deep expression),");
-    println!("  but are not membership/shape disagreements -- nothing was produced to compare.");
+    ).unwrap();
+    writeln!(buf).unwrap();
+    writeln!(buf, "Compared = matching entries where both families were internally consistent.").unwrap();
+    writeln!(buf, "Same / Diff = their POSIX-vs-Greedy shape agreement.").unwrap();
+    writeln!(buf, "Diff is not a bug: the two policies may pick different trees for an ambiguous match.").unwrap();
+    writeln!(buf, "Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or").unwrap();
+    writeln!(buf, "  ambiguous pattern can be infeasible in the configured budget.").unwrap();
+    writeln!(buf, "Crashes are counted, not dismissed (usually a stack overflow on a deep expression),").unwrap();
+    writeln!(buf, "  but are not membership/shape disagreements -- nothing was produced to compare.").unwrap();
 
     let bugs = total.membership_bugs + total.posix_shape_bugs + total.greedy_shape_bugs;
     if bugs > 0 {
-        println!();
-        println!(
+        writeln!(buf).unwrap();
+        writeln!(
+            buf,
             "{} BUG(S) across {} entries (printed details capped at {} per kind).",
             bugs, total.entries, MAX_PRINTED_PER_BUG_KIND
-        );
-        std::process::exit(1);
+        ).unwrap();
     } else {
-        println!();
-        println!(
+        writeln!(buf).unwrap();
+        writeln!(
+            buf,
             "No bugs across {} entries ({} timed out, {} crashed).",
             total.entries, total.timeouts, total.crashes
-        );
+        ).unwrap();
+    }
+
+    save_report(&buf);
+
+    if bugs > 0 {
+        std::process::exit(1);
     }
 }

@@ -260,3 +260,24 @@ pub fn coords(pairs: &[(usize, usize)]) -> String {
 pub fn enumerate_series(v: &[usize]) -> Vec<(usize, usize)> {
     v.iter().enumerate().map(|(i, &y)| (i, y)).collect()
 }
+
+/// Prints `body` and also saves it to `reports/demos/<name>.txt`,
+/// replacing any previous run -- the same "latest run, not a log"
+/// convention the corpus benches use for their CSVs. These demos are
+/// deterministic given the algorithms they measure (no randomness, no
+/// timing, no environment dependence), so a saved copy only goes
+/// stale when those algorithms themselves change.
+pub fn report(name: &str, body: &str) {
+    print!("{body}");
+    let dir = "reports/demos";
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        eprintln!("could not create {dir}: {e}");
+        return;
+    }
+    let path = format!("{dir}/{name}.txt");
+    if let Err(e) = std::fs::write(&path, body) {
+        eprintln!("could not write {path}: {e}");
+    } else {
+        eprintln!("wrote {path}");
+    }
+}

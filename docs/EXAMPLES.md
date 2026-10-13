@@ -80,6 +80,11 @@ cargo run --release --example demo_frontend_categories -- \
 
 ## Thesis figure demos
 
+Each of these also saves its output to `reports/demos/<name>.txt`
+(e.g. `reports/demos/growth_deriv.txt`), replacing any previous run.
+All five are deterministic given the algorithms they measure, so a
+saved copy only goes stale when those algorithms themselves change.
+
 ```bash
 # Branch counts, and why simp's r + r = r never fires on (a+(b+ab))*
 cargo run --release --example demo_simp_branches
@@ -104,3 +109,8 @@ cargo run --release --example demo_frontend_translation_sizes
 cargo build --release --example demo_parser_agreement_worker
 cargo run   --release --example demo_parser_agreement
 ```
+
+Also saves its output to `reports/demos/parser_agreement.txt`,
+replacing any previous run -- the one demo in this file whose exit
+code matters (1 on a real bug) and whose "last known clean" state is
+worth a persisted record rather than only ever existing in scrollback.

@@ -62,73 +62,46 @@ CLI arguments.
 | `BENCH_SIZE_LIMIT` | synthetic | positive integer | unset (no cap) |
 | `BENCH_SAMPLE_SIZE` | Criterion targets | integer ≥ 10 | group-specific |
 
-**`BENCH_SOURCE`.** Unset is not "all five sources": it means
-`load_prepared_cases`'s own default of Suricata + SpamAssassin. RegexLib,
-S2ELab, and Innovatorved are opt-in; pass them explicitly.
 
-**`BENCH_PATTERN_LIMIT=N`.** Admits the first N distinct patterns per
-source. Each admitted pattern brings all of its verified inputs, so the
-bench's row count is at most `N × inputs_per_pattern`. Capping on
-patterns rather than rows keeps the bench's size predictable regardless
-of how many inputs each pattern carries. Unset admits every usable
-pattern.
+**Variables Explanation**:
+- **`BENCH_SOURCE`** — Unset means Suricata + SpamAssassin, not all
+  five. RegexLib, S2ELab, and Innovatorved are opt-in.
 
-**`BENCH_MATCH_INTENT`.** Filters rows by their `MatchIntent` before
-anything else runs. `direct` keeps `UnanchoredAmbiguous`; `explicit`
-keeps `ExplicitFullMatch`; `both` keeps everything.
+- **`BENCH_PATTERN_LIMIT=N`** — Admits the first N distinct patterns per
+  source. Each brings all its verified inputs, so row count is at most
+  `N × inputs_per_pattern`. Unset admits every usable pattern.
 
-**`BENCH_SPLIT_OUTCOME`.** When set, `bench_corpus_time` prints a second
-table per source splitting each parser's per-entry durations by the
-entry's verified outcome (match vs. non-match). Useful when a parser's
-total is skewed by one side of the corpus. Off by default; ignored by
-`bench_memory`.
+- **`BENCH_MATCH_INTENT`** — Filters by `MatchIntent`. `direct` keeps
+  `UnanchoredAmbiguous`; `explicit` keeps `ExplicitFullMatch`; `both`
+  keeps everything.
 
-**`BENCH_ENTRY_TIMEOUT_MS=N`.** Bounds how long either corpus target
-waits on a single entry before counting it as `timed_out` instead of a
-measurement. Exists because a small fraction of real entries (seen so
-far on Innovatorved and RegexLib) make `deriv_std_rec`/`deriv_std_loop`
-run for seconds to minutes on one call; without a cap, one such entry
-blocks the whole run. Each entry runs in its own `bench_worker`
-process; on timeout, that process is killed outright, which actually
-reclaims its memory. An earlier version ran each entry on a thread
-instead and merely stopped waiting on timeout, since Rust cannot force
--stop a thread -- that left the call running in the background, and on
-a real Innovatorved entry this reached a kernel OOM kill even after
-bounding how many such threads could run concurrently (a single
-abandoned call's own growth was enough on its own). Process isolation
-fixes both that and a measurement problem it caused: the old version's
-byte counters were one global per process, so a still-running
-abandoned thread could inflate the *next* entry's reported total/peak.
-Each worker now measures exactly one entry and exits, so there is no
-next entry for it to contaminate.
+- **`BENCH_SPLIT_OUTCOME`** — When set, `bench_corpus_time` prints a
+  second table per source splitting per-entry durations by verified
+  outcome. Off by default; ignored by `bench_memory`.
 
-Two costs come with that safety. First, killing is immediate and
-blocking, with no overlap between entries: a timed-out entry holds up
-its caller for the *entire* cap before the next entry starts, so a
-corpus with many slow entries pays close to `N_timed_out × cap` in
-wall clock on top of everything that completes normally -- summing
-the reported per-entry figures will not predict the whole run's wall
-time. Second, each worker re-runs `core_regex` on the pattern itself
-rather than reusing a parsed `Regex` across all five parsers the way
-the old single-process version did; this cost is excluded from the
-reported per-entry timing (see `bench_corpus_time.rs`'s `wall (s)` vs.
-`mean (ms)` below) and is small next to the process-spawn cost, but it
-is real work that previously did not exist.
+- **`BENCH_ENTRY_TIMEOUT_MS=N`** — Per-entry wait cap before counting an
+  entry as `timed_out`. Exists because a small fraction of real entries
+  (Innovatorved, RegexLib) make `deriv_std_rec`/`deriv_std_loop` run for
+  seconds to minutes; without it, one such entry blocks the whole run.
+  - Each entry runs in its own `bench_worker` process, killed outright
+    on timeout. A killed process reclaims memory; a thread
+    stopped-waiting-on does not. The thread-based version this replaced
+    OOM-killed a run; `bench_corpus_time.rs`'s module doc has the full
+    account.
+  - Two costs: killing is blocking, so a corpus with many slow entries
+    pays ~`N_timed_out × cap` in wall clock; and each worker re-runs
+    `core_regex` on the pattern, excluded from the reported per-entry
+    timing.
 
-**`BENCH_SIZE_LIMIT=N`.** Caps each synthetic family's hardcoded
-size/depth sweep to values at or below N. A family with no value at or
-below the limit contributes nothing for that run.
+- **`BENCH_SIZE_LIMIT=N`** — Caps each synthetic family's hardcoded
+  size/depth sweep to values ≤ N. Families with no value ≤ N contribute
+  nothing.
 
-**`BENCH_SAMPLE_SIZE=N`.** Overrides Criterion's sample count on the
-bench that reads it. Unset uses each group's hardcoded default (see the
-per-target sections). Opt-in so that raising precision or lowering
-runtime is always explicit.
+- **`BENCH_SAMPLE_SIZE=N`** — Overrides Criterion's sample count on the
+  bench that reads it. Unset uses the group's hardcoded default.
 
 If filtering loads nothing, the corpus targets panic with a per-source
-diagnosis and the active filters, rather than silently measuring an
-empty corpus.
-
-
+diagnosis and the active filters.
 
 
 ## `bench_match.rs`
@@ -225,8 +198,10 @@ With `BENCH_SPLIT_OUTCOME` set, a second table splits each parser's
 time by match vs. non-match, so an asymmetry in the corpus shows up as
 a per-side column rather than being buried in the mean.
 
-Reads the same three corpus variables as `bench_memory`. Not a Criterion
-target: one pass, no sampling, no CI.
+Reads the four corpus variables shared with `bench_memory`
+(`BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`,
+`BENCH_ENTRY_TIMEOUT_MS`) plus its own `BENCH_SPLIT_OUTCOME`. Not a
+Criterion target: one pass, no sampling, no CI.
 
 Also writes `reports/benches/bench_corpus_time.csv` (and
 `bench_corpus_time_by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`),
