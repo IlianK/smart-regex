@@ -4,16 +4,14 @@
 //!          [--source S] [--verbose] [--no-flags] [file...]
 //!
 //! Per-source corpus report.
-//! Covers: extraction counts, acceptance, match-intent reliability,
-//! rejection causes, anchor shape distribution, PCRE flag usage.
+//! Covers extraction counts, acceptance, match-intent reliability,
+//! rejection causes, anchor shape distribution, and PCRE flag usage.
 //! Defaults to Suricata and SpamAssassin under `data/raw/`.
-//! RegexLib, S2ELab, and Innovatorved are opt-in only
-//! (`--source regexlib`/`s2-elab`/`innovatorved`).
+//! RegexLib, S2ELab, and Innovatorved are opt-in only.
 //! RegexLib and Innovatorved are crowd-sourced, with no correctness
-//! guarantee; Innovatorved's test text is also unlabeled (see
-//! `generate::generate_from_dataset_text`). S2ELab (s2e-lab/RegexEval)
-//! is a curated academic benchmark but still not a maintained production
-//! rule set the way Suricata/SpamAssassin are.
+//! guarantee; Innovatorved's test text is also unlabeled.
+//! S2ELab is a curated academic benchmark, but not a maintained
+//! production rule set the way Suricata and SpamAssassin are.
 //! Explicit files need one `--source`.
 //!
 //!   Accepted = `core_regex_tagged` produced a Regex.
@@ -22,7 +20,7 @@
 //!              No approximate-but-accepted case exists.
 //!              Every accepted pattern's Regex denotes exactly what it
 //!              was translated from.
-//!              Accepted splits into two kinds: Direct / Explicit
+//!              Accepted splits into two kinds: Direct / Explicit.
 //!              Both are accepted and generated for.
 //!   Reject   = no Regex produced at all.
 //!              A construct this frontend cannot represent:
@@ -41,20 +39,19 @@ use regex_engine::data::extract::{
 use regex_engine::data::prepare::{anchor_shape, core_regex_tagged, AnchorShape};
 use regex_engine::data::types::{MatchIntent, RuleContext, SourceKind};
 
-/// Whether an extracted row's own given input is empty, for the two
-/// sources that carry given input at all (`S2ELab`'s `matches`/
-/// `non_matches`, `Innovatorved`'s `test_text`). Always `false` for the
-/// other three sources, which have no such concept -- they generate
-/// their own input downstream and this check does not apply to them.
+/// Whether an extracted row's own given input is empty.
+/// Applies to the two sources that carry given input at all:
+/// S2ELab's `matches`/`non_matches`, Innovatorved's `test_text`.
+/// Always `false` for the other three, which have no such concept.
+/// They generate their own input downstream, so this check does not
+/// apply to them.
 ///
-/// This is a *necessary* condition for a pattern to end up with zero
-/// verified cases in `prepared.jsonl`, not a *sufficient* one: a
-/// pattern can have non-empty given input and still end up with zero
-/// verified cases, if every example fails real verification (for
-/// example, the dataset's own examples assume substring-search
-/// semantics, which this frontend's full-string-only matching does not
-/// honor). Catching that second case needs the real generate/verify
-/// pass `dataset_prepare` runs, not this extraction-only check.
+/// A necessary but not sufficient condition for a pattern to end up
+/// with zero verified cases in `prepared.jsonl`.
+/// A pattern can have non-empty given input and still end up with
+/// zero verified cases, if every example fails real verification.
+/// Catching that second case needs the real generate/verify pass
+/// `dataset_prepare` runs, not this extraction-only check.
 fn has_no_given_input(context: &RuleContext) -> bool {
     match context {
         RuleContext::S2ELab { matches, non_matches } => matches.is_empty() && non_matches.is_empty(),
@@ -83,10 +80,8 @@ fn default_dir(source: SourceKind) -> &'static str {
 
 /// Default sweep when no `--source` is given.
 /// RegexLib is deliberately not in this list.
-/// It is crowd-sourced (regexlib.com via the rxxr2 mirror).
-/// It has no curation or correctness guarantee.
+/// It is crowd-sourced, with no curation or correctness guarantee.
 /// Suricata's and SpamAssassin's maintained rule sets do.
-/// So RegexLib is opt-in only.
 fn all_sources() -> [SourceKind; 2] {
     [SourceKind::Suricata, SourceKind::SpamAssassin]
 }
@@ -200,18 +195,16 @@ struct SourceStats {
     /// MatchIntent::UnanchoredAmbiguous.
     /// No anchor at all; translated and benchmarked as a full match.
     /// That reading is this project's own choice.
-    /// Not necessarily the source's.
     accepted_ambiguous: usize,
-    /// Of the accepted patterns, how many have empty given input
-    /// (`has_no_given_input`). Always 0 for sources without given
-    /// input. A necessary, not sufficient, predictor of ending up with
-    /// zero verified cases in `prepared.jsonl` -- see that function.
+    /// Of the accepted patterns, how many have empty given input.
+    /// See `has_no_given_input`.
+    /// Always 0 for sources without given input.
     accepted_no_input: usize,
     rejected_by: BTreeMap<Cause, usize>,
-    /// Where `^`/`$` sit structurally across *every* extracted pattern.
+    /// Where `^`/`$` sit structurally across every extracted pattern.
     /// Independent of accept/reject.
-    /// This explains the "anchor" row of `rejected_by`.
-    /// It also explains the `accepted_explicit` count.
+    /// Explains the "anchor" row of `rejected_by`.
+    /// Also explains the `accepted_explicit` count.
     anchor_shapes: BTreeMap<AnchorShape, usize>,
     flag_usage: BTreeMap<char, usize>,
     flag_accepted: BTreeMap<char, usize>,
@@ -251,7 +244,6 @@ impl SourceStats {
         // The point is what the corpus contains, including shapes that
         // go on to be rejected.
         // A pattern that fails to parse at all still gets a row.
-        // (Backreference, lookaround, or a syntax error.)
         // So this always sums to `extracted`.
         let (body, _flags) = strip_pcre_delimiters(pattern);
         let shape = parse_ext_pattern(body).map(|ep| anchor_shape(&ep)).unwrap_or(AnchorShape::Unparseable);
@@ -358,7 +350,7 @@ fn read_source(source: SourceKind, paths: &[PathBuf], verbose: bool) -> SourceSt
         };
         // Some corpora are not clean UTF-8 (SpamAssassin's locale files).
         // Decode lossily rather than drop the whole file.
-        // A corrupted pattern is a per-pattern problem classify() can
+        // A corrupted pattern is a per-pattern problem `classify` can
         // reject.
         let text = match String::from_utf8(bytes) {
             Ok(s) => s,
@@ -644,7 +636,7 @@ fn parse_args() -> Options {
             "--no-flags" => show_flags = false,
             other if !other.starts_with("--") => {
                 // Bare positional: a source name selects it.
-                // Anything else is a file path, only honored for a
+                // Anything else is a file path, honored only for a
                 // single source.
                 if let Ok(s) = std::str::from_utf8(other.as_bytes()) {
                     if is_source_name(s) {

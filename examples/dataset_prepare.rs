@@ -3,35 +3,37 @@
 //! cargo run --release --example dataset_prepare -- \
 //!     <N> [--] <source> <file...> [--corpus-dir DIR] [--verbose]
 //!
-//! Extract patterns from the given raw file(s), generate or read off
-//! input per pattern, verify it, then balance it: a pattern survives
-//! into `data/processed/<source>/prepared.jsonl` only if it has at
-//! least N/2 verified matches *and* N/2 verified non-matches, and
-//! contributes exactly N/2 of each -- never more, never fewer. A pattern
-//! that does not reach N/2 of both contributes nothing at all, and is
-//! counted separately (`below target`), not silently dropped. This is
-//! what makes the final usable count a sound thing to benchmark: every
-//! pattern that appears carries the same weight.
+//! Extract patterns from the given raw file(s).
+//! Generate or read off input per pattern, verify it, then balance it.
+//! A pattern survives into `data/processed/<source>/prepared.jsonl` only
+//! if it has at least N/2 verified matches and N/2 verified non-matches.
+//! A surviving pattern contributes exactly N/2 of each.
+//! A pattern that does not reach N/2 of both contributes nothing.
+//! It is counted separately (`below target`), not silently dropped.
+//! Every pattern that appears carries the same weight, which is what
+//! makes the final usable count a sound thing to benchmark.
 //!
-//! `<N>` is the total verified inputs each surviving pattern
-//! contributes, split evenly into N/2 matches and N/2 non-matches. It
-//! must be a positive even integer. `N = 1` is not accepted: the
-//! smallest meaningful value is 2 (1 match + 1 non-match).
+//! `<N>` is the total verified inputs each surviving pattern contributes.
+//! It splits evenly into N/2 matches and N/2 non-matches.
+//! It must be a positive even integer.
+//! `N = 1` is not accepted; the smallest meaningful value is 2.
 //!
-//! The optional `--` between N and the source name is accepted and
-//! skipped. Cargo consumes its own `--` before this binary sees any
-//! argument, so a `--` reaching here is a literal the caller typed as
-//! a visual separator; it has no meaning at this point.
+//! The optional `--` between N and the source name is accepted and skipped.
+//! Cargo consumes its own `--` before this binary sees any argument.
+//! A `--` reaching here is a literal the caller typed as a separator; it
+//! has no meaning at this point.
 //!
-//! `--verbose` also lists every pattern excluded at generation, raw text included.
+//! `--verbose` also lists every pattern excluded at generation, raw text
+//! included.
 //!
-//! Innovatorved always runs both: its classified test lines (when any
-//! are present) plus structurally generated top-up. `balance_cases`
-//! prefers the real ones within each side, so the top-up is a no-op
-//! wherever real supply already meets N/2. The "from source" line below
-//! reports how much of the final corpus is real versus generated for
-//! exactly this reason. Every other source is unmixed: always 0 for
-//! Suricata/SpamAssassin/RegexLib, always 100% for S2ELab.
+//! Innovatorved always runs both: its classified test lines (when any are
+//! present) plus structurally generated top-up.
+//! `balance_cases` prefers the real ones within each side, so the top-up
+//! is a no-op wherever real supply already meets N/2.
+//! The "from source" line below reports how much of the final corpus is
+//! real versus generated for exactly this reason.
+//! Every other source is unmixed: always 0 for Suricata, SpamAssassin,
+//! and RegexLib; always 100% for S2ELab.
 
 use std::path::{Path, PathBuf};
 
@@ -186,9 +188,9 @@ fn print_report(
     }
 
     // The two provenance lines only say something when the source
-    // actually ships given input. Skipped for the three generated-only
-    // sources (Suricata, SpamAssassin, RegexLib), where both numbers are
-    // trivially 0 and 100%.
+    // actually ships given input.
+    // Skipped for the three generated-only sources.
+    // For those, both numbers are trivially 0 and 100%.
     if report.inputs_usable_from_source > 0 || source == SourceKind::S2ELab {
         let from_source = report.inputs_usable_from_source;
         let synthetic = report.inputs_usable_synthetic();

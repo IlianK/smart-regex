@@ -2,12 +2,12 @@
 //!
 //! Verification: every candidate from `generate` is checked against the
 //! real parser before becoming a `PreparedCase`.
-//! `StructuralNegative` candidates must also fail *late*.
+//! `StructuralNegative` candidates must also fail late.
 //!
 //! `core_regex_tagged` accepts one anchor shape this pipeline recognizes:
 //! a top-level `^...$` wrap.
-//! The anchors are stripped before translation, since they are redundant
-//! under full-string matching.
+//! The anchors are stripped before translation.
+//! They are redundant under full-string matching.
 //! Any other anchor placement still reaches `translate` and is rejected.
 
 use crate::data::types::{Candidate, MatchIntent, PreparedCase, SourceKind};
@@ -80,7 +80,8 @@ pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
 }
 
 /// Chars consumed before the match becomes impossible.
-/// Full length on a match; `None` when the check exceeds its node cap.
+/// Full length on a match.
+/// `None` when the check exceeds its node cap.
 pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
     match step_bc_bounded(input, r) {
         SteppedOutcome::DiedAt(consumed) => Some(consumed),
@@ -89,13 +90,13 @@ pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
     }
 }
 
-/// A `Worst` negative must fail at or past this fraction of the input.
+/// A negative must fail at or past this fraction of the input.
 /// Earlier failures are discarded.
 const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
 
 /// Core regex for a PCRE-rule body, plus which `MatchIntent` applied.
-/// Duplicates `parse_pcre_rule`'s steps to add depth/node caps and to
-/// strip a top-level `^...$` wrap before `translate` sees it.
+/// Duplicates `parse_pcre_rule`'s steps to add depth/node caps.
+/// Also strips a top-level `^...$` wrap before `translate` sees it.
 pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), String> {
     let (body, flags) = strip_pcre_delimiters(raw_pattern);
     if let Some(reason) = flags.unsupported() {
@@ -105,9 +106,9 @@ pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), Stri
     let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
     let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
     let (ep, stripped) = strip_full_anchors(ep);
-    // `stripped` false means the pattern had no top-level `^...$` wrap.
-    // It may still have a lone `^`/`$` somewhere.
-    // Later `translate` will discard this binding no MatchIntent reaches the caller.
+    // `stripped` false means no top-level `^...$` wrap.
+    // The pattern may still have a lone `^`/`$` somewhere.
+    // `translate` then rejects it below, discarding this binding.
     let intent = if stripped {
         MatchIntent::ExplicitFullMatch
     } else {
@@ -124,7 +125,7 @@ pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), Stri
         ));
     }
 
-    // Any anchor NOT in the one shape `strip_full_anchors` recognizes
+    // Any anchor not in the one shape `strip_full_anchors` recognizes
     // reaches `translate` unchanged and is rejected there.
     let r = translate(&ep)?;
     let nodes = node_count(&r);
@@ -141,10 +142,11 @@ pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
     core_regex_tagged(raw_pattern).map(|(r, _intent)| r)
 }
 
-/// Strips a top-level `^...$` wrap, the one shape whose anchors are
-/// provably redundant under full-string matching.
-/// Returns `(possibly-stripped ep, true)` if it stripped something,
-/// `(ep unchanged, false)` otherwise.
+/// Strips a top-level `^...$` wrap.
+/// The one shape whose anchors are provably redundant under full-string
+/// matching.
+/// Returns `(possibly-stripped ep, true)` if it stripped something.
+/// Returns `(ep unchanged, false)` otherwise.
 fn strip_full_anchors(ep: ExtPat) -> (ExtPat, bool) {
     match unwrap_shell(ep.clone()) {
         ExtPat::Concat(mut parts)
@@ -206,14 +208,15 @@ fn contains_anchor(ep: &ExtPat) -> bool {
 }
 
 /// Where `^`/`$` sit in a pattern's top-level shape.
-/// Diagnostic only; used by `dataset_stats` to explain "anchor" rejections.
+/// Diagnostic only.
+/// Used by `dataset_stats` to explain "anchor" rejections.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum AnchorShape {
     /// Never reached `ExtPat`: backreference, lookaround, or syntax error.
     Unparseable,
     /// No `^`/`$` anywhere.
     None,
-    /// `^` first and `$` last at the top level -- recoverable.
+    /// `^` first and `$` last at the top level; recoverable.
     FullyWrapped,
     /// `^` at the top level; no `$`.
     StartOnly,
@@ -308,7 +311,6 @@ const MAX_CORE_DEPTH: usize = 2_000;
 const MAX_CORE_NODES: usize = 20_000;
 
 /// Verify one candidate against the real parser.
-/// For `StructuralNegative`, also confirm the rejection is late.
 /// Returns the `PreparedCase` on success, `None` otherwise.
 pub fn verify_candidate(
     source: SourceKind,
@@ -358,29 +360,21 @@ pub fn verify_all(
 }
 
 /// Keep exactly `per_side` matches and `per_side` non-matches from one
-/// pattern's verified cases, or none at all if either side has fewer
-/// than `per_side`. The caller's `--inputs N` is `2 * per_side`.
+/// pattern's verified cases.
+/// Returns empty if either side has fewer than `per_side`.
+/// The caller's `--inputs N` is `2 * per_side`.
 ///
 /// Within each side, a case whose `Provenance::is_from_dataset` is true
-/// is kept ahead of one that is not (stable otherwise, so ties keep
-/// their generation order). A source like Innovatorved can mix a few
-/// real classified lines with structural top-up candidates in the same
-/// call (see `run_pipeline`'s `RuleContext::Innovatorved` branch); this
-/// ordering means the real ones are never displaced by synthetic ones
-/// competing for the same `per_side` slots, so a pattern's real:synthetic
-/// ratio is only ever as low as it has to be, never lower by accident of
-/// which candidates happened to verify first.
+/// is kept ahead of one that is not.
+/// Stable otherwise, so ties keep their generation order.
+/// Innovatorved can mix real classified lines with structural top-up
+/// candidates (see `run_pipeline`'s `RuleContext::Innovatorved` branch).
+/// This ordering means real ones are never displaced by synthetic ones
+/// competing for the same `per_side` slots.
 ///
-/// Every pattern that survives this step contributes the exact same
-/// total count, and the exact same match/non-match split, as every
-/// other surviving pattern -- a precondition for a sound aggregate
-/// benchmark across patterns. Without it, a pattern that happened to
-/// verify more candidates (for any reason: a richer source corpus, a
-/// more generous match/non-match split in a given dataset, pure luck
-/// in structural sampling) would silently carry more weight in any
-/// benchmark that just iterates "every admitted entry" than a pattern
-/// that verified fewer, and the two aggregate figures would not be
-/// comparable.
+/// Every pattern that survives contributes the same total count and the
+/// same match/non-match split, which is what makes an aggregate
+/// benchmark over them sound.
 pub fn balance_cases(cases: Vec<PreparedCase>, per_side: usize) -> Vec<PreparedCase> {
     let mut cases = cases;
     cases.sort_by_key(|c| !c.provenance.is_from_dataset());
@@ -414,7 +408,8 @@ pub fn write_prepared_cases(
 }
 
 /// Read every prepared case from a JSON-lines file written by
-/// `write_prepared_cases`. Blank lines are skipped.
+/// `write_prepared_cases`.
+/// Blank lines are skipped.
 pub fn read_prepared_cases(path: &std::path::Path) -> std::io::Result<Vec<PreparedCase>> {
     let text = std::fs::read_to_string(path)?;
     text.lines()
@@ -599,9 +594,6 @@ mod tests {
     #[test]
     fn balance_prefers_from_dataset_cases_over_synthetic_ones_within_each_side() {
         use crate::data::types::Provenance;
-        // The real case is listed *after* the synthetic ones on each side,
-        // so a plain "take the first per_side" (the pre-fix behavior) would
-        // drop it. It must survive regardless of this ordering.
         let cases = vec![
             case_with(true, Provenance::Structural, "synth-match-1"),
             case_with(true, Provenance::Structural, "synth-match-2"),

@@ -109,6 +109,10 @@ cargo run --release --example dataset_prepare -- \
 \end{verbatim}
 
 
+%
+%
+%
+
 \subsection{Input generation}
 \label{sec:eval-input-generation}
 
@@ -135,6 +139,8 @@ Innovatorved & yes (unlabeled)       & given, with structural fill \\
 \label{tab:input-generation}
 \end{table}
 
+%
+
 \paragraph{Suricata.}
 A Snort rule is a conjunction of constraints; nothing in it is a
 complete candidate string. The extractor takes the first
@@ -156,6 +162,8 @@ for negatives) survive. A Snort rule with \texttt{pcre:} but no
 a rule with \texttt{content:} but no \texttt{pcre:} is skipped entirely
 by the extractor, since there is no pattern to translate.
 
+%
+
 \paragraph{SpamAssassin.}
 Each \texttt{header} or \texttt{body} rule carries one pattern, and no
 test messages are shipped with the rules. Generation is structural plus,
@@ -166,8 +174,12 @@ a real corpus, since most real messages are not themselves exact matches
 of a short pattern; the structural sampler is what supplies the bulk of
 the surviving inputs.
 
+%
+
 \paragraph{RegexLib.}
 Structural generation only. No side input is available from the source.
+
+%
 
 \paragraph{S2ELab.}
 Each entry ships with author-labeled \texttt{matches} and
@@ -180,6 +192,8 @@ admits additional draws. A pattern whose given lists are empty on one
 side \emph{and} whose language is too small to sample from cannot reach
 the target and is excluded.
 
+%
+
 \paragraph{Innovatorved.}
 Each entry ships with free-form test text -- a mix of matching and
 non-matching lines with no marker saying which is which. Generation
@@ -191,6 +205,8 @@ structural sampling fills the gap, as for S2ELab. A pattern with no test
 text, or with test text that yields too few surviving cases on one side
 and a language too small to sample from, is excluded.
 
+%
+
 \paragraph{Common rule.}
 In every case, candidates that do not match their claimed outcome under
 the real parser are discarded, and negatives must additionally fail
@@ -201,6 +217,9 @@ all five sources: whether an input comes from the source itself or from
 structural fill, the balanced corpus carries the same count per pattern
 and the same split.
 
+%
+%
+%
 
 \subsection{A worked example through the pipeline}
 \label{sec:eval-worked-pipeline}
@@ -278,6 +297,9 @@ since admitting a pattern with fewer than the standard number of inputs
 would make its benchmark results incomparable to the rest of the
 corpus.
 
+%
+%
+%
 
 \subsection{Corpus overview}
 
@@ -316,6 +338,10 @@ Snort's 36.5\% is dominated by patterns that carry an explicit
 word-boundary rejections, since SpamAssassin uses
 \texttt{\textbackslash b} pervasively to anchor keyword matches.
 
+%
+%
+%
+
 \subsection{Match intent}
 
 Accepted patterns are tagged with one of two \texttt{MatchIntent}
@@ -347,6 +373,10 @@ explicit full-match wrapper.
 Both intents are generated for. Positives are sound under either reading
 (Section~\ref{sec:match-intent} in \texttt{DATASET.md}), so the benchmark
 inputs are used unchanged.
+
+%
+%
+%
 
 \subsection{Rejection causes}
 
@@ -416,6 +446,10 @@ covered by the six named causes. For Snort, this is almost entirely the
 \texttt{/\{GET\}.{}/\%.\{1586,\}/}. For SpamAssassin, the same cap and a
 handful of syntax errors.
 
+%
+%
+%
+
 \subsection{Anchor shape distribution}
 
 Rejection causes alone do not explain how many patterns carry anchors;
@@ -463,6 +497,10 @@ exists: backreferences, lookaround assertions, or genuine syntax errors.
 These are the entries that need the parse step's own rejection mechanism,
 since no tree exists to strip anchors from.
 
+%
+%
+%
+
 \subsection{Prepared cases}
 
 The pipeline writes accepted cases to
@@ -485,6 +523,24 @@ cleanly, while Snort's longer patterns occasionally produce a structural
 sample that the case-folding or anchor-stripping steps have made
 unmatchable.
 
+A small fraction of accepted patterns contributes nothing to the
+corpus. These are not sampler failures. Every non-matching input the
+pipeline produces is a matching input with its last character replaced
+by a character that lies outside the pattern's working alphabet, so a
+pattern whose language covers the alphabet (any star expression, any
+class-based pattern) still has a valid negative: the corrupted string
+contains a character no member of its language could contain. What
+remains are the patterns whose language is on one side empty: an
+expression that translates to the empty-string language, such as
+\texttt{\textasciicircum\textdollar} after anchor stripping or
+\texttt{a\{0\}}, has no negative to draw; an expression that translates
+to the empty language has no positive to draw. In both cases, one side
+has zero members, and the pipeline excludes the pattern rather than
+fabricating a member that would not be a real test. The count appears
+as \emph{patterns below target} in the pipeline report and accounts for
+the difference between \emph{accepted} and \emph{usable} patterns in
+Table~\ref{tab:corpus-coverage}.
+
 % ---------------------------------------------------------------------
 % 8.2 Parser Agreement
 % ---------------------------------------------------------------------
@@ -500,6 +556,10 @@ different trees --- the same input can admit more than one valid
 decomposition --- but some patterns and inputs leave neither policy a
 choice, forcing both onto the same structure. This section measures
 how often that happens across the corpus.
+
+%
+%
+%
 
 \subsection{Method}
 
@@ -531,6 +591,10 @@ outcomes, since neither produces a result to compare.
 cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
 \end{verbatim}
+
+%
+%
+%
 
 \subsection{Results}
 
@@ -569,6 +633,10 @@ consistent, so the cross-family comparison was meaningful.
 \emph{Same}, \emph{Diff}: of \emph{Compared}, how many produced the
 same tree and how many produced different trees.
 
+%
+%
+%
+
 \subsection{Discussion}
 
 To be completed after the corpus run. Expected reading: no
@@ -592,6 +660,10 @@ The four parsers are compared on two axes: execution time
 inputs first, since synthetic families isolate a single cost, and on the
 corpus second, since the corpus is the environment the parsers will
 encounter in practice.
+
+%
+%
+%
 
 \subsection{Timing}
 \label{sec:eval-timing}
@@ -622,6 +694,10 @@ BENCH_SAMPLE_SIZE=50 cargo bench --bench bench_parse
 Figures for each family to be added. The expected shape: \texttt{deriv\_bc}
 and the two \texttt{pderiv} variants stay flat or nearly flat;
 \texttt{deriv\_std} grows with input length.
+
+%
+%
+%
 
 \subsubsection{Corpus benchmarks}
 
@@ -674,6 +750,10 @@ confidence interval. Criterion sample count: 20.}
 A second table at a different \texttt{BENCH\_PATTERN\_LIMIT} value can be
 added with the same structure to show that the ordering does not depend
 on the cap.
+
+%
+%
+%
 
 \subsection{Memory}
 \label{sec:eval-memory}
@@ -731,6 +811,10 @@ and \texttt{pderiv\_std} allocate substantially fewer bytes than the two
 standard derivative variants, since \texttt{deriv\_std} retains its full
 derivation sequence for the backward pass. Section~\ref{sec:eval-growth}
 confirms this on two canonical expressions.
+
+%
+%
+%
 
 \subsubsection{Growth: two canonical expressions}
 \label{sec:eval-growth}
@@ -847,6 +931,10 @@ longer and more nested, so recursion overhead dominates; SpamAssassin
 patterns are short enough that iteration and recursion cost similar
 amounts.
 
+%
+%
+%
+
 \subsection{Cost of bit-coding}
 
 The bit-coded derivative parser (\texttt{deriv\_bc}) is the second
@@ -858,6 +946,10 @@ counts grow as expected but the distinctness count stays at 1 after bit
 stripping, meaning every branch is retained because it carries a
 different bit annotation. The retention is not wasted: it is exactly what
 makes single-pass reconstruction possible.
+
+%
+%
+%
 
 \subsection{Cost of partial derivatives}
 
@@ -875,6 +967,10 @@ implementation deficiency, and it is the reason the two families are
 compared separately in Section~\ref{sec:eval-agreement}: within each
 family, the two variants must agree, but between families they are
 allowed to differ.
+
+%
+%
+%
 
 \subsection{When each parser is appropriate}
 
@@ -904,6 +1000,10 @@ column of Table~\ref{tab:corpus-rejections}: patterns that exceed the
 nested alternation, are outside the current translation. Raising the cap
 is a per-pattern trade-off, not a parser choice.
 
+%
+%
+%
+
 \subsection{Threats to validity}
 
 Three properties of the setup limit how far the results can be
@@ -927,6 +1027,10 @@ collector or a page cache, the figures would interact with those
 subsystems in ways this evaluation does not model. The evaluator runs on
 a single machine, and the wall-clock figures in
 Table~\ref{tab:corpus-timing} are therefore CPU- and cache-specific.
+
+%
+%
+%
 
 \subsection{Summary}
 

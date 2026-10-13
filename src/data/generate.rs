@@ -1,8 +1,9 @@
 //! src/data/generate.rs
 //!
-//! Per-source input generation. Every strategy here produces at most a
-//! bounded number of candidates per side; the caller decides how much
-//! slack over `per_side` to allow (see `slack_for` in `mod.rs`).
+//! Per-source input generation.
+//! Every strategy here produces at most a bounded number of candidates
+//! per side; the caller decides how much slack over `per_side` to allow.
+//! See `slack_for` in `mod.rs`.
 //!
 //! - Snort/Suricata: assemble candidates from the rule's own `content:`
 //!   fields (real evidence of what a triggering payload contains).
@@ -13,8 +14,7 @@
 //! - S2ELab: use the pattern author's own labeled `matches`/
 //!   `non_matches` directly, capped per side; nothing is sampled.
 //! - Innovatorved: classify each line of the pattern's free-form test
-//!   text against the real parser, capped at `cap`, then hand it to
-//!   `prepare` as any other claim; nothing is sampled.
+//!   text against the real parser, capped at `cap`; nothing is sampled.
 //!
 //! Every `Candidate` carries a `claimed_match` that `prepare` verifies.
 
@@ -40,8 +40,8 @@ pub fn sample_positive(r: &Regex, rng: &mut StdRng, max_star_iters: u32) -> Opti
 }
 
 /// Number of `Alt` leaves under `r`, flattening nested `Alt` nodes.
-/// Used to weight sampling so a left-folded chain is chosen uniformly
-/// (see the `Alt` case below).
+/// Used to weight sampling so a left-folded chain is chosen uniformly.
+/// See the `Alt` case below.
 fn alt_leaf_count(r: &Regex) -> usize {
     match r {
         Regex::Alt(a, b) => alt_leaf_count(a) + alt_leaf_count(b),
@@ -70,9 +70,8 @@ fn sample_positive_bounded(
         Regex::Alt(a, b) => {
             // `alt_of_chars` builds a character class as a deeply
             // left-nested `Alt` chain.
-            // A flat 50/50 choice would heavily favour the last-inserted
-            // character; weighting by leaf count makes every leaf equally
-            // likely regardless of tree shape.
+            // A flat 50/50 choice would favour the last-inserted character.
+            // Weighting by leaf count makes every leaf equally likely.
             let wa = alt_leaf_count(a) as f64;
             let wb = alt_leaf_count(b) as f64;
             if rng.gen_bool(wa / (wa + wb)) {
@@ -117,20 +116,18 @@ const SAMPLE_MAX_STAR_ITERS: u32 = 4;
 /// Draws attempted per distinct string still needed, before giving up.
 ///
 /// A pattern can fall short of `count` distinct positives for two
-/// different reasons, and only one of them is fixable by trying harder:
-/// the language can be large enough that collisions are just unlucky
-/// (`[a-z]+` has infinitely many positives; retrying finds a fresh one),
-/// or the language can be too small to have `count` distinct members at
-/// all (`a{3}` has exactly one: `"aaa"`; no number of retries invents a
-/// second). This multiplier is sized to all but eliminate the first kind
-/// of shortfall; the second kind is irreducible, and a pattern that hits
-/// this budget without reaching `count` is almost certainly that kind,
-/// not under-tried.
+/// reasons, and only one is fixable by trying harder.
+/// The language can be large enough that collisions are just unlucky
+/// (`[a-z]+` has infinitely many positives).
+/// Or it can be too small to have `count` distinct members at all
+/// (`a{3}` has exactly one).
+/// This multiplier eliminates the first kind of shortfall; the second
+/// is irreducible.
 const RESAMPLE_ATTEMPTS_PER_TARGET: usize = 100;
 
-/// `count` distinct positives sampled from `r`'s own structure.
-/// Plus up to `negative_count` late-failing negatives
-/// (see `sample_negative_late`) so rejection is exercised too.
+/// `count` distinct positives from `r`'s own structure.
+/// Plus up to `negative_count` late-failing negatives.
+/// See `sample_negative_late`.
 pub fn generate_sample(
     r: &Regex,
     rng: &mut StdRng,
@@ -178,8 +175,8 @@ pub fn generate_sample(
 // Source-specific generation
 // -------------------------------
 
-/// Suricata: join the rule's own `content:` field bytes, with a short
-/// filler between consecutive fields.
+/// Suricata: join the rule's own `content:` field bytes.
+/// A short filler goes between consecutive fields.
 /// A rule with fewer than two fields has no filler to vary, so it
 /// converges on one candidate.
 pub fn generate_from_content_fields(
@@ -217,10 +214,10 @@ pub fn generate_from_content_fields(
         .collect()
 }
 
-/// SpamAssassin: sample real messages from a local corpus directory that
-/// match the pattern.
-/// Returns empty if the directory does not exist or the pattern does not
-/// parse.
+/// SpamAssassin: sample real messages from a local corpus directory
+/// that match the pattern.
+/// Returns empty if the directory does not exist or the pattern does
+/// not parse.
 ///
 /// Uses `prepare::core_regex`, not `parse_pcre_rule` directly: the same
 /// `raw_pattern` was already accepted via `core_regex_tagged`, and some
@@ -229,7 +226,7 @@ pub fn generate_from_content_fields(
 ///
 /// Under full-string matching, "match" means the entire file content
 /// equals a match; most corpus files are not exact matches of a short
-/// pattern, so this is expected to find little against a real corpus.
+/// pattern, so this finds little against a real corpus.
 pub fn generate_from_corpus_dir(
     corpus_dir: &Path,
     raw_pattern: &str,
@@ -254,13 +251,12 @@ pub fn generate_from_corpus_dir(
 }
 
 /// S2ELab: wrap the pattern author's own `matches`/`non_matches` as
-/// candidates, unchanged and unsampled. At most `cap_per_side` entries
-/// of each list are considered: an S2ELab entry can ship hundreds of
-/// given examples, and verifying all of them to write `per_side`
-/// wastes parser calls on candidates that would be trimmed anyway.
-/// Duplicate strings are kept once; a string appearing in both lists
-/// is kept only as a positive, since that is the stronger, more
-/// specific claim.
+/// candidates, unchanged and unsampled.
+/// At most `cap_per_side` entries of each list are considered: an entry
+/// can ship hundreds of given examples, and verifying all of them to
+/// write `per_side` wastes parser calls.
+/// Duplicate strings are kept once.
+/// A string in both lists is kept only as a positive, the stronger claim.
 pub fn generate_from_given_examples(
     matches: &[String],
     non_matches: &[String],
@@ -290,21 +286,21 @@ pub fn generate_from_given_examples(
 }
 
 /// Innovatorved: classify up to `cap` of `pattern`'s free-form test
-/// lines against the real parser, then hand each to `prepare` as any
-/// other claim (so a negative must still fail late to survive).
+/// lines against the real parser.
+/// Each resulting candidate is handed to `prepare` as any other claim,
+/// so a negative must still fail late to survive.
 ///
-/// The source text is unlabeled -- a line is not claimed to match or
-/// not, so there is nothing to verify a claim *against* here. The
-/// classification itself, running the real bit-coded parser once, is
-/// what supplies the claim; `prepare::verify_candidate` then re-derives
-/// the same outcome a second time, which is redundant but keeps that
-/// function's contract (every candidate carries an independently
-/// checked claim) the same for every source.
+/// The source text is unlabeled: a line is not claimed to match or not,
+/// so there is nothing to verify a claim against here.
+/// The classification itself supplies the claim.
+/// `prepare::verify_candidate` then re-derives the same outcome a
+/// second time, which keeps that function's contract (every candidate
+/// carries an independently checked claim) the same for every source.
 ///
-/// A pattern with thousands of test lines (the real corpus has one with
-/// 59,245) is sampled down to `cap` first, picked uniformly at random
-/// rather than always the first `cap` in file order, so one outlier
-/// pattern cannot dominate a benchmark's running time on its own.
+/// A pattern with thousands of test lines is sampled down to `cap`
+/// first, uniformly at random rather than always the first `cap` in
+/// file order, so one outlier pattern cannot dominate a benchmark's
+/// running time on its own.
 pub fn generate_from_dataset_text(
     lines: &[String],
     pattern_core: &Regex,
