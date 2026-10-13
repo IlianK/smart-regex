@@ -143,26 +143,38 @@ To prepare all default datasets (Snort and SpamAssassin) in one go:
 cargo run --release --example dataset_prepare
 ```
 
-To prepare a specific dataset, name the source and list its input files:
+To prepare a specific dataset, name the source and list its input files with requested number of inputs to be generated / extracted (if dataset provides input). **Note: input N must be positive even integer**:
 
 ```bash
-cargo run --release --example dataset_prepare -- suricata      data/raw/snort/*.rules
-cargo run --release --example dataset_prepare -- spamassassin  data/raw/spamAssassin/*.cf
-cargo run --release --example dataset_prepare -- regexlib      data/raw/regexLib/*.txt
-cargo run --release --example dataset_prepare -- s2-elab       data/raw/s2-elab/RegexEval.json
-cargo run --release --example dataset_prepare -- innovatorved  data/raw/innovatorved/data.json
+# Default sources, N=10 per pattern (5 match + 5 non-match)
+cargo run --release --example dataset_prepare -- 2 suricata      data/raw/snort/*.rules 
+cargo run --release --example dataset_prepare -- 2 spamassassin  data/raw/spamAssassin/*.cf 
+cargo run --release --example dataset_prepare -- 2 regexlib      data/raw/regexLib/*.txt 
+cargo run --release --example dataset_prepare -- 2 s2-elab       data/raw/s2-elab/RegexEval.json 
+cargo run --release --example dataset_prepare -- 2 innovatorved  data/raw/innovatorved/data.json 
+
+# Explicit source, N=10
+cargo run --release --example dataset_prepare -- 10 snort data/raw/snort/*.rules
+
+# Explicit source, N=20
+cargo run --release --example dataset_prepare -- 20 spamassassin data/raw/spamAssassin/*.cf
 ```
 
 `regexlib`, `s2-elab`, and `innovatorved` are opt-in: they are not
 read by the default and must be named explicitly.
 
 Each run writes to `data/processed/<source>/prepared.jsonl`, replacing
-the file rather than appending. Each accepted pattern contributes up
-to `--variants N` (default 5) positives, plus up to `N` negatives.
+the file rather than appending. Each *usable* pattern contributes
+exactly `--inputs N` verified cases (default 10): N/2 matches and N/2
+non-matches, never more, never fewer. A pattern that cannot reach N/2
+of both (even after retrying generation) contributes nothing at all
+and is counted separately as unusable-at-generation — see the summary
+`dataset_prepare` prints.
 
 ```bash
-# --variants controls verified inputs per pattern per category (default 5)
-cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules --variants 3
+# --inputs is the total verified cases per pattern; must be even,
+# split N/2 match + N/2 non-match (default 10)
+cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules --inputs 6
 ```
 
 

@@ -105,6 +105,9 @@ pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), Stri
     let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
     let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
     let (ep, stripped) = strip_full_anchors(ep);
+    // `stripped` false means the pattern had no top-level `^...$` wrap.
+    // It may still have a lone `^`/`$` somewhere.
+    // Later `translate` will discard this binding no MatchIntent reaches the caller.
     let intent = if stripped {
         MatchIntent::ExplicitFullMatch
     } else {
@@ -354,6 +357,41 @@ pub fn verify_all(
         .collect()
 }
 
+/// Keep exactly `per_side` matches and `per_side` non-matches from one
+/// pattern's verified cases, or none at all if either side has fewer
+/// than `per_side`. The caller's `--inputs N` is `2 * per_side`.
+///
+/// Within each side, a case whose `Provenance::is_from_dataset` is true
+/// is kept ahead of one that is not (stable otherwise, so ties keep
+/// their generation order). A source like Innovatorved can mix a few
+/// real classified lines with structural top-up candidates in the same
+/// call (see `run_pipeline`'s `RuleContext::Innovatorved` branch); this
+/// ordering means the real ones are never displaced by synthetic ones
+/// competing for the same `per_side` slots, so a pattern's real:synthetic
+/// ratio is only ever as low as it has to be, never lower by accident of
+/// which candidates happened to verify first.
+///
+/// Every pattern that survives this step contributes the exact same
+/// total count, and the exact same match/non-match split, as every
+/// other surviving pattern -- a precondition for a sound aggregate
+/// benchmark across patterns. Without it, a pattern that happened to
+/// verify more candidates (for any reason: a richer source corpus, a
+/// more generous match/non-match split in a given dataset, pure luck
+/// in structural sampling) would silently carry more weight in any
+/// benchmark that just iterates "every admitted entry" than a pattern
+/// that verified fewer, and the two aggregate figures would not be
+/// comparable.
+pub fn balance_cases(cases: Vec<PreparedCase>, per_side: usize) -> Vec<PreparedCase> {
+    let mut cases = cases;
+    cases.sort_by_key(|c| !c.provenance.is_from_dataset());
+    let (matches, non_matches): (Vec<PreparedCase>, Vec<PreparedCase>) =
+        cases.into_iter().partition(|c| c.verified_match);
+    if matches.len() < per_side || non_matches.len() < per_side {
+        return Vec::new();
+    }
+    matches.into_iter().take(per_side).chain(non_matches.into_iter().take(per_side)).collect()
+}
+
 /// Append `cases` to `path` as JSON lines, creating parents if needed.
 pub fn write_prepared_cases(
     path: &std::path::Path,
@@ -504,6 +542,78 @@ mod tests {
             .expect("a genuinely late failure should survive verification");
         assert!(!prepared.verified_match);
         assert!(prepared.failed_after_chars.is_some());
+    }
+
+    fn case(verified_match: bool) -> PreparedCase {
+        PreparedCase {
+            source: SourceKind::RegexLib,
+            pattern: "a".to_string(),
+            input: "a".to_string(),
+            provenance: crate::data::types::Provenance::Structural,
+            verified_match,
+            failed_after_chars: None,
+            match_intent: MatchIntent::UnanchoredAmbiguous,
+        }
+    }
+
+    fn case_with(
+        verified_match: bool,
+        provenance: crate::data::types::Provenance,
+        input: &str,
+    ) -> PreparedCase {
+        PreparedCase { input: input.to_string(), provenance, ..case(verified_match) }
+    }
+
+    #[test]
+    fn balance_keeps_exactly_per_side_of_each_when_both_sides_have_enough() {
+        let cases: Vec<PreparedCase> =
+            (0..3).map(|_| case(true)).chain((0..4).map(|_| case(false))).collect();
+        let balanced = balance_cases(cases, 3);
+        assert_eq!(balanced.len(), 6);
+        assert_eq!(balanced.iter().filter(|c| c.verified_match).count(), 3);
+        assert_eq!(balanced.iter().filter(|c| !c.verified_match).count(), 3);
+    }
+
+    #[test]
+    fn balance_drops_the_pattern_entirely_when_either_side_is_short() {
+        let cases: Vec<PreparedCase> =
+            (0..5).map(|_| case(true)).chain((0..2).map(|_| case(false))).collect();
+        assert!(balance_cases(cases, 3).is_empty());
+    }
+
+    #[test]
+    fn balance_drops_a_pattern_with_only_matches_or_only_non_matches() {
+        let only_matches: Vec<PreparedCase> = (0..5).map(|_| case(true)).collect();
+        assert!(balance_cases(only_matches, 3).is_empty());
+        let only_non_matches: Vec<PreparedCase> = (0..5).map(|_| case(false)).collect();
+        assert!(balance_cases(only_non_matches, 3).is_empty());
+    }
+
+    #[test]
+    fn balance_with_exactly_per_side_on_both_sides_keeps_everything() {
+        let cases: Vec<PreparedCase> =
+            (0..3).map(|_| case(true)).chain((0..3).map(|_| case(false))).collect();
+        assert_eq!(balance_cases(cases, 3).len(), 6);
+    }
+
+    #[test]
+    fn balance_prefers_from_dataset_cases_over_synthetic_ones_within_each_side() {
+        use crate::data::types::Provenance;
+        // The real case is listed *after* the synthetic ones on each side,
+        // so a plain "take the first per_side" (the pre-fix behavior) would
+        // drop it. It must survive regardless of this ordering.
+        let cases = vec![
+            case_with(true, Provenance::Structural, "synth-match-1"),
+            case_with(true, Provenance::Structural, "synth-match-2"),
+            case_with(true, Provenance::DatasetTextClassified, "real-match"),
+            case_with(false, Provenance::StructuralNegative, "synth-nonmatch-1"),
+            case_with(false, Provenance::StructuralNegative, "synth-nonmatch-2"),
+            case_with(false, Provenance::DatasetTextClassified, "real-nonmatch"),
+        ];
+        let balanced = balance_cases(cases, 2);
+        assert_eq!(balanced.len(), 4);
+        assert!(balanced.iter().any(|c| c.input == "real-match"));
+        assert!(balanced.iter().any(|c| c.input == "real-nonmatch"));
     }
 
     #[test]

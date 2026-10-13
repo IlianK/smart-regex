@@ -108,6 +108,100 @@ cargo run --release --example dataset_prepare -- \
     spamassassin data/raw/spamAssassin/*.cf
 \end{verbatim}
 
+
+\subsection{Input generation}
+\label{sec:eval-input-generation}
+
+Every accepted pattern needs inputs before it can be benchmarked: at
+least $N/2$ matching and $N/2$ non-matching, where $N$ is the
+\texttt{--inputs} target. The five sources differ in whether they
+supply such inputs themselves, and if so, in what form.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lll}
+\hline
+Source & Given input? & Generation strategy \\
+\hline
+Suricata     & no                    & structural + content-derived \\
+SpamAssassin & no                    & structural + corpus sample \\
+RegexLib     & no                    & structural \\
+S2ELab       & yes (labeled)         & given, with structural fill \\
+Innovatorved & yes (unlabeled)       & given, with structural fill \\
+\hline
+\end{tabular}
+\caption{Source of candidate inputs per dataset.}
+\label{tab:input-generation}
+\end{table}
+
+\paragraph{Suricata.}
+A Snort rule is a conjunction of constraints; nothing in it is a
+complete candidate string. The extractor takes the first
+\texttt{pcre:"..."} option on the rule line and ignores any subsequent
+one, so a rule that carries two distinct patterns contributes one to
+the corpus, not two. The \texttt{content:} fields on the same line are
+not input: they are fragments a triggering payload must contain, with
+positional constraints (\texttt{distance}, \texttt{within},
+\texttt{depth}, \texttt{offset}) that the pipeline parses but does not
+enforce. Generation runs two strategies in parallel.
+\texttt{generate\_sample} walks the translated \texttt{Regex} and
+produces structural positives and negatives.
+\texttt{generate\_from\_content\_fields} concatenates the extracted
+\texttt{content:} bytes with a short filler between fields, producing
+strings shaped like real payloads. Both feed the same verification
+pass; only candidates that match the translated pattern (or fail late,
+for negatives) survive. A Snort rule with \texttt{pcre:} but no
+\texttt{content:} generates candidates only via the structural sampler;
+a rule with \texttt{content:} but no \texttt{pcre:} is skipped entirely
+by the extractor, since there is no pattern to translate.
+
+\paragraph{SpamAssassin.}
+Each \texttt{header} or \texttt{body} rule carries one pattern, and no
+test messages are shipped with the rules. Generation is structural plus,
+when a local ham/spam corpus is configured through \texttt{--corpus-dir},
+a scan of that directory for messages whose entire content matches the
+pattern. Under full-string matching the corpus scan finds little against
+a real corpus, since most real messages are not themselves exact matches
+of a short pattern; the structural sampler is what supplies the bulk of
+the surviving inputs.
+
+\paragraph{RegexLib.}
+Structural generation only. No side input is available from the source.
+
+\paragraph{S2ELab.}
+Each entry ships with author-labeled \texttt{matches} and
+\texttt{non\_matches}. Generation prefers these: they are wrapped as
+candidates unchanged, deduplicated across both sides, and passed to
+verification. If after verification either side has fewer than $N/2$
+cases, structural sampling fills the gap, so a pattern with fewer given
+examples than the target is still usable provided its own language
+admits additional draws. A pattern whose given lists are empty on one
+side \emph{and} whose language is too small to sample from cannot reach
+the target and is excluded.
+
+\paragraph{Innovatorved.}
+Each entry ships with free-form test text -- a mix of matching and
+non-matching lines with no marker saying which is which. Generation
+prefers this text: it is split into lines, deduplicated, sampled down to
+a cap, and each surviving line is classified against the real parser
+(matching or not) before being handed to verification as any other
+candidate. If after verification either side has fewer than $N/2$ cases,
+structural sampling fills the gap, as for S2ELab. A pattern with no test
+text, or with test text that yields too few surviving cases on one side
+and a language too small to sample from, is excluded.
+
+\paragraph{Common rule.}
+In every case, candidates that do not match their claimed outcome under
+the real parser are discarded, and negatives must additionally fail
+\emph{late} -- past two thirds of the input -- to count as meaningful.
+The balanced target of exactly $N/2$ matches and $N/2$ non-matches per
+pattern, described in Section~\ref{sec:eval-worked-pipeline}, applies to
+all five sources: whether an input comes from the source itself or from
+structural fill, the balanced corpus carries the same count per pattern
+and the same split.
+
+
 \subsection{A worked example through the pipeline}
 \label{sec:eval-worked-pipeline}
 
@@ -166,6 +260,24 @@ fail verification are discarded. Surviving candidates are written to
 
 This worked example is the pattern the rest of the chapter refers to when
 it discusses \emph{generated} versus \emph{verified} candidates.
+
+
+Input generation is bounded by two distinct limits. The first is
+sampling effort: a rich language such as \texttt{[a-z]+} admits
+infinitely many matching strings, but the sampler draws them randomly
+and can spend many attempts producing duplicates before reaching the
+target count. This limit is practical, not fundamental, and is
+addressed by retrying with a larger attempt budget. The second is the
+language's own size. A pattern such as \texttt{a\{3\}} denotes exactly
+one string, and no amount of sampling can produce ten distinct matching
+inputs from it. This limit is fundamental: the pattern's language is
+smaller than the target count, and it cannot be met by any generation
+strategy. Patterns that fall into the second category are recorded as
+unusable at generation and are not written to \texttt{prepared.jsonl},
+since admitting a pattern with fewer than the standard number of inputs
+would make its benchmark results incomparable to the rest of the
+corpus.
+
 
 \subsection{Corpus overview}
 

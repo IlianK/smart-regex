@@ -1,6 +1,8 @@
 //! src/data/generate.rs
 //!
-//! Per-source input generation:
+//! Per-source input generation. Every strategy here produces at most a
+//! bounded number of candidates per side; the caller decides how much
+//! slack over `per_side` to allow (see `slack_for` in `mod.rs`).
 //!
 //! - Snort/Suricata: assemble candidates from the rule's own `content:`
 //!   fields (real evidence of what a triggering payload contains).
@@ -9,10 +11,10 @@
 //! - RegexLib (and the fallback for the other two): walk the pattern's
 //!   own structure to produce a sample.
 //! - S2ELab: use the pattern author's own labeled `matches`/
-//!   `non_matches` directly; nothing is sampled.
+//!   `non_matches` directly, capped per side; nothing is sampled.
 //! - Innovatorved: classify each line of the pattern's free-form test
-//!   text against the real parser, then hand it to `prepare` as any
-//!   other claim; nothing is sampled.
+//!   text against the real parser, capped at `cap`, then hand it to
+//!   `prepare` as any other claim; nothing is sampled.
 //!
 //! Every `Candidate` carries a `claimed_match` that `prepare` verifies.
 
@@ -112,6 +114,20 @@ pub fn sample_negative_late(r: &Regex, rng: &mut StdRng, max_star_iters: u32) ->
 /// Enough repetition to be realistic without adversarial growth.
 const SAMPLE_MAX_STAR_ITERS: u32 = 4;
 
+/// Draws attempted per distinct string still needed, before giving up.
+///
+/// A pattern can fall short of `count` distinct positives for two
+/// different reasons, and only one of them is fixable by trying harder:
+/// the language can be large enough that collisions are just unlucky
+/// (`[a-z]+` has infinitely many positives; retrying finds a fresh one),
+/// or the language can be too small to have `count` distinct members at
+/// all (`a{3}` has exactly one: `"aaa"`; no number of retries invents a
+/// second). This multiplier is sized to all but eliminate the first kind
+/// of shortfall; the second kind is irreducible, and a pattern that hits
+/// this budget without reaching `count` is almost certainly that kind,
+/// not under-tried.
+const RESAMPLE_ATTEMPTS_PER_TARGET: usize = 100;
+
 /// `count` distinct positives sampled from `r`'s own structure.
 /// Plus up to `negative_count` late-failing negatives
 /// (see `sample_negative_late`) so rejection is exercised too.
@@ -124,7 +140,7 @@ pub fn generate_sample(
     let count = count.max(1);
 
     let mut positives: Vec<String> = Vec::new();
-    for _ in 0..count * 4 {
+    for _ in 0..count * RESAMPLE_ATTEMPTS_PER_TARGET {
         if positives.len() >= count {
             break;
         }
@@ -136,7 +152,7 @@ pub fn generate_sample(
     }
 
     let mut negatives: Vec<String> = Vec::new();
-    for _ in 0..negative_count * 4 {
+    for _ in 0..negative_count * RESAMPLE_ATTEMPTS_PER_TARGET {
         if negatives.len() >= negative_count {
             break;
         }
@@ -238,20 +254,36 @@ pub fn generate_from_corpus_dir(
 }
 
 /// S2ELab: wrap the pattern author's own `matches`/`non_matches` as
-/// candidates, unchanged and unsampled. Duplicate strings are kept once;
-/// a string appearing in both lists is kept only as a positive, since
-/// that is the stronger, more specific claim.
-pub fn generate_from_given_examples(matches: &[String], non_matches: &[String]) -> Vec<Candidate> {
+/// candidates, unchanged and unsampled. At most `cap_per_side` entries
+/// of each list are considered: an S2ELab entry can ship hundreds of
+/// given examples, and verifying all of them to write `per_side`
+/// wastes parser calls on candidates that would be trimmed anyway.
+/// Duplicate strings are kept once; a string appearing in both lists
+/// is kept only as a positive, since that is the stronger, more
+/// specific claim.
+pub fn generate_from_given_examples(
+    matches: &[String],
+    non_matches: &[String],
+    cap_per_side: usize,
+) -> Vec<Candidate> {
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut out = Vec::new();
-    for text in matches {
+    for text in matches.iter().take(cap_per_side) {
         if seen.insert(text.as_str()) {
-            out.push(Candidate { text: text.clone(), provenance: Provenance::DatasetGiven, claimed_match: true });
+            out.push(Candidate {
+                text: text.clone(),
+                provenance: Provenance::DatasetGiven,
+                claimed_match: true,
+            });
         }
     }
-    for text in non_matches {
+    for text in non_matches.iter().take(cap_per_side) {
         if seen.insert(text.as_str()) {
-            out.push(Candidate { text: text.clone(), provenance: Provenance::DatasetGiven, claimed_match: false });
+            out.push(Candidate {
+                text: text.clone(),
+                provenance: Provenance::DatasetGiven,
+                claimed_match: false,
+            });
         }
     }
     out
@@ -501,7 +533,7 @@ mod tests {
     fn given_examples_wrap_matches_and_non_matches_unchanged() {
         let matches = vec!["12345".to_string(), "00000".to_string()];
         let non_matches = vec!["abcde".to_string()];
-        let candidates = generate_from_given_examples(&matches, &non_matches);
+        let candidates = generate_from_given_examples(&matches, &non_matches, 10);
         assert_eq!(candidates.len(), 3);
         let positives: Vec<_> = candidates.iter().filter(|c| c.claimed_match).collect();
         let negatives: Vec<_> = candidates.iter().filter(|c| !c.claimed_match).collect();
@@ -512,10 +544,20 @@ mod tests {
     }
 
     #[test]
+    fn given_examples_respect_the_per_side_cap() {
+        let matches: Vec<String> = (0..100).map(|i| format!("m{i}")).collect();
+        let non_matches: Vec<String> = (0..100).map(|i| format!("n{i}")).collect();
+        let candidates = generate_from_given_examples(&matches, &non_matches, 5);
+        assert_eq!(candidates.len(), 10);
+        assert_eq!(candidates.iter().filter(|c| c.claimed_match).count(), 5);
+        assert_eq!(candidates.iter().filter(|c| !c.claimed_match).count(), 5);
+    }
+
+    #[test]
     fn given_examples_keep_a_string_in_both_lists_only_as_a_positive() {
         let matches = vec!["x".to_string()];
         let non_matches = vec!["x".to_string(), "y".to_string()];
-        let candidates = generate_from_given_examples(&matches, &non_matches);
+        let candidates = generate_from_given_examples(&matches, &non_matches, 10);
         assert_eq!(candidates.len(), 2);
         let x = candidates.iter().find(|c| c.text == "x").expect("x present");
         assert!(x.claimed_match);
@@ -523,7 +565,7 @@ mod tests {
 
     #[test]
     fn given_examples_with_nothing_given_yields_nothing() {
-        assert!(generate_from_given_examples(&[], &[]).is_empty());
+        assert!(generate_from_given_examples(&[], &[], 10).is_empty());
     }
 
     #[test]

@@ -135,6 +135,28 @@ impl Provenance {
             Provenance::RealCorpus | Provenance::ContentDerived | Provenance::Structural => false,
         }
     }
+
+    /// Whether this candidate's *text* came from the source's own data,
+    /// rather than being generated to fill a gap. `DatasetGiven` (S2ELab's
+    /// own `matches`/`non_matches`) and `DatasetTextClassified`
+    /// (Innovatorved's own free-form test lines) qualify; everything else
+    /// -- including `RealCorpus`, which samples real external text but not
+    /// text the pattern's own author supplied as a labeled example for it
+    /// -- is generated. `prepare::balance_cases` uses this to prefer a
+    /// pattern's own given examples over synthetic top-up when both
+    /// compete for the same `per_side` slots, and `PipelineReport` uses it
+    /// to measure how much of a source's final corpus is real versus
+    /// generated. Listed explicitly, as above, so a future provenance must
+    /// make this choice too.
+    pub fn is_from_dataset(self) -> bool {
+        match self {
+            Provenance::DatasetGiven | Provenance::DatasetTextClassified => true,
+            Provenance::RealCorpus
+            | Provenance::ContentDerived
+            | Provenance::Structural
+            | Provenance::StructuralNegative => false,
+        }
+    }
 }
 
 /// One generated input, not yet verified.
@@ -175,5 +197,19 @@ mod tests {
         assert!(!Provenance::RealCorpus.requires_late_failure());
         assert!(!Provenance::ContentDerived.requires_late_failure());
         assert!(!Provenance::Structural.requires_late_failure());
+    }
+
+    #[test]
+    fn from_dataset_is_true_only_for_the_two_given_or_classified_provenances() {
+        assert!(Provenance::DatasetGiven.is_from_dataset());
+        assert!(Provenance::DatasetTextClassified.is_from_dataset());
+    }
+
+    #[test]
+    fn from_dataset_is_false_for_every_generated_provenance() {
+        assert!(!Provenance::RealCorpus.is_from_dataset());
+        assert!(!Provenance::ContentDerived.is_from_dataset());
+        assert!(!Provenance::Structural.is_from_dataset());
+        assert!(!Provenance::StructuralNegative.is_from_dataset());
     }
 }

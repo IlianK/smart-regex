@@ -121,8 +121,10 @@ Two Criterion groups:
   `dataset_regexlib`): all five parsers over that source's whole loaded
   corpus, one combined throughput measurement per parser.
   Admission is capped at `BENCH_PATTERN_LIMIT` distinct patterns per
-  source, each contributing all of its verified variants (up to
-  `--variants`, default 5, from `dataset_prepare`).
+  source, each contributing exactly `--inputs` verified cases (default
+  10, half match / half non-match -- enforced by `dataset_prepare`;
+  a pattern that can't reach that split is excluded there entirely,
+  not padded).
 - `dataset_per_pattern`: every loaded source combined, each parser timed
   on each individual (pattern, input) entry separately.
   Uses a hardcoded limit of 5 patterns per source; `BENCH_PATTERN_LIMIT`

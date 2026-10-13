@@ -39,7 +39,31 @@ use regex_engine::data::extract::{
     extract_suricata,
 };
 use regex_engine::data::prepare::{anchor_shape, core_regex_tagged, AnchorShape};
-use regex_engine::data::types::{MatchIntent, SourceKind};
+use regex_engine::data::types::{MatchIntent, RuleContext, SourceKind};
+
+/// Whether an extracted row's own given input is empty, for the two
+/// sources that carry given input at all (`S2ELab`'s `matches`/
+/// `non_matches`, `Innovatorved`'s `test_text`). Always `false` for the
+/// other three sources, which have no such concept -- they generate
+/// their own input downstream and this check does not apply to them.
+///
+/// This is a *necessary* condition for a pattern to end up with zero
+/// verified cases in `prepared.jsonl`, not a *sufficient* one: a
+/// pattern can have non-empty given input and still end up with zero
+/// verified cases, if every example fails real verification (for
+/// example, the dataset's own examples assume substring-search
+/// semantics, which this frontend's full-string-only matching does not
+/// honor). Catching that second case needs the real generate/verify
+/// pass `dataset_prepare` runs, not this extraction-only check.
+fn has_no_given_input(context: &RuleContext) -> bool {
+    match context {
+        RuleContext::S2ELab { matches, non_matches } => matches.is_empty() && non_matches.is_empty(),
+        RuleContext::Innovatorved { test_text } => {
+            test_text.as_deref().map(str::trim).unwrap_or("").is_empty()
+        }
+        RuleContext::Suricata { .. } | RuleContext::SpamAssassin { .. } | RuleContext::RegexLib { .. } => false,
+    }
+}
 use regex_engine::frontend::{parse_ext_pattern, strip_pcre_delimiters};
 
 // ---------------------------------------------------------------------
@@ -178,6 +202,11 @@ struct SourceStats {
     /// That reading is this project's own choice.
     /// Not necessarily the source's.
     accepted_ambiguous: usize,
+    /// Of the accepted patterns, how many have empty given input
+    /// (`has_no_given_input`). Always 0 for sources without given
+    /// input. A necessary, not sufficient, predictor of ending up with
+    /// zero verified cases in `prepared.jsonl` -- see that function.
+    accepted_no_input: usize,
     rejected_by: BTreeMap<Cause, usize>,
     /// Where `^`/`$` sit structurally across *every* extracted pattern.
     /// Independent of accept/reject.
@@ -209,7 +238,7 @@ impl SourceStats {
         self.accepted_explicit + self.accepted_ambiguous
     }
 
-    fn add_pattern(&mut self, pattern: &str, verbose: bool) {
+    fn add_pattern(&mut self, pattern: &str, context: &RuleContext, verbose: bool) {
         self.extracted += 1;
 
         // Flags recorded for every extracted pattern, accepted or not.
@@ -234,6 +263,9 @@ impl SourceStats {
                     MatchIntent::ExplicitFullMatch => self.accepted_explicit += 1,
                     MatchIntent::UnanchoredAmbiguous => self.accepted_ambiguous += 1,
                 }
+                if has_no_given_input(context) {
+                    self.accepted_no_input += 1;
+                }
                 for flag in flags_of(pattern) {
                     *self.flag_accepted.entry(flag).or_default() += 1;
                 }
@@ -252,6 +284,7 @@ impl SourceStats {
         total.extracted += self.extracted;
         total.accepted_explicit += self.accepted_explicit;
         total.accepted_ambiguous += self.accepted_ambiguous;
+        total.accepted_no_input += self.accepted_no_input;
         for (cause, n) in &self.rejected_by {
             *total.rejected_by.entry(*cause).or_default() += n;
         }
@@ -347,7 +380,7 @@ fn read_source(source: SourceKind, paths: &[PathBuf], verbose: bool) -> SourceSt
             SourceKind::Innovatorved => extract_innovatorved(&text),
         };
         for rule in extracted {
-            stats.add_pattern(&rule.raw_pattern, verbose);
+            stats.add_pattern(&rule.raw_pattern, &rule.context, verbose);
         }
     }
     stats
@@ -400,6 +433,34 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
     println!("Accepted = core_regex_tagged produced a Regex.");
     println!("Rejected = no Regex produced: unsupported construct.");
     println!("Accepted + Rejected sum to Extracted; each % is against that.");
+
+    if stats.iter().any(|s| s.accepted_no_input > 0) {
+        println!();
+        println!("Accepted but with no input in the source file:");
+        for s in stats {
+            if s.accepted_no_input > 0 {
+                println!(
+                    "  {:<13} {:>6} of {:>6} accepted",
+                    s.name(),
+                    s.accepted_no_input,
+                    s.accepted()
+                );
+            }
+        }
+        println!();
+        println!("   Note: S2ELab carries its own `matches`/`non_matches` and");
+        println!("         has no fallback: a row with both empty produces no");
+        println!("         candidates and never enters a benchmark corpus.");
+        println!();
+        println!("   Note: Innovatorved carries its own test text but does");
+        println!("         have a fallback -- its `RuleContext::Innovatorved`");
+        println!("         branch tops up with structurally generated");
+        println!("         candidates regardless of whether any test text is");
+        println!("         present. A null-text row can therefore still enter");
+        println!("         the corpus, but with every candidate generated, none");
+        println!("         from the source. `dataset_prepare`'s `from source`");
+        println!("         line reports the real:generated split per source.");
+    }
 }
 
 fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
@@ -437,7 +498,7 @@ fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
     println!("Direct         = no anchor; translated as-is.");
     println!("Explicit ^...$ = top-level ^...$ wrap; anchors stripped as redundant.");
     println!("                 Both tiers are accepted and generated for.");
-    println!("Any other anchor placement is rejected (see Rejection reasons).");
+    println!("                 Any other anchor placement is rejected (see Rejection reasons).");
 }
 
 fn rejection_table(stats: &[SourceStats], total: &SourceStats) {
