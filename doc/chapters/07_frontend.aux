@@ -1,38 +1,39 @@
 \relax 
 \providecommand\zref@newlabel[2]{}
 \providecommand\hyper@newdestlabel[2]{}
-\citation{sulzmannlu2012}
-\citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {chapter}{\numberline {7}External To Internal Regex}{58}{chapter.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}External versus Internal Syntax}{59}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{sec:frontend}{{7}{58}{External To Internal Regex}{chapter.7}{}}
-\@writefile{toc}{\contentsline {paragraph}{This frontend accepts a strict subset of PCRE syntax.}{58}{chapter.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7.1}Two ASTs}{59}{section.7.1}\protected@file@percent }
-\newlabel{sec:frontend-two-asts}{{7.1}{59}{Two ASTs}{section.7.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.2}Parsing Surface Syntax}{60}{section.7.2}\protected@file@percent }
-\newlabel{sec:frontend-parsing}{{7.2}{60}{Parsing Surface Syntax}{section.7.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.3}Translating \texttt  {ExtPat} into \texttt  {Regex}}{61}{section.7.3}\protected@file@percent }
-\newlabel{sec:frontend-translate}{{7.3}{61}{Translating \texttt {ExtPat} into \texttt {Regex}}{section.7.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{Character classes are represented by alternation.}{61}{section.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Bounds are desugared by explicit repetition.}{61}{section.7.3}\protected@file@percent }
-\citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {paragraph}{Greedy and lazy quantifiers are parsed but not distinguished.}{63}{section.7.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {7.4}Anchors and the Two Entry Points}{63}{section.7.4}\protected@file@percent }
-\newlabel{sec:frontend-anchors}{{7.4}{63}{Anchors and the Two Entry Points}{section.7.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{\texttt  {\^{}}, \texttt  {\$}, and \texttt  {\textbackslash {}b}/\texttt  {\textbackslash {}B} are rejected at the same site, for the same reason.}{63}{section.7.4}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7.1}{\ignorespaces The two rejecting arms of \texttt  {translate}. Unlike backreferences and lookaround (Section~\ref {sec:frontend-parsing}), which have no \texttt  {ExtPat} constructor and are rejected while parsing, these four constructs parse successfully into \texttt  {ExtPat::Carat}, \texttt  {ExtPat::Dollar}, and \texttt  {ExtPat::WordBoundary} and are rejected one stage later, during translation.}}{63}{figure.caption.38}\protected@file@percent }
-\newlabel{fig:anchor-rejection-rust}{{7.1}{63}{The two rejecting arms of \texttt {translate}. Unlike backreferences and lookaround (Section~\ref {sec:frontend-parsing}), which have no \texttt {ExtPat} constructor and are rejected while parsing, these four constructs parse successfully into \texttt {ExtPat::Carat}, \texttt {ExtPat::Dollar}, and \texttt {ExtPat::WordBoundary} and are rejected one stage later, during translation}{figure.caption.38}{}}
-\@writefile{toc}{\contentsline {paragraph}{Rejection is total, not local.}{64}{figure.caption.38}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces Three of \texttt  {translate}'s recursive arms. Every other compound arm (\texttt  {Concat}, \texttt  {Opt}, \texttt  {Plus}, \texttt  {Bound}) follows the same \texttt  {?}-propagation shape.}}{64}{figure.caption.39}\protected@file@percent }
-\newlabel{fig:anchor-propagation-rust}{{7.2}{64}{Three of \texttt {translate}'s recursive arms. Every other compound arm (\texttt {Concat}, \texttt {Opt}, \texttt {Plus}, \texttt {Bound}) follows the same \texttt {?}-propagation shape}{figure.caption.39}{}}
-\@writefile{toc}{\contentsline {paragraph}{\texttt  {parse\_pcre\_rule} additionally unwraps PCRE delimiters, case-folds on \texttt  {i}, and rejects two more flags outright.}{64}{figure.caption.40}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {7.3}{\ignorespaces Every placement is rejected identically, including the three where the anchor is reachable only through an optional, alternative, or bounded branch that need not be taken at all. \texttt  {translate} never gets the chance to discover that: structural recursion visits the anchor node regardless of what quantifier or alternation surrounds it, and Figure~\ref {fig:anchor-propagation-rust}'s \texttt  {?} chain reports it immediately.}}{65}{figure.caption.40}\protected@file@percent }
-\newlabel{fig:anchor-rejection-cli}{{7.3}{65}{Every placement is rejected identically, including the three where the anchor is reachable only through an optional, alternative, or bounded branch that need not be taken at all. \texttt {translate} never gets the chance to discover that: structural recursion visits the anchor node regardless of what quantifier or alternation surrounds it, and Figure~\ref {fig:anchor-propagation-rust}'s \texttt {?} chain reports it immediately}{figure.caption.40}{}}
-\@writefile{toc}{\contentsline {paragraph}{A third, narrower entry point recovers one further anchor shape, for the dataset pipeline only.}{66}{figure.caption.40}\protected@file@percent }
-\newlabel{par:match-intent}{{7.4}{66}{A third, narrower entry point recovers one further anchor shape, for the dataset pipeline only}{figure.caption.40}{}}
+\newlabel{sec:frontend}{{7}{59}{External versus Internal Syntax}{chapter.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.1}The Interface and Its Design Choices}{59}{section.7.1}\protected@file@percent }
+\newlabel{sec:frontend-scope}{{7.1}{59}{The Interface and Its Design Choices}{section.7.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.2}The External AST}{60}{section.7.2}\protected@file@percent }
+\newlabel{sec:frontend-extpat}{{7.2}{60}{The External AST}{section.7.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces The 19 \texttt  {ExtPat} variants, grouped by role. The Assertion group is parsed but rejected by \texttt  {translate}, except for \texttt  {Dot}, which lowers to the full alphabet.}}{60}{table.caption.38}\protected@file@percent }
+\newlabel{tab:extpat}{{7.1}{60}{The 19 \texttt {ExtPat} variants, grouped by role. The Assertion group is parsed but rejected by \texttt {translate}, except for \texttt {Dot}, which lowers to the full alphabet}{table.caption.38}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.3}Parsing: String to ExtPat}{61}{section.7.3}\protected@file@percent }
+\newlabel{sec:frontend-parse}{{7.3}{61}{Parsing: String to ExtPat}{section.7.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.1}Precedence and associativity}{61}{subsection.7.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.2}Accepted surface syntax}{61}{subsection.7.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.3}Rejected surface syntax}{62}{subsection.7.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.4}PCRE Flags}{62}{section.7.4}\protected@file@percent }
+\newlabel{sec:frontend-flags}{{7.4}{62}{PCRE Flags}{section.7.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.2}{\ignorespaces The three flag groups. ``Ignored'' means the pattern parses exactly as it would without the flag.}}{63}{table.caption.39}\protected@file@percent }
+\newlabel{tab:flags}{{7.2}{63}{The three flag groups. ``Ignored'' means the pattern parses exactly as it would without the flag}{table.caption.39}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.5}Translation: ExtPat to Regex}{63}{section.7.5}\protected@file@percent }
+\newlabel{sec:frontend-translate}{{7.5}{63}{Translation: ExtPat to Regex}{section.7.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.1}Character classes and the working alphabet}{63}{subsection.7.5.1}\protected@file@percent }
+\newlabel{sec:frontend-alphabet}{{7.5.1}{63}{Character classes and the working alphabet}{subsection.7.5.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.2}Bounds and unrolling}{64}{subsection.7.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.3}Anchor recovery}{64}{subsection.7.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {7.6}Translation Size}{64}{section.7.6}\protected@file@percent }
+\newlabel{sec:frontend-sizes}{{7.6}{64}{Translation Size}{section.7.6}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.3}{\ignorespaces Translated size in \texttt  {Regex} nodes for representative patterns.}}{64}{table.caption.40}\protected@file@percent }
+\newlabel{tab:translation-sizes}{{7.3}{64}{Translated size in \texttt {Regex} nodes for representative patterns}{table.caption.40}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.7}Summary and Bridge to Evaluation}{65}{section.7.7}\protected@file@percent }
+\newlabel{sec:frontend-summary}{{7.7}{65}{Summary and Bridge to Evaluation}{section.7.7}{}}
 \@setckpt{chapters/07_frontend}{
-\setcounter{page}{68}
+\setcounter{page}{66}
 \setcounter{equation}{0}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
@@ -42,13 +43,13 @@
 \setcounter{mpfootnote}{0}
 \setcounter{part}{0}
 \setcounter{chapter}{7}
-\setcounter{section}{4}
+\setcounter{section}{7}
 \setcounter{subsection}{0}
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{3}
-\setcounter{table}{0}
+\setcounter{figure}{0}
+\setcounter{table}{3}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
 \setcounter{continuedfloat}{0}
@@ -61,8 +62,8 @@
 \setcounter{mdf@env@ii}{0}
 \setcounter{mdf@zref@counter}{0}
 \setcounter{section@level}{0}
-\setcounter{Item}{6}
+\setcounter{Item}{9}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{48}
+\setcounter{bookmark@seq@number}{57}
 \setcounter{lstlisting}{0}
 }

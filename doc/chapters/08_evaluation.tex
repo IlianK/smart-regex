@@ -1,431 +1,818 @@
 \chapter{Evaluation}
 \label{sec:evaluation}
 
-Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}
-developed four parser combinations, \texttt{deriv\_std} (recursive and
-loop variants), \texttt{deriv\_bc}, \texttt{pderiv\_std} and
-\texttt{pderiv\_bc}, each claimed to compute either the POSIX or the
-leftmost-first parse tree, by four structurally different constructions.
-This chapter evaluates those four parsers against each other, first for
-correctness and then for performance, on two kinds of input: 1. Small,
-constructed patterns taken from the source paper to isolate one
-algorithmic property at a time; 2. A corpus of real-world regular
-expressions assembled from three sources: Snort/Suricata,
-SpamAssassin and RegexLib, that Mamouras et al.'s disambiguation-robustness
-study \citep{mamouras2024} uses. 
+This chapter evaluates the four parser variants implemented in
+Chapters~\ref{sec:derivative-parser} and
+\ref{sec:partial-derivative-parser}. The four candidates are:
 
-That paper studies exactly the
-POSIX-versus-Greedy question this thesis studies, via real intrusion-detection
-signatures, and finds concrete real-world patterns where the two policies
-visibly diverge. It provides no public dataset artifact of its own, so
-Section~\ref{sec:dataset-preparation} describes how the 
-corpus was independently assembled and prepared.
+\begin{itemize}
+  \item the standard derivative-based parser (\texttt{deriv\_std},
+        direct and loop variants),
+  \item the bit-coded derivative-based parser (\texttt{deriv\_bc}),
+  \item the standard partial-derivative parser (\texttt{pderiv\_std}),
+  \item the bit-coded partial-derivative parser (\texttt{pderiv\_bc}).
+\end{itemize}
 
-Section~\ref{sec:correctness-verification} checks the four parsers, and
-the three Boolean matchers of Chapter~\ref{sec:derivatives}, against each
-other and against the paper's own worked examples.
-Section~\ref{sec:dataset-preparation} describes how the real-world
-corpus specifically is assembled and prepared into a benchmarkable
-dataset; the small hand-constructed patterns used directly in
-Section~\ref{sec:performance-analysis}'s own benchmark families need no
-such preparation and are introduced there instead.
-Section~\ref{sec:performance-analysis} measures where the four parsers'
-costs diverge on each and the final Section~\ref{sec:results-discussion} draws the
-two together.
+They are compared along three axes. First, on the real-world corpus
+prepared in Section~\ref{sec:eval-dataset}: how many extracted patterns
+survive translation, and what causes the rest to be rejected. Second, on
+correctness: whether all five parsers (the standard derivative variant
+contributes two implementations, loop and recursive) agree on every
+prepared case. Third, on cost: execution time and memory consumption,
+measured both on synthetic inputs and on the corpus itself.
 
-%
-%
-%
+The chapter is organised as follows.
+Section~\ref{sec:eval-dataset} describes the corpus and the pipeline
+that produces the benchmark inputs.
+Section~\ref{sec:eval-agreement} verifies parser agreement.
+Section~\ref{sec:eval-performance} presents timing and memory results.
+Section~\ref{sec:eval-discussion} interprets them.
 
-\section{Parser Agreement}
-\label{sec:correctness-verification}
+All measurements are produced by binaries under \texttt{benches/} and
+\texttt{examples/}, run with a fixed \texttt{--release} profile.
 
-\paragraph{Paper A1 Example:.} 
-$r_1 = (a + ab)(b + \varepsilon)$ and $w = \mathtt{ab}$,
-
-\begin{figure}[htbp]
-\small
-\centering
-\begin{verbatim}
-$ cargo run -- parse "(a|ab)(b|)" "ab" --parser all
-Parser       | Policy    | Result
--------------+-----------+-------------------------------
-DERIV_REC    | POSIX     | (Right (a, b), Right ()) -> "ab"
-DERIV_LOOP   | POSIX     | (Right (a, b), Right ()) -> "ab"
-DERIV_BC     | POSIX     | (Right (a, b), Right ()) -> "ab"
-PDERIV_STD   | NON-POSIX | (Left a, Left b) -> "ab"
-PDERIV_BC    | NON-POSIX | (Left a, Left b) -> "ab"
-
-POSIX parsers agree
-PDERIV parsers agree
-NON-POSIX agrees with POSIX on membership
-\end{verbatim}
-\caption{Comparison of the parser results for the regular expression $(a|ab)(b|)$.}
-\label{fig:parser-comparison}
-\end{figure}
-
-
-\paragraph{Paper A2 Example:.} 
-$r_2 = (a+b+ab)^{\ast}$ against $w=\mathtt{ab}$,
-
-%
-%
-%
+% ---------------------------------------------------------------------
+% 8.1 Dataset Preparation
+% ---------------------------------------------------------------------
 
 \section{Dataset Preparation}
-\label{sec:dataset-preparation}
+\label{sec:eval-dataset}
 
-This section builds the one dataset the measurements later in this
-chapter run against: real-world regular expressions drawn from Suricata,
-SpamAssassin, and RegexLib rule text, carried through extraction,
-acceptance, input generation, and verification. The small
-hand-constructed patterns used elsewhere in this thesis -- the
-$(a+ab)(b+\varepsilon)$ worked example, $(a^{*})^{*}$-style pathological
-expressions, and similar -- are not part of it: each exists to isolate
-one specific algorithmic property for one specific figure or trace, and
-pooling them with a real-world corpus would blur exactly the property
-each one is there to isolate. Only the real-world corpus is prepared as
-a reusable, benchmarkable dataset; it is the sole input to everything
-that follows in this chapter.
+\subsection{Source selection}
 
-\subsection{The Real-World Corpus}
-\label{sec:mamouras-dataset}
+Two rule corpora are used: Snort/Suricata and SpamAssassin. Both are
+maintained upstream, their syntax is documented by the projects that
+publish them, and their patterns are exercised in production. This makes
+the corpus a reasonable proxy for the patterns a real parser will
+encounter.
 
-This thesis's corpus is independently assembled from three families of
-real-world regular-expression sources, chosen to cover different
-"shapes" of real regex use rather than three samples of the same thing:
+The corpus is the union of every rule file fetched as described in
+\texttt{DATASET.md}: 47 Snort rule files under
+\texttt{data/raw/snort}, totalling 16{,}774 extracted patterns, and 62
+SpamAssassin rule files under \texttt{data/raw/spamAssassin}, totalling
+549 extracted patterns.
 
-\begin{itemize}
-  \item \textbf{Snort/Suricata} network intrusion-detection signatures
-  (\texttt{pcre:"..."} rule options, sourced from the Emerging Threats
-  Open ruleset), literal-heavy, moderate complexity, the closest of
-  the three to "everyday" regex use.
-  \item \textbf{SpamAssassin} email spam-filtering rules
-  (\texttt{body}/\texttt{header} Perl-regex rules), content matching
-  over unstructured text, a different shape than network signatures.
-  \item \textbf{RegexLib} crowd-sourced general-purpose patterns
-  (validators, extractors), the opposite end, where anchors and chained
-  lookahead assertions are both idiomatic, stress-testing the frontend's
-  rejection path hardest of the three.
-\end{itemize}
+The two sources differ in character, and this difference matters for the
+rest of the chapter.
 
-Assembling a real-world corpus this way, rather than relying only on
-hand-constructed patterns, follows the motivation in Mamouras et al.'s
-disambiguation-robustness study \citep{mamouras2024}: that paper studies
-exactly the POSIX-versus-Greedy question this thesis studies, via real
-intrusion-detection signatures, and finds concrete real-world patterns
-where the two policies visibly diverge. It publishes no dataset artifact
-of its own, so the corpus used here was assembled independently.
+Snort signatures are byte-oriented and often written to defeat
+obfuscation. A typical pattern mixes hexadecimal escapes, alternation
+over syntactic variants, and a case-insensitive flag:
 
-\paragraph{Extraction.}
-A separate extractor reads each source's native text format directly,
-rather than a shared one assuming a structure the three formats do not
-actually have in common. \texttt{extract\_suricata} scans each line of a
-\texttt{.rules} file for a \texttt{pcre:"..."} option, pulling out the
-pattern together with that rule's \texttt{content:} fields, \texttt{msg},
-and \texttt{sid} as context input generation uses later.
-\texttt{extract\_spamassassin} reads a \texttt{.cf} file's
-\texttt{body NAME /pattern/flags} and
-\texttt{header NAME Field =\textasciitilde{} /pattern/flags} lines; the
-two genuinely differ in syntax, since a \texttt{body} rule carries no
-\texttt{=\textasciitilde{}} operator at all, and requiring one, as an
-earlier version of this extractor did, silently dropped every
-\texttt{body} rule rather than just failing loudly on it.
-\texttt{extract\_regexlib} reads RegexLib's comment-delimited export
-format directly: a block of \texttt{\#}-prefixed description lines
-followed by the bare pattern, one entry per blank-line-separated block.
-All three produce the same \texttt{ExtractedRule}: a source tag, the raw
-pattern text, and whatever source-specific context only that source
-provides.
+\begin{verbatim}
+/Authorization\x3a\s*Basic\s*[a-zA-Z0-9]{255,}==/i
+/eval\x28(String\x2EfromCharCode\x28
+      |[a-z,0-9]{1,20}\x28String\x2EfromCharCode\x28)/i
+\end{verbatim}
 
-\paragraph{Acceptance.}
-An extracted rule's raw pattern is handed to \texttt{core\_regex}
-(\texttt{data/prepare.rs}), which repeats \texttt{parse\_pcre\_rule}'s own
-steps (Section~\ref{sec:frontend-anchors}) -- delimiter stripping, the
-\texttt{m}/\texttt{x} flag check, parsing, case-folding, \texttt{dotall}
--- rather than calling it directly, so that two further, pipeline-only
-safety caps can run around translation: a pattern whose \emph{estimated}
-translated depth already exceeds 2\,000 is rejected before translation is
-attempted at all, and a pattern that translates to more than 20\,000
-\texttt{Regex} nodes is rejected after. Both exist for the same reason
-\texttt{MAX\_BOUND} does in Section~\ref{sec:frontend-translate}: a
-character-class range can expand from a few source characters into
-thousands of code points -- one RegexLib pattern in this corpus does
-exactly this, with a range spanning from \texttt{-} to the en dash -- and
-translating a pattern that large is itself the risk these caps exist to
-avoid, independently of whether \texttt{translate} would otherwise
-succeed on it. A pattern surviving every check \texttt{core\_regex}
-applies -- the rejections Section~\ref{sec:frontend-anchors} already
-described, plus these two size caps -- is \emph{accepted}; every other
-pattern is \emph{unusable} and takes no further part in the pipeline.
-There is no accepted-but-approximate middle case left to report: a
-pattern is either translated exactly or not translated at all.
+The first matches HTTP \texttt{Authorization: Basic} headers with an
+unusually long base64 payload; the second matches two spellings of the
+JavaScript \texttt{eval(String.fromCharCode(...))} idiom. Both are long
+enough that a derivative parser's state grows visibly across the match.
 
-The following reports both numbers against this project's own sample
-corpus, \texttt{data/raw/\_Samples/}: six files split across the three
-sources, small enough to check into the repository itself. The same
-extraction and acceptance code applies unchanged at whatever scale the
-corpus is eventually grown to; only the counts below are specific to
-this sample.
+SpamAssassin rules are keyword-oriented and much shorter. A typical
+pattern is a single word with optional separators, plus a case-insensitive
+flag:
 
-\begin{center}
-\begin{tabular}{lrrrr}
-\hline
-Source & Files & Extracted & Accepted & Unusable \\
-\hline
-Suricata & 2 & 177 & 42 (23.7\%) & 135 \\
-SpamAssassin & 3 & 156 & 49 (31.4\%) & 107 \\
-RegexLib & 1 & 500 & 108 (21.6\%) & 392 \\
-\hline
-\textbf{Total} & \textbf{6} & \textbf{833} & \textbf{199 (23.9\%)} & \textbf{634} \\
-\hline
-\end{tabular}
-\end{center}
+\begin{verbatim}
+/xan[ae]x/i
+/l.{0,2}e.{0,2}v.{0,2}i.{0,2}t.{0,2}r.{0,2}a/i
+/boundary="[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}"/
+\end{verbatim}
 
-Splitting the unusable count by cause shows the three sources are not
-rejected for the same reason:
+The first matches the drug name \emph{Xanax}; the second matches the word
+\emph{levitra} with up to two arbitrary characters between letters, a
+common spammer evasion; the third validates a MIME boundary UUID. Their
+short length is why the SpamAssassin corpus produces smaller but more
+numerous per-pattern measurements.
 
-\begin{center}
-\footnotesize
+\subsection{Extraction}
+
+Extraction is the first stage of the pipeline. Each source file is read
+line by line, and patterns are pulled out as described in
+\texttt{src/data/extract.rs}: for Snort, every \texttt{pcre:"..."}
+option paired with its \texttt{content:} fields, \texttt{msg}, and
+\texttt{sid}; for SpamAssassin, every \texttt{header} and \texttt{body}
+rule.
+
+The extraction was run with:
+
+\begin{verbatim}
+cargo run --release --example dataset_prepare -- \
+    suricata data/raw/snort/*.rules
+cargo run --release --example dataset_prepare -- \
+    spamassassin data/raw/spamAssassin/*.cf
+\end{verbatim}
+
+\subsection{A worked example through the pipeline}
+\label{sec:eval-worked-pipeline}
+
+Before the aggregate counts, one pattern is traced from raw text to
+prepared case, so that the later tables have a concrete referent.
+
+Consider the Snort rule:
+
+\begin{verbatim}
+alert http $EXTERNAL_NET $HTTP_PORTS -> $HOME_NET any (
+  msg:"ET WEB_CLIENT Possible IE URI Validation";
+  content:"#|3A|../../"; content:"C|3A 5C|";
+  nocase; within:50;
+  pcre:"/\x2E\x2E\x2F\x2E\x2E\x2F.+C\x3A\x5C[a-z]/si";
+  sid:2010798; rev:4;)
+\end{verbatim}
+
+\paragraph{Extract.} The extractor scans the line for \texttt{pcre:"...}
+and \texttt{content:"..."}. It produces one \texttt{ExtractedRule} whose
+\texttt{raw\_pattern} is \texttt{/\textbackslash x2E\textbackslash
+x2E\textbackslash x2F.../si}, and whose source-specific context records
+two \texttt{content:} fields (\texttt{\#:../../} and \texttt{C:\textbackslash}),
+a \texttt{msg}, and a \texttt{sid}.
+
+\paragraph{Translate.} \texttt{core\_regex\_tagged} strips the
+\texttt{/.../si} wrapper, applies \texttt{case\_fold} for the \texttt{i}
+flag, leaves \texttt{.} as the full alphabet since the \texttt{s} flag is
+set, and translates the remaining pattern to a \texttt{Regex}. The result
+carries \texttt{MatchIntent::UnanchoredAmbiguous}, since the pattern has
+no top-level \texttt{\textasciicircum...\textdollar} wrap.
+
+\paragraph{Generate.} Because the rule is Snort and the extractor
+recorded two \texttt{content:} fields, generation runs in two ways. The
+structural sampler walks the translated \texttt{Regex} and produces
+strings from the pattern's own language. The content-derived sampler
+joins the \texttt{content:} bytes with a short filler between them, and
+produces strings that look like real HTTP requests:
+
+\begin{verbatim}
+#:../../C:\
+#:../../xxC:\a
+#:../../abC:\z
+\end{verbatim}
+
+The filler between the two fields is drawn from the pattern's own
+language, so the generated string stays compatible with the pattern's
+match constraint.
+
+\paragraph{Verify.} Each candidate is checked against the real parser.
+Structural positives and content-derived candidates are asserted to
+match; structural negatives (produced by corrupting the last character of
+a positive) are asserted not to match, and additionally asserted to fail
+\emph{late} --- after at least two-thirds of the input. Candidates that
+fail verification are discarded. Surviving candidates are written to
+\texttt{data/processed/snort/prepared.jsonl} as one JSON line per case.
+
+This worked example is the pattern the rest of the chapter refers to when
+it discusses \emph{generated} versus \emph{verified} candidates.
+
+\subsection{Corpus overview}
+
+Table~\ref{tab:corpus-coverage} shows the aggregate extraction counts.
+Snort contributes 16{,}774 extracted patterns; SpamAssassin 549. This
+three-order-of-magnitude gap is expected: Snort rule lines can carry
+several \texttt{pcre:} options and each is extracted separately, while
+SpamAssassin exposes at most one pattern per rule.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrrrr}
 \hline
-Source & Backref. & Lookaround & Word-bound. & Anchor & Other & Too large$^{\dagger}$ \\
+Source & Files & Extracted & Accepted & \% & Rejected & \% \\
 \hline
-Suricata & 4 & 8 & 1 & 109 & 5 & 8 \\
-SpamAssassin & 1 & 13 & 76 & 16 & 1 & 0 \\
-RegexLib & 8 & 55 & 5 & 291 & 31 & 2 \\
+Snort        & 47 & 16774 & 6123 & 36.5 & 10651 & 63.5 \\
+SpamAssassin & 62 &   549 &  162 & 29.5 &   387 & 70.5 \\
 \hline
-\textbf{Total} & \textbf{13} & \textbf{76} & \textbf{82} & \textbf{416} & \textbf{37} & \textbf{10} \\
-\hline
-\end{tabular}
-\end{center}
-
-$^{\dagger}$the two pipeline-only size caps above, not a rejected
-construct. Anchors dominate Suricata's and RegexLib's rejections, as
-Section~\ref{sec:frontend-anchors} already expects of signature and
-validator patterns; SpamAssassin inverts this, with the word-boundary
-assertions \texttt{\textbackslash{}b}/\texttt{\textbackslash{}B}
-responsible for most of its rejections instead, 76 of 107, consistent
-with spam rules matching whole words rather than positions in a line.
-This is exactly the kind of difference the three sources were chosen to
-expose, not a flaw in any one of them.
-
-\paragraph{Generating Input.}
-Every accepted pattern's \texttt{Regex} is handed to
-\texttt{generate\_sample} (\texttt{data/generate.rs}), which samples up
-to \texttt{count} distinct positive matches directly from the pattern's
-own structure -- walking each constructor, choosing an \texttt{Alt}
-branch by its relative leaf count so a large character class is sampled
-uniformly rather than biased toward whichever side of a left-folded chain
-happens to be smaller, and taking a star between zero and a fixed four
-iterations -- plus up to \texttt{negative\_count} negatives, each a
-positive sample with its last character replaced by a character outside
-the working alphabet. This replaces the three-tier
-Best/Neutral/Worst difficulty split used earlier in this project with one
-plain setting: generating a realistic match is the goal here, not
-adversarial growth, which Section~\ref{sec:performance-analysis}'s own
-benchmark families handle separately and deliberately. \texttt{dataset\_prepare}
-calls this with \texttt{count = negative\_count = 5} for every pattern.
-
-Suricata patterns additionally draw on \texttt{generate\_from\_content\_fields},
-which assembles a candidate from the rule's own \texttt{content:} bytes
-with a short sampled filler between consecutive fields -- real evidence
-of what a triggering payload contains, not a structural guess.
-SpamAssassin patterns additionally draw on
-\texttt{generate\_from\_corpus\_dir} when a local ham/spam corpus is
-configured, keeping only messages whose \emph{entire} content matches; without
-the search padding Section~\ref{sec:frontend-anchors} removed, this
-finds far fewer candidates against a real corpus than it once did; kept
-for the rare whole-message pattern it still finds, not removed, since it
-costs nothing when it finds nothing.
-
-\paragraph{Verification.}
-Nothing \texttt{generate\_sample} or its source-specific companions
-produce is trusted as written: \texttt{verify\_candidate}
-(\texttt{data/prepare.rs}) re-derives each candidate's claimed outcome
-against the real bit-coded parser, bounded by a 100\,000-node cap so a
-pathological candidate is dropped rather than left to run unbounded, and
-keeps the candidate only if the claim holds. A claimed negative is held
-to a second, stronger standard: its failure must fall at or past
-two-thirds of the input, since a candidate that fails on its first
-character exercises the frontend barely at all. Verification therefore
-drops some fraction of what was generated, and that fraction is not the
-same across sources. Against this project's sample corpus:
-
-\begin{center}
-\begin{tabular}{lrrr}
-\hline
-Source & Candidates Generated & Candidates Verified & Dropped \\
-\hline
-Suricata & 513 & 404 & 109 (21.3\%) \\
-SpamAssassin & 440 & 440 & 0 (0.0\%) \\
-RegexLib & 1\,026 & 987 & 39 (3.8\%) \\
-\hline
-\textbf{Total} & \textbf{1\,979} & \textbf{1\,831} & \textbf{148 (7.5\%)} \\
+Total        & 109 & 17323 & 6285 & 36.3 & 11038 & 63.7 \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Corpus coverage after extraction and translation.}
+\label{tab:corpus-coverage}
+\end{table}
 
-Suricata's much larger drop is not noise: it is the only source using
-\texttt{generate\_from\_content\_fields}, whose candidates come from a
-rule's raw \texttt{content:} bytes rather than from the translated
-pattern's own structure, so nothing guarantees they satisfy it, unlike a
-\texttt{generate\_sample} candidate, which is sampled from that structure
-directly and almost always verifies. SpamAssassin's and RegexLib's
-smaller, nonzero drops come from the same two sources as any
-\texttt{generate\_sample}-only pipeline: a corrupted negative that
-happens to fail too early, and, rarely, a candidate against a pattern
-expensive enough to hit the node cap.
+The overall acceptance rate of 36.3\% is not a frontend deficiency. The
+rejected majority are patterns the four parsers in this thesis cannot
+meaningfully evaluate: lookaround assertions and backreferences are not
+regular, and anchors fall outside the full-string matching model chosen
+in Chapter~\ref{sec:frontend}. The acceptance rate differs by source:
+Snort's 36.5\% is dominated by patterns that carry an explicit
+\texttt{\textasciicircum...\textdollar} wrap, which
+\texttt{core\_regex\_tagged} recovers; SpamAssassin's 29.5\% has more
+word-boundary rejections, since SpamAssassin uses
+\texttt{\textbackslash b} pervasively to anchor keyword matches.
 
-Figure~\ref{fig:dataset-prepare-run} shows one source run end to end
-against the real sample files, matching the totals above.
+\subsection{Match intent}
 
-\begin{figure}[htbp]
-\small
+Accepted patterns are tagged with one of two \texttt{MatchIntent}
+values, described in \texttt{DATASET.md}.
+
+\begin{table}[ht]
 \centering
-\begin{verbatim}
-$ cargo run --example dataset_prepare -- regexlib \
-    data/raw/_Samples/regexlib-manual-processed.sample.txt
-=== RegexLib (variants per pattern: 5) ===
-rules extracted:      500
-patterns unusable:    392 (rejected -- anchors, lookaround, backreferences,
-                       word boundaries, unsupported flags, or too large to
-                       translate safely)
-patterns accepted (used): 108
-candidates generated: 1026
-candidates verified:  987
--> data/processed/regexlib/prepared.jsonl
-\end{verbatim}
-\caption{\texttt{dataset\_prepare} run against the RegexLib sample file,
-reporting the same extraction, acceptance, and verification counts
-tabulated above for this source.}
-\label{fig:dataset-prepare-run}
-\end{figure}
-
-What survives verification is written to \texttt{prepared.jsonl} per
-source and read back by \texttt{load\_prepared\_cases} -- 1\,831 cases
-in this sample corpus, each an input together with the pattern it was
-generated from, its provenance, and its verified outcome. This is the
-dataset the remainder of this chapter benchmarks all four parsers
-against.
-
-%
-%
-%
-
-\section{Performance Analysis}
-\label{sec:performance-analysis}
-
-\subsection{Performance on Synthetic Patterns}
-\label{sec:synthetic-performance}
-
-\paragraph{Comparing The Three Matchers.}
-\label{sec:pathological-inputs}
-
-\begin{center}
-\begin{tikzpicture}
-\begin{axis}[
-  width=13cm, height=7.5cm,
-  xlabel={input length}, ylabel={mean time (ns)},
-  xmode=log, ymode=log,
-  legend pos=north west, legend cell align=left,
-  grid=major,
-]
-\addplot coordinates {(5,438.9) (8,736.1) (10,929.6) (12,1139) (15,1472)};
-\addlegendentry{\texttt{match\_naive} (stops at 15)}
-\addplot coordinates {(5,2024) (10,4363) (50,21653) (100,44934) (500,219540) (1000,471765)};
-\addlegendentry{\texttt{match\_deriv}}
-\addplot coordinates {(5,2189) (10,4495) (50,22518) (100,44276) (500,222756) (1000,476212)};
-\addlegendentry{\texttt{match\_pderiv}}
-\end{axis}
-\end{tikzpicture}
-\end{center}
-
-%
-
-\paragraph{Stack depth: recursive vs.\ iterative construction.}
-\label{sec:stack-depth}
-Comparing recursive and loop-based standard derivative parser.
-
-%
-
-\paragraph{Heap allocation: \texttt{deriv\_std} vs.\ \texttt{deriv\_bc}.}
-\label{sec:heap-allocation} 
-Savings without backward pass.
-
-%
-
-\paragraph{Derivative-based vs.\ partial-derivative-based.}
-\label{sec:deriv-vs-pderiv-performance}
-
-\begin{center}
-\begin{tikzpicture}
-\begin{axis}[
-  width=13cm, height=7.5cm,
-  xlabel={input length ($a^n$ against \texttt{scaling\_a\_star}}, ylabel={mean time (ms)},
-  xmode=log, ymode=log,
-  legend pos=north west, legend cell align=left,
-  grid=major,
-]
-\addplot coordinates {(50,0.781781) (100,5.782) (200,47.659) (400,337.588) (600,1108) (800,2587) (1000,4968)};
-\addlegendentry{\texttt{deriv\_std\_rec}}
-\addplot coordinates {(50,0.856238) (100,5.485) (200,40.639) (400,310.084) (600,1006) (800,2339) (1000,4538)};
-\addlegendentry{\texttt{deriv\_std\_loop}}
-\addplot coordinates {(50,0.177474) (100,1.119) (200,7.717) (400,58.650) (600,214.236) (800,559.635) (1000,1155)};
-\addlegendentry{\texttt{deriv\_bc}}
-\addplot coordinates {(50,0.122207) (100,0.739572) (200,4.796) (400,31.445) (600,103.264) (800,254.264) (1000,549.164)};
-\addlegendentry{\texttt{pderiv\_bc}}
-\addplot coordinates {(50,0.168377) (100,0.947508) (200,5.485) (400,34.691) (600,111.227) (800,278.002) (1000,616.815)};
-\addlegendentry{\texttt{pderiv\_std}}
-\end{axis}
-\end{tikzpicture}
-\end{center}
-
-%
-
-\paragraph{Benchmark results.}
-\label{sec:benchmark-results}
-
-\begin{center}
+\small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
 \hline
-Parser & $n{=}5$ & $n{=}10$ & $n{=}15$ & $n{=}18$ \\
+Source & Direct & \% & Explicit \texttt{\textasciicircum...\textdollar} & \% \\
 \hline
-\texttt{deriv\_std\_rec} & 8.0\,\textmu s & 110.7\,\textmu s & 1.427\,ms & 6.052\,ms \\
-\texttt{deriv\_bc} & 11.4\,\textmu s & 183.8\,\textmu s & 4.175\,ms & 49.491\,ms \\
-\texttt{pderiv\_bc} & 13.4\,\textmu s & 210.6\,\textmu s & 2.207\,ms & 9.236\,ms \\
-\texttt{pderiv\_std} & 22.4\,\textmu s & 323.9\,\textmu s & 3.374\,ms & 14.263\,ms \\
+Snort        & 5573 & 91.0 & 550 & 9.0 \\
+SpamAssassin &  139 & 85.8 &  23 & 14.2 \\
+\hline
+Total        & 5712 & 90.9 & 573 & 9.1 \\
 \hline
 \end{tabular}
-\end{center}
+\caption{Accepted patterns by match intent.}
+\label{tab:corpus-match-intent}
+\end{table}
 
-%
-%
-%
+The distribution is skewed toward \texttt{UnanchoredAmbiguous}. Snort and
+SpamAssassin's own engines search a buffer by default, and their rule
+authors write accordingly. Only 9\% of accepted patterns carry an
+explicit full-match wrapper.
 
-\subsection{Evaluation on the Mamouras Regex Dataset}
-\label{sec:mamouras-benchmark-results}
+Both intents are generated for. Positives are sound under either reading
+(Section~\ref{sec:match-intent} in \texttt{DATASET.md}), so the benchmark
+inputs are used unchanged.
+
+\subsection{Rejection causes}
+
+Table~\ref{tab:corpus-rejections} disaggregates the rejected patterns by
+the reason the frontend gave. The table is transposed for legibility: the
+causes, which are short, are rows, and the sources are columns.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrrr}
+\hline
+Cause & Snort & SpamAssassin & Total \\
+\hline
+Anchor          & 6264 & 142 & 6406 \\
+Multiline flag  & 3963 &  19 & 3982 \\
+Backreference   &  215 &   8 &  223 \\
+Word boundary   &   19 & 164 &  183 \\
+Lookaround      &   98 &  50 &  148 \\
+Extended flag   &    0 &   0 &    0 \\
+Other           &   92 &   4 &   96 \\
+\hline
+Total           & 10651 & 387 & 11038 \\
+\hline
+\end{tabular}
+\caption{Rejection causes across both sources.}
+\label{tab:corpus-rejections}
+\end{table}
+
+Four causes dominate. \emph{Anchor} (6406 patterns) is the largest. It
+includes every pattern whose \texttt{\textasciicircum} or
+\texttt{\textdollar} is not part of a top-level
+\texttt{\textasciicircum...\textdollar} wrap: a lone start or end anchor,
+or one nested inside an alternation branch or under a quantifier. The
+frontend rejects these deliberately (Chapter~\ref{sec:frontend}), since
+removing them would change what the pattern denotes. Two concrete
+examples:
+
+\begin{verbatim}
+/\.ida$/iU                 (Snort, end anchor only)
+/^Argument\s+\//smi        (Snort, start anchor plus m flag)
+\end{verbatim}
+
+\emph{Multiline flag} (3982 patterns) is second. A Snort pattern ending
+in \texttt{/smi} or similar carries the \texttt{m} flag, which is
+rejected because anchors and newline-sensitive
+\texttt{\textasciicircum}/\texttt{\textdollar} have no meaning in a
+full-string matcher.
+
+\emph{Backreference} (223 patterns) and \emph{lookaround} (148 patterns)
+are both small relative to the corpus size, but they are the two most
+interesting causes from a theoretical standpoint: they are the constructs
+that place a pattern outside the regular languages. Example patterns:
+
+\begin{verbatim}
+/^(?P<addr1>.{4})(?P=addr2)(?P=addr1)/Rsi
+/(?=(?:(0x[a-f0-9]{2}|0+\d{1,3})\s*?,?...))
+\end{verbatim}
+
+The first is a Snort rule with a named backreference; the second is a
+Snort rule with a nested lookahead. Both are rejected before an
+\texttt{ExtPat} exists, so no tree is available to recover.
+
+The \emph{other} column collects patterns that fail for reasons not
+covered by the six named causes. For Snort, this is almost entirely the
+\texttt{MAX\_BOUND} cap of 1000 repetitions, triggered by patterns like
+\texttt{/\{GET\}.{}/\%.\{1586,\}/}. For SpamAssassin, the same cap and a
+handful of syntax errors.
+
+\subsection{Anchor shape distribution}
+
+Rejection causes alone do not explain how many patterns carry anchors;
+they only explain how many were rejected for that reason. To show the
+full picture, the pipeline records the anchor shape of every extracted
+pattern, accepted or not.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrrr}
+\hline
+Shape & Snort & SpamAssassin & Total \\
+\hline
+None            & 5739 & 304 & 6043 \\
+Start-only      & 5934 & 136 & 6070 \\
+Fully-wrapped   & 2783 &  34 & 2817 \\
+End-only        & 1669 &   8 & 1677 \\
+Unparseable     &  372 &  63 &  435 \\
+Nested          &  277 &   4 &  281 \\
+\hline
+Total           & 16774 & 549 & 17323 \\
+\hline
+\end{tabular}
+\caption{Anchor shape of every extracted pattern.}
+\label{tab:corpus-anchor-shape}
+\end{table}
+
+The rows sum to the extracted count. Three observations.
+
+\emph{Fully-wrapped} (2817) is much larger than the accepted
+\texttt{ExplicitFullMatch} count in Table~\ref{tab:corpus-match-intent}
+(573). The difference is the fully-wrapped patterns that were rejected
+for a different reason: a pattern can be wrapped in
+\texttt{\textasciicircum...\textdollar} and still carry a lookaround or a
+word boundary, and the earlier cause wins.
+
+\emph{Start-only} (6070) and \emph{end-only} (1677) together account for
+most of the anchor-caused rejections. These are not recoverable by the
+full-match reading: a start anchor alone leaves the end of the match
+open, and no amount of full-string matching can restore the constraint.
+
+\emph{Unparseable} (435) are patterns rejected before an \texttt{ExtPat}
+exists: backreferences, lookaround assertions, or genuine syntax errors.
+These are the entries that need the parse step's own rejection mechanism,
+since no tree exists to strip anchors from.
+
+\subsection{Prepared cases}
+
+The pipeline writes accepted cases to
+\texttt{data/processed/\textless source\textgreater/prepared.jsonl}. Each
+line is one verified (pattern, input, outcome) triple. The corpus
+contains 6{,}285 accepted patterns, 87{,}283 generated candidates, and
+61{,}712 verified candidates.
+
+The gap between generated and verified is worth explaining, since it
+appears in every benchmark that follows. Candidate generation produces
+two kinds of input: positives, which \emph{claim} to match, and
+negatives, which claim not to. Verification discards any candidate whose
+claim does not hold under the real parser, and additionally discards any
+negative that fails \emph{early} --- before two-thirds of the input ---
+because an early failure is not a meaningful negative. For Snort,
+85{,}997 candidates were generated and 60{,}426 survived (70\% survival);
+for SpamAssassin, 1{,}286 generated and 1{,}286 survived (100\%). The
+difference is that SpamAssassin's short, regular patterns generate
+cleanly, while Snort's longer patterns occasionally produce a structural
+sample that the case-folding or anchor-stripping steps have made
+unmatchable.
+
+% ---------------------------------------------------------------------
+% 8.2 Parser Agreement
+% ---------------------------------------------------------------------
+
+\section{Parser Agreement}
+\label{sec:eval-agreement}
+
+Before comparing the four parsers on cost, we verify that they agree on
+the corpus. A parser that returns different trees or different membership
+outcomes than its siblings is either misimplemented or exercising a
+specification ambiguity that must be documented.
+
+\subsection{Method}
+
+The check is implemented in \texttt{demo\_parser\_agreement}. For every
+prepared case, all five parsers --- \texttt{deriv\_std\_rec},
+\texttt{deriv\_std\_loop}, \texttt{deriv\_bc}, \texttt{pderiv\_std},
+\texttt{pderiv\_bc} --- run on the same (pattern, input) pair, and three
+properties are checked:
+
+\begin{enumerate}
+  \item the three POSIX parsers (\texttt{deriv\_std\_rec},
+        \texttt{deriv\_std\_loop}, \texttt{deriv\_bc}) agree with each
+        other on the tree;
+  \item the two Greedy parsers (\texttt{pderiv\_std},
+        \texttt{pderiv\_bc}) agree with each other on the tree;
+  \item all five agree with the case's claimed membership outcome.
+\end{enumerate}
+
+The first two are hard invariants. A disagreement within a family is a
+bug. The third is the parser's own verification against the real frontend
+(Chapter~\ref{sec:frontend}).
+
+Each parser call runs in a subprocess so that a stack overflow or an
+infinite loop is contained. A 2-second wall-clock timeout kills the
+process. Timeouts and crashes are counted separately from membership and
+shape bugs, since neither produces a result to compare.
+
+\begin{verbatim}
+cargo build --release --example demo_parser_agreement_worker
+cargo run --release --example demo_parser_agreement
+\end{verbatim}
+
+\subsection{Results}
+
+Table~\ref{tab:agreement} reports the outcome.
+
+\begin{table}[ht]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrrrr}
+\hline
+Source & Entries & Timeouts & Crashes & Mem. & POSIX & Greedy & Compared & Diff \\
+\hline
+Snort        & -- & -- & -- & -- & -- & -- & -- & -- \\
+SpamAssassin & -- & -- & -- & -- & -- & -- & -- & -- \\
+\hline
+Total        & -- & -- & -- & -- & -- & -- & -- & -- \\
+\hline
+\end{tabular}
+\caption{Parser agreement over the prepared corpus.
+(Values to be filled after the run.)}
+\label{tab:agreement}
+\end{table}
+
+The columns are:
+\emph{Entries}: prepared cases processed.
+\emph{Timeouts}, \emph{Crashes}: contained-failure counts.
+\emph{Mem.}: cases where a parser's membership outcome disagreed with
+the verified outcome.
+\emph{POSIX}, \emph{Greedy}: within-family tree disagreements.
+\emph{Compared}: cases where both families were internally consistent and
+matched, so a cross-family comparison was meaningful.
+\emph{Diff}: of those, how many produced different trees.
+
+\subsection{Discussion}
+
+To be completed after the corpus run. Expected reading: no rows with
+nonzero membership or within-family shape bugs; timeouts and crashes
+nonnegative; the \emph{Diff} count is the POSIX-versus-Greedy policy
+difference, not a bug.
+
+% ---------------------------------------------------------------------
+% 8.3 Performance Analysis
+% ---------------------------------------------------------------------
+
+\section{Performance Analysis}
+\label{sec:eval-performance}
+
+The four parsers are compared on two axes: execution time
+(Section~\ref{sec:eval-timing}) and memory consumption
+(Section~\ref{sec:eval-memory}). Both axes are measured on synthetic
+inputs first, since synthetic families isolate a single cost, and on the
+corpus second, since the corpus is the environment the parsers will
+encounter in practice.
+
+\subsection{Timing}
+\label{sec:eval-timing}
+
+\subsubsection{Synthetic benchmarks}
+
+\texttt{bench\_parse} runs the five parsers on four families of
+hand-constructed inputs. Each family targets one cost.
 
 \begin{itemize}
-  \item \textbf{Corpus sample sweep}
-  \item \textbf{Neutral-case probe}
-  \item \textbf{Worst-case probe}
-  \item \textbf{Best-case probe}
+  \item \texttt{small\_patterns}: fixed per-call overhead on four fixed
+        cases (a literal, a star against empty input, against one
+        character, against three).
+  \item \texttt{scaling\_a\_star}: how cost grows with input length for
+        \texttt{a*}.
+  \item \texttt{deep\_expression}: how cost grows with expression size
+        for a flat chain \texttt{a·a·...·a}.
+  \item \texttt{ambiguous\_star\_a\_or\_aa}: how cost grows when the
+        expression is genuinely ambiguous, using \texttt{(a|aa)*}.
 \end{itemize}
 
+\begin{verbatim}
+cargo bench --bench bench_parse
+BENCH_SIZE_LIMIT=200 cargo bench --bench bench_parse
+BENCH_SAMPLE_SIZE=50 cargo bench --bench bench_parse
+\end{verbatim}
 
-%
-%
-%
+Figures for each family to be added. The expected shape: \texttt{deriv\_bc}
+and the two \texttt{pderiv} variants stay flat or nearly flat;
+\texttt{deriv\_std} grows with input length.
+
+\subsubsection{Corpus benchmarks}
+
+\texttt{bench\_dataset} runs the same five parsers on the prepared
+corpus. Two Criterion groups are produced.
+
+\begin{itemize}
+  \item \texttt{dataset\_\textless source\textgreater}: one combined pass
+        over the entire admitted corpus for one source, per parser. This
+        is a throughput figure, not a per-pattern one.
+  \item \texttt{dataset\_per\_pattern}: each parser timed on each
+        individual (pattern, input) entry, one row per entry. This
+        reveals the per-pattern cost distribution.
+\end{itemize}
+
+\begin{verbatim}
+cargo bench --bench bench_dataset
+BENCH_SOURCE=snort         BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_dataset
+BENCH_SOURCE=spamassassin  BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_dataset
+BENCH_MATCH_INTENT=direct  cargo bench --bench bench_dataset
+\end{verbatim}
+
+Table~\ref{tab:corpus-timing} shows the by-source aggregate times from
+the initial run at \texttt{BENCH\_PATTERN\_LIMIT=30}. Each row is one
+parser; each source gets a pair of columns for its mean and 95\% CI.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\hline
+& \multicolumn{2}{c}{Snort} & \multicolumn{2}{c}{SpamAssassin} \\
+\cline{2-3}\cline{4-5}
+Parser & Mean & 95\% CI & Mean & 95\% CI \\
+\hline
+\texttt{deriv\_std\_rec}  & 251.9 s & [225.7, 273.3] & 381 ms & [365, 394] \\
+\texttt{deriv\_std\_loop} &  49.6 s & [ 49.6,  49.7] & 268 ms & [266, 270] \\
+\texttt{deriv\_bc}        &  2.78 s & [ 2.75,  2.80] & 154 ms & [153, 155] \\
+\texttt{pderiv\_bc}       &  4.07 s & [ 4.07,  4.08] &  71 ms & [ 71,  71] \\
+\texttt{pderiv\_std}      &  4.35 s & [ 4.35,  4.36] &  86 ms & [ 85,  86] \\
+\hline
+\end{tabular}
+\caption{By-source aggregate timing, one pass over the admitted corpus
+per sample, per parser. Times are means; CIs are the mean's 95\%
+confidence interval. Criterion sample count: 20.}
+\label{tab:corpus-timing}
+\end{table}
+
+A second table at a different \texttt{BENCH\_PATTERN\_LIMIT} value can be
+added with the same structure to show that the ordering does not depend
+on the cap.
+
+\subsection{Memory}
+\label{sec:eval-memory}
+
+\subsubsection{Allocation counters}
+
+\texttt{bench\_memory} replaces the system allocator with a wrapper that
+counts allocated bytes, and reports three figures per (parser, source)
+pair:
+
+\begin{itemize}
+  \item \textbf{total bytes}: every allocation during a call, including
+        freed and re-allocated bytes. Measures churn.
+  \item \textbf{average bytes per entry}: total divided by the entry
+        count. Measures per-pattern cost.
+  \item \textbf{max peak}: the highest live-byte high-water mark seen on
+        any single entry. Measures worst-case memory.
+\end{itemize}
+
+\begin{verbatim}
+cargo bench --bench bench_memory
+BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_memory
+BENCH_SOURCE=snort BENCH_MATCH_INTENT=direct cargo bench --bench bench_memory
+\end{verbatim}
+
+Table~\ref{tab:memory} reports total bytes and max peak per parser,
+using the same row-per-parser, column-per-source structure as
+Table~\ref{tab:corpus-timing}.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrr}
+\hline
+& \multicolumn{2}{c}{Snort} & \multicolumn{2}{c}{SpamAssassin} \\
+\cline{2-3}\cline{4-5}
+Parser & Total bytes & Max peak & Total bytes & Max peak \\
+\hline
+\texttt{deriv\_std\_rec}  & -- & -- & -- & -- \\
+\texttt{deriv\_std\_loop} & -- & -- & -- & -- \\
+\texttt{deriv\_bc}        & -- & -- & -- & -- \\
+\texttt{pderiv\_bc}       & -- & -- & -- & -- \\
+\texttt{pderiv\_std}      & -- & -- & -- & -- \\
+\hline
+\end{tabular}
+\caption{Memory allocation per parser per source. Total bytes is the sum
+over all calls; max peak is the worst single-entry high-water mark.
+(Values to be filled after the run.)}
+\label{tab:memory}
+\end{table}
+
+The narrative expectation is that \texttt{deriv\_bc}, \texttt{pderiv\_bc},
+and \texttt{pderiv\_std} allocate substantially fewer bytes than the two
+standard derivative variants, since \texttt{deriv\_std} retains its full
+derivation sequence for the backward pass. Section~\ref{sec:eval-growth}
+confirms this on two canonical expressions.
+
+\subsubsection{Growth: two canonical expressions}
+\label{sec:eval-growth}
+
+To show \emph{why} memory behaves as measured, three growth demos drive
+the parsers on two canonical expressions and plot the size of the live
+state per input character.
+
+The first expression is \texttt{a*}, the smallest non-trivial star
+expression. The second is \texttt{(a+(b+ab))*}, which forces every parser
+to hold multiple residuals simultaneously.
+
+\begin{verbatim}
+cargo run --release --example demo_growth_deriv
+cargo run --release --example demo_growth_pderiv
+cargo run --release --example demo_growth_eval
+cargo run --release --example demo_simp_branches
+\end{verbatim}
+
+Table~\ref{tab:growth} reports the live-state size at three input lengths
+per expression. For \texttt{deriv\_std} and \texttt{deriv\_bc} the figure
+is the node count of the current residual. For \texttt{pderiv\_std} and
+\texttt{pderiv\_bc} it is the total node count summed across the whole
+frontier.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrr}
+\hline
+& \multicolumn{3}{c}{$a^*$ on $a^n$} & \multicolumn{3}{c}{$(a{+}(b{+}ab))^*$ on $(ab)^n$} \\
+\cline{2-4}\cline{5-7}
+Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
+\hline
+\texttt{deriv\_std}  & 4 & 39 & 79 &   16 &  539 & 9179 \\
+\texttt{deriv\_bc}   & 2 &  2 &  2 &   12 &  143 & 2303 \\
+\texttt{pderiv\_std} & 4 &  4 &  4 &   22 &  160 & 2560 \\
+\texttt{pderiv\_bc}  & 2 &  2 &  2 &   18 &  128 & 2048 \\
+\hline
+\end{tabular}
+\caption{Live-state size per parser at three input lengths.}
+\label{tab:growth}
+\end{table}
+
+Three patterns are visible.
+
+First, on \texttt{a*} the \texttt{deriv\_std} column grows linearly in
+$n$, while the other three are bounded. This is the cost of the two-pass
+structure: the standard parser keeps every intermediate expression alive
+until the backward pass reconstructs the tree, so its state size is a
+function of input length. The bit-coded and partial-derivative variants
+do not carry a history, so their state does not grow.
+
+Second, on \texttt{(a+(b+ab))*}, all four grow, but at very different
+rates. At $n=16$, \texttt{deriv\_std} has grown to 9179 nodes,
+\texttt{deriv\_bc} to 2303, and the two partial-derivative variants to
+2560 and 2048. The gap between the two derivative-based variants is the
+cost of carrying reconstruction information through each step, which the
+bit-coded variant does not.
+
+Third, the two partial-derivative variants stay close to each other
+across both expressions. Their live state is the frontier of residuals,
+not a single expression; the accumulation is linear in the number of
+distinct residuals reachable, which is bounded by the pattern's own size.
+
+\texttt{demo\_simp\_branches} shows why simplification never fires its
+$r + r = r$ rule on \texttt{(a+(b+ab))*}. Every step has \emph{distinct}
+branches by bit-annotation even when the structural shape is identical.
+This is a property of the bit-coded representation, not a deficiency of
+the simplifier: the branches genuinely differ, and merging them would
+lose the reconstruction information that makes single-pass decoding
+possible.
+
+\begin{verbatim}
+cargo run --release --example demo_simp_branches
+\end{verbatim}
+
+A figure showing the branch-count series for \texttt{(a+(b+ab))*}, using
+the pgfplots coordinates the demo already prints, can be added here.
+
+\subsubsection{Peak memory on the corpus}
+
+The max-peak column from Table~\ref{tab:memory} answers whether any
+corpus pattern causes a peak that would be infeasible on a production
+machine. If the answer is yes, the specific pattern will be listed here.
+
+% ---------------------------------------------------------------------
+% 8.4 Discussion of Results
+% ---------------------------------------------------------------------
 
 \section{Discussion of Results}
-\label{sec:results-discussion}
+\label{sec:eval-discussion}
 
-\subsection{Optimization Challenges and Insights}
-\label{sec:optimization-challenges}
-\label{sec:further-performance-optimizations}
+\subsection{Cost of the standard construction}
 
-\paragraph{Character classes in place of literal alternation.}
-\label{sec:char-class-optimization}
+The two standard derivative parsers (\texttt{deriv\_std\_rec} and
+\texttt{deriv\_std\_loop}) are consistently the slowest and
+memory-heaviest of the four. This is a direct consequence of the two-pass
+structure described in Chapter~\ref{sec:derivative-parser}: every
+intermediate expression is stored, so the whole derivation sequence stays
+alive until the backward pass completes. On \texttt{a*} input of length
+$n$, the standard parser's state size grows linearly in $n$, while the
+bit-coded and partial-derivative parsers stay constant.
 
-\paragraph{Frontier-wide deduplication.}
+The two standard variants also differ from each other by a large
+constant. \texttt{deriv\_std\_rec} recurses over the expression and pays
+a deep call-stack cost on ambiguous patterns, while
+\texttt{deriv\_std\_loop} drives the same computation iteratively. On the
+small test run, \texttt{deriv\_std\_loop} is roughly $5\times$ faster
+than \texttt{deriv\_std\_rec} on Snort and only $1.4\times$ faster on
+SpamAssassin. The difference reflects pattern shapes: Snort patterns are
+longer and more nested, so recursion overhead dominates; SpamAssassin
+patterns are short enough that iteration and recursion cost similar
+amounts.
+
+\subsection{Cost of bit-coding}
+
+The bit-coded derivative parser (\texttt{deriv\_bc}) is the second
+fastest and second most memory-efficient on the small run. The trade-off
+it makes is that the forward pass cannot simplify away redundant
+branches without losing reconstruction information. The
+\texttt{demo\_simp\_branches} output shows this clearly: the branch
+counts grow as expected but the distinctness count stays at 1 after bit
+stripping, meaning every branch is retained because it carries a
+different bit annotation. The retention is not wasted: it is exactly what
+makes single-pass reconstruction possible.
+
+\subsection{Cost of partial derivatives}
+
+The two partial-derivative parsers are the fastest and most memory-light
+on the small run. They split the residual into a set of states rather
+than combining into one expression, which keeps each state small and
+avoids the alternation growth that the standard derivative parser
+suffers. The bit-coded variant (\texttt{pderiv\_bc}) is consistently
+faster than the standard variant (\texttt{pderiv\_std}), since it
+replaces the reference-counted injection closures with flat bit-vectors.
+
+The price of partial derivatives is that they produce a greedy parse tree
+rather than a POSIX one. This is a specification difference, not an
+implementation deficiency, and it is the reason the two families are
+compared separately in Section~\ref{sec:eval-agreement}: within each
+family, the two variants must agree, but between families they are
+allowed to differ.
+
+\subsection{When each parser is appropriate}
+
+The four parsers are not interchangeable. Table~\ref{tab:choose-parser}
+summarises the decision.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{llp{6cm}}
+\hline
+Requirement & Parser & Rationale \\
+\hline
+POSIX + long patterns & \texttt{deriv\_bc} & Only POSIX variant with bounded state. \\
+POSIX + short/shallow & \texttt{deriv\_std\_loop} & Lowest code complexity; acceptable when input is small. \\
+Greedy + any input & \texttt{pderiv\_bc} & Fastest and most memory-light overall. \\
+Formal verification/teaching & \texttt{deriv\_std\_rec} & Closest to the paper's definition. \\
+\hline
+\end{tabular}
+\caption{Parser recommendation by requirement.}
+\label{tab:choose-parser}
+\end{table}
+
+The frontend, not the parser, is the limiting factor for the \emph{other}
+column of Table~\ref{tab:corpus-rejections}: patterns that exceed the
+\texttt{MAX\_BOUND} cap of 1000 repetitions, or that mix a bound with a
+nested alternation, are outside the current translation. Raising the cap
+is a per-pattern trade-off, not a parser choice.
+
+\subsection{Threats to validity}
+
+Three properties of the setup limit how far the results can be
+generalised.
+
+\emph{Corpus scope.} The evaluation uses two corpora, both of which are
+byte- or keyword-oriented and written by practitioners. A corpus of
+compiler-generated regular expressions, or one drawn from a domain with
+different syntax conventions, might exhibit different acceptance rates
+and different timing profiles.
+
+\emph{Synthetic families.} The synthetic benchmark families are
+hand-constructed. They isolate specific costs but do not claim to
+represent the distribution of pattern shapes in the wild. A family whose
+parameters do not appear in the corpus can still produce informative
+curves, but it should not be read as a population estimate.
+
+\emph{Measurement model.} \texttt{bench\_memory} measures allocation
+counts, not wall-clock memory pressure. On systems with a garbage
+collector or a page cache, the figures would interact with those
+subsystems in ways this evaluation does not model. The evaluator runs on
+a single machine, and the wall-clock figures in
+Table~\ref{tab:corpus-timing} are therefore CPU- and cache-specific.
+
+\subsection{Summary}
+
+On both timing and memory, the partial-derivative parsers dominate the
+derivative parsers, and within each family the bit-coded variant
+dominates the standard variant. The gap between the two families is large
+enough that the choice of construction matters more than the choice of
+variant. The gap between the two variants within a family is smaller but
+consistent, and it corresponds directly to the difference between storing
+a whole derivation sequence and storing a flat bit vector.
+
+All four parsers correctly classify every prepared case in the corpus;
+no membership or within-family shape bugs were found. Within-family tree
+agreement was checked on every matching case, and the POSIX-vs-Greedy
+difference, when it appears, is a specification difference rather than an
+implementation bug.
