@@ -35,7 +35,17 @@
 //! real versus generated for exactly this reason.
 //! Every other source is unmixed: always 0 for Suricata, SpamAssassin,
 //! and RegexLib; always 100% for S2ELab.
+//!
+//! Also appends one row to `reports/data/dataset_prepare.csv` per run,
+//! rather than overwriting like `reports/benches/`'s CSVs do: the
+//! point here is comparing how the pipeline behaves across different
+//! `N` (and, over time, across code changes) for the same source, so
+//! each invocation's numbers need to stay once the next one runs, not
+//! replace it. `N` and the source are themselves a natural key, unlike
+//! the benches, which needed `BENCH_RUN_LABEL` added for the same
+//! purpose.
 
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use regex_engine::data::types::SourceKind;
@@ -130,6 +140,75 @@ fn main() {
         });
 
     print_report(&report, source, per_side, verbose);
+    append_report_csv(inputs, source, &files, &report);
+}
+
+/// Appends one row per run to `reports/data/dataset_prepare.csv`.
+/// Writes the header only when the file does not already exist, so
+/// repeated runs accumulate rows instead of repeating the header
+/// partway through the file.
+fn append_report_csv(
+    inputs: usize,
+    source: SourceKind,
+    files: &[PathBuf],
+    report: &regex_engine::data::PipelineReport,
+) {
+    let dir = "reports/data";
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        eprintln!("could not create {dir}: {e}");
+        return;
+    }
+    let path = format!("{dir}/dataset_prepare.csv");
+    let write_header = !Path::new(&path).exists();
+    let mut f = match std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("could not open {path}: {e}");
+            return;
+        }
+    };
+    if write_header {
+        if let Err(e) = writeln!(
+            f,
+            "n,source,files,rules_extracted,patterns_unusable,patterns_accepted,\
+             patterns_unanchored_ambiguous,patterns_explicit_full_match,inputs_generated,\
+             inputs_verified,inputs_rejected,inputs_skipped,patterns_unusable_at_generation,\
+             patterns_usable,inputs_usable,inputs_usable_from_source,inputs_usable_synthetic,\
+             inputs_dropped_with_pattern,usable_explicit_full_match,usable_unanchored_ambiguous"
+        ) {
+            eprintln!("could not write header to {path}: {e}");
+            return;
+        }
+    }
+    let files_joined = files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(";");
+    if let Err(e) = writeln!(
+        f,
+        "{},{:?},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+        inputs,
+        source,
+        files_joined,
+        report.rules_extracted,
+        report.patterns_unusable,
+        report.patterns_accepted,
+        report.patterns_unanchored_ambiguous,
+        report.patterns_explicit_full_match,
+        report.inputs_generated,
+        report.inputs_verified,
+        report.inputs_rejected,
+        report.inputs_skipped(),
+        report.patterns_unusable_at_generation,
+        report.patterns_usable,
+        report.inputs_usable,
+        report.inputs_usable_from_source,
+        report.inputs_usable_synthetic(),
+        report.inputs_dropped_with_pattern(),
+        report.usable_explicit_full_match,
+        report.usable_unanchored_ambiguous,
+    ) {
+        eprintln!("could not append to {path}: {e}");
+        return;
+    }
+    eprintln!("appended to {path}");
 }
 
 fn print_report(

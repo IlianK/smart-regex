@@ -59,6 +59,7 @@ CLI arguments.
 | `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `both` |
 | `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` | `1`/`0`, `true`/`false`, `yes`/`no` | `0` |
 | `BENCH_ENTRY_TIMEOUT_MS` | corpus | positive integer (milliseconds) | `2000` |
+| `BENCH_RUN_LABEL` | corpus | any filename-safe string | unset (bare filename) |
 | `BENCH_SIZE_LIMIT` | synthetic | positive integer | unset (no cap) |
 | `BENCH_SAMPLE_SIZE` | Criterion targets | integer ≥ 10 | group-specific |
 
@@ -92,6 +93,13 @@ CLI arguments.
     pays ~`N_timed_out × cap` in wall clock; and each worker re-runs
     `core_regex` on the pattern, excluded from the reported per-entry
     timing.
+
+- **`BENCH_RUN_LABEL`** — Suffixes the CSV filename
+  (`bench_corpus_time_T3.csv` for `BENCH_RUN_LABEL=T3`), so a sweep of
+  differently-configured runs (e.g. a `BENCH_PLAN.md`-style set of
+  labelled commands) lands in separate files instead of each one
+  overwriting the last. Unset keeps today's bare filename, replaced on
+  every run as before.
 
 - **`BENCH_SIZE_LIMIT=N`** — Caps each synthetic family's hardcoded
   size/depth sweep to values ≤ N. Families with no value ≤ N contribute
@@ -208,7 +216,8 @@ Also writes `reports/benches/bench_corpus_time.csv` (and
 replacing any file from a previous run -- the same "latest run, not a
 log" convention `dataset_prepare` uses for `prepared.jsonl`. This is
 what a plain binary needs that Criterion gave for free: something
-persisted once the terminal scrolls away.
+persisted once the terminal scrolls away. Set `BENCH_RUN_LABEL` to
+give each configuration its own file instead of overwriting the last.
 
 
 
@@ -234,7 +243,8 @@ this binary -- each entry's worker process measures its own
 allocations from a clean baseline and reports them back, so this file
 itself does no allocation counting. Writes its latest run to
 `reports/benches/bench_memory.csv` (replacing any file from a
-previous run). For each source reports, per parser:
+previous run; `BENCH_RUN_LABEL` gives it its own file instead, same as
+`bench_corpus_time`). For each source reports, per parser:
 
 - **measured**: entries that neither timed out nor crashed -- the
   count `avg_bytes`/`max peak` are actually computed over.

@@ -172,6 +172,13 @@ more, never fewer. A pattern that cannot reach N/2 of both (even after
 retrying generation) contributes nothing at all and is counted
 separately as below-target — see the summary `dataset_prepare` prints.
 
+Unlike `prepared.jsonl`, the same run's summary numbers are *appended*
+as one row to `reports/data/dataset_prepare.csv`, not replaced: the
+point of that file is comparing how the pipeline behaves across
+different `N` (or, over time, across code changes) for the same
+source, so an earlier run's row needs to still be there once a later
+one adds its own.
+
 
 
 

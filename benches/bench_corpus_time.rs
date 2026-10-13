@@ -148,6 +148,14 @@ fn entry_timeout() -> Duration {
     Duration::from_millis(ms)
 }
 
+/// Optional filename suffix (e.g. `_T3`) so a sweep of differently
+/// -configured runs lands in separate files instead of each one
+/// overwriting the last. Unset keeps today's bare filename, so a
+/// one-off run is unaffected.
+fn run_label_suffix() -> String {
+    std::env::var("BENCH_RUN_LABEL").ok().map(|l| format!("_{l}")).unwrap_or_default()
+}
+
 struct Entry {
     pattern: String,
     input: String,
@@ -592,8 +600,9 @@ fn main() {
         eprintln!("could not create {REPORTS_DIR}: {e}");
         return;
     }
-    let summary_path = format!("{REPORTS_DIR}/bench_corpus_time.csv");
-    let outcome_path = format!("{REPORTS_DIR}/bench_corpus_time_by_outcome.csv");
+    let label = run_label_suffix();
+    let summary_path = format!("{REPORTS_DIR}/bench_corpus_time{label}.csv");
+    let outcome_path = format!("{REPORTS_DIR}/bench_corpus_time{label}_by_outcome.csv");
 
     // Written again after every source, not just once at the end: if a
     // later source hits a pathological entry badly enough to take the

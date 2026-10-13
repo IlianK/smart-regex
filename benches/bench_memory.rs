@@ -133,6 +133,12 @@ fn entry_timeout() -> Duration {
     Duration::from_millis(ms)
 }
 
+/// Optional filename suffix (e.g. `_M3`). See the identical function
+/// in `bench_corpus_time.rs` for why.
+fn run_label_suffix() -> String {
+    std::env::var("BENCH_RUN_LABEL").ok().map(|l| format!("_{l}")).unwrap_or_default()
+}
+
 struct Entry {
     pattern: String,
     input: String,
@@ -441,7 +447,7 @@ fn main() {
         eprintln!("could not create {REPORTS_DIR}: {e}");
         return;
     }
-    let path = format!("{REPORTS_DIR}/bench_memory.csv");
+    let path = format!("{REPORTS_DIR}/bench_memory{}.csv", run_label_suffix());
 
     // Written again after every source, not just once at the end: see
     // the identical comment in bench_corpus_time.rs's main().
