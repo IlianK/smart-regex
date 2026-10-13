@@ -143,10 +143,12 @@ To prepare all default datasets (Snort and SpamAssassin) in one go:
 cargo run --release --example dataset_prepare
 ```
 
-To prepare a specific dataset, name the source and list its input files with requested number of inputs to be generated / extracted (if dataset provides input). **Note: input N must be positive even integer**:
+To prepare a specific dataset, name the source and list its input files with requested number of inputs to be generated / extracted (if dataset provides input). **Note: input N must be positive even integer**
+(N=1 is not accepted, the smallest meaningful value is 2). 
+There is no default it is mandatory and must be the first argument:
 
 ```bash
-# Default sources, N=10 per pattern (5 match + 5 non-match)
+# Default sources, N=2 per pattern (1 match + 1 non-match)
 cargo run --release --example dataset_prepare -- 2 suricata      data/raw/snort/*.rules 
 cargo run --release --example dataset_prepare -- 2 spamassassin  data/raw/spamAssassin/*.cf 
 cargo run --release --example dataset_prepare -- 2 regexlib      data/raw/regexLib/*.txt 
@@ -165,19 +167,10 @@ read by the default and must be named explicitly.
 
 Each run writes to `data/processed/<source>/prepared.jsonl`, replacing
 the file rather than appending. Each *usable* pattern contributes
-exactly `--inputs N` verified cases (default 10): N/2 matches and N/2
-non-matches, never more, never fewer. A pattern that cannot reach N/2
-of both (even after retrying generation) contributes nothing at all
-and is counted separately as unusable-at-generation — see the summary
-`dataset_prepare` prints.
-
-```bash
-# --inputs is the total verified cases per pattern; must be even,
-# split N/2 match + N/2 non-match (default 10)
-cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules --inputs 6
-```
-
-
+exactly `<N>` verified cases: N/2 matches and N/2 non-matches, never
+more, never fewer. A pattern that cannot reach N/2 of both (even after
+retrying generation) contributes nothing at all and is counted
+separately as below-target — see the summary `dataset_prepare` prints.
 
 
 

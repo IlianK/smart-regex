@@ -666,6 +666,52 @@ mod tests {
     }
 
     #[test]
+    fn verify_until_lets_real_candidates_survive_over_redundant_synthetic_ones() {
+        let pattern = r"[a-c]+\d{2}";
+        let core_re = core(pattern);
+        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
+
+        let candidates = vec![
+            // Real match, pushed first.
+            Candidate {
+                text: "ab12".to_string(),
+                provenance: crate::data::types::Provenance::DatasetTextClassified,
+                claimed_match: true,
+            },
+            // Real non-match, pushed first.
+            Candidate {
+                text: "ab1\u{2603}".to_string(),
+                provenance: crate::data::types::Provenance::DatasetTextClassified,
+                claimed_match: false,
+            },
+            // Redundant synthetic top-up, pushed after: both sides are
+            // already full by the time these are reached, so neither is
+            // ever examined.
+            Candidate {
+                text: "ca13".to_string(),
+                provenance: crate::data::types::Provenance::Structural,
+                claimed_match: true,
+            },
+            Candidate {
+                text: "bb1\u{2603}".to_string(),
+                provenance: crate::data::types::Provenance::StructuralNegative,
+                claimed_match: false,
+            },
+        ];
+
+        let (cases, rejected) =
+            verify_until(SourceKind::Innovatorved, pattern, &core_re, intent, candidates, 1);
+        assert_eq!(cases.len(), 2);
+        assert_eq!(rejected, 0);
+        assert!(cases.iter().any(|c| c.input == "ab12"), "the real match should survive");
+        assert!(cases.iter().any(|c| c.input == "ab1\u{2603}"), "the real non-match should survive");
+        assert!(
+            !cases.iter().any(|c| c.input == "ca13" || c.input == "bb1\u{2603}"),
+            "the redundant synthetic candidates should never be reached"
+        );
+    }
+
+    #[test]
     fn prepared_cases_round_trip_through_jsonl() {
         let dir = std::env::temp_dir().join(format!("data-pipeline-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();

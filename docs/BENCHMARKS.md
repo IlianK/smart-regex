@@ -111,7 +111,7 @@ it by accident.
 
 ## `bench_dataset.rs`
 
-    cargo run --release --example dataset_prepare -- <source> <file>...
+    cargo run --release --example dataset_prepare -- <N> <source> <file>...
     cargo bench --bench bench_dataset
     BENCH_SAMPLE_SIZE=30 cargo bench --bench bench_dataset
 
@@ -121,10 +121,9 @@ Two Criterion groups:
   `dataset_regexlib`): all five parsers over that source's whole loaded
   corpus, one combined throughput measurement per parser.
   Admission is capped at `BENCH_PATTERN_LIMIT` distinct patterns per
-  source, each contributing exactly `--inputs` verified cases (default
-  10, half match / half non-match -- enforced by `dataset_prepare`;
-  a pattern that can't reach that split is excluded there entirely,
-  not padded).
+  source, each contributing exactly `<N>` verified cases (half match /
+  half non-match -- enforced by `dataset_prepare`; a pattern that can't
+  reach that split is excluded there entirely, not padded).
 - `dataset_per_pattern`: every loaded source combined, each parser timed
   on each individual (pattern, input) entry separately.
   Uses a hardcoded limit of 5 patterns per source; `BENCH_PATTERN_LIMIT`
