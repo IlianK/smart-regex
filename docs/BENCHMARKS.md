@@ -1,22 +1,21 @@
 # Benchmarks
 
-Five `cargo bench` targets, along two axes: synthetic vs. real-corpus
+Four `cargo bench` targets, along two axes: synthetic vs. real-corpus
 input, and timing vs. memory measurement.
 
 | Target | Input | Measures | Criterion? |
 |---|---|---|---|
 | `bench_match` | synthetic | time | yes |
 | `bench_parse` | synthetic | time | yes |
-| `bench_dataset` | corpus | time | yes |
 | `bench_corpus_time` | corpus | time | no |
 | `bench_memory` | corpus | memory | no |
 
 The corpus targets read `prepared.jsonl` under `data/processed/`; see
-[DATASET.md](DATASET.md) for how to build that. On the three Criterion
+[DATASET.md](DATASET.md) for how to build that. On the two Criterion
 targets, append `-- --test` to run each benchmark function once as a
 quick correctness check.
 
-## Why not every corpus target uses Criterion
+## Why Criterion is not used for the corpus
 
 Criterion's statistical model assumes a cheap closure measured many
 times: 100 runs of a 10 µs call is a millisecond, and the reported CI is
@@ -28,9 +27,7 @@ spread that Criterion is trying to characterize.
 
 `bench_corpus_time` and `bench_memory` are therefore plain reporting
 binaries (`harness = false`). Each runs every parser once over the whole
-corpus and prints the result. `bench_dataset` stays as a Criterion
-target for smoke tests: small pattern count, sub-minute run, familiar
-output format.
+corpus and prints the result.
 
 ## Configuration
 
@@ -42,6 +39,7 @@ CLI arguments.
 | `BENCH_SOURCE` | corpus | comma-separated `suricata`/`snort`, `spamassassin`, `regexlib`, `s2-elab`, `innovatorved` | Suricata + SpamAssassin |
 | `BENCH_PATTERN_LIMIT` | corpus | positive integer | unset (no cap) |
 | `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `both` |
+| `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` | `1`/`0`, `true`/`false`, `yes`/`no` | `0` |
 | `BENCH_SIZE_LIMIT` | synthetic | positive integer | unset (no cap) |
 | `BENCH_SAMPLE_SIZE` | Criterion targets | integer ≥ 10 | group-specific |
 
@@ -59,6 +57,12 @@ pattern.
 **`BENCH_MATCH_INTENT`.** Filters rows by their `MatchIntent` before
 anything else runs. `direct` keeps `UnanchoredAmbiguous`; `explicit`
 keeps `ExplicitFullMatch`; `both` keeps everything.
+
+**`BENCH_SPLIT_OUTCOME`.** When set, `bench_corpus_time` prints a second
+table per source splitting each parser's per-entry durations by the
+entry's verified outcome (match vs. non-match). Useful when a parser's
+total is skewed by one side of the corpus. Off by default; ignored by
+`bench_memory`.
 
 **`BENCH_SIZE_LIMIT=N`.** Caps each synthetic family's hardcoded
 size/depth sweep to values at or below N. A family with no value at or
@@ -113,43 +117,13 @@ Benchmarks all five parsers (`deriv_std_rec`, `deriv_std_loop`,
 `BENCH_SIZE_LIMIT` caps the last three. All groups run at Criterion's
 default sample count (100) unless `BENCH_SAMPLE_SIZE` overrides.
 
-## `bench_dataset.rs`
-
-```
-cargo run --release --example dataset_prepare -- <N> <source> <file>...
-cargo bench --bench bench_dataset
-BENCH_PATTERN_LIMIT=5     cargo bench --bench bench_dataset
-```
-
-Two Criterion groups:
-
-- `dataset_<source>`: all five parsers over one source's whole admitted
-  corpus. Admission is capped at `BENCH_PATTERN_LIMIT` distinct patterns,
-  each contributing exactly `<N>` verified cases (half match, half
-  non-match, enforced at `dataset_prepare` time).
-- `dataset_per_pattern`: each parser timed on each individual
-  (pattern, input) entry. Uses a hardcoded limit of 5 patterns per
-  source; `BENCH_PATTERN_LIMIT` does not affect it.
-
-Both groups lower Criterion's sample count from its own default of 100:
-20 for `dataset_<source>`, 10 for `dataset_per_pattern`.
-
-Each sample is one full pass over a real-corpus workload, not a single
-cheap call, so 100 samples at `deriv_std_rec`'s speed would run for
-minutes per (parser, source). `BENCH_SAMPLE_SIZE` overrides both
-hardcoded defaults.
-
-**Intended as a smoke test.** Set `BENCH_PATTERN_LIMIT=5` (or any small
-value) to confirm the corpus reads correctly in under a minute. For
-whole-corpus timing, use `bench_corpus_time`, which gives the same
-numbers without the sample-count multiplier.
-
 ## `bench_corpus_time.rs`
 
 ```
 cargo bench --bench bench_corpus_time
 BENCH_PATTERN_LIMIT=5     cargo bench --bench bench_corpus_time
 BENCH_SOURCE=snort,regexlib cargo bench --bench bench_corpus_time
+BENCH_SPLIT_OUTCOME=1     cargo bench --bench bench_corpus_time
 ```
 
 One pass per source, every admitted entry timed individually. Reports,
@@ -162,13 +136,12 @@ per parser:
 The distribution columns show whether the total is dominated by a
 handful of expensive patterns, which a single aggregate figure cannot.
 
-Reads the same three corpus variables as the other corpus targets. Not
-a Criterion target: one pass, no sampling, no CI.
+With `BENCH_SPLIT_OUTCOME` set, a second table splits each parser's
+time by match vs. non-match, so an asymmetry in the corpus shows up as
+a per-side column rather than being buried in the mean.
 
-**Supersedes `dataset_per_pattern`.** Same purpose (per-pattern cost
-distribution), but samples every admitted entry rather than a hardcoded
-five per source, and reports percentiles rather than a CI per Criterion
-registration.
+Reads the same three corpus variables as `bench_memory`. Not a Criterion
+target: one pass, no sampling, no CI.
 
 ## `bench_memory.rs`
 
@@ -196,21 +169,20 @@ Structural reason: `deriv_std` retains its derivation sequence, whereas
 
 | Question | Target |
 |---|---|
-| Does the corpus read correctly? | `bench_dataset` with `BENCH_PATTERN_LIMIT=5` |
+| Does the corpus read correctly? | `bench_corpus_time` with `BENCH_PATTERN_LIMIT=5` |
 | How long does each parser take over the whole corpus? | `bench_corpus_time` |
 | Which patterns dominate the cost? | `bench_corpus_time` (median vs. p99 vs. max) |
+| Do matches and non-matches cost differently? | `bench_corpus_time` with `BENCH_SPLIT_OUTCOME=1` |
 | How much memory does each parser allocate? | `bench_memory` |
 | How do the parsers scale on synthetic input? | `bench_parse` |
 | Does the matcher stack behave as expected on `(a*)*`? | `bench_match` |
 
-
-
 ## Quick reference
 
-**Smoke test** — 5 patterns per source, under a minute on all three:
+**Smoke test** — 5 patterns per source, under a minute on both corpus
+targets:
 
 ```bash
-BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_dataset
 BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_corpus_time
 BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_memory
 ```
@@ -229,6 +201,9 @@ BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
 BENCH_SOURCE=s2-elab,innovatorved \
 BENCH_PATTERN_LIMIT=50 \
   cargo bench --bench bench_corpus_time
+
+# Match vs. non-match split.
+BENCH_SPLIT_OUTCOME=1 BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_corpus_time
 ```
 
 **Whole-corpus memory** (`bench_memory`, same source and pattern-limit
@@ -249,32 +224,4 @@ BENCH_PATTERN_LIMIT=30 \
 # All five sources, every pattern.
 BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
   cargo bench --bench bench_memory
-```
-
-**Criterion smoke test** (`bench_dataset`).
-
-**Warning:** `bench_dataset` is a Criterion target, so every group is run
-`BENCH_SAMPLE_SIZE` times. Its `dataset_<source>` group measures one full
-corpus pass per sample. At `BENCH_PATTERN_LIMIT` unset and all five
-sources, that is a multi-day run with no analytical gain over a single
-pass. **Always set `BENCH_PATTERN_LIMIT` when invoking this target.**
-Use `bench_corpus_time` for whole-corpus timing.
-
-```bash
-# Safe: 5 patterns per source, under a minute.
-BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_dataset
-
-# Safe: one source, 30 patterns.
-BENCH_SOURCE=snort \
-BENCH_PATTERN_LIMIT=30 \
-  cargo bench --bench bench_dataset
-
-# Acceptable: all five sources, small cap.
-BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
-BENCH_PATTERN_LIMIT=5 \
-  cargo bench --bench bench_dataset
-
-# Do not run without a cap unless you intend to leave it overnight.
-# Default sources (suricata, spamassassin), every usable pattern.
-cargo bench --bench bench_dataset
 ```

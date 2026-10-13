@@ -76,6 +76,7 @@ fn bench_selection() -> BenchSelection {
 struct Entry {
     regex: Regex,
     input: String,
+    verified_match: bool,
 }
 
 type Corpora = (Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>);
@@ -124,7 +125,11 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
             }
         };
         patterns.insert(case.pattern.clone());
-        bucket.push(Entry { regex, input: case.input });
+        bucket.push(Entry {
+            regex,
+            input: case.input,
+            verified_match: case.verified_match,
+        });
     }
     if suricata.is_empty()
         && spamassassin.is_empty()
@@ -154,11 +159,43 @@ const PARSERS: &[(ParserType, ParserFn)] = &[
     (ParserType::PDerivStd, parse_pderiv_std),
 ];
 
-fn report(label: &str, corpus: &[Entry]) {
+struct Row {
+    name: &'static str,
+    total: Duration,
+    all: Vec<Duration>,
+    matches: Vec<Duration>,
+    non_matches: Vec<Duration>,
+}
+
+fn report(label: &str, corpus: &[Entry], split_outcome: bool) {
     if corpus.is_empty() {
         eprintln!("skip {label}: no entries");
         return;
     }
+
+    // One pass per parser: time every entry, keep the durations
+    // partitioned by outcome for the split table below.
+    let mut rows: Vec<Row> = Vec::new();
+    for (parser_type, parser) in PARSERS {
+        let mut all = Vec::with_capacity(corpus.len());
+        let mut matches = Vec::new();
+        let mut non_matches = Vec::new();
+        let start = Instant::now();
+        for entry in corpus {
+            let t0 = Instant::now();
+            let _ = parser(&entry.input, &entry.regex);
+            let dt = t0.elapsed();
+            all.push(dt);
+            if entry.verified_match {
+                matches.push(dt);
+            } else {
+                non_matches.push(dt);
+            }
+        }
+        let total = start.elapsed();
+        rows.push(Row { name: parser_type.name(), total, all, matches, non_matches });
+    }
+
     println!("\n{label} ({} entries)", corpus.len());
     println!(
         "{:<16} {:>12} {:>12} {:>12} {:>12} {:>12}",
@@ -168,40 +205,68 @@ fn report(label: &str, corpus: &[Entry]) {
         "{:-<16} {:->12} {:->12} {:->12} {:->12} {:->12}",
         "", "", "", "", "", ""
     );
-    for (parser_type, parser) in PARSERS {
-        let mut times: Vec<Duration> = Vec::with_capacity(corpus.len());
-        let start = Instant::now();
-        for entry in corpus {
-            let t0 = Instant::now();
-            let _ = parser(&entry.input, &entry.regex);
-            times.push(t0.elapsed());
-        }
-        let total = start.elapsed();
-        times.sort();
-        let n = times.len();
-        let mean = times.iter().sum::<Duration>() / n as u32;
-        let median = times[n / 2];
-        let p99 = times[(n * 99) / 100];
-        let max = *times.last().expect("non-empty");
-        let ms = |d: Duration| d.as_secs_f64() * 1_000.0;
+    let ms = |d: Duration| d.as_secs_f64() * 1_000.0;
+    for row in &rows {
+        let mut sorted = row.all.clone();
+        sorted.sort();
+        let n = sorted.len();
+        let mean = sorted.iter().sum::<Duration>() / n as u32;
+        let median = sorted[n / 2];
+        let p99 = sorted[(n * 99) / 100];
+        let max = *sorted.last().expect("non-empty");
         println!(
             "{:<16} {:>12.3} {:>12.3} {:>12.3} {:>12.3} {:>12.3}",
-            parser_type.name(),
-            total.as_secs_f64(),
+            row.name,
+            row.total.as_secs_f64(),
             ms(mean),
             ms(median),
             ms(p99),
             ms(max),
         );
     }
+
+    if !split_outcome {
+        return;
+    }
+
+    println!();
+    println!("{label}, by outcome");
+    println!(
+        "{:<16} {:>12} {:>12} {:>12} {:>12}",
+        "parser", "matches", "match (s)", "non-match", "non-match (s)"
+    );
+    println!(
+        "{:-<16} {:->12} {:->12} {:->12} {:->12}",
+        "", "", "", "", ""
+    );
+    for row in &rows {
+        let mt = row.matches.iter().sum::<Duration>();
+        let nt = row.non_matches.iter().sum::<Duration>();
+        println!(
+            "{:<16} {:>12} {:>12.3} {:>12} {:>12.3}",
+            row.name,
+            row.matches.len(),
+            mt.as_secs_f64(),
+            row.non_matches.len(),
+            nt.as_secs_f64(),
+        );
+    }
 }
 
 fn main() {
     let sel = bench_selection();
+    let split_outcome = std::env::var("BENCH_SPLIT_OUTCOME")
+        .ok()
+        .map(|s| match s.trim().to_lowercase().as_str() {
+            "1" | "true" | "yes" => true,
+            "0" | "false" | "no" => false,
+            other => panic!("BENCH_SPLIT_OUTCOME must be 1 or 0, got {other:?}"),
+        })
+        .unwrap_or(false);
     let (suricata, spamassassin, regexlib, s2_elab, innovatorved) = load_corpus(&sel);
     eprintln!(
         "bench_corpus_time: {} suricata, {} spamassassin, {} regexlib, {} s2-elab, {} innovatorved \
-         (limit {} each, sources={:?}, match_intent={:?})",
+         (limit {} each, sources={:?}, match_intent={:?}, split_outcome={})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
@@ -210,10 +275,11 @@ fn main() {
         fmt_limit(sel.pattern_limit),
         sel.sources,
         sel.match_intent,
+        split_outcome,
     );
-    report("dataset_suricata", &suricata);
-    report("dataset_spamassassin", &spamassassin);
-    report("dataset_regexlib", &regexlib);
-    report("dataset_s2_elab", &s2_elab);
-    report("dataset_innovatorved", &innovatorved);
+    report("dataset_suricata", &suricata, split_outcome);
+    report("dataset_spamassassin", &spamassassin, split_outcome);
+    report("dataset_regexlib", &regexlib, split_outcome);
+    report("dataset_s2_elab", &s2_elab, split_outcome);
+    report("dataset_innovatorved", &innovatorved, split_outcome);
 }
