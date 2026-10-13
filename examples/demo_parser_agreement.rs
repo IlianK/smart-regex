@@ -211,8 +211,7 @@ fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
         .unwrap_or_else(|e| {
             panic!(
                 "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first; see \
-                 docs/DATASET.md",
+                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first",
                 DATA_ROOT
             )
         });
@@ -289,7 +288,7 @@ fn main() {
     let cases = select_cases(&sel);
     if cases.is_empty() {
         panic!(
-            "no prepared cases loaded from {DATA_ROOT} for sources={:?} -- see docs/DATASET.md",
+            "no prepared cases loaded from {DATA_ROOT} for sources={:?} -- run dataset_prepare first",
             sel.sources
         );
     }

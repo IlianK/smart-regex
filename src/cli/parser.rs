@@ -43,7 +43,7 @@ pub fn run_parse_single(
 /// All five agree on membership.
 ///
 /// The fourth line, `Greedy vs POSIX`, is informational: the two policies
-/// may differ on tree shape (see `PARSERS.md`).
+/// may differ on tree shape.
 pub fn run_parse_all(regex_str: &str, input: &str) {
     let r = match parse_pattern(regex_str) {
         Ok(r)  => r,

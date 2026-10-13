@@ -1,9 +1,8 @@
 //! src/data/mod.rs
 //!
 //! Pipeline entry points.
-//! `run_pipeline` drives extract → generate → prepare for one source and
-//! writes `prepared.jsonl`.
-//! `load_prepared_cases` reads the result back for benchmarks.
+//! `run_pipeline` drives extract → generate → prepare for one source 
+//! and writes `prepared.jsonl`. `load_prepared_cases` reads the result back for benchmarks.
 
 pub mod extract;
 pub mod generate;
@@ -40,13 +39,10 @@ pub struct PipelineReport {
 }
 
 /// Runs extract → generate → prepare for one source, writing verified
-/// cases to `<data_root>/<source>/prepared.jsonl` (replaced, not
-/// appended).
+/// cases to `<data_root>/<source>/prepared.jsonl` (replaced, not appended).
 ///
-/// Generation only runs for `MatchIntent::UnanchoredAmbiguous` patterns.
-/// `ExplicitFullMatch` patterns are counted but not generated for yet;
-/// keeping this first pass to the plainer case avoids mixing two
-/// generation stories while that tier is still thin.
+/// Generation runs only for `MatchIntent::UnanchoredAmbiguous` patterns.
+/// `ExplicitFullMatch` patterns are counted in the report but excluded from generation.
 pub fn run_pipeline(
     source: SourceKind,
     raw_files: &[PathBuf],

@@ -66,17 +66,16 @@ cargo run --release --example demo_canonical_reject
 cargo run --release --example demo_canonical_reject -- data/raw/_Samples/emerging-exploit.rules
 ```
 
-There is no accepted-but-approximate case left in this frontend -- a pattern
-is either translated as-is (`Direct`), has its redundant top-level `^...$`
-stripped first (`Explicit full-match`), or rejected outright. See
-[DATASET.md](DATASET.md) for what each tier means and how `dataset_stats`
-reports them.
+A pattern is either translated as-is (`Direct`), has its redundant
+top-level `^...$` stripped first (`Explicit full-match`), or rejected
+outright. See [DATASET.md](DATASET.md) for what each tier means and how
+`dataset_stats` reports them.
 
 
 ## Frontend coverage demo (supported categories)
 
 ```bash
-# One real corpus pattern per verified frontend behaviour on _Samples
+# One real corpus pattern per verified frontend behaviour 
 cargo run --release --example demo_frontend_categories -- \
   data/raw/_Samples/emerging-exploit.rules data/raw/_Samples/emerging-web_client.rules \
   data/raw/_Samples/20_body_tests.cf data/raw/_Samples/20_drugs.cf data/raw/_Samples/20_head_tests.cf \
@@ -96,9 +95,7 @@ cargo run --release --example demo_growth_deriv
 # Antimirov partial derivative: frontier size per input char
 cargo run --release --example demo_growth_pderiv
 
-# All four growth families side by side (superset of the two demos above,
-# adding the two PartDeriv-standard series); those two files and their
-# pinning tests are untouched
+# All four growth families side by side
 cargo run --release --example demo_growth_eval
 
 # Sizes of the Regex produced by frontend translation, wildcard_run() size, case-fold cost
@@ -126,9 +123,10 @@ cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules
 ```
 
 ```bash
-# Coverage report: extraction counts, accepted/rejected split, rejection
-# causes, and anchor-shape distribution. No args needed -- reads
-# data/raw/{snort,spamAssassin} itself. --source regexlib opts it back in.
+# Coverage report: extraction counts, accepted/rejected split, 
+# rejection causes, and anchor-shape distribution. 
+# No args needed: reads data/raw/{snort,spamAssassin}  
+
 cargo run --release --example dataset_stats
 cargo run --release --example dataset_stats -- --verbose
 cargo run --release --example dataset_stats -- --source regexlib
@@ -136,8 +134,6 @@ cargo run --release --example dataset_stats -- --source regexlib
 
 ```bash
 # Cross-parser agreement over every prepared case (run dataset_prepare first).
-# Each parser call runs in its own subprocess so a pathological case can be
-# killed outright instead of leaking a thread; build the worker first.
 cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
 

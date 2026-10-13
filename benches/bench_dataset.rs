@@ -40,7 +40,7 @@ fn bench_selection() -> BenchSelection {
                 })
                 .collect()
         })
-        .unwrap_or_default(); // empty Vec -> load_prepared_cases's own "all sources" default
+        .unwrap_or_default(); // empty Vec -> load_prepared_cases's own default sources (Suricata, SpamAssassin)
     let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT")
         .ok()
         .map(|s| {
@@ -104,7 +104,7 @@ fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
         .unwrap_or_else(|_| format!("{DATA_ROOT} (missing)"));
     let mut lines = vec![format!(
         "no entries loaded from {DATA_ROOT} ({resolved}); \
-         sources={:?} (empty = all) limit={}",
+         sources={:?} (empty = default: suricata, spamassassin) limit={}",
         sel.sources, sel.pattern_limit
     )];
     for source in [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib] {

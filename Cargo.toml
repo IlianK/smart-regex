@@ -5,7 +5,6 @@ edition = "2021"
 
 [features]
 debug = []
-external-engines = ["dep:regex"]
 
 
 # CLI
@@ -92,11 +91,6 @@ name = "bench_dataset"
 harness = false
 
 [[bench]]
-name = "bench_external"
-harness = false
-required-features = ["external-engines"]
-
-[[bench]]
 name = "bench_memory"
 harness = false
 
@@ -107,7 +101,6 @@ harness = false
 [dependencies]
 clap        = { version = "4.5", features = ["derive"] }
 chrono      = { version = "0.4", default-features = false, features = ["clock"] }
-regex       = { version = "1", optional = true }
 rand        = "0.8"
 serde       = { version = "1", features = ["derive"] }
 serde_json  = { version = "1", features = ["unbounded_depth"] }
@@ -115,8 +108,4 @@ serde_stacker = "0.1"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-
-[build-dependencies]
-cc         = "1.0"
-pkg-config = "0.3"
 

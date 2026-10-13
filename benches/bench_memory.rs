@@ -192,7 +192,7 @@ fn main() {
     let sel = bench_selection();
     let (suricata, spamassassin, regexlib) = load_corpus(&sel);
     eprintln!(
-        "bench_match: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?})",
+        "bench_memory: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
