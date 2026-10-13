@@ -1,6 +1,8 @@
 //! benches/bench_parse.rs
 //!
 //! Benchmarks for the five parser combinations (3x posix + 2x greedy):
+//!
+//! Run: `cargo bench --bench bench_parse`
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex_engine::parsers::{parse_deriv_bc, parse_deriv_std_loop, parse_pderiv_bc, parse_pderiv_std, parse_deriv_std_rec};
@@ -21,6 +23,18 @@ fn deep_sequence(n: usize) -> Regex {
 
 fn repeat_char(c: char, n: usize) -> String {
     std::iter::repeat(c).take(n).collect()
+}
+
+/// Caps every sweep below at n <= this value. Unset = unlimited, i.e. the
+/// full hardcoded sweep each family already had. `bench_small_patterns`
+/// has no size dimension to cap -- its four cases are fixed regardless.
+fn size_limit() -> usize {
+    std::env::var("BENCH_SIZE_LIMIT")
+        .ok()
+        .map(|s| {
+            s.parse().unwrap_or_else(|_| panic!("BENCH_SIZE_LIMIT must be a positive integer, got {s:?}"))
+        })
+        .unwrap_or(usize::MAX)
 }
 
 
@@ -74,10 +88,11 @@ fn bench_small_patterns(c: &mut Criterion) {
 
 // 2. Scaling: a* on "aaa...a" (shallow expression)
 fn bench_scaling_a_star(c: &mut Criterion) {
+    let limit = size_limit();
     let mut group = c.benchmark_group("scaling_a_star");
     let r = star_a();
 
-    for n in [10, 50, 100, 200, 400, 600, 800, 1000] {
+    for n in [10, 50, 100, 200, 400, 600, 800, 1000].into_iter().filter(|&n| n <= limit) {
         let input = repeat_char('a', n);
 
         group.bench_with_input(
@@ -117,9 +132,10 @@ fn bench_scaling_a_star(c: &mut Criterion) {
 
 // 3. Scaling: deep expression (a·a·a...·a)
 fn bench_deep_expression(c: &mut Criterion) {
+    let limit = size_limit();
     let mut group = c.benchmark_group("deep_expression");
 
-    for depth in [50, 100, 200, 400, 600, 800, 1000] {
+    for depth in [50, 100, 200, 400, 600, 800, 1000].into_iter().filter(|&n| n <= limit) {
         let r = deep_sequence(depth);
         let input = repeat_char('a', depth);
 
@@ -160,6 +176,7 @@ fn bench_deep_expression(c: &mut Criterion) {
 
 // 4. Ambiguous/POSIX-vs-Greedy-relevant pattern: (a+aa)* on "aaaa...a"
 fn bench_ambiguous_star(c: &mut Criterion) {
+    let limit = size_limit();
     let mut group = c.benchmark_group("ambiguous_star_a_or_aa");
 
     let r = Regex::star(Regex::alt(
@@ -167,7 +184,7 @@ fn bench_ambiguous_star(c: &mut Criterion) {
         Regex::seq(Regex::lit('a'), Regex::lit('a')),
     ));
 
-    for n in [5, 10, 15, 18] {
+    for n in [5, 10, 15, 18].into_iter().filter(|&n| n <= limit) {
         let input = repeat_char('a', n);
 
         group.bench_with_input(

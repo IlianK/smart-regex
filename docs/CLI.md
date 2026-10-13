@@ -2,11 +2,10 @@
 
 Command reference for the `regex-engine` binary. 
 
-**By default, `match`/`parse` require the entire input to match the
-entire pattern**, and `^`/`$` do nothing. 
-- Full-string matching is what the core algorithm computes. 
-- Passing `--search` pads unanchored sides with `Σ*` (substring search), the same padding
-`src/data/`'s dataset pipeline uses. 
+`match`/`parse` always require the entire input to match the entire
+pattern; `^`/`$` do nothing. Full-string matching is the only mode the
+core algorithm computes -- there is no flag that pads or searches
+instead.
 
 ---
 
@@ -135,7 +134,6 @@ cat reports/report.txt
 | `--matcher` | `naive` `deriv` `pderiv` `all` | `deriv` | Matcher selection (`match` only) |
 | `--diag`  | `0` `1` `2` `3` | `0` | Output verbosity level (`parse` only) |
 | `--diag-report` | file path | unset (`reports/report.txt` if `--diag 3` with no path given) | Level 3 report destination (`parse` only) |
-| `--search` | flag (present/absent) | absent | Pad unanchored sides with `Σ*` instead of requiring a full-string match; both `match` and `parse` |
 
 ### Diag Verbosity levels
 

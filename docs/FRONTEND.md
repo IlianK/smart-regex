@@ -104,12 +104,12 @@ all.
 Verified against the built CLI, each rejecting with the same message
 (`anchor '^'/'$' is not supported by this frontend -- unsupported`):
 
-```
-$ cargo run -- parse "^?abc" "abc"        # optional, directly
-$ cargo run -- parse "(^)?abc" "abc"      # optional, behind a group
-$ cargo run -- parse "(^a|b)c" "bc"       # inside one alternation branch
-$ cargo run -- parse "(^a)*b" "b"         # under a star
-$ cargo run -- parse "(^a){0,1}b" "b"     # under an explicit bound
+```bash
+cargo run -- parse "^?abc" "abc"        # optional, directly
+cargo run -- parse "(^)?abc" "abc"      # optional, behind a group
+cargo run -- parse "(^a|b)c" "bc"       # inside one alternation branch
+cargo run -- parse "(^a)*b" "b"         # under a star
+cargo run -- parse "(^a){0,1}b" "b"     # under an explicit bound
 ```
 
 `ε` and `∅` are unaffected: `translate(ExtPat::Eps) = Regex::Eps` and

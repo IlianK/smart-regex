@@ -62,13 +62,11 @@ cargo run -- parse "(a|ab)(b|ε)" "ab" --parser all
 
 | File | Contents |
 |---|---|
-| [docs/CLI.md](docs/CLI.md) | matcher/parser selection, diagnostics levels 1–3, environment-variable reference |
+| [docs/CLI.md](docs/CLI.md) | matcher/parser selection, diagnostics levels 1–3, full flag reference |
 | [docs/EXAMPLES.md](docs/EXAMPLES.md) | runnable demos under `examples/` |
 | [docs/DIAG.md](docs/DIAG.md) | `--diag 1/2/3` output examples for every parser, on both successful and failing inputs |
-| [docs/FRONTEND.md](docs/FRONTEND.md) | pattern string → `ExtPat` → `Regex`, what the frontend accepts, how anchors and search padding work |
-| [docs/PARSERS.md](docs/PARSERS.md) | the four (+ one) `--parser` values, one call each, with pointers into the parser source |
-| [docs/DATASETS.md](docs/DATASETS.md) | the real-world regex corpus: sources, preparation pipeline, output format, and safety guards |
-| [docs/CATEGORIES.md](docs/CATEGORIES.md) | how Best/Neutral/Worst inputs are generated and verified, one section per generator |
-| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Criterion benchmarks: `bench_match`, `bench_parse`, `bench_dataset`, `bench_external` |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | pattern string → `ExtPat` → `Regex`, what the frontend accepts, how anchors are rejected |
+| [docs/PARSERS.md](docs/PARSERS.md) | the five `--parser` values, one call each, with pointers into the parser source |
+| [docs/DATASET.md](docs/DATASET.md) | the real-world regex corpus: sources, preparation pipeline, output format, and safety guards |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Criterion benchmarks: `bench_match`, `bench_parse`, `bench_dataset` |
 | [docs/TESTING.md](docs/TESTING.md) | test layout and `cargo test` invocations |
-| [docs/EXTERNAL_ENGINES.md](docs/EXTERNAL_ENGINES.md) | comparing against Rust's `regex` crate and Google's RE2, installing RE2, what the comparison does |

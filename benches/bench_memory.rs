@@ -1,8 +1,8 @@
-//! benches/bench_match.rs
+//! benches/bench_memory.rs
 //!
 //! Memory consumption of the four parsers against real corpus patterns.
 //!
-//! Run: `cargo bench --bench bench_match`
+//! Run: `cargo bench --bench bench_memory`
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicUsize, Ordering};

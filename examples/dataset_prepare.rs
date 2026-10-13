@@ -3,8 +3,8 @@
 //! cargo run --release --example dataset_prepare -- <source> <file...> [--corpus-dir DIR] [--variants N]
 //!
 //! Extract patterns from the given raw file(s).
-//! Generate up to N positive and N negative samples per pattern, verify
-//! each, and write survivors to `data/processed/<source>/prepared.jsonl`.
+//! Generate up to N positive and N negative samples per pattern, 
+//! verify each, and write survivors to `data/processed/<source>/prepared.jsonl`.
 //!
 //! `--variants N` (default 5) is samples per pattern: up to N positives
 //! and N negatives, not a combined total.

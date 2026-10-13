@@ -1,8 +1,6 @@
 //! examples/common/thesis_figures.rs
 
 //! Shared measurement helpers for the `demo_*` examples.
-//! Not an example itself (under `examples/common/`, so cargo's example
-//! autodiscovery skips it).
 //! Included via `#[path = "common/thesis_figures.rs"] mod common;`.
 //! Deterministic: no randomness, no timing, no environment dependence.
 #![allow(dead_code)] // each demo uses a subset
