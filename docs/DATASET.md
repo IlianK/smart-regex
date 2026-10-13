@@ -229,11 +229,10 @@ untouched. `"aaa"` corrupted to `"aa☃"` is a full-match negative for
 still matches. This holds only for `UnanchoredAmbiguous` negatives, not
 for `ExplicitFullMatch` ones.
 
-**Benchmark cap.** `bench_dataset.rs` and `demo_parser_agreement` take
-the first 30 *distinct patterns* per source, then every verified input
-under those 30 (`BENCH_PATTERN_LIMIT` to change the cap). Capping on rows
-would cover only a handful of patterns; capping on patterns guarantees
-30.
-
+**Benchmark cap.** `bench_dataset.rs` and `demo_parser_agreement` admit
+every distinct pattern per source by default; `BENCH_PATTERN_LIMIT=N`
+caps that to the first N. The cap is on distinct patterns, not on rows,
+so the number of patterns a bench measures is predictable regardless of
+how many verified inputs each one carries.
 
 

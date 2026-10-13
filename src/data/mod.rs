@@ -188,32 +188,36 @@ pub fn run_pipeline(
                 ));
             }
             // Innovatorved carries unlabeled free-form text.
-            // Classify the text lines first, then top up only the shortfall
-            // on each side.
-            // A pattern whose text already fills both sides pays nothing
-            // for structural sampling.
-            // A pattern whose text is empty or all on one side pays only
-            // for the other.
+            // Classify the text lines first, then top up structurally.
+            //
+            // A classified positive always verifies: `verify_one` calls
+            // `matches_bounded` again on the same input and gets the same
+            // answer, and positives skip the late-failure check. So the
+            // positive top-up is exactly the shortfall.
+            //
+            // A classified negative may still be rejected by
+            // `verify_one`'s late-failure rule, which counts from
+            // `claimed_match` alone cannot see. Sizing the negative
+            // top-up by the pre-verification count would therefore
+            // under-fill the side when some negatives are rejected.
+            // The negative top-up is always the full `cap`.
+            //
             // Real candidates are pushed before the top-up, so
-            // `verify_until`'s first-come order prefers them.
+            // `verify_until`'s first-come order prefers them; the
+            // surplus is skipped without verification.
             RuleContext::Innovatorved { test_text } => {
                 let real: Vec<_> = test_text
                     .as_deref()
                     .map(|text| generate::generate_from_dataset_text(text, &core, cap, &mut rng))
                     .unwrap_or_default();
                 let real_matches = real.iter().filter(|c| c.claimed_match).count();
-                let real_non_matches = real.iter().filter(|c| !c.claimed_match).count();
                 candidates.extend(real);
                 candidates.extend(generate::generate_positives(
                     &core,
                     &mut rng,
                     cap.saturating_sub(real_matches),
                 ));
-                candidates.extend(generate::generate_negatives(
-                    &core,
-                    &mut rng,
-                    cap.saturating_sub(real_non_matches),
-                ));
+                candidates.extend(generate::generate_negatives(&core, &mut rng, cap));
             }
             _ => {
                 candidates.extend(generate::generate_sample(&core, &mut rng, cap, cap));

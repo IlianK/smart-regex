@@ -164,28 +164,30 @@ structural: `deriv_std` retains its derivation sequence, whereas
 
 ### Quick reference
 ```bash
-# Default uses spamassassin and snort as datasets
+# Default sources: suricata (snort) and spamassassin.
 cargo bench --bench bench_dataset
 
-# Single dataset: 
+# Restrict to a single source.
 BENCH_SOURCE=spamassassin         cargo bench --bench bench_dataset
 BENCH_SOURCE=snort                cargo bench --bench bench_dataset
 BENCH_SOURCE=regexlib             cargo bench --bench bench_dataset
 BENCH_SOURCE=s2-elab              cargo bench --bench bench_dataset
 BENCH_SOURCE=innovatorved         cargo bench --bench bench_dataset
 
-# Change how many distinct patterns per source are admitted into the benchmark
+# Restrict to several sources at once.
+BENCH_SOURCE=snort,spamassassin cargo bench --bench bench_dataset
 BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved cargo bench --bench bench_dataset
 
-# Change amount of generated input
+# Cap distinct patterns admitted per source.
+# Unset = no cap (every usable pattern participates).
 BENCH_PATTERN_LIMIT=5             cargo bench --bench bench_dataset
 BENCH_PATTERN_LIMIT=30            cargo bench --bench bench_dataset
 
-BENCH_SOURCE=snort                BENCH_PATTERN_LIMIT=5 cargo bench   --bench bench_dataset
-BENCH_SOURCE=snort                BENCH_PATTERN_LIMIT=30 cargo bench  --bench bench_dataset
+BENCH_SOURCE=snort BENCH_PATTERN_LIMIT=5  cargo bench --bench bench_dataset
+BENCH_SOURCE=snort BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_dataset
 
-# Bench Memory
-BENCH_SOURCE=spamassassin         BENCH_PATTERN_LIMIT=5  cargo bench  --bench bench_memory
-BENCH_SOURCE=snort                BENCH_PATTERN_LIMIT=5  cargo bench  --bench bench_memory
-BENCH_SOURCE=s2-elab,innovatorved BENCH_PATTERN_LIMIT=30 cargo bench  --bench bench_memory
+# bench_memory takes the same two variables.
+BENCH_SOURCE=spamassassin         BENCH_PATTERN_LIMIT=5  cargo bench --bench bench_memory
+BENCH_SOURCE=snort                BENCH_PATTERN_LIMIT=5  cargo bench --bench bench_memory
+BENCH_SOURCE=s2-elab,innovatorved BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_memory
 ```
