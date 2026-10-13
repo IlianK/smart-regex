@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
-use regex_engine::data::types::SourceKind;
+use regex_engine::data::types::{MatchIntent, SourceKind};
 use regex_engine::parsers::{
     parse_deriv_bc, parse_deriv_std_loop, parse_deriv_std_rec, parse_pderiv_bc, parse_pderiv_std,
     ParserType,
@@ -76,6 +76,7 @@ const PATTERN_LIMIT_PER_SOURCE: usize = 30;
 struct BenchSelection {
     sources: Vec<SourceKind>,
     pattern_limit: usize,
+    match_intent: Option<MatchIntent>,
 }
 
 fn bench_selection() -> BenchSelection {
@@ -100,7 +101,16 @@ fn bench_selection() -> BenchSelection {
             s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
         })
         .unwrap_or(PATTERN_LIMIT_PER_SOURCE);
-    BenchSelection { sources, pattern_limit }
+    let match_intent = match std::env::var("BENCH_MATCH_INTENT").ok() {
+        None => None,
+        Some(s) => match s.trim().to_lowercase().as_str() {
+            "both" => None,
+            "direct" => Some(MatchIntent::UnanchoredAmbiguous),
+            "explicit" => Some(MatchIntent::ExplicitFullMatch),
+            other => panic!("BENCH_MATCH_INTENT must be direct, explicit, or both, got {other:?}"),
+        },
+    };
+    BenchSelection { sources, pattern_limit, match_intent }
 }
 
 struct Entry {
@@ -109,7 +119,7 @@ struct Entry {
 }
 
 /// One `Vec<Entry>` per source, each capped at `pattern_limit` distinct
-/// patterns.
+/// patterns, optionally filtered to one `MatchIntent` tier first.
 /// Source is the dimension examples group by.
 fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources)
@@ -123,6 +133,11 @@ fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     let mut regexlib_patterns = std::collections::HashSet::new();
 
     for case in cases {
+        if let Some(wanted) = sel.match_intent {
+            if case.match_intent != wanted {
+                continue;
+            }
+        }
         let (bucket, patterns) = match case.source {
             SourceKind::Suricata => (&mut suricata, &mut suricata_patterns),
             SourceKind::SpamAssassin => (&mut spamassassin, &mut spamassassin_patterns),
@@ -147,8 +162,9 @@ fn load_corpus(sel: &BenchSelection) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
     }
     if suricata.is_empty() && spamassassin.is_empty() && regexlib.is_empty() {
         panic!(
-            "no entries loaded from {DATA_ROOT} (sources={:?}, limit={}) -- run dataset_prepare first",
-            sel.sources, sel.pattern_limit
+            "no entries loaded from {DATA_ROOT} (sources={:?}, limit={}, match_intent={:?}) -- \
+             run dataset_prepare first",
+            sel.sources, sel.pattern_limit, sel.match_intent
         );
     }
     (suricata, spamassassin, regexlib)
@@ -192,12 +208,13 @@ fn main() {
     let sel = bench_selection();
     let (suricata, spamassassin, regexlib) = load_corpus(&sel);
     eprintln!(
-        "bench_memory: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?})",
+        "bench_memory: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?}, match_intent={:?})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
         sel.pattern_limit,
         sel.sources,
+        sel.match_intent,
     );
     report("dataset_suricata", &suricata);
     report("dataset_spamassassin", &spamassassin);

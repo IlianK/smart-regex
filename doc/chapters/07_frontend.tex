@@ -275,6 +275,26 @@ and is not inherited from the reference parser. Bounds exceeding the
 limit result in a descriptive translation error rather than the
 construction of an excessively large \texttt{Regex}.
 
+The check is on the repetition count alone, not on the size of the
+expression it produces, and the two differ sharply depending on what is
+being repeated. \texttt{a\{1586,\}} desugars to 1586 copies of a single
+\texttt{Lit} node: about 1586 nodes in total. \texttt{.\{1586,\}} desugars
+to 1586 copies of \texttt{Dot}, and \texttt{Dot} alone already lowers to
+195 nodes (an \texttt{Alt} chain over the 98-character alphabet), so the
+result is on the order of 309{,}000 nodes before the trailing \texttt{Star}
+is even added. \texttt{desugar\_bound} inspects only \texttt{lo} and
+\texttt{hi}; it treats both patterns identically, since 1586 exceeds
+\texttt{MAX\_BOUND} regardless of what is repeated. A separate, coarser
+safeguard in the dataset-preparation pipeline
+(\texttt{src/data/prepare.rs}'s \texttt{MAX\_CORE\_NODES = 20{,}000}, applied
+to the pattern as a whole after translation) would catch
+\texttt{.\{1586,\}}'s expansion on size alone, independently of
+\texttt{MAX\_BOUND}. No equivalent check exists outside that pipeline,
+however: a bare \texttt{parse} or \texttt{match} invocation has no
+backstop beyond \texttt{MAX\_BOUND} itself, so a bound that passes the
+cap but wraps an expensive sub-expression can still produce a
+disproportionately large \texttt{Regex}.
+
 \paragraph{Greedy and lazy quantifiers are parsed but not distinguished.}
 
 The translation of \texttt{Opt}, \texttt{Plus}, \texttt{Star}, and

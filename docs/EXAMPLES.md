@@ -111,6 +111,16 @@ user-submitted with no correctness guarantee, so it is opt-in only -- pass
 it explicitly if you want it.
 
 ```bash
+# Coverage report: extraction counts, accepted/rejected split, 
+# rejection causes, and anchor-shape distribution. 
+# No args needed: reads data/raw/{snort,spamAssassin}  
+
+cargo run --release --example dataset_stats
+cargo run --release --example dataset_stats -- --verbose
+cargo run --release --example dataset_stats -- --source regexlib
+```
+
+```bash
 # extract -> generate -> prepare; writes data/processed/<source>/prepared.jsonl
 cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules
 cargo run --release --example dataset_prepare -- spamassassin data/raw/spamAssassin/*.cf
@@ -120,16 +130,6 @@ cargo run --release --example dataset_prepare -- regexlib data/raw/regexLib/*.tx
 
 # --variants controls verified inputs per pattern per category (default 5)
 cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules --variants 3
-```
-
-```bash
-# Coverage report: extraction counts, accepted/rejected split, 
-# rejection causes, and anchor-shape distribution. 
-# No args needed: reads data/raw/{snort,spamAssassin}  
-
-cargo run --release --example dataset_stats
-cargo run --release --example dataset_stats -- --verbose
-cargo run --release --example dataset_stats -- --source regexlib
 ```
 
 ```bash

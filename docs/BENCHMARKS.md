@@ -14,9 +14,8 @@ reporting binary rather than a Criterion target.
 
 ## Bench Match & Parse
 
-Both targets below measure the parser stack on synthetic, hand-constructed
-inputs rather than the real corpus (`bench_dataset` / `bench_memory` cover
-that).
+Both targets below measure the same stack on synthetic, hand-constructed 
+inputs rather than the real corpus (`bench_dataset` / `bench_memory` cover that).
 
 
 ### `bench_match.rs`
@@ -62,27 +61,40 @@ sample count (100) unless `BENCH_SAMPLE_SIZE` overrides it (see above).
 
 
 
-## Selecting a source, sample size, or statistical sample count
+## Selecting a source, match-intent, sample size, or statistical sample count
 
-`bench_dataset` and `bench_memory` support the same two environment
+`bench_dataset` and `bench_memory` support the same three environment
 variables:
 
 | Variable | Values | Default |
 |---|---|---|
 | `BENCH_SOURCE` | comma-separated `suricata` (or `snort`), `spamassassin`, `regexlib` | Suricata + SpamAssassin |
 | `BENCH_PATTERN_LIMIT` | positive integer | `30` |
+| `BENCH_MATCH_INTENT` | `direct`, `explicit`, or `both` | `both` |
 
 These allow runs to be narrowed without recompiling. For example:
 
     BENCH_SOURCE=spamassassin BENCH_PATTERN_LIMIT=10 \
       cargo bench --bench bench_dataset
 
+    BENCH_MATCH_INTENT=explicit cargo bench --bench bench_memory
+
 Unset `BENCH_SOURCE` is not "all sources": it means
 `load_prepared_cases`'s own default (Suricata + SpamAssassin). RegexLib is
 opt-in only; pass it explicitly.
 
+`BENCH_MATCH_INTENT` filters `prepared.jsonl`'s rows by `MatchIntent`
+before anything else runs: `direct` keeps only `UnanchoredAmbiguous`
+rows (no anchor in the source pattern), `explicit` keeps only
+`ExplicitFullMatch` rows (the source pattern's own top-level `^...$`,
+stripped before translation), `both` (the default) keeps everything.
+Both are generated for by `dataset_prepare`, so both are present in
+`prepared.jsonl` to begin with -- this only controls which of them a given
+bench run measures.
+
 If filtering loads nothing, the benchmark panics with a per-source diagnosis
-and the active filters rather than silently running an empty benchmark.
+and the active filters (including the active `BENCH_MATCH_INTENT`) rather
+than silently running an empty benchmark.
 
 All three Criterion targets (`bench_match`, `bench_parse`, `bench_dataset`
 -- not `bench_memory`, which isn't one) also read `BENCH_SAMPLE_SIZE`

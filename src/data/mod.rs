@@ -30,10 +30,6 @@ pub struct PipelineReport {
     /// Of `patterns_accepted`, patterns with no anchor at all.
     /// See `types::MatchIntent`.
     pub patterns_unanchored_ambiguous: usize,
-    /// Of `patterns_explicit_full_match`, how many were skipped for
-    /// candidate generation (see `run_pipeline`).
-    /// Always equal to `patterns_explicit_full_match`.
-    pub patterns_explicit_full_match_skipped: usize,
     pub candidates_generated: usize,
     pub candidates_verified: usize,
 }
@@ -41,8 +37,10 @@ pub struct PipelineReport {
 /// Runs extract → generate → prepare for one source, writing verified
 /// cases to `<data_root>/<source>/prepared.jsonl` (replaced, not appended).
 ///
-/// Generation runs only for `MatchIntent::UnanchoredAmbiguous` patterns.
-/// `ExplicitFullMatch` patterns are counted in the report but excluded from generation.
+/// Generation runs for every accepted pattern, `ExplicitFullMatch` and
+/// `UnanchoredAmbiguous` alike: `core` is already anchor-free by the time
+/// either tier reaches generation, so the same candidates are generated
+/// and verified against it either way.
 pub fn run_pipeline(
     source: SourceKind,
     raw_files: &[PathBuf],
@@ -91,12 +89,10 @@ pub fn run_pipeline(
             continue;
         };
         report.patterns_accepted += 1;
-        if match_intent == MatchIntent::ExplicitFullMatch {
-            report.patterns_explicit_full_match += 1;
-            report.patterns_explicit_full_match_skipped += 1;
-            continue;
+        match match_intent {
+            MatchIntent::ExplicitFullMatch => report.patterns_explicit_full_match += 1,
+            MatchIntent::UnanchoredAmbiguous => report.patterns_unanchored_ambiguous += 1,
         }
-        report.patterns_unanchored_ambiguous += 1;
 
         let mut candidates = Vec::new();
         candidates.extend(generate::generate_sample(&core, &mut rng, variants, variants));

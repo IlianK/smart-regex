@@ -71,12 +71,6 @@ fn main() {
         report.patterns_unanchored_ambiguous,
         report.patterns_explicit_full_match,
     );
-    if report.patterns_explicit_full_match_skipped > 0 {
-        println!(
-            "    skipped   {:>6} full-match (generation is direct-only)",
-            report.patterns_explicit_full_match_skipped
-        );
-    }
     println!("  generated   {:>6} candidates", report.candidates_generated);
     println!("  verified    {:>6} candidates", report.candidates_verified);
     println!("  wrote       data/processed/{}/prepared.jsonl", source.dir_name());

@@ -18,12 +18,8 @@
 //!              No approximate-but-accepted case exists.
 //!              Every accepted pattern's Regex denotes exactly what it
 //!              was translated from.
-//!              Accepted splits into two tiers -- see `match_intent_table`.
-//!              A tier records whether the denotation is the pattern's
-//!              own explicit `^...$` wrap, or this project's full-match
-//!              reading of an unanchored ("Direct") pattern.
-//!              `dataset_prepare` currently generates for the Direct
-//!              tier only.
+//!              Accepted splits into two kinds: Direct / Explicit
+//!              Both are accepted and generated for.
 //!   Reject   = no Regex produced at all.
 //!              A construct this frontend cannot represent:
 //!              backreference, lookaround, \b/\B, an anchor placement
@@ -428,9 +424,8 @@ fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
     print_row(total);
     println!();
     println!("Direct         = no anchor; translated as-is.");
-    println!("                 The tier dataset_prepare generates candidates for.");
     println!("Explicit ^...$ = top-level ^...$ wrap; anchors stripped as redundant.");
-    println!("                 Accepted, but not currently generated for.");
+    println!("                 Both tiers are accepted and generated for.");
     println!("Any other anchor placement is rejected (see Rejection reasons).");
 }
 

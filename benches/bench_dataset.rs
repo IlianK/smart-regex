@@ -7,7 +7,7 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
-use regex_engine::data::types::SourceKind;
+use regex_engine::data::types::{MatchIntent, SourceKind};
 use regex_engine::parsers::{
     parse_deriv_bc, parse_deriv_std_loop, parse_deriv_std_rec, parse_pderiv_bc, parse_pderiv_std,
     ParserType,
@@ -38,6 +38,7 @@ struct Entry {
 struct BenchSelection {
     sources: Vec<SourceKind>,
     pattern_limit: usize,
+    match_intent: Option<MatchIntent>,
 }
 
 fn bench_selection() -> BenchSelection {
@@ -62,11 +63,20 @@ fn bench_selection() -> BenchSelection {
             s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
         })
         .unwrap_or(PATTERN_LIMIT_PER_SOURCE);
-    BenchSelection { sources, pattern_limit }
+    let match_intent = match std::env::var("BENCH_MATCH_INTENT").ok() {
+        None => None,
+        Some(s) => match s.trim().to_lowercase().as_str() {
+            "both" => None,
+            "direct" => Some(MatchIntent::UnanchoredAmbiguous),
+            "explicit" => Some(MatchIntent::ExplicitFullMatch),
+            other => panic!("BENCH_MATCH_INTENT must be direct, explicit, or both, got {other:?}"),
+        },
+    };
+    BenchSelection { sources, pattern_limit, match_intent }
 }
 
 /// One `Vec<Entry>` per source, each capped at `pattern_limit` distinct
-/// patterns.
+/// patterns, optionally filtered to one `MatchIntent` tier first.
 /// Surveys pattern diversity within a source, not one pattern's candidates.
 /// Source is the dimension examples like `demo_parser_agreement` group by.
 fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
@@ -81,6 +91,11 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
     let mut regexlib_patterns = std::collections::HashSet::new();
 
     for case in cases {
+        if let Some(wanted) = sel.match_intent {
+            if case.match_intent != wanted {
+                continue;
+            }
+        }
         let (bucket, patterns) = match case.source {
             SourceKind::Suricata => (&mut suricata, &mut suricata_patterns),
             SourceKind::SpamAssassin => (&mut spamassassin, &mut spamassassin_patterns),
@@ -119,8 +134,9 @@ fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
         .unwrap_or_else(|_| format!("{DATA_ROOT} (missing)"));
     let mut lines = vec![format!(
         "no entries loaded from {DATA_ROOT} ({resolved}); \
-         sources={:?} (empty = default: suricata, spamassassin) limit={}",
-        sel.sources, sel.pattern_limit
+         sources={:?} (empty = default: suricata, spamassassin) limit={} \
+         match_intent={:?} (None = both)",
+        sel.sources, sel.pattern_limit, sel.match_intent
     )];
     for source in [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib] {
         let path = root.join(source.dir_name()).join("prepared.jsonl");
@@ -149,12 +165,13 @@ fn bench_by_source(c: &mut Criterion) {
     let sel = bench_selection();
     let (suricata, spamassassin, regexlib) = load_corpus(&sel, sel.pattern_limit);
     eprintln!(
-        "bench_dataset: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?})",
+        "bench_dataset: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?}, match_intent={:?})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
         sel.pattern_limit,
         sel.sources,
+        sel.match_intent,
     );
 
     for (label, corpus) in [
