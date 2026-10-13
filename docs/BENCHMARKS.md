@@ -15,6 +15,22 @@ The corpus targets read `prepared.jsonl` under `data/processed/`; see
 targets, append `-- --test` to run each benchmark function once as a
 quick correctness check.
 
+Both corpus targets run every entry through a shared worker binary,
+`bench_worker`, which must be built first:
+
+```bash
+cargo build --release --example bench_worker
+```
+
+Same reasoning as `demo_parser_agreement`'s own worker (see
+[EXAMPLES.md](EXAMPLES.md)): isolating each call in its own process is
+what lets a pathological entry be killed outright, recovering its
+memory, rather than merely given up on. See "Why Criterion is not used
+for the corpus" and `BENCH_ENTRY_TIMEOUT_MS` below for why that
+distinction matters here specifically.
+
+
+
 ## Why Criterion is not used for the corpus
 
 Criterion's statistical model assumes a cheap closure measured many
@@ -29,6 +45,8 @@ spread that Criterion is trying to characterize.
 binaries (`harness = false`). Each runs every parser once over the whole
 corpus and prints the result.
 
+
+
 ## Configuration
 
 Every target reads its configuration from the environment. No flags, no
@@ -40,6 +58,7 @@ CLI arguments.
 | `BENCH_PATTERN_LIMIT` | corpus | positive integer | unset (no cap) |
 | `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `both` |
 | `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` | `1`/`0`, `true`/`false`, `yes`/`no` | `0` |
+| `BENCH_ENTRY_TIMEOUT_MS` | corpus | positive integer (milliseconds) | `2000` |
 | `BENCH_SIZE_LIMIT` | synthetic | positive integer | unset (no cap) |
 | `BENCH_SAMPLE_SIZE` | Criterion targets | integer ≥ 10 | group-specific |
 
@@ -64,6 +83,25 @@ entry's verified outcome (match vs. non-match). Useful when a parser's
 total is skewed by one side of the corpus. Off by default; ignored by
 `bench_memory`.
 
+**`BENCH_ENTRY_TIMEOUT_MS=N`.** Bounds how long either corpus target
+waits on a single entry before counting it as `timed_out` instead of a
+measurement. Exists because a small fraction of real entries (seen so
+far on Innovatorved and RegexLib) make `deriv_std_rec`/`deriv_std_loop`
+run for seconds to minutes on one call; without a cap, one such entry
+blocks the whole run. Each entry runs in its own `bench_worker`
+process; on timeout, that process is killed outright, which actually
+reclaims its memory. An earlier version ran each entry on a thread
+instead and merely stopped waiting on timeout, since Rust cannot force
+-stop a thread -- that left the call running in the background, and on
+a real Innovatorved entry this reached a kernel OOM kill even after
+bounding how many such threads could run concurrently (a single
+abandoned call's own growth was enough on its own). Process isolation
+fixes both that and a measurement problem it caused: the old version's
+byte counters were one global per process, so a still-running
+abandoned thread could inflate the *next* entry's reported total/peak.
+Each worker now measures exactly one entry and exits, so there is no
+next entry for it to contaminate.
+
 **`BENCH_SIZE_LIMIT=N`.** Caps each synthetic family's hardcoded
 size/depth sweep to values at or below N. A family with no value at or
 below the limit contributes nothing for that run.
@@ -76,6 +114,9 @@ runtime is always explicit.
 If filtering loads nothing, the corpus targets panic with a per-source
 diagnosis and the active filters, rather than silently measuring an
 empty corpus.
+
+
+
 
 ## `bench_match.rs`
 
@@ -97,6 +138,8 @@ Measures boolean membership only; no parse tree is constructed. All
 groups run at Criterion's default sample count (100) unless
 `BENCH_SAMPLE_SIZE` overrides.
 
+
+
 ## `bench_parse.rs`
 
 ```
@@ -117,6 +160,9 @@ Benchmarks all five parsers (`deriv_std_rec`, `deriv_std_loop`,
 `BENCH_SIZE_LIMIT` caps the last three. All groups run at Criterion's
 default sample count (100) unless `BENCH_SAMPLE_SIZE` overrides.
 
+
+
+
 ## `bench_corpus_time.rs`
 
 ```
@@ -126,12 +172,20 @@ BENCH_SOURCE=snort,regexlib cargo bench --bench bench_corpus_time
 BENCH_SPLIT_OUTCOME=1     cargo bench --bench bench_corpus_time
 ```
 
-One pass per source, every admitted entry timed individually. Reports,
-per parser:
+One pass per source, every admitted entry timed individually in its
+own `bench_worker` process, bounded by `BENCH_ENTRY_TIMEOUT_MS`.
+Reports, per parser:
 
+- **timed_out**: entries that exceeded the cap and were killed,
+  excluded from every column below rather than folded in as if they
+  were real measurements.
+- **crashed**: entries whose worker exited non-zero or died by signal
+  (e.g. a stack overflow) before the cap -- a different failure from a
+  timeout, also excluded from the columns below.
 - **total (s)**: whole-corpus wall time.
-- **mean (ms)**: per-entry average.
+- **mean (ms)**: per-entry average, over the entries that did not time out.
 - **median / p99 / max (ms)**: how skewed the per-entry distribution is.
+  `n/a` if every entry for that parser timed out.
 
 The distribution columns show whether the total is dominated by a
 handful of expensive patterns, which a single aggregate figure cannot.
@@ -140,10 +194,18 @@ With `BENCH_SPLIT_OUTCOME` set, a second table splits each parser's
 time by match vs. non-match, so an asymmetry in the corpus shows up as
 a per-side column rather than being buried in the mean.
 
-Reads the three corpus variables shared with `bench_memory`
-(`BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`) plus its
-own `BENCH_SPLIT_OUTCOME`. Not a Criterion target: one pass, no
-sampling, no CI.
+Reads the same three corpus variables as `bench_memory`. Not a Criterion
+target: one pass, no sampling, no CI.
+
+Also writes `reports/benches/bench_corpus_time.csv` (and
+`bench_corpus_time_by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`),
+replacing any file from a previous run -- the same "latest run, not a
+log" convention `dataset_prepare` uses for `prepared.jsonl`. This is
+what a plain binary needs that Criterion gave for free: something
+persisted once the terminal scrolls away.
+
+
+
 
 ## `bench_memory.rs`
 
@@ -156,13 +218,17 @@ per parser per source. Not a Criterion target — allocation counts are
 deterministic per input, so repeated sampling would only measure
 Criterion's own overhead.
 
-Uses a counting `#[global_allocator]` with `harness = false`. For each
-source reports total allocated bytes (including freed-and-reallocated
-churn), average bytes per entry, and the largest entry's peak live-byte
-high-water mark.
+The counting `#[global_allocator]` lives in `bench_worker`, not in
+this binary -- each entry's worker process measures its own
+allocations from a clean baseline and reports them back, so this file
+itself does no allocation counting. For each source reports total
+allocated bytes (including freed-and-reallocated churn), average bytes
+per entry (over entries that did not time out or crash), the largest
+entry's peak live-byte high-water mark, `timed_out`, and `crashed` --
+see `BENCH_ENTRY_TIMEOUT_MS` above for both.
 
-Reads `BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, and `BENCH_MATCH_INTENT`.
-`BENCH_SPLIT_OUTCOME` has no effect here.
+Also writes `reports/benches/bench_memory.csv`, replacing any file
+from a previous run.
 
 The three partial-derivative parsers (`deriv_bc`, `pderiv_bc`,
 `pderiv_std`) allocate noticeably fewer total bytes than the two
@@ -181,6 +247,9 @@ Structural reason: `deriv_std` retains its derivation sequence, whereas
 | How much memory does each parser allocate? | `bench_memory` |
 | How do the parsers scale on synthetic input? | `bench_parse` |
 | Does the matcher stack behave as expected on `(a*)*`? | `bench_match` |
+
+
+
 
 ## Quick reference
 

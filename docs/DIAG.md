@@ -174,7 +174,7 @@ a report file instead of stdout.
 
 ```bash
 cargo run -- parse "(a+b+ab)*" "ab" --diag 3 --parser deriv_bc
-cat reports/report.txt
+cat reports/diag/report.txt
 ```
 
 The header is the same for every family:
@@ -235,7 +235,7 @@ Below the header, sections run in this order per family.
 `Mode:` label and the `Parse time:` line:
 
 ```bash
-cargo run -- parse "a*" "aaa" --diag 3 --diag-report reports/rec.txt
-cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 3 --diag-report reports/loop.txt
-diff reports/rec.txt reports/loop.txt
+cargo run -- parse "a*" "aaa" --diag 3 --diag-report reports/diag/rec.txt
+cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 3 --diag-report reports/diag/loop.txt
+diff reports/diag/rec.txt reports/diag/loop.txt
 ```

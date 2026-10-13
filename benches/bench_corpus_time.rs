@@ -9,22 +9,67 @@
 //! corpus pass takes seconds to hours per parser, so its statistics
 //! would report sample-count variance, not corpus-scale performance.
 //!
-//! Run: `cargo bench --bench bench_corpus_time`
+//! Every entry runs in its own worker *process* (`bench_worker`,
+//! shared with `bench_memory`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
+//! (default 2000). A call that exceeds the cap is counted as
+//! `timed_out`, not folded into the duration stats as if it were a
+//! real measurement: on real corpora (Innovatorved and RegexLib
+//! especially), a small fraction of entries make `deriv_std_rec` /
+//! `deriv_std_loop` run for seconds to minutes on a single call, and
+//! averaging that into "max" would just report however long this run
+//! happened to wait, not a property of the parser.
+//!
+//! This used to run each entry on its own *thread* instead, bounded
+//! the same way. That design had a fatal gap: giving up on
+//! `rx.recv_timeout` does not stop the thread -- Rust cannot cancel a
+//! thread -- so a capped-out call kept running and kept allocating in
+//! the background. Bounding how many such threads could be
+//! concurrently outstanding (a `StragglerPool`) was tried next, and
+//! disproved empirically: on a real Innovatorved entry, a *single*
+//! abandoned call's own growth reached a kernel OOM kill (~14 GB)
+//! regardless of whether 1 or 2 such calls were allowed to run
+//! concurrently. The bound on concurrency was never the limiting
+//! factor -- one pathological entry was enough on its own, and no
+//! pool size fixes that. A process can be killed outright
+//! (`Child::kill()`), which actually reclaims its memory; a thread
+//! cannot be. See `examples/bench_worker.rs` for the worker side of
+//! this and the exact protocol between it and this file.
+//!
+//! A `crashed` entry (the worker exited non-zero or died by signal,
+//! e.g. a stack overflow) is counted separately from `timed_out`:
+//! unlike the old thread-based version, that failure now only takes
+//! down one worker process instead of this whole run.
+//!
+//! Writes a CSV summary to `reports/benches/bench_corpus_time.csv`
+//! (and `..._by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`), replacing
+//! any existing file -- the same "latest run, not a log" convention
+//! `dataset_prepare` uses for `prepared.jsonl`.
+//!
+//! Build the worker first, then run:
+//!   cargo build --release --example bench_worker
+//!   cargo bench --bench bench_corpus_time
 
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
 use regex_engine::data::types::{MatchIntent, SourceKind};
-use regex_engine::parsers::{
-    parse_deriv_bc, parse_deriv_std_loop, parse_deriv_std_rec, parse_pderiv_bc, parse_pderiv_std,
-    ParserType,
-};
-use regex_engine::types::Regex;
+use regex_engine::parsers::ParserType;
 
 const DATA_ROOT: &str = "data/processed";
 /// Default when `BENCH_PATTERN_LIMIT` is unset: no cap.
 const PATTERN_LIMIT_PER_SOURCE: usize = usize::MAX;
+/// Default when `BENCH_ENTRY_TIMEOUT_MS` is unset. Generous: real
+/// entries normally finish in microseconds to a few hundred
+/// milliseconds; this exists only to bound the rare pathological one,
+/// not to pre-empt slow-but-ordinary calls.
+const DEFAULT_ENTRY_TIMEOUT_MS: u64 = 2000;
+const REPORTS_DIR: &str = "reports/benches";
+const WORKER_NAME: &str = "bench_worker";
 
 /// `pattern_limit` for display: `usize::MAX` reads as "unlimited".
 fn fmt_limit(n: usize) -> String {
@@ -73,8 +118,20 @@ fn bench_selection() -> BenchSelection {
     BenchSelection { sources, pattern_limit, match_intent }
 }
 
+/// Per-entry cap. See the module doc for what this does and does not
+/// protect against.
+fn entry_timeout() -> Duration {
+    let ms: u64 = std::env::var("BENCH_ENTRY_TIMEOUT_MS")
+        .ok()
+        .map(|s| {
+            s.parse().unwrap_or_else(|_| panic!("BENCH_ENTRY_TIMEOUT_MS must be a positive integer, got {s:?}"))
+        })
+        .unwrap_or(DEFAULT_ENTRY_TIMEOUT_MS);
+    Duration::from_millis(ms)
+}
+
 struct Entry {
-    regex: Regex,
+    pattern: String,
     input: String,
     verified_match: bool,
 }
@@ -116,17 +173,19 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
         // `core_regex`, not `parse_pcre_rule`.
         // `case.pattern` was accepted by `core_regex_tagged` to reach
         // `prepared.jsonl` at all; an `ExplicitFullMatch` pattern only
-        // translates through `core_regex`'s `^...$` stripping.
-        let regex = match core_regex(&case.pattern) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("skipping pre-verified case: {} -- {e}", case.pattern);
-                continue;
-            }
-        };
+        // translates through `core_regex`'s `^...$` stripping. Checked
+        // here, upfront, so a translation failure is caught once per
+        // distinct pattern rather than once per worker call; the
+        // `Regex` itself is not kept -- `bench_worker` rebuilds it from
+        // `case.pattern` in its own process, the same way
+        // `demo_parser_agreement_worker` already does.
+        if let Err(e) = core_regex(&case.pattern) {
+            eprintln!("skipping pre-verified case: {} -- {e}", case.pattern);
+            continue;
+        }
         patterns.insert(case.pattern.clone());
         bucket.push(Entry {
-            regex,
+            pattern: case.pattern,
             input: case.input,
             verified_match: case.verified_match,
         });
@@ -147,114 +206,343 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
 }
 
 // -------------------------------
+// Isolated call
+// -------------------------------
+
+/// Index order fixed by `bench_worker.rs`'s own `PARSERS` array; this
+/// list's position is what `run_entry_isolated` sends as `parser_idx`.
+const PARSERS: &[ParserType] = &[
+    ParserType::DerivStdRec,
+    ParserType::DerivStdLoop,
+    ParserType::DerivBc,
+    ParserType::PDerivBc,
+    ParserType::PDerivStd,
+];
+
+/// Path of the shared worker binary. Bench binaries land in
+/// `target/<profile>/deps/<name>-<hash>`; examples land in
+/// `target/<profile>/examples/<name>`, a sibling of `deps/`. So the
+/// worker is two levels up from this process's own exe, then into
+/// `examples/`.
+fn worker_path() -> PathBuf {
+    let exe = std::env::current_exe().expect("reading this process's own exe path");
+    let deps_dir = exe.parent().expect("exe has a parent directory");
+    let profile_dir = deps_dir.parent().expect("deps/ has a parent directory");
+    let path = profile_dir.join("examples").join(WORKER_NAME);
+    if !path.exists() {
+        panic!(
+            "worker not found at {path:?} -- build it first:\n  \
+             cargo build --release --example {WORKER_NAME}"
+        );
+    }
+    path
+}
+
+#[derive(serde::Deserialize)]
+struct JobResult {
+    micros: u64,
+    #[allow(dead_code)] // bench_memory reads this field from the same wire format
+    total_bytes: usize,
+    #[allow(dead_code)]
+    peak_bytes: usize,
+}
+
+enum Outcome {
+    Done(Duration),
+    TimedOut,
+    Crashed(String),
+}
+
+/// Runs one (parser, pattern, input) job in its own process, bounded
+/// by `cap`. On timeout, kills the child, which -- unlike the thread
+/// this used to be -- actually reclaims its memory. See the module
+/// doc for why that distinction is the entire point of this function.
+///
+/// Mirrors `demo_parser_agreement.rs`'s `run_parser_isolated` almost
+/// exactly; duplicated rather than shared, consistent with this
+/// codebase's existing convention of not sharing code between bench
+/// and example binaries.
+fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: &str, input: &str) -> Outcome {
+    let mut child: Child = match Command::new(worker)
+        .arg(parser_idx.to_string())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => panic!("failed to spawn {worker:?}: {e}"),
+    };
+
+    // Pattern/input travel over stdin, not argv: see bench_worker.rs's
+    // module doc for why (an embedded NUL byte in some real candidates).
+    {
+        let mut stdin = child.stdin.take().expect("piped stdin");
+        let job = serde_json::json!({ "pattern": pattern, "input": input }).to_string();
+        if let Err(e) = stdin.write_all(job.as_bytes()) {
+            panic!("failed to write job to {worker:?}'s stdin: {e}");
+        }
+    }
+
+    // Drained on a side thread while polling for exit, so a full pipe
+    // buffer can never deadlock against this loop; this thread's own
+    // lifetime is bounded by the child's.
+    let mut stdout = child.stdout.take().expect("piped stdout");
+    let mut stderr = child.stderr.take().expect("piped stderr");
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut out = String::new();
+        let _ = stdout.read_to_string(&mut out);
+        let mut err = String::new();
+        let _ = stderr.read_to_string(&mut err);
+        let _ = tx.send((out, err));
+    });
+
+    let deadline = Instant::now() + cap;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let (out, err) = rx.recv().unwrap_or_default();
+                if !status.success() {
+                    let reason = match status.code() {
+                        Some(code) => format!("exit code {code}"),
+                        None => "killed by signal (likely stack overflow)".to_string(),
+                    };
+                    return Outcome::Crashed(format!("{reason}; stderr={}", err.trim()));
+                }
+                return match serde_json::from_str::<JobResult>(out.trim()) {
+                    Ok(r) => Outcome::Done(Duration::from_micros(r.micros)),
+                    Err(e) => Outcome::Crashed(format!(
+                        "worker exited 0 but its output did not parse: {e}; stdout={:?} stderr={:?}",
+                        out.trim(),
+                        err.trim()
+                    )),
+                };
+            }
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait(); // reap; do not leave a zombie
+                    return Outcome::TimedOut;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(e) => panic!("error polling worker process: {e}"),
+        }
+    }
+}
+
+// -------------------------------
 // Reporting
 // -------------------------------
 
-type ParserFn = fn(&str, &Regex) -> Option<regex_engine::types::ParseTree>;
-const PARSERS: &[(ParserType, ParserFn)] = &[
-    (ParserType::DerivStdRec, parse_deriv_std_rec),
-    (ParserType::DerivStdLoop, parse_deriv_std_loop),
-    (ParserType::DerivBc, parse_deriv_bc),
-    (ParserType::PDerivBc, parse_pderiv_bc),
-    (ParserType::PDerivStd, parse_pderiv_std),
-];
-
-struct Row {
-    name: &'static str,
-    total: Duration,
-    all: Vec<Duration>,
-    matches: Vec<Duration>,
-    non_matches: Vec<Duration>,
+struct SummaryRow {
+    source: &'static str,
+    parser: &'static str,
+    entries: usize,
+    timed_out: usize,
+    crashed: usize,
+    total_s: f64,
+    mean_ms: Option<f64>,
+    median_ms: Option<f64>,
+    p99_ms: Option<f64>,
+    max_ms: Option<f64>,
 }
 
-fn report(label: &str, corpus: &[Entry], split_outcome: bool) {
+struct OutcomeRow {
+    source: &'static str,
+    parser: &'static str,
+    matches: usize,
+    match_s: f64,
+    non_matches: usize,
+    non_match_s: f64,
+}
+
+fn ms(d: Duration) -> f64 {
+    d.as_secs_f64() * 1_000.0
+}
+
+fn fmt_opt_ms(v: Option<f64>) -> String {
+    match v {
+        Some(x) => format!("{x:.3}"),
+        None => "n/a".to_string(),
+    }
+}
+
+fn report(
+    label: &'static str,
+    corpus: &[Entry],
+    worker: &Path,
+    cap: Duration,
+    split_outcome: bool,
+) -> (Vec<SummaryRow>, Vec<OutcomeRow>) {
     if corpus.is_empty() {
         eprintln!("skip {label}: no entries");
-        return;
+        return (Vec::new(), Vec::new());
     }
 
-    // One pass per parser: time every entry, keep the durations
-    // partitioned by outcome for the split table below.
-    let mut rows: Vec<Row> = Vec::new();
-    for (parser_type, parser) in PARSERS {
-        let mut all = Vec::with_capacity(corpus.len());
-        let mut matches = Vec::new();
-        let mut non_matches = Vec::new();
-        let start = Instant::now();
-        for entry in corpus {
-            let t0 = Instant::now();
-            let _ = parser(&entry.input, &entry.regex);
-            let dt = t0.elapsed();
-            all.push(dt);
-            if entry.verified_match {
-                matches.push(dt);
-            } else {
-                non_matches.push(dt);
-            }
-        }
-        let total = start.elapsed();
-        rows.push(Row { name: parser_type.name(), total, all, matches, non_matches });
-    }
+    let mut summary_rows = Vec::new();
+    let mut outcome_rows = Vec::new();
 
     println!("\n{label} ({} entries)", corpus.len());
     println!(
-        "{:<16} {:>12} {:>12} {:>12} {:>12} {:>12}",
-        "parser", "total (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)"
+        "{:<16} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12}",
+        "parser", "timed_out", "crashed", "total (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)"
     );
     println!(
-        "{:-<16} {:->12} {:->12} {:->12} {:->12} {:->12}",
-        "", "", "", "", "", ""
+        "{:-<16} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12}",
+        "", "", "", "", "", "", "", ""
     );
-    let ms = |d: Duration| d.as_secs_f64() * 1_000.0;
-    for row in &rows {
-        let mut sorted = row.all.clone();
-        sorted.sort();
-        let n = sorted.len();
-        let mean = sorted.iter().sum::<Duration>() / n as u32;
-        let median = sorted[n / 2];
-        let p99 = sorted[(n * 99) / 100];
-        let max = *sorted.last().expect("non-empty");
+
+    for (parser_idx, parser_type) in PARSERS.iter().enumerate() {
+        let mut all: Vec<Duration> = Vec::with_capacity(corpus.len());
+        let mut matches: Vec<Duration> = Vec::new();
+        let mut non_matches: Vec<Duration> = Vec::new();
+        let mut timed_out = 0usize;
+        let mut crashed = 0usize;
+        let start = Instant::now();
+        for entry in corpus {
+            match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
+                Outcome::Done(dt) => {
+                    all.push(dt);
+                    if entry.verified_match {
+                        matches.push(dt);
+                    } else {
+                        non_matches.push(dt);
+                    }
+                }
+                Outcome::TimedOut => timed_out += 1,
+                Outcome::Crashed(reason) => {
+                    crashed += 1;
+                    eprintln!(
+                        "  crash: {label}/{} pat={:?} in={:?} -- {reason}",
+                        parser_type.name(),
+                        entry.pattern,
+                        entry.input,
+                    );
+                }
+            }
+        }
+        let total = start.elapsed();
+
+        let (mean, median, p99, max) = if all.is_empty() {
+            (None, None, None, None)
+        } else {
+            let mut sorted = all.clone();
+            sorted.sort();
+            let n = sorted.len();
+            (
+                Some(ms(sorted.iter().sum::<Duration>() / n as u32)),
+                Some(ms(sorted[n / 2])),
+                Some(ms(sorted[(n * 99) / 100])),
+                Some(ms(*sorted.last().expect("non-empty"))),
+            )
+        };
+
         println!(
-            "{:<16} {:>12.3} {:>12.3} {:>12.3} {:>12.3} {:>12.3}",
-            row.name,
-            row.total.as_secs_f64(),
-            ms(mean),
-            ms(median),
-            ms(p99),
-            ms(max),
+            "{:<16} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12}",
+            parser_type.name(),
+            timed_out,
+            crashed,
+            total.as_secs_f64(),
+            fmt_opt_ms(mean),
+            fmt_opt_ms(median),
+            fmt_opt_ms(p99),
+            fmt_opt_ms(max),
         );
+
+        summary_rows.push(SummaryRow {
+            source: label,
+            parser: parser_type.name(),
+            entries: corpus.len(),
+            timed_out,
+            crashed,
+            total_s: total.as_secs_f64(),
+            mean_ms: mean,
+            median_ms: median,
+            p99_ms: p99,
+            max_ms: max,
+        });
+
+        if split_outcome {
+            let mt = matches.iter().sum::<Duration>();
+            let nt = non_matches.iter().sum::<Duration>();
+            outcome_rows.push(OutcomeRow {
+                source: label,
+                parser: parser_type.name(),
+                matches: matches.len(),
+                match_s: mt.as_secs_f64(),
+                non_matches: non_matches.len(),
+                non_match_s: nt.as_secs_f64(),
+            });
+        }
     }
 
-    if !split_outcome {
-        return;
+    if split_outcome && !outcome_rows.is_empty() {
+        println!();
+        println!("{label}, by outcome");
+        println!(
+            "{:<16} {:>12} {:>12} {:>12} {:>12}",
+            "parser", "matches", "match (s)", "non-match", "non-match (s)"
+        );
+        println!(
+            "{:-<16} {:->12} {:->12} {:->12} {:->12}",
+            "", "", "", "", ""
+        );
+        for row in &outcome_rows {
+            println!(
+                "{:<16} {:>12} {:>12.3} {:>12} {:>12.3}",
+                row.parser, row.matches, row.match_s, row.non_matches, row.non_match_s,
+            );
+        }
     }
 
-    println!();
-    println!("{label}, by outcome");
-    println!(
-        "{:<16} {:>12} {:>12} {:>12} {:>12}",
-        "parser", "matches", "match (s)", "non-match", "non-match (s)"
-    );
-    println!(
-        "{:-<16} {:->12} {:->12} {:->12} {:->12}",
-        "", "", "", "", ""
-    );
-    for row in &rows {
-        let mt = row.matches.iter().sum::<Duration>();
-        let nt = row.non_matches.iter().sum::<Duration>();
-        println!(
-            "{:<16} {:>12} {:>12.3} {:>12} {:>12.3}",
-            row.name,
-            row.matches.len(),
-            mt.as_secs_f64(),
-            row.non_matches.len(),
-            nt.as_secs_f64(),
-        );
+    (summary_rows, outcome_rows)
+}
+
+// -------------------------------
+// CSV output
+// -------------------------------
+
+fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "source,parser,entries,timed_out,crashed,total_s,mean_ms,median_ms,p99_ms,max_ms")?;
+    for r in rows {
+        writeln!(
+            f,
+            "{},{},{},{},{},{:.6},{},{},{},{}",
+            r.source,
+            r.parser,
+            r.entries,
+            r.timed_out,
+            r.crashed,
+            r.total_s,
+            r.mean_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.median_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.p99_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.max_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+        )?;
     }
+    Ok(())
+}
+
+fn write_outcome_csv(path: &str, rows: &[OutcomeRow]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "source,parser,matches,match_s,non_matches,non_match_s")?;
+    for r in rows {
+        writeln!(
+            f,
+            "{},{},{},{:.6},{},{:.6}",
+            r.source, r.parser, r.matches, r.match_s, r.non_matches, r.non_match_s,
+        )?;
+    }
+    Ok(())
 }
 
 fn main() {
     let sel = bench_selection();
+    let cap = entry_timeout();
+    let worker = worker_path();
     let split_outcome = std::env::var("BENCH_SPLIT_OUTCOME")
         .ok()
         .map(|s| match s.trim().to_lowercase().as_str() {
@@ -266,7 +554,7 @@ fn main() {
     let (suricata, spamassassin, regexlib, s2_elab, innovatorved) = load_corpus(&sel);
     eprintln!(
         "bench_corpus_time: {} suricata, {} spamassassin, {} regexlib, {} s2-elab, {} innovatorved \
-         (limit {} each, sources={:?}, match_intent={:?}, split_outcome={})",
+         (limit {} each, sources={:?}, match_intent={:?}, split_outcome={}, entry_timeout={:?})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
@@ -276,10 +564,44 @@ fn main() {
         sel.sources,
         sel.match_intent,
         split_outcome,
+        cap,
     );
-    report("dataset_suricata", &suricata, split_outcome);
-    report("dataset_spamassassin", &spamassassin, split_outcome);
-    report("dataset_regexlib", &regexlib, split_outcome);
-    report("dataset_s2_elab", &s2_elab, split_outcome);
-    report("dataset_innovatorved", &innovatorved, split_outcome);
+
+    if let Err(e) = std::fs::create_dir_all(REPORTS_DIR) {
+        eprintln!("could not create {REPORTS_DIR}: {e}");
+        return;
+    }
+    let summary_path = format!("{REPORTS_DIR}/bench_corpus_time.csv");
+    let outcome_path = format!("{REPORTS_DIR}/bench_corpus_time_by_outcome.csv");
+
+    // Written again after every source, not just once at the end: if a
+    // later source hits a pathological entry badly enough to take the
+    // whole process down, the sources already measured should not be
+    // lost along with it.
+    let mut all_summary = Vec::new();
+    let mut all_outcome = Vec::new();
+    for (label, corpus) in [
+        ("dataset_suricata", &suricata),
+        ("dataset_spamassassin", &spamassassin),
+        ("dataset_regexlib", &regexlib),
+        ("dataset_s2_elab", &s2_elab),
+        ("dataset_innovatorved", &innovatorved),
+    ] {
+        let (summary, outcome) = report(label, corpus, &worker, cap, split_outcome);
+        all_summary.extend(summary);
+        all_outcome.extend(outcome);
+
+        if let Err(e) = write_summary_csv(&summary_path, &all_summary) {
+            eprintln!("could not write {summary_path}: {e}");
+        }
+        if split_outcome {
+            if let Err(e) = write_outcome_csv(&outcome_path, &all_outcome) {
+                eprintln!("could not write {outcome_path}: {e}");
+            }
+        }
+    }
+    eprintln!("wrote {summary_path}");
+    if split_outcome {
+        eprintln!("wrote {outcome_path}");
+    }
 }

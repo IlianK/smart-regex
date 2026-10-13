@@ -7,7 +7,7 @@
 //!                           deriv_bc, pderiv_std, pderiv_bc, all
 //!        --diag <0|1|2|3>   0=off (default), 1=basic, 2=verbose, 3=debug
 //!        --diag-report PATH override output file for level 3
-//!                           (default: reports/<parser>/demo_NN.txt per case)
+//!                           (default: reports/diag/<parser>/demo_NN.txt per case)
 //!                           --diag > 0 is single-parser only.
 
 use regex_engine::types::Regex;
@@ -58,7 +58,7 @@ impl TestCase {
                 .report_path
                 .clone()
                 .unwrap_or_else(|| {
-                    format!("reports/{}/demo_{:02}.txt", config.parser_type.name(), index)
+                    format!("reports/diag/{}/demo_{:02}.txt", config.parser_type.name(), index)
                 });
             // Ensure the report's parent directory exists before handing
             // the path to run_parser, which may or may not create it.
@@ -463,7 +463,7 @@ fn main() {
             .report_path
             .clone()
             .unwrap_or_else(|| {
-                format!("reports/{}/demo_NN.txt (per test case)", config.parser_type.name())
+                format!("reports/diag/{}/demo_NN.txt (per test case)", config.parser_type.name())
             });
         println!("Report:      {}", dest);
     }
@@ -505,7 +505,7 @@ fn main() {
             .clone()
             .unwrap_or_else(|| {
                 format!(
-                    "reports/{}/demo_01.txt .. reports/{}/demo_14.txt",
+                    "reports/diag/{}/demo_01.txt .. reports/diag/{}/demo_14.txt",
                     config.parser_type.name(),
                     config.parser_type.name(),
                 )

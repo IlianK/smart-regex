@@ -59,11 +59,11 @@ impl DiagConfig {
         let level        = DiagLevel::from_env();
         let parser_type  = ParserType::single_from_env();
 
-        // Default report path: reports/report.txt
+        // Default report path: reports/diag/report.txt
         let report_path = if level == DiagLevel::Debug {
             Some(
                 std::env::var("REGEX_DIAG_REPORT")
-                    .unwrap_or_else(|_| "reports/report.txt".to_string())
+                    .unwrap_or_else(|_| "reports/diag/report.txt".to_string())
             )
         } else {
             std::env::var("REGEX_DIAG_REPORT").ok()

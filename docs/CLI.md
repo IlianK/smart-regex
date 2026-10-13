@@ -93,7 +93,7 @@ cargo run -- parse "(a|b|ab)*"   "ab" --diag 2
 
 ### Level 3 - Debug (full structural derivation trace, written to file or stdout)
 
-Level 3 writes to `reports/report.txt` by default. Override with `--diag-report`.
+Level 3 writes to `reports/diag/report.txt` by default. Override with `--diag-report`.
 
 ```bash
 # Standard success - full forward + backward pass trace
@@ -109,19 +109,19 @@ cargo run -- parse "a*" "aaa" --parser deriv_bc --diag 3
 # Bitcoded failure
 cargo run -- parse "a*" "aab" --parser deriv_bc --diag 3
 
-# Custom filename inside reports/
-cargo run -- parse "(a|ab)(b|ε)" "ab" --diag 3 --diag-report reports/paper_r1.txt
-cargo run -- parse "(a|b|ab)*"   "ab" --diag 3 --diag-report reports/paper_r2.txt
+# Custom filename inside reports/diag/
+cargo run -- parse "(a|ab)(b|ε)" "ab" --diag 3 --diag-report reports/diag/paper_r1.txt
+cargo run -- parse "(a|b|ab)*"   "ab" --diag 3 --diag-report reports/diag/paper_r2.txt
 
 # Confirm deriv_std_rec and deriv_std_loop produce identical derivation traces
 # (diff will show two expected differences -- the "Mode:" label and the
 # timing line -- and nothing else)
-cargo run -- parse "a*" "aaa" --diag 3 --diag-report reports/rec.txt
-cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 3 --diag-report reports/loop.txt
-diff reports/rec.txt reports/loop.txt
+cargo run -- parse "a*" "aaa" --diag 3 --diag-report reports/diag/rec.txt
+cargo run -- parse "a*" "aaa" --parser deriv_std_loop --diag 3 --diag-report reports/diag/loop.txt
+diff reports/diag/rec.txt reports/diag/loop.txt
 
 # Read directly
-cat reports/report.txt
+cat reports/diag/report.txt
 ```
 
 ---
@@ -133,7 +133,7 @@ cat reports/report.txt
 | `--parser` | `deriv_std_rec` `deriv_std_loop` `deriv_bc` `pderiv_std` `pderiv_bc` `all` | `deriv_std_rec` | Parser selection (`parse` only) |
 | `--matcher` | `naive` `deriv` `pderiv` `all` | `deriv` | Matcher selection (`match` only) |
 | `--diag`  | `0` `1` `2` `3` | `0` | Output verbosity level (`parse` only) |
-| `--diag-report` | file path | unset (`reports/report.txt` if `--diag 3` with no path given) | Level 3 report destination (`parse` only) |
+| `--diag-report` | file path | unset (`reports/diag/report.txt` if `--diag 3` with no path given) | Level 3 report destination (`parse` only) |
 
 ### Diag Verbosity levels
 

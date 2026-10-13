@@ -2,8 +2,6 @@ target/*
 !target/criterion/
 !target/criterion/**
 
-!reports/.gitkeep
-
 helper/
 
 data/*
@@ -12,4 +10,11 @@ data/raw/*
 !data/raw/_Samples/
 !data/raw/_Samples/**
 
-reports/*
+# Generated reports (diag traces, bench summaries, ...) are ignored at
+# any depth; `.gitkeep` files keep the subdirectory structure (e.g.
+# reports/diag/, reports/benches/) present in a fresh clone. Un-ignoring
+# a directory is required before its contents can be un-ignored too, so
+# this is three rules, not one.
+reports/**
+!reports/**/
+!reports/**/.gitkeep

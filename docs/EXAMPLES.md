@@ -34,11 +34,11 @@ cargo run --example demo_parse -- --parser pderiv_bc
 cargo run --example demo_parse -- --parser all
 
 # --diag 1|2|3 (single parser only; --parser all --diag > 0 errors)
-# --diag 3 writes reports/<parser>/demo_NN.txt per test case
+# --diag 3 writes reports/diag/<parser>/demo_NN.txt per test case
 cargo run --example demo_parse -- --diag 3 --parser deriv_bc
 
 # Individual path
-cargo run --example demo_parse -- --diag 3 --parser deriv_bc --diag-report reports/own_name.txt
+cargo run --example demo_parse -- --diag 3 --parser deriv_bc --diag-report reports/diag/own_name.txt
 ```
 
 

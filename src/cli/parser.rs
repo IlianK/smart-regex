@@ -11,7 +11,7 @@ use regex_engine::frontend::parse_pattern;
 
 /// Single parser, with diagnostics.
 ///
-/// `diag = Debug` with no `--diag-report` writes to `reports/report.txt`.
+/// `diag = Debug` with no `--diag-report` writes to `reports/diag/report.txt`.
 /// That is the CLI's own default, not `demo_parse`'s per-parser path.
 pub fn run_parse_single(
     regex_str: &str,
@@ -27,7 +27,7 @@ pub fn run_parse_single(
 
     let report_path = match (&diag_report, diag) {
         (Some(path), _)          => Some(path.clone()),
-        (None, DiagLevel::Debug) => Some("reports/report.txt".to_string()),
+        (None, DiagLevel::Debug) => Some("reports/diag/report.txt".to_string()),
         (None, _)                => None,
     };
 
