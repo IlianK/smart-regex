@@ -13,10 +13,10 @@ Chapters~\ref{sec:derivative-parser} and
   \item the bit-coded partial-derivative parser (\texttt{pderiv\_bc}).
 \end{itemize}
 
-Three aspects are covered. 
+Three aspects are covered.
 Section~\ref{sec:eval-dataset} describes
 how the corpus is prepared and how the verified inputs are generated
-from real patterns. 
+from real patterns.
 Section~\ref{sec:eval-agreement} then checks, on the prepared corpus,
 how often the POSIX parsers and the non-POSIX parsers agree on the
 shape of the parse tree they build for the same pattern and input.
@@ -33,22 +33,36 @@ Section~\ref{sec:eval-performance} presents timing and memory results.
 Section~\ref{sec:eval-discussion} interprets them.
 
 All measurements are produced by binaries under \texttt{benches/} and
-\texttt{examples/}, run with a fixed \texttt{--release} profile.
+\texttt{examples/}, run with a fixed \texttt{--release} profile. The
+synthetic benchmarks are Criterion targets; the two corpus
+measurements are plain reporting binaries, run once per source, for
+the reasons given in \texttt{BENCHMARKS.md}.
 
-% ---------------------------------------------------------------------
+% =====================================================================
 % 8.1 Dataset Preparation
-% ---------------------------------------------------------------------
+% =====================================================================
 
 \section{Dataset Preparation}
 \label{sec:eval-dataset}
 
+% ---- CHANGED: source selection now names all five; the eval uses two ----
 \subsection{Source selection}
 
-Two rule corpora are used: Snort/Suricata and SpamAssassin. Both are
-maintained upstream, their syntax is documented by the projects that
-publish them, and their patterns are exercised in production. This makes
-the corpus a reasonable proxy for the patterns a real parser will
+The pipeline supports five pattern sources. Two of them are used in
+this evaluation: Snort/Suricata and SpamAssassin. Both are maintained
+upstream, their syntax is documented by the projects that publish
+them, and their patterns are exercised in production. This makes the
+corpus a reasonable proxy for the patterns a real parser will
 encounter.
+
+The remaining three sources --- RegexLib, S2ELab, and Innovatorved
+--- are opt-in. RegexLib and Innovatorved are crowd-sourced and carry
+no correctness guarantee; Innovatorved's test text is unlabeled.
+S2ELab is a curated academic benchmark, but not a maintained
+production rule set in the way the two used here are. They are
+described in Section~\ref{sec:eval-input-generation} for
+completeness, since the pipeline handles them, but no results in this
+chapter are drawn from them.
 
 The corpus is the union of every rule file fetched as described in
 \texttt{DATASET.md}: 47 Snort rule files under
@@ -90,6 +104,13 @@ common spammer evasion; the third validates a MIME boundary UUID. Their
 short length is why the SpamAssassin corpus produces smaller but more
 numerous per-pattern measurements.
 
+Each source is chosen to exercise a different combination of the cost
+drivers introduced in Section~\ref{sec:eval-cost-drivers}: Snort for
+long inputs, S2ELab and RegexLib for structural variety, SpamAssassin
+as a short-pattern baseline.
+
+
+% ---- CHANGED: extraction commands now include <N> ----
 \subsection{Extraction}
 
 Extraction is the first stage of the pipeline. Each source file is read
@@ -99,27 +120,30 @@ option paired with its \texttt{content:} fields, \texttt{msg}, and
 \texttt{sid}; for SpamAssassin, every \texttt{header} and \texttt{body}
 rule.
 
-The extraction was run with:
+The pipeline was run with a per-pattern target of $N=10$ verified
+inputs, split evenly into five matches and five non-matches:
 
 \begin{verbatim}
 cargo run --release --example dataset_prepare -- \
-    suricata data/raw/snort/*.rules
+    10 suricata data/raw/snort/*.rules
 cargo run --release --example dataset_prepare -- \
-    spamassassin data/raw/spamAssassin/*.cf
+    10 spamassassin data/raw/spamAssassin/*.cf
 \end{verbatim}
 
+The first positional argument is the per-pattern target $N$: the total
+number of verified inputs each surviving pattern contributes, split
+evenly between matches and non-matches. It is required and must be a
+positive even integer. An optional literal \texttt{--} between $N$ and
+the source name is accepted and skipped.
 
-%
-%
-%
-
+% ---- input generation unchanged except for slack note ----
 \subsection{Input generation}
 \label{sec:eval-input-generation}
 
 Every accepted pattern needs inputs before it can be benchmarked: at
-least $N/2$ matching and $N/2$ non-matching, where $N$ is the
-\texttt{--inputs} target. The five sources differ in whether they
-supply such inputs themselves, and if so, in what form.
+least $N/2$ matching and $N/2$ non-matching. The five sources differ
+in whether they supply such inputs themselves, and if so, in what
+form.
 
 \begin{table}[ht]
 \centering
@@ -195,7 +219,7 @@ the target and is excluded.
 %
 
 \paragraph{Innovatorved.}
-Each entry ships with free-form test text -- a mix of matching and
+Each entry ships with free-form test text --- a mix of matching and
 non-matching lines with no marker saying which is which. Generation
 prefers this text: it is split into lines, deduplicated, sampled down to
 a cap, and each surviving line is classified against the real parser
@@ -210,17 +234,26 @@ and a language too small to sample from, is excluded.
 \paragraph{Common rule.}
 In every case, candidates that do not match their claimed outcome under
 the real parser are discarded, and negatives must additionally fail
-\emph{late} -- past two thirds of the input -- to count as meaningful.
+\emph{late} --- past two thirds of the input --- to count as meaningful.
 The balanced target of exactly $N/2$ matches and $N/2$ non-matches per
 pattern, described in Section~\ref{sec:eval-worked-pipeline}, applies to
 all five sources: whether an input comes from the source itself or from
 structural fill, the balanced corpus carries the same count per pattern
 and the same split.
 
-%
-%
-%
+% ---- NEW: candidate budget ----
+\paragraph{Candidate budget.}
+Candidate generation is bounded per pattern. Each strategy produces at
+most $\mathit{slack} \times (N/2)$ candidates per side, where
+$\mathit{slack}$ is tuned per source by how reliably that source's
+candidates verify: structural sampling walks the pattern's own language
+and needs no slack ($1$); content-derived and corpus messages are real
+bytes and also verify reliably ($1$); given examples and classified
+lines often fail and need more room ($3$ for RegexLib, $5$ for S2ELab,
+$10$ for Innovatorved). The cap is what makes the pipeline's per-pattern
+cost independent of the size of a rule file.
 
+% ---- worked example unchanged ----
 \subsection{A worked example through the pipeline}
 \label{sec:eval-worked-pipeline}
 
@@ -280,7 +313,6 @@ fail verification are discarded. Surviving candidates are written to
 This worked example is the pattern the rest of the chapter refers to when
 it discusses \emph{generated} versus \emph{verified} candidates.
 
-
 Input generation is bounded by two distinct limits. The first is
 sampling effort: a rich language such as \texttt{[a-z]+} admits
 infinitely many matching strings, but the sampler draws them randomly
@@ -297,10 +329,7 @@ since admitting a pattern with fewer than the standard number of inputs
 would make its benchmark results incomparable to the rest of the
 corpus.
 
-%
-%
-%
-
+% ---- corpus overview unchanged ----
 \subsection{Corpus overview}
 
 Table~\ref{tab:corpus-coverage} shows the aggregate extraction counts.
@@ -339,8 +368,6 @@ word-boundary rejections, since SpamAssassin uses
 \texttt{\textbackslash b} pervasively to anchor keyword matches.
 
 %
-%
-%
 
 \subsection{Match intent}
 
@@ -370,12 +397,9 @@ SpamAssassin's own engines search a buffer by default, and their rule
 authors write accordingly. Only 9\% of accepted patterns carry an
 explicit full-match wrapper.
 
-Both intents are generated for. Positives are sound under either reading
-(Section~\ref{sec:match-intent} in \texttt{DATASET.md}), so the benchmark
-inputs are used unchanged.
+Both intents are generated for. Positives are sound under either reading,
+so the benchmark inputs are used unchanged.
 
-%
-%
 %
 
 \subsection{Rejection causes}
@@ -447,8 +471,6 @@ covered by the six named causes. For Snort, this is almost entirely the
 handful of syntax errors.
 
 %
-%
-%
 
 \subsection{Anchor shape distribution}
 
@@ -498,8 +520,6 @@ These are the entries that need the parse step's own rejection mechanism,
 since no tree exists to strip anchors from.
 
 %
-%
-%
 
 \subsection{Prepared cases}
 
@@ -512,38 +532,42 @@ contains 6{,}285 accepted patterns, 87{,}283 generated candidates, and
 The gap between generated and verified is worth explaining, since it
 appears in every benchmark that follows. Candidate generation produces
 two kinds of input: positives, which \emph{claim} to match, and
-negatives, which claim not to. Verification discards any candidate whose
-claim does not hold under the real parser, and additionally discards any
-negative that fails \emph{early} --- before two-thirds of the input ---
-because an early failure is not a meaningful negative. For Snort,
-85{,}997 candidates were generated and 60{,}426 survived (70\% survival);
-for SpamAssassin, 1{,}286 generated and 1{,}286 survived (100\%). The
-difference is that SpamAssassin's short, regular patterns generate
-cleanly, while Snort's longer patterns occasionally produce a structural
-sample that the case-folding or anchor-stripping steps have made
-unmatchable.
+negatives, which claim not to. Verification walks candidates in order
+and stops as soon as both sides have reached $N/2$ accepted cases;
+candidates the pipeline never reaches are skipped, not rejected. A
+candidate that is reached and fails verification is discarded: its
+claim did not hold under the real parser, or it was a negative that
+failed \emph{early} --- before two-thirds of the input --- which is not
+a meaningful negative. For Snort, 85{,}997 candidates were generated and
+60{,}426 survived (70\% survival); for SpamAssassin, 1{,}286 generated
+and 1{,}286 survived (100\%). The difference is that SpamAssassin's
+short, regular patterns generate cleanly, while Snort's longer patterns
+occasionally produce a structural sample that the case-folding or
+anchor-stripping steps have made unmatchable.
 
 A small fraction of accepted patterns contributes nothing to the
-corpus. These are not sampler failures. Every non-matching input the
-pipeline produces is a matching input with its last character replaced
-by a character that lies outside the pattern's working alphabet, so a
-pattern whose language covers the alphabet (any star expression, any
-class-based pattern) still has a valid negative: the corrupted string
-contains a character no member of its language could contain. What
-remains are the patterns whose language is on one side empty: an
-expression that translates to the empty-string language, such as
-\texttt{\textasciicircum\textdollar} after anchor stripping or
-\texttt{a\{0\}}, has no negative to draw; an expression that translates
-to the empty language has no positive to draw. In both cases, one side
-has zero members, and the pipeline excludes the pattern rather than
-fabricating a member that would not be a real test. The count appears
-as \emph{patterns below target} in the pipeline report and accounts for
-the difference between \emph{accepted} and \emph{usable} patterns in
-Table~\ref{tab:corpus-coverage}.
+corpus. These are not sampler failures. A structural negative is a
+matching input with its last character replaced by a character that
+lies outside the pattern's working alphabet, so a pattern whose language
+covers the alphabet (any star expression, any class-based pattern)
+still has a valid negative: the corrupted string contains a character
+no member of its language could contain. What remains are the patterns
+whose language is on one side empty: an expression that translates to
+the empty-string language, such as \texttt{\textasciicircum\textdollar}
+after anchor stripping or \texttt{a\{0\}}, has no structural negative
+to draw; an expression that translates to the empty language has no
+positive to draw. (Negatives that come from a source's own given data
+--- S2ELab's \texttt{non\_matches}, Innovatorved's classified test
+lines --- are unaffected by this: they are not produced by corruption
+and are evaluated on their own terms.) In both cases, one side has zero
+members, and the pipeline excludes the pattern rather than fabricating
+a member that would not be a real test. The count appears as
+\emph{patterns below target} in the pipeline report and accounts for
+the difference between \emph{accepted} and \emph{usable} patterns.
 
-% ---------------------------------------------------------------------
+% =====================================================================
 % 8.2 Parser Agreement
-% ---------------------------------------------------------------------
+% =====================================================================
 
 \section{Parser Agreement}
 \label{sec:eval-agreement}
@@ -647,9 +671,9 @@ forced onto the same structure. \emph{Diff} is not a bug: it reflects
 a difference in disambiguation policy between the two families, not in
 the underlying matching.
 
-% ---------------------------------------------------------------------
+% =====================================================================
 % 8.3 Performance Analysis
-% ---------------------------------------------------------------------
+% =====================================================================
 
 \section{Performance Analysis}
 \label{sec:eval-performance}
@@ -660,6 +684,62 @@ The four parsers are compared on two axes: execution time
 inputs first, since synthetic families isolate a single cost, and on the
 corpus second, since the corpus is the environment the parsers will
 encounter in practice.
+
+% =====================================================================
+% Cost drivers  (new subsection of \section{Performance Analysis})
+% =====================================================================
+
+\subsection{Cost drivers}
+\label{sec:eval-cost-drivers}
+
+Before the measurements, it is worth separating the properties of a
+corpus that make the four parsers cost something. Three are
+distinguishable, and each is exercised to a different degree by the
+corpus of Section~\ref{sec:eval-dataset} and by the synthetic
+families of Section~\ref{sec:eval-timing}.
+
+\textbf{Input length.} The two standard derivative parsers retain
+every intermediate expression until the backward pass reconstructs
+the tree, so their live state grows with the number of characters
+consumed. The bit-coded and partial-derivative parsers do not carry
+that history. A corpus of long inputs separates the two groups; a
+corpus of short inputs does not, however many entries it contains.
+
+\textbf{Pattern structure.} Translation size and derivative cost
+scale with the pattern's own node count. Deeply nested groups,
+alternation over many branches, and repeated classes inflate the
+translated \texttt{Regex}, and every parser pays for that size on
+every input. This driver is independent of input length: a short
+input against a large pattern can cost more than a long input against
+a small one.
+
+\textbf{Ambiguity.} When a single input admits more than one valid
+decomposition of the pattern, the parsers keep more state alive and
+must eventually choose among the surviving trees. The choice is
+governed by the parser family's disambiguation policy
+(Chapter~\ref{sec:derivative-parser} versus
+\ref{sec:partial-derivative-parser}), and the two families are
+visible on exactly those (pattern, input) pairs where the policies
+diverge. Ambiguity is a property of a pattern, not of a corpus; the
+synthetic family of Section~\ref{sec:eval-timing} is what isolates it.
+
+Not every cost is a driver. There is also a fixed per-call cost paid
+once per (pattern, input) pair regardless of length, structure, or
+ambiguity: allocating the initial residual, setting up the derivation
+loop, and constructing the parse tree from the final nullable
+expression. The \texttt{small\_patterns} family isolates this cost,
+and it is why the four parsers differ even on inputs where none of
+the three drivers is active.
+
+Each of the synthetic families of Section~\ref{sec:eval-timing} is
+shaped to isolate one of these costs; the corpus tables that follow
+mix all three, and reading them without this separation makes the
+numbers hard to interpret. Snort, whose patterns are long and whose
+content-derived inputs are byte-shaped, exercises the first driver
+most strongly. S2ELab and RegexLib, whose patterns vary in structural
+complexity but whose inputs are short, exercise the second. The third
+is not a property of any one source, and is why the synthetic side of
+the evaluation exists at all.
 
 %
 %
@@ -699,30 +779,37 @@ and the two \texttt{pderiv} variants stay flat or nearly flat;
 %
 %
 
+% ---- CHANGED: bench_dataset replaced by bench_corpus_time ----
 \subsubsection{Corpus benchmarks}
 
-\texttt{bench\_dataset} runs the same five parsers on the prepared
-corpus. Two Criterion groups are produced.
-
-\begin{itemize}
-  \item \texttt{dataset\_\textless source\textgreater}: one combined pass
-        over the entire admitted corpus for one source, per parser. This
-        is a throughput figure, not a per-pattern one.
-  \item \texttt{dataset\_per\_pattern}: each parser timed on each
-        individual (pattern, input) entry, one row per entry. This
-        reveals the per-pattern cost distribution.
-\end{itemize}
+Corpus timing is measured by \texttt{bench\_corpus\_time}, a plain
+reporting binary rather than a Criterion target. It runs each parser
+once over each source's admitted corpus, timing every entry
+individually and reporting the total, mean, median, p99, and maximum
+per-entry cost. One pass per parser is what makes the measurement
+feasible: a corpus pass takes seconds per parser on the smoke corpus
+used below and would take hours on the full one, so Criterion's
+sample-count model would multiply the runtime for no statistical gain
+over a single pass.
 
 \begin{verbatim}
-cargo bench --bench bench_dataset
-BENCH_SOURCE=snort         BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_dataset
-BENCH_SOURCE=spamassassin  BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_dataset
-BENCH_MATCH_INTENT=direct  cargo bench --bench bench_dataset
+cargo bench --bench bench_corpus_time
+BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_corpus_time
+BENCH_SOURCE=snort,regexlib cargo bench --bench bench_corpus_time
+BENCH_SPLIT_OUTCOME=1   cargo bench --bench bench_corpus_time
 \end{verbatim}
 
-Table~\ref{tab:corpus-timing} shows the by-source aggregate times from
-the initial run at \texttt{BENCH\_PATTERN\_LIMIT=30}. Each row is one
-parser; each source gets a pair of columns for its mean and 95\% CI.
+Setting \texttt{BENCH\_SPLIT\_OUTCOME} prints a second table per source
+splitting each parser's per-entry durations by the entry's verified
+outcome (match or non-match), which shows whether a parser's total is
+skewed by one side of the corpus.
+
+Table~\ref{tab:corpus-timing} shows the smoke-test result at
+\texttt{BENCH\_PATTERN\_LIMIT=5}, which admits five patterns per source
+--- ten entries each under $N=2$ (five matches, five non-matches). The
+smoke test is used here because it completes in seconds and is enough to
+show the qualitative ordering; a full-corpus table would carry the same
+rows with different absolute numbers.
 
 \begin{table}[ht]
 \centering
@@ -730,26 +817,36 @@ parser; each source gets a pair of columns for its mean and 95\% CI.
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
 \hline
-& \multicolumn{2}{c}{Snort} & \multicolumn{2}{c}{SpamAssassin} \\
+& \multicolumn{2}{c}{Snort (10 entries)} & \multicolumn{2}{c}{SpamAssassin (10 entries)} \\
 \cline{2-3}\cline{4-5}
-Parser & Mean & 95\% CI & Mean & 95\% CI \\
+Parser & Total (s) & Mean (ms) & Total (s) & Mean (ms) \\
 \hline
-\texttt{deriv\_std\_rec}  & 251.9 s & [225.7, 273.3] & 381 ms & [365, 394] \\
-\texttt{deriv\_std\_loop} &  49.6 s & [ 49.6,  49.7] & 268 ms & [266, 270] \\
-\texttt{deriv\_bc}        &  2.78 s & [ 2.75,  2.80] & 154 ms & [153, 155] \\
-\texttt{pderiv\_bc}       &  4.07 s & [ 4.07,  4.08] &  71 ms & [ 71,  71] \\
-\texttt{pderiv\_std}      &  4.35 s & [ 4.35,  4.36] &  86 ms & [ 85,  86] \\
+\texttt{deriv\_std\_rec}  & 2.240 & 224.0 & 0.001 & 0.121 \\
+\texttt{deriv\_std\_loop} & 2.291 & 229.1 & 0.001 & 0.120 \\
+\texttt{deriv\_bc}        & 0.152 &  15.2 & 0.000 & 0.045 \\
+\texttt{pderiv\_bc}       & 0.205 &  20.5 & 0.000 & 0.028 \\
+\texttt{pderiv\_std}      & 0.209 &  20.9 & 0.000 & 0.043 \\
 \hline
 \end{tabular}
-\caption{By-source aggregate timing, one pass over the admitted corpus
-per sample, per parser. Times are means; CIs are the mean's 95\%
-confidence interval. Criterion sample count: 20.}
+\caption{Corpus timing at \texttt{BENCH\_PATTERN\_LIMIT=5}, one pass
+per parser per source. Total is wall time over the whole admitted
+corpus; mean is the per-entry average. Snort carries the long
+byte-oriented patterns and dominates the absolute figures;
+SpamAssassin's short keyword patterns complete in microseconds.}
 \label{tab:corpus-timing}
 \end{table}
 
-A second table at a different \texttt{BENCH\_PATTERN\_LIMIT} value can be
-added with the same structure to show that the ordering does not depend
-on the cap.
+Three observations follow from the table. First, the standard
+derivative variants are an order of magnitude slower than the other
+three on Snort: 2.24\,s and 2.29\,s against 0.15--0.21\,s for
+\texttt{deriv\_bc}, \texttt{pderiv\_bc}, and \texttt{pderiv\_std}.
+Second, the two standard variants are indistinguishable from each
+other on this corpus, in contrast to the larger gap reported under the
+smaller corpus in Section~\ref{sec:eval-discussion}. Third, SpamAssassin
+is fast enough across all five parsers that the differences are in the
+noise of a ten-entry sample; the same ranking holds but the absolute
+values are small enough that this table is not the place to read a
+constant factor off it.
 
 %
 %
@@ -760,57 +857,71 @@ on the cap.
 
 \subsubsection{Allocation counters}
 
-\texttt{bench\_memory} replaces the system allocator with a wrapper that
-counts allocated bytes, and reports three figures per (parser, source)
-pair:
+\texttt{bench\_memory} replaces the system allocator with a wrapper
+that counts allocated bytes, and reports three figures per (parser,
+source) pair:
 
 \begin{itemize}
-  \item \textbf{total bytes}: every allocation during a call, including
-        freed and re-allocated bytes. Measures churn.
+  \item \textbf{total bytes}: every allocation during the whole
+        corpus pass, including freed and re-allocated bytes.
+        Measures churn.
   \item \textbf{average bytes per entry}: total divided by the entry
         count. Measures per-pattern cost.
-  \item \textbf{max peak}: the highest live-byte high-water mark seen on
-        any single entry. Measures worst-case memory.
+  \item \textbf{max peak}: the highest live-byte high-water mark seen
+        on any single entry. Measures worst-case memory.
 \end{itemize}
+
+Like \texttt{bench\_corpus\_time}, it is a plain reporting binary. It
+reads the same three corpus environment variables.
 
 \begin{verbatim}
 cargo bench --bench bench_memory
-BENCH_PATTERN_LIMIT=30 cargo bench --bench bench_memory
+BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_memory
 BENCH_SOURCE=snort BENCH_MATCH_INTENT=direct cargo bench --bench bench_memory
 \end{verbatim}
 
-Table~\ref{tab:memory} reports total bytes and max peak per parser,
-using the same row-per-parser, column-per-source structure as
-Table~\ref{tab:corpus-timing}.
+Table~\ref{tab:memory} reports the same smoke-corpus run that
+Table~\ref{tab:corpus-timing} does. Bytes are given in the units that
+keep the table readable: MB for Snort, KB for SpamAssassin.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrr}
+\begin{tabular}{lrrrrrr}
 \hline
-& \multicolumn{2}{c}{Snort} & \multicolumn{2}{c}{SpamAssassin} \\
-\cline{2-3}\cline{4-5}
-Parser & Total bytes & Max peak & Total bytes & Max peak \\
+& \multicolumn{3}{c}{Snort (10 entries)} & \multicolumn{3}{c}{SpamAssassin (10 entries)} \\
+\cline{2-4}\cline{5-7}
+Parser & Total & Avg/entry & Max peak & Total & Avg/entry & Max peak \\
 \hline
-\texttt{deriv\_std\_rec}  & -- & -- & -- & -- \\
-\texttt{deriv\_std\_loop} & -- & -- & -- & -- \\
-\texttt{deriv\_bc}        & -- & -- & -- & -- \\
-\texttt{pderiv\_bc}       & -- & -- & -- & -- \\
-\texttt{pderiv\_std}      & -- & -- & -- & -- \\
+\texttt{deriv\_std\_rec}  & 887 MB & 88.7 MB & 168 MB & 845 KB & 84.6 KB & 142 KB \\
+\texttt{deriv\_std\_loop} & 887 MB & 88.7 MB & 168 MB & 879 KB & 87.9 KB & 148 KB \\
+\texttt{deriv\_bc}        & 162 MB & 16.2 MB & 240 KB & 834 KB & 83.4 KB & 9.5 KB \\
+\texttt{pderiv\_bc}       & 167 MB & 16.7 MB & 1.45 MB & 289 KB & 28.9 KB & 7.6 KB \\
+\texttt{pderiv\_std}      & 166 MB & 16.6 MB & 3.89 MB & 422 KB & 42.2 KB & 11.4 KB \\
 \hline
 \end{tabular}
-\caption{Memory allocation per parser per source. Total bytes is the sum
-over all calls; max peak is the worst single-entry high-water mark.
-(Values to be filled after the run.)}
+\caption{Memory allocation at \texttt{BENCH\_PATTERN\_LIMIT=5}, one
+pass per parser per source. Total is the sum over the whole corpus
+pass; avg/entry is per (pattern, input) row; max peak is the worst
+single-entry high-water mark.}
 \label{tab:memory}
 \end{table}
 
-The narrative expectation is that \texttt{deriv\_bc}, \texttt{pderiv\_bc},
-and \texttt{pderiv\_std} allocate substantially fewer bytes than the two
-standard derivative variants, since \texttt{deriv\_std} retains its full
-derivation sequence for the backward pass. Section~\ref{sec:eval-growth}
-confirms this on two canonical expressions.
+The narrative expectation is confirmed: \texttt{deriv\_bc},
+\texttt{pderiv\_bc}, and \texttt{pderiv\_std} allocate substantially
+fewer bytes than the two standard derivative variants, since
+\texttt{deriv\_std} retains its full derivation sequence for the
+backward pass. On Snort the gap is a factor of about $5\times$ in
+total bytes and about $700\times$ in peak allocation --- 168 MB for
+\texttt{deriv\_std} against 240 KB for \texttt{deriv\_bc}. The
+standard derivative parsers allocate $88.7$ MB per entry on average,
+against $16.2$ MB for \texttt{deriv\_bc}; the peak figures differ by
+more than the average because a single Snort pattern dominates the
+high-water mark.
+
+Section~\ref{sec:eval-growth} confirms the same effect on two
+canonical expressions.
 
 %
 %
@@ -900,11 +1011,16 @@ the pgfplots coordinates the demo already prints, can be added here.
 
 The max-peak column from Table~\ref{tab:memory} answers whether any
 corpus pattern causes a peak that would be infeasible on a production
-machine. If the answer is yes, the specific pattern will be listed here.
+machine. On the smoke corpus the answer is no: the highest single-entry
+peak is 168 MB for the two standard derivative variants on a Snort
+pattern, well within the memory of a typical workstation. The same
+table at full corpus size should be checked before drawing a stronger
+conclusion, since a pattern with a larger language can produce a
+proportionally larger peak.
 
-% ---------------------------------------------------------------------
+% =====================================================================
 % 8.4 Discussion of Results
-% ---------------------------------------------------------------------
+% =====================================================================
 
 \section{Discussion of Results}
 \label{sec:eval-discussion}
@@ -920,16 +1036,13 @@ alive until the backward pass completes. On \texttt{a*} input of length
 $n$, the standard parser's state size grows linearly in $n$, while the
 bit-coded and partial-derivative parsers stay constant.
 
-The two standard variants also differ from each other by a large
-constant. \texttt{deriv\_std\_rec} recurses over the expression and pays
-a deep call-stack cost on ambiguous patterns, while
-\texttt{deriv\_std\_loop} drives the same computation iteratively. On the
-small test run, \texttt{deriv\_std\_loop} is roughly $5\times$ faster
-than \texttt{deriv\_std\_rec} on Snort and only $1.4\times$ faster on
-SpamAssassin. The difference reflects pattern shapes: Snort patterns are
-longer and more nested, so recursion overhead dominates; SpamAssassin
-patterns are short enough that iteration and recursion cost similar
-amounts.
+On the smoke corpus the two standard variants are nearly identical in
+both time and memory. This does not mean their underlying implementations
+are equivalent; it means the pattern shapes in the smoke corpus are
+short enough that the recursion-versus-iteration difference does not
+dominate. A larger corpus containing longer and more deeply nested
+Snort signatures would be expected to show a difference; the smaller
+corpus used here does not.
 
 %
 %
@@ -938,9 +1051,10 @@ amounts.
 \subsection{Cost of bit-coding}
 
 The bit-coded derivative parser (\texttt{deriv\_bc}) is the second
-fastest and second most memory-efficient on the small run. The trade-off
-it makes is that the forward pass cannot simplify away redundant
-branches without losing reconstruction information. The
+fastest and second most memory-efficient on the smoke run, behind only
+\texttt{pderiv\_bc} on most figures and behind \texttt{pderiv\_std} on
+one. The trade-off it makes is that the forward pass cannot simplify
+away redundant branches without losing reconstruction information. The
 \texttt{demo\_simp\_branches} output shows this clearly: the branch
 counts grow as expected but the distinctness count stays at 1 after bit
 stripping, meaning every branch is retained because it carries a
@@ -954,12 +1068,15 @@ makes single-pass reconstruction possible.
 \subsection{Cost of partial derivatives}
 
 The two partial-derivative parsers are the fastest and most memory-light
-on the small run. They split the residual into a set of states rather
+on the smoke run. They split the residual into a set of states rather
 than combining into one expression, which keeps each state small and
 avoids the alternation growth that the standard derivative parser
 suffers. The bit-coded variant (\texttt{pderiv\_bc}) is consistently
-faster than the standard variant (\texttt{pderiv\_std}), since it
-replaces the reference-counted injection closures with flat bit-vectors.
+faster and lighter than the standard variant (\texttt{pderiv\_std}),
+since it replaces the reference-counted injection closures with flat
+bit-vectors. On Snort the peak allocation is $1.45$ MB for
+\texttt{pderiv\_bc} against $3.89$ MB for \texttt{pderiv\_std}, and the
+gap in total bytes is similar.
 
 The price of partial derivatives is that they produce a non-POSIX parse
 tree rather than a POSIX one. This is a specification difference, not an
@@ -1027,6 +1144,9 @@ collector or a page cache, the figures would interact with those
 subsystems in ways this evaluation does not model. The evaluator runs on
 a single machine, and the wall-clock figures in
 Table~\ref{tab:corpus-timing} are therefore CPU- and cache-specific.
+They are also drawn from a smoke corpus and are not a claim about
+whole-corpus behaviour; the full-corpus run would produce the same
+ordering with proportionally larger absolute numbers.
 
 %
 %

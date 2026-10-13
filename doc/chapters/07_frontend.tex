@@ -23,15 +23,15 @@ translation's own cost (Section~\ref{sec:frontend-sizes}).
 \section{The Interface and Its Design Choices}
 \label{sec:frontend-scope}
 
-Two functions form the public interface. The first, used by the CLI
-and by any code that has a bare pattern, is
+Two functions form the public interface. The first, for a bare
+pattern, is
 
 \begin{verbatim}
 parse_pattern(s: &str) -> Result<Regex, String>
 \end{verbatim}
 
-The second, used by the dataset pipeline and by anything consuming a
-PCRE rule, additionally handles a \texttt{/PATTERN/FLAGS} wrapper:
+The second, for a rule wrapped in the PCRE form
+\texttt{/PATTERN/FLAGS}, additionally reads the flag suffix:
 
 \begin{verbatim}
 parse_pcre_rule(s: &str) -> Result<Regex, String>
@@ -51,18 +51,21 @@ rejected rather than translated. A source pattern beginning with
 ``match at the start/end of the buffer'' under the source tool's own
 semantics, and no lowering into a full-string matcher preserves that
 meaning --- except in the one case where both anchors wrap the whole
-pattern, which is provably redundant.
+pattern, which is provably redundant. That one case is discussed in
+Section~\ref{sec:frontend-anchor-recovery}.
 
-\textbf{A fixed working alphabet.} Shorthand classes, negated classes,
-and the dot metacharacter all expand to alternations over a fixed set
-of 98 characters: printable ASCII plus tab, newline, and carriage
-return. A literal character written directly in the pattern is not
-bounded by this set --- the core \texttt{Regex::Lit} carries a full
-Unicode \texttt{char} --- so \texttt{café} still matches the string
-\texttt{"café"}, but \texttt{\textbackslash W} cannot match a
-non-ASCII character, since the alphabet has no such character to
-produce. The size consequences of this choice are quantified in
-Section~\ref{sec:frontend-sizes}.
+\textbf{A fixed working alphabet.} Shorthand classes and negated
+classes expand to alternations over a fixed set of 98 characters:
+printable ASCII plus tab, newline, and carriage return. The dot
+metacharacter lowers to the same set when the \texttt{s} flag is set,
+and to the 97-character complement of \texttt{\textbackslash n}
+otherwise, matching PCRE's default reading of \texttt{.}. A literal
+character written directly in the pattern is not bounded by this set
+--- the core \texttt{Regex::Lit} carries a full Unicode \texttt{char}
+--- so \texttt{café} still matches the string \texttt{"café"}, but
+\texttt{\textbackslash W} cannot match a non-ASCII character, since
+the alphabet has no such character to produce. The size consequences
+of this choice are quantified in Section~\ref{sec:frontend-sizes}.
 
 \textbf{Rejection over approximation.} When a construct cannot be
 translated without changing what the pattern denotes, the frontend
@@ -72,9 +75,12 @@ parser can consume without extension: backreferences, lookaround
 assertions, word boundaries, and anchors outside the recoverable
 top-level \texttt{\textasciicircum...\textdollar} wrap. The two
 remaining flags, \texttt{m} and \texttt{x}, are rejected for the same
-reason: \texttt{m} changes what the two anchors mean, and the frontend
-has no anchors to begin with; \texttt{x} changes how whitespace is
-interpreted, which this parser does not model.
+underlying reason: honouring them would require a matching model this
+frontend does not have. \texttt{m} redefines
+\texttt{\textasciicircum} and \texttt{\textdollar} to match at
+newlines as well as at buffer boundaries, and the frontend has no
+anchors to begin with; \texttt{x} makes whitespace insignificant,
+which this parser does not model.
 
 Everything outside this small set is accepted and translated. The
 remainder of this chapter explains how.
@@ -112,7 +118,7 @@ Class          & \texttt{Any}            & \texttt{[abc]} \\
                & \texttt{Escape}         & \texttt{\textbackslash d}, \texttt{\textbackslash w}, \texttt{\textbackslash s}, ... \\
                & \texttt{Char}           & a single literal \\
 \hline
-Assertion      & \texttt{Carat}          & \texttt{\textasciicircum} \\
+Atomic / special & \texttt{Carat}          & \texttt{\textasciicircum} \\
                & \texttt{Dollar}         & \texttt{\textdollar} \\
                & \texttt{Dot}            & \texttt{.} \\
                & \texttt{WordBoundary}   & \texttt{\textbackslash b}, \texttt{\textbackslash B} \\
@@ -120,10 +126,13 @@ Assertion      & \texttt{Carat}          & \texttt{\textasciicircum} \\
                & \texttt{Never}          & $\emptyset$ \\
 \hline
 \end{tabular}
-\caption{The 19 \texttt{ExtPat} variants, grouped by role. The
-Assertion group is parsed but rejected by
-\texttt{translate}, except for \texttt{Dot}, which lowers to the full
-alphabet.}
+\caption{The 19 \texttt{ExtPat} variants, grouped by role. Of the
+six in the last group, \texttt{Carat}, \texttt{Dollar}, and
+\texttt{WordBoundary} are parsed but rejected by \texttt{translate};
+\texttt{Dot} lowers to the working alphabet (or its
+\texttt{\textbackslash n}-free complement);
+\texttt{Eps} and \texttt{Never} lower to the core
+\texttt{Regex::Eps} and \texttt{Regex::Phi}.}
 \label{tab:extpat}
 \end{table}
 
@@ -131,18 +140,28 @@ Two properties of \texttt{ExtPat} matter for the rest of the chapter.
 First, the quantifier variants are single-level: \texttt{r*} carries
 its atom, but not a chain. Chained quantifiers such as \texttt{a**}
 are not produced by the parser, since PCRE treats them as syntax
-errors. Second, the assertion variants are first-class. Parsing does
-not reject them; it produces an \texttt{ExtPat::Carat} or
-\texttt{ExtPat::WordBoundary} and leaves the rejection to
-\texttt{translate}. The reason is diagnostic: a pattern that fails at
-translation with the message ``anchor is not supported'' is more
-informative to a corpus analyst than one that fails at parse time with
-``unexpected \texttt{\textasciicircum}''.
+errors. Second, the anchor and word-boundary variants are
+first-class. Parsing does not reject them; it produces an
+\texttt{ExtPat::Carat} or \texttt{ExtPat::WordBoundary} and leaves
+the rejection to \texttt{translate}. The reason is diagnostic: a
+pattern that fails at translation with the message ``anchor is not
+supported'' is more informative to a corpus analyst than one that
+fails at parse time with ``unexpected \texttt{\textasciicircum}''.
+
+Rejection at parse time covers two distinct cases. The first is
+constructs the parser cannot even represent: backreferences and
+lookaround assertions have no \texttt{ExtPat} constructor, so the
+parser has no tree to produce for them. The second is POSIX classes,
+which \emph{are} representable --- as the literal characters
+\texttt{[}, \texttt{:}, \texttt{a}, and so on --- but whose silent
+misinterpretation would change the pattern's language. Their
+rejection is a correctness measure, described in
+Section~\ref{sec:frontend-parse-rejected}.
 
 The deliberate asymmetry between parse and translate --- parse
-succeeds on more than translate accepts --- is what makes the anchor
-shape distribution of Chapter~\ref{sec:evaluation} possible. Without
-it, the pipeline could only say how many patterns failed, not why.
+succeeds on more than translate accepts --- is what makes a
+per-rejection-cause breakdown of a corpus possible at all. Without
+it, a pipeline could only say how many patterns failed, not why.
 
 \section{Parsing: String to ExtPat}
 \label{sec:frontend-parse}
@@ -170,9 +189,32 @@ Chapter~\ref{sec:evaluation}'s growth measurements depend on it.
 
 A trailing \texttt{?} after a quantifier (\texttt{r*?}, \texttt{r+?},
 \texttt{r??}, \texttt{r\{m,n\}?}) is accepted and discarded. Laziness
-has no meaning under full-string matching: the pattern matches the
-whole input or it does not, and no choice of match order is
-observable.
+is a backtracking-engine concept: it governs the order in which a
+search explores matches, and it becomes observable only when that
+order changes an externally visible result --- which substring a
+search returns, or what a capture group holds. Neither channel exists
+here. The core \texttt{Regex} has no capture structure, and the
+parsers of Chapters~\ref{sec:derivative-parser} and
+\ref{sec:partial-derivative-parser} decide membership rather than
+search, so no operation ever returns a substring. The marker is
+therefore discarded during parsing, before any \texttt{ExtPat} is
+built: \texttt{r*} and \texttt{r*?} produce the same
+\texttt{ExtPat::Star}.
+
+This is a separate concern from the disambiguation policy the parsers
+apply. A source pattern such as \texttt{(a+ab)(b+\textbackslash
+varepsilon)} admits more than one valid parse tree for the same input,
+and which tree a parser returns is decided by the parser's own policy
+(POSIX leftmost-longest for the derivative-based parsers, greedy
+leftmost for the partial-derivative ones), not by anything in the
+source quantifier syntax. The \texttt{?} marker is not the mechanism
+by which a PCRE author selects between those policies; it is a hint
+that only a backtracking engine reads, and there is no backtracking
+engine here to read it.
+
+%
+%
+%
 
 \subsection{Accepted surface syntax}
 
@@ -222,6 +264,7 @@ are extensions for the worked examples of earlier chapters, not part
 of the PCRE family.
 
 \subsection{Rejected surface syntax}
+\label{sec:frontend-parse-rejected}
 
 Rejection falls into two categories: constructs the grammar cannot
 represent, and constructs the frontend chooses not to represent.
@@ -331,10 +374,11 @@ An \texttt{ExtPat::Any(cs)} lowers to an alternation over
 \texttt{cs}: one \texttt{Alt} node per element, folded left.
 \texttt{NoneOf(cs)} first takes the complement of \texttt{cs} against
 the working alphabet and then does the same. \texttt{Dot} lowers to
-\texttt{Any} over the full alphabet. Shorthand escapes
-(\texttt{\textbackslash d}, \texttt{\textbackslash w},
-\texttt{\textbackslash s}, and their capitalised forms) lower through
-the same path.
+\texttt{Any} over the full alphabet when the \texttt{s} flag is set,
+and has already been rewritten to \texttt{NoneOf(\textbackslash n)}
+otherwise. Shorthand escapes (\texttt{\textbackslash d},
+\texttt{\textbackslash w}, \texttt{\textbackslash s}, and their
+capitalised forms) lower through the same path.
 
 The consequence is that \texttt{Dot}, the shorthand classes, and any
 negated class cannot match a character outside the working alphabet.
@@ -362,13 +406,14 @@ copies would blow up the subsequent derivative computation for no
 matching benefit. The cap is enforced before any translation, so the
 rejection is immediate.
 
-A second, coarser cap exists in the dataset pipeline
-(Chapter~\ref{sec:evaluation}) and rejects a pattern if the translated
-\texttt{Regex} would exceed a node count. That cap does not affect the
-frontend's own behaviour, only the pipeline's decision to skip a
-pattern before generation.
+A second, coarser cap is applied further downstream, by the corpus
+preparation of Chapter~\ref{sec:evaluation}, and rejects a pattern if
+the translated \texttt{Regex} would exceed a node count. That cap does
+not affect the frontend's own behaviour, only the pipeline's decision
+to skip a pattern before generation.
 
 \subsection{Anchor recovery}
+\label{sec:frontend-anchor-recovery}
 
 Translation is where anchors are rejected, with one exception. A
 pattern whose top level is a single \texttt{Concat} beginning with
@@ -381,14 +426,20 @@ about what the pattern denotes.
 The exception is narrow. A lone \texttt{\textasciicircum}, a lone
 \texttt{\textdollar}, or either anchor nested inside an alternation
 branch or under a quantifier is not stripped, and reaches
-\texttt{translate} where it is rejected. The recovery is provided by
-\texttt{parse\_pcre\_rule}'s caller, not by \texttt{translate} itself,
-so the frontend's ordinary entry point still rejects every anchor.
+\texttt{translate} where it is rejected.
 
-The evaluation classifies every accepted pattern as
-\texttt{Direct} (no anchor anywhere) or \texttt{ExplicitFullMatch}
-(the recoverable wrap) using exactly this rule. Both tiers are
-generated for and benchmarked identically, since the anchors'
+The recovery is not part of the frontend's own public interface.
+Neither \texttt{parse\_pattern} nor \texttt{parse\_pcre\_rule}
+strips an anchor; both translate every anchor to a rejection. A
+caller that has a reason to recover the redundant wrap can do so
+before invoking \texttt{translate}, and the corpus preparation of
+Chapter~\ref{sec:evaluation} is such a caller. The frontend's
+behaviour is unchanged either way: it accepts every pattern that
+\texttt{translate} accepts, and rejects every anchor on its own.
+
+The evaluation classifies every accepted pattern by whether it
+carried the recoverable wrap or had no anchor at all. Both classes
+are generated for and benchmarked identically, since the anchors'
 redundancy means the two patterns have the same \texttt{Regex}.
 
 \section{Translation Size}
@@ -420,22 +471,22 @@ patterns.}
 \label{tab:translation-sizes}
 \end{table}
 
-The right-hand column shows the cost of the 98-character alphabet. A
-single \texttt{\textbackslash d} contributes 19 nodes: one for each of
-the ten digits, plus nine \texttt{Alt} wrappers to chain them.
-\texttt{\textbackslash w} is 125 nodes for 63 characters.
+The right-hand side of the table shows the cost of the 98-character
+alphabet. A single \texttt{\textbackslash d} contributes 19 nodes: one
+for each of the ten digits, plus nine \texttt{Alt} wrappers to chain
+them. \texttt{\textbackslash w} is 125 nodes for 63 characters.
 \texttt{[\textasciicircum a]} is 193 nodes: one for every alphabet
 character except \texttt{a}, plus the chain.
 
 Two consequences follow. First, patterns with many distinct classes
 can produce large translations even when the source is short, which
-is why the pipeline carries a node-count cap. Second, the constant
-factor between ``one class'' and ``one literal'' is roughly two orders
-of magnitude, so a pattern written as an explicit alternation over
-literal characters (\texttt{(a|b|c|...)}) is not equivalent, size-wise,
-to the same class written as \texttt{[abc...]}. Both
-lower to the same \texttt{Regex}, but the class notation makes the
-size cost visible only after translation.
+is why a downstream pipeline carries a node-count cap. Second, the
+constant factor between ``one class'' and ``one literal'' is roughly
+two orders of magnitude, so a pattern written as an explicit
+alternation over literal characters (\texttt{(a|b|c|...)}) is not
+equivalent, size-wise, to the same class written as
+\texttt{[abc...]}. Both lower to the same \texttt{Regex}, but the
+class notation makes the size cost visible only after translation.
 
 Case folding adds to this cost linearly. For \texttt{/abc/i}, the
 translated pattern grows from 5 nodes (for \texttt{/abc/}) to 11, an

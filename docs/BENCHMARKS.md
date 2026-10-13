@@ -140,8 +140,10 @@ With `BENCH_SPLIT_OUTCOME` set, a second table splits each parser's
 time by match vs. non-match, so an asymmetry in the corpus shows up as
 a per-side column rather than being buried in the mean.
 
-Reads the same three corpus variables as `bench_memory`. Not a Criterion
-target: one pass, no sampling, no CI.
+Reads the three corpus variables shared with `bench_memory`
+(`BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`) plus its
+own `BENCH_SPLIT_OUTCOME`. Not a Criterion target: one pass, no
+sampling, no CI.
 
 ## `bench_memory.rs`
 
@@ -158,6 +160,9 @@ Uses a counting `#[global_allocator]` with `harness = false`. For each
 source reports total allocated bytes (including freed-and-reallocated
 churn), average bytes per entry, and the largest entry's peak live-byte
 high-water mark.
+
+Reads `BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, and `BENCH_MATCH_INTENT`.
+`BENCH_SPLIT_OUTCOME` has no effect here.
 
 The three partial-derivative parsers (`deriv_bc`, `pderiv_bc`,
 `pderiv_std`) allocate noticeably fewer total bytes than the two
@@ -193,6 +198,12 @@ BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_memory
 # Default sources (suricata, spamassassin), every pattern.
 cargo bench --bench bench_corpus_time
 
+# Capped at 50 patterns per source.
+BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_corpus_time
+
+# One source, no cap.
+BENCH_SOURCE=s2-elab cargo bench --bench bench_corpus_time
+
 # All five sources, every pattern.
 BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
   cargo bench --bench bench_corpus_time
@@ -203,7 +214,14 @@ BENCH_PATTERN_LIMIT=50 \
   cargo bench --bench bench_corpus_time
 
 # Match vs. non-match split.
+BENCH_SPLIT_OUTCOME=1 BENCH_SOURCE=s2-elab   cargo bench --bench bench_corpus_time
 BENCH_SPLIT_OUTCOME=1 BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_corpus_time
+
+# Only the patterns that carry a recoverable ^...$ wrap.
+BENCH_MATCH_INTENT=explicit cargo bench --bench bench_corpus_time
+
+# Only the unanchored patterns.
+BENCH_MATCH_INTENT=direct cargo bench --bench bench_corpus_time
 ```
 
 **Whole-corpus memory** (`bench_memory`, same source and pattern-limit
@@ -213,8 +231,11 @@ variables):
 # Default sources, every pattern.
 cargo bench --bench bench_memory
 
+# Capped at 50 patterns per source.
+BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_memory
+
 # One source, no cap.
-BENCH_SOURCE=snort cargo bench --bench bench_memory
+BENCH_SOURCE=s2-elab cargo bench --bench bench_memory
 
 # Two sources, 30 patterns each.
 BENCH_SOURCE=s2-elab,innovatorved \
@@ -224,4 +245,7 @@ BENCH_PATTERN_LIMIT=30 \
 # All five sources, every pattern.
 BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
   cargo bench --bench bench_memory
+
+# Only unanchored patterns.
+BENCH_MATCH_INTENT=direct cargo bench --bench bench_memory
 ```
