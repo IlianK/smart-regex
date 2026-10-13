@@ -160,11 +160,21 @@ fn print_report(
 
     println!();
     println!("Generation");
-    println!("  candidates generated {:>7}", report.inputs_generated);
-    println!("  candidates verified  {:>7}", report.inputs_verified);
     println!(
-        "  discarded            {:>7}   (failed the real parser)",
-        report.inputs_discarded()
+        "  candidates generated  {:>7}",
+        report.inputs_generated
+    );
+    println!(
+        "  candidates verified   {:>7}   (examined and passed)",
+        report.inputs_verified
+    );
+    println!(
+        "  candidates rejected   {:>7}   (examined and failed the real parser)",
+        report.inputs_rejected
+    );
+    println!(
+        "  candidates skipped    {:>7}   (never examined; target already reached)",
+        report.inputs_skipped()
     );
 
     println!();

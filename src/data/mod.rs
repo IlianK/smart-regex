@@ -36,6 +36,10 @@ pub struct PipelineReport {
     /// sides, so this equals `inputs_usable` plus whatever the below-target
     /// patterns happened to verify before their batch ran out.
     pub inputs_verified: usize,
+    /// Of `inputs_generated`, how many were examined by `verify_one` and
+    /// rejected: either the claim did not hold, or a negative failed
+    /// before `LATE_FAILURE_THRESHOLD`.
+    pub inputs_rejected: usize,
     /// Of `patterns_accepted`, how many never reached `per_side` verified
     /// matches and `per_side` verified non-matches.
     /// These contribute nothing to `prepared.jsonl`.
@@ -65,9 +69,13 @@ pub struct PipelineReport {
 }
 
 impl PipelineReport {
-    /// `inputs_generated - inputs_verified`.
-    pub fn inputs_discarded(&self) -> usize {
-        self.inputs_generated - self.inputs_verified
+    /// `inputs_generated - inputs_verified - inputs_rejected`.
+    /// Candidates never examined, because `verify_until` already had
+    /// `per_side` on both sides or their claimed side was full.
+    pub fn inputs_skipped(&self) -> usize {
+        self.inputs_generated
+            .saturating_sub(self.inputs_verified)
+            .saturating_sub(self.inputs_rejected)
     }
 
     /// `inputs_usable - inputs_usable_from_source`.
@@ -233,7 +241,7 @@ pub fn run_pipeline(
         }
 
         report.inputs_generated += candidates.len();
-        let prepared = prepare::verify_until(
+        let (prepared, rejected) = prepare::verify_until(
             source,
             &rule.raw_pattern,
             &core,
@@ -243,6 +251,7 @@ pub fn run_pipeline(
         );
         let prepared_len = prepared.len();
         report.inputs_verified += prepared_len;
+        report.inputs_rejected += rejected;
 
         if prepared_len < per_side * 2 {
             report.patterns_unusable_at_generation += 1;

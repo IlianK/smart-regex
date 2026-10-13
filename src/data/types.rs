@@ -137,17 +137,18 @@ impl Provenance {
     }
 
     /// Whether this candidate's *text* came from the source's own data,
-    /// rather than being generated to fill a gap. `DatasetGiven` (S2ELab's
-    /// own `matches`/`non_matches`) and `DatasetTextClassified`
-    /// (Innovatorved's own free-form test lines) qualify; everything else
-    /// -- including `RealCorpus`, which samples real external text but not
-    /// text the pattern's own author supplied as a labeled example for it
-    /// -- is generated. `prepare::balance_cases` uses this to prefer a
-    /// pattern's own given examples over synthetic top-up when both
-    /// compete for the same `per_side` slots, and `PipelineReport` uses it
-    /// to measure how much of a source's final corpus is real versus
-    /// generated. Listed explicitly, as above, so a future provenance must
-    /// make this choice too.
+    /// rather than being generated to fill a gap.
+    /// `DatasetGiven` (S2ELab's own `matches`/`non_matches`) and
+    /// `DatasetTextClassified` (Innovatorved's own free-form test lines)
+    /// qualify; everything else -- including `RealCorpus`, which samples
+    /// real external text but not text the pattern's own author supplied
+    /// as a labeled example for it -- is generated.
+    /// `run_pipeline` orders real candidates before the structural top-up
+    /// so `verify_until` reaches them first.
+    /// `PipelineReport` uses it to measure how much of a source's final
+    /// corpus is real versus generated.
+    /// Listed explicitly, as above, so a future provenance must make this
+    /// choice too.
     pub fn is_from_dataset(self) -> bool {
         match self {
             Provenance::DatasetGiven | Provenance::DatasetTextClassified => true,

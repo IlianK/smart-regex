@@ -385,8 +385,9 @@ pub fn verify_all(
 /// classified candidates come before any generated top-up; that ordering
 /// makes this "prefer real" for free.
 ///
-/// On success, returns exactly `2 * per_side` cases.
-/// A shorter return means one side could not be filled.
+/// Returns the accepted cases and the number of candidates that were
+/// examined by `verify_one` and rejected.
+/// On success, the returned vector has exactly `2 * per_side` cases.
 pub fn verify_until(
     source: SourceKind,
     raw_pattern: &str,
@@ -394,8 +395,9 @@ pub fn verify_until(
     match_intent: MatchIntent,
     candidates: impl IntoIterator<Item = Candidate>,
     per_side: usize,
-) -> Vec<PreparedCase> {
+) -> (Vec<PreparedCase>, usize) {
     let mut out = Vec::with_capacity(per_side * 2);
+    let mut rejected = 0usize;
     let mut matches = 0usize;
     let mut non_matches = 0usize;
     for candidate in candidates {
@@ -410,35 +412,19 @@ pub fn verify_until(
         if !candidate.claimed_match && non_matches >= per_side {
             continue;
         }
-        if let Some(p) = verify_one(source, raw_pattern, core, match_intent, candidate) {
-            if p.verified_match {
-                matches += 1;
-            } else {
-                non_matches += 1;
+        match verify_one(source, raw_pattern, core, match_intent, candidate) {
+            Some(p) => {
+                if p.verified_match {
+                    matches += 1;
+                } else {
+                    non_matches += 1;
+                }
+                out.push(p);
             }
-            out.push(p);
+            None => rejected += 1,
         }
     }
-    out
-}
-
-/// Keep exactly `per_side` matches and `per_side` non-matches from one
-/// pattern's verified cases.
-/// Returns empty if either side has fewer than `per_side`.
-///
-/// Kept for callers that already have a batch of verified cases and want
-/// to trim it, rather than stopping verification early as `verify_until`
-/// does. Not used by `run_pipeline`.
-#[allow(dead_code)]
-pub fn balance_cases(cases: Vec<PreparedCase>, per_side: usize) -> Vec<PreparedCase> {
-    let mut cases = cases;
-    cases.sort_by_key(|c| !c.provenance.is_from_dataset());
-    let (matches, non_matches): (Vec<PreparedCase>, Vec<PreparedCase>) =
-        cases.into_iter().partition(|c| c.verified_match);
-    if matches.len() < per_side || non_matches.len() < per_side {
-        return Vec::new();
-    }
-    matches.into_iter().take(per_side).chain(non_matches.into_iter().take(per_side)).collect()
+    (out, rejected)
 }
 
 /// Append `cases` to `path` as JSON lines, creating parents if needed.
@@ -619,7 +605,7 @@ mod tests {
             }
         }
 
-        let result = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
+        let (result, _) = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
         assert_eq!(result.len(), 6);
         assert_eq!(result.iter().filter(|c| c.verified_match).count(), 3);
         assert_eq!(result.iter().filter(|c| !c.verified_match).count(), 3);
@@ -643,7 +629,7 @@ mod tests {
             }
         }
 
-        let result = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
+        let (result, _) = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
         assert!(result.len() < 6);
         assert!(result.iter().all(|c| c.verified_match));
     }
@@ -675,77 +661,8 @@ mod tests {
             }
         }
 
-        let result = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 2);
+        let (result, _) = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 2);
         assert_eq!(result.len(), 4);
-    }
-
-    fn case(verified_match: bool) -> PreparedCase {
-        PreparedCase {
-            source: SourceKind::RegexLib,
-            pattern: "a".to_string(),
-            input: "a".to_string(),
-            provenance: crate::data::types::Provenance::Structural,
-            verified_match,
-            failed_after_chars: None,
-            match_intent: MatchIntent::UnanchoredAmbiguous,
-        }
-    }
-
-    fn case_with(
-        verified_match: bool,
-        provenance: crate::data::types::Provenance,
-        input: &str,
-    ) -> PreparedCase {
-        PreparedCase { input: input.to_string(), provenance, ..case(verified_match) }
-    }
-
-    #[test]
-    fn balance_keeps_exactly_per_side_of_each_when_both_sides_have_enough() {
-        let cases: Vec<PreparedCase> =
-            (0..3).map(|_| case(true)).chain((0..4).map(|_| case(false))).collect();
-        let balanced = balance_cases(cases, 3);
-        assert_eq!(balanced.len(), 6);
-        assert_eq!(balanced.iter().filter(|c| c.verified_match).count(), 3);
-        assert_eq!(balanced.iter().filter(|c| !c.verified_match).count(), 3);
-    }
-
-    #[test]
-    fn balance_drops_the_pattern_entirely_when_either_side_is_short() {
-        let cases: Vec<PreparedCase> =
-            (0..5).map(|_| case(true)).chain((0..2).map(|_| case(false))).collect();
-        assert!(balance_cases(cases, 3).is_empty());
-    }
-
-    #[test]
-    fn balance_drops_a_pattern_with_only_matches_or_only_non_matches() {
-        let only_matches: Vec<PreparedCase> = (0..5).map(|_| case(true)).collect();
-        assert!(balance_cases(only_matches, 3).is_empty());
-        let only_non_matches: Vec<PreparedCase> = (0..5).map(|_| case(false)).collect();
-        assert!(balance_cases(only_non_matches, 3).is_empty());
-    }
-
-    #[test]
-    fn balance_with_exactly_per_side_on_both_sides_keeps_everything() {
-        let cases: Vec<PreparedCase> =
-            (0..3).map(|_| case(true)).chain((0..3).map(|_| case(false))).collect();
-        assert_eq!(balance_cases(cases, 3).len(), 6);
-    }
-
-    #[test]
-    fn balance_prefers_from_dataset_cases_over_synthetic_ones_within_each_side() {
-        use crate::data::types::Provenance;
-        let cases = vec![
-            case_with(true, Provenance::Structural, "synth-match-1"),
-            case_with(true, Provenance::Structural, "synth-match-2"),
-            case_with(true, Provenance::DatasetTextClassified, "real-match"),
-            case_with(false, Provenance::StructuralNegative, "synth-nonmatch-1"),
-            case_with(false, Provenance::StructuralNegative, "synth-nonmatch-2"),
-            case_with(false, Provenance::DatasetTextClassified, "real-nonmatch"),
-        ];
-        let balanced = balance_cases(cases, 2);
-        assert_eq!(balanced.len(), 4);
-        assert!(balanced.iter().any(|c| c.input == "real-match"));
-        assert!(balanced.iter().any(|c| c.input == "real-nonmatch"));
     }
 
     #[test]
