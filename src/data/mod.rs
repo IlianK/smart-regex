@@ -32,12 +32,10 @@ pub struct PipelineReport {
     /// Bounded per pattern by `slack_for(source)` times the strategies used.
     pub inputs_generated: usize,
     /// Of `inputs_generated`, how many verified against the real parser.
+    /// `verify_until` stops as soon as `per_side` has been reached on both
+    /// sides, so this equals `inputs_usable` plus whatever the below-target
+    /// patterns happened to verify before their batch ran out.
     pub inputs_verified: usize,
-    /// Sum of `prepared.len()` over usable patterns, before `balance_cases` trims.
-    /// Split the trimmed count into two parts:
-    /// `inputs_verified_for_survivors - inputs_usable` is the surplus.
-    /// `inputs_verified - inputs_verified_for_survivors` is dropped-with-pattern.
-    pub inputs_verified_for_survivors: usize,
     /// Of `patterns_accepted`, how many never reached `per_side` verified
     /// matches and `per_side` verified non-matches.
     /// These contribute nothing to `prepared.jsonl`.
@@ -76,6 +74,13 @@ impl PipelineReport {
     pub fn inputs_usable_synthetic(&self) -> usize {
         self.inputs_usable - self.inputs_usable_from_source
     }
+
+    /// `inputs_verified - inputs_usable`.
+    /// Verified candidates that did not reach `prepared.jsonl` because
+    /// their pattern fell below target.
+    pub fn inputs_dropped_with_pattern(&self) -> usize {
+        self.inputs_verified.saturating_sub(self.inputs_usable)
+    }
 }
 
 /// Per-side candidate generation cap, as a multiple of `per_side`.
@@ -94,7 +99,7 @@ fn slack_for(source: SourceKind) -> usize {
     }
 }
 
-/// Runs extract → generate → prepare → balance for one source.
+/// Runs extract → generate → prepare for one source.
 /// Writes to `<data_root>/<source>/prepared.jsonl`, replacing any existing file.
 ///
 /// `inputs` is the CLI's `--inputs N`: total verified inputs per surviving
@@ -175,19 +180,32 @@ pub fn run_pipeline(
                 ));
             }
             // Innovatorved carries unlabeled free-form text.
-            // Each line lands on exactly one side, so a structural top-up
-            // runs alongside it, unconditionally.
-            // `balance_cases` prefers real inputs within each side, so
-            // the top-up never displaces a real input that exists.
+            // Classify the text lines first, then top up only the shortfall
+            // on each side.
+            // A pattern whose text already fills both sides pays nothing
+            // for structural sampling.
+            // A pattern whose text is empty or all on one side pays only
+            // for the other.
+            // Real candidates are pushed before the top-up, so
+            // `verify_until`'s first-come order prefers them.
             RuleContext::Innovatorved { test_text } => {
-                if let Some(text) = test_text {
-                    let lines: Vec<String> =
-                        text.lines().map(str::to_string).collect();
-                    candidates.extend(generate::generate_from_dataset_text(
-                        &lines, &core, cap, &mut rng,
-                    ));
-                }
-                candidates.extend(generate::generate_sample(&core, &mut rng, cap, cap));
+                let real: Vec<_> = test_text
+                    .as_deref()
+                    .map(|text| generate::generate_from_dataset_text(text, &core, cap, &mut rng))
+                    .unwrap_or_default();
+                let real_matches = real.iter().filter(|c| c.claimed_match).count();
+                let real_non_matches = real.iter().filter(|c| !c.claimed_match).count();
+                candidates.extend(real);
+                candidates.extend(generate::generate_positives(
+                    &core,
+                    &mut rng,
+                    cap.saturating_sub(real_matches),
+                ));
+                candidates.extend(generate::generate_negatives(
+                    &core,
+                    &mut rng,
+                    cap.saturating_sub(real_non_matches),
+                ));
             }
             _ => {
                 candidates.extend(generate::generate_sample(&core, &mut rng, cap, cap));
@@ -215,26 +233,31 @@ pub fn run_pipeline(
         }
 
         report.inputs_generated += candidates.len();
-        let prepared = prepare::verify_all(source, &rule.raw_pattern, candidates);
+        let prepared = prepare::verify_until(
+            source,
+            &rule.raw_pattern,
+            &core,
+            match_intent,
+            candidates,
+            per_side,
+        );
         let prepared_len = prepared.len();
         report.inputs_verified += prepared_len;
 
-        let balanced = prepare::balance_cases(prepared, per_side);
-        if balanced.is_empty() {
+        if prepared_len < per_side * 2 {
             report.patterns_unusable_at_generation += 1;
             report.unusable_at_generation_patterns.push(rule.raw_pattern.clone());
         } else {
             report.patterns_usable += 1;
-            report.inputs_usable += balanced.len();
-            report.inputs_verified_for_survivors += prepared_len;
+            report.inputs_usable += prepared_len;
             report.inputs_usable_from_source +=
-                balanced.iter().filter(|c| c.provenance.is_from_dataset()).count();
+                prepared.iter().filter(|c| c.provenance.is_from_dataset()).count();
             match match_intent {
                 MatchIntent::ExplicitFullMatch => report.usable_explicit_full_match += 1,
                 MatchIntent::UnanchoredAmbiguous => report.usable_unanchored_ambiguous += 1,
             }
+            prepare::write_prepared_cases(&out_path, &prepared)?;
         }
-        prepare::write_prepared_cases(&out_path, &balanced)?;
     }
 
     Ok(report)

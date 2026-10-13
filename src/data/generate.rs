@@ -9,8 +9,8 @@
 //!   fields (real evidence of what a triggering payload contains).
 //! - SpamAssassin: sample real messages from a local ham/spam corpus,
 //!   when one is configured.
-//! - RegexLib (and the fallback for the other two): walk the pattern's
-//!   own structure to produce a sample.
+//! - RegexLib, and as the structural fallback for every other source:
+//!   walk the pattern's own structure to produce a sample.
 //! - S2ELab: use the pattern author's own labeled `matches`/
 //!   `non_matches` directly, capped per side; nothing is sampled.
 //! - Innovatorved: classify each line of the pattern's free-form test
@@ -126,16 +126,10 @@ const SAMPLE_MAX_STAR_ITERS: u32 = 4;
 const RESAMPLE_ATTEMPTS_PER_TARGET: usize = 100;
 
 /// `count` distinct positives from `r`'s own structure.
-/// Plus up to `negative_count` late-failing negatives.
-/// See `sample_negative_late`.
-pub fn generate_sample(
-    r: &Regex,
-    rng: &mut StdRng,
-    count: usize,
-    negative_count: usize,
-) -> Vec<Candidate> {
-    let count = count.max(1);
-
+/// Returns fewer if the language does not have `count` distinct members.
+/// Split out of `generate_sample` so a caller that needs only one side
+/// does not have to generate the other and discard it.
+pub fn generate_positives(r: &Regex, rng: &mut StdRng, count: usize) -> Vec<Candidate> {
     let mut positives: Vec<String> = Vec::new();
     for _ in 0..count * RESAMPLE_ATTEMPTS_PER_TARGET {
         if positives.len() >= count {
@@ -147,10 +141,19 @@ pub fn generate_sample(
             }
         }
     }
+    positives
+        .into_iter()
+        .map(|text| Candidate { text, provenance: Provenance::Structural, claimed_match: true })
+        .collect()
+}
 
+/// `count` late-failing negatives from `r`'s own structure.
+/// Returns fewer if the language does not admit that many.
+/// See `sample_negative_late`.
+pub fn generate_negatives(r: &Regex, rng: &mut StdRng, count: usize) -> Vec<Candidate> {
     let mut negatives: Vec<String> = Vec::new();
-    for _ in 0..negative_count * RESAMPLE_ATTEMPTS_PER_TARGET {
-        if negatives.len() >= negative_count {
+    for _ in 0..count * RESAMPLE_ATTEMPTS_PER_TARGET {
+        if negatives.len() >= count {
             break;
         }
         if let Some(text) = sample_negative_late(r, rng, SAMPLE_MAX_STAR_ITERS) {
@@ -159,16 +162,27 @@ pub fn generate_sample(
             }
         }
     }
-
-    positives
+    negatives
         .into_iter()
-        .map(|text| Candidate { text, provenance: Provenance::Structural, claimed_match: true })
-        .chain(negatives.into_iter().map(|text| Candidate {
-            text,
-            provenance: Provenance::StructuralNegative,
-            claimed_match: false,
-        }))
+        .map(|text| Candidate { text, provenance: Provenance::StructuralNegative, claimed_match: false })
         .collect()
+}
+
+/// `count` distinct positives plus up to `negative_count` late-failing
+/// negatives.
+/// Convenience wrapper over `generate_positives` and `generate_negatives`.
+/// `count` is clamped to at least 1; use the two helpers directly if a
+/// side of exactly zero is wanted.
+pub fn generate_sample(
+    r: &Regex,
+    rng: &mut StdRng,
+    count: usize,
+    negative_count: usize,
+) -> Vec<Candidate> {
+    let count = count.max(1);
+    let mut out = generate_positives(r, rng, count);
+    out.extend(generate_negatives(r, rng, negative_count));
+    out
 }
 
 // -------------------------------
@@ -285,8 +299,8 @@ pub fn generate_from_given_examples(
     out
 }
 
-/// Innovatorved: classify up to `cap` of `pattern`'s free-form test
-/// lines against the real parser.
+/// Innovatorved: classify up to `cap` of `text`'s free-form lines
+/// against the real parser.
 /// Each resulting candidate is handed to `prepare` as any other claim,
 /// so a negative must still fail late to survive.
 ///
@@ -297,20 +311,22 @@ pub fn generate_from_given_examples(
 /// second time, which keeps that function's contract (every candidate
 /// carries an independently checked claim) the same for every source.
 ///
+/// Iterates the lines of `text` directly; only the lines that survive
+/// deduplication, shuffling, and the cap are allocated as `String`.
 /// A pattern with thousands of test lines is sampled down to `cap`
 /// first, uniformly at random rather than always the first `cap` in
 /// file order, so one outlier pattern cannot dominate a benchmark's
 /// running time on its own.
 pub fn generate_from_dataset_text(
-    lines: &[String],
+    text: &str,
     pattern_core: &Regex,
     cap: usize,
     rng: &mut StdRng,
 ) -> Vec<Candidate> {
-    let mut distinct: Vec<&String> = Vec::new();
+    let mut distinct: Vec<&str> = Vec::new();
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    for line in lines {
-        if !line.is_empty() && seen.insert(line.as_str()) {
+    for line in text.lines() {
+        if !line.is_empty() && seen.insert(line) {
             distinct.push(line);
         }
     }
@@ -319,10 +335,10 @@ pub fn generate_from_dataset_text(
     distinct
         .into_iter()
         .take(cap)
-        .filter_map(|text| {
-            let claimed_match = crate::data::prepare::matches_bounded(text, pattern_core)?;
+        .filter_map(|line| {
+            let claimed_match = crate::data::prepare::matches_bounded(line, pattern_core)?;
             Some(Candidate {
-                text: text.clone(),
+                text: line.to_string(),
                 provenance: Provenance::DatasetTextClassified,
                 claimed_match,
             })
@@ -408,6 +424,40 @@ mod tests {
                 assert_eq!(s.chars().count(), prefix.chars().count() + 1);
             }
         }
+    }
+
+    #[test]
+    fn generate_positives_with_zero_requested_returns_empty() {
+        let r = core(r"[a-c]+\d{2}");
+        let mut rng = rng();
+        assert!(generate_positives(&r, &mut rng, 0).is_empty());
+    }
+
+    #[test]
+    fn generate_negatives_with_zero_requested_returns_empty() {
+        let r = core(r"[a-c]+\d{2}");
+        let mut rng = rng();
+        assert!(generate_negatives(&r, &mut rng, 0).is_empty());
+    }
+
+    #[test]
+    fn generate_positives_returns_only_positives() {
+        let r = core(r"[a-c]+\d{2}");
+        let mut rng = rng();
+        let sample = generate_positives(&r, &mut rng, 5);
+        assert!(!sample.is_empty());
+        assert!(sample.iter().all(|c| c.claimed_match));
+        assert!(sample.iter().all(|c| c.provenance == Provenance::Structural));
+    }
+
+    #[test]
+    fn generate_negatives_returns_only_negatives() {
+        let r = core(r"[a-c]+\d{2}");
+        let mut rng = rng();
+        let sample = generate_negatives(&r, &mut rng, 5);
+        assert!(!sample.is_empty());
+        assert!(sample.iter().all(|c| !c.claimed_match));
+        assert!(sample.iter().all(|c| c.provenance == Provenance::StructuralNegative));
     }
 
     #[test]
@@ -567,9 +617,8 @@ mod tests {
     #[test]
     fn dataset_text_classifies_each_line_against_the_real_parser() {
         let r = core(r"[a-c]+\d{2}");
-        let lines = vec!["ab12".to_string(), "zz99".to_string()];
         let mut rng = rng();
-        let candidates = generate_from_dataset_text(&lines, &r, 10, &mut rng);
+        let candidates = generate_from_dataset_text("ab12\nzz99", &r, 10, &mut rng);
         assert_eq!(candidates.len(), 2);
         let ab12 = candidates.iter().find(|c| c.text == "ab12").expect("ab12 present");
         assert!(ab12.claimed_match);
@@ -581,18 +630,17 @@ mod tests {
     #[test]
     fn dataset_text_deduplicates_and_drops_empty_lines() {
         let r = core(r"a");
-        let lines = vec!["a".to_string(), "a".to_string(), String::new()];
         let mut rng = rng();
-        let candidates = generate_from_dataset_text(&lines, &r, 10, &mut rng);
+        let candidates = generate_from_dataset_text("a\na\n\n", &r, 10, &mut rng);
         assert_eq!(candidates.len(), 1);
     }
 
     #[test]
     fn dataset_text_respects_the_cap() {
         let r = core(r"[a-z]");
-        let lines: Vec<String> = ('a'..='z').map(|c| c.to_string()).collect();
+        let text: String = ('a'..='z').map(|c| format!("{c}\n")).collect();
         let mut rng = rng();
-        let candidates = generate_from_dataset_text(&lines, &r, 5, &mut rng);
+        let candidates = generate_from_dataset_text(&text, &r, 5, &mut rng);
         assert_eq!(candidates.len(), 5);
     }
 }

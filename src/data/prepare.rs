@@ -2,7 +2,8 @@
 //!
 //! Verification: every candidate from `generate` is checked against the
 //! real parser before becoming a `PreparedCase`.
-//! `StructuralNegative` candidates must also fail late.
+//! A negative must also fail late, past `LATE_FAILURE_THRESHOLD`, unless
+//! its provenance is one that never produces negatives.
 //!
 //! `core_regex_tagged` accepts one anchor shape this pipeline recognizes:
 //! a top-level `^...$` wrap.
@@ -310,21 +311,23 @@ const MAX_CORE_DEPTH: usize = 2_000;
 /// Coarser cap on the translated pattern's node count.
 const MAX_CORE_NODES: usize = 20_000;
 
-/// Verify one candidate against the real parser.
-/// Returns the `PreparedCase` on success, `None` otherwise.
-pub fn verify_candidate(
+/// Verify one candidate given a pre-translated `Regex` and `MatchIntent`.
+/// The caller has already obtained these from `core_regex_tagged`, so
+/// this does not re-translate the pattern for every candidate.
+pub fn verify_one(
     source: SourceKind,
     raw_pattern: &str,
+    core: &Regex,
+    match_intent: MatchIntent,
     candidate: Candidate,
 ) -> Option<PreparedCase> {
-    let (r, match_intent) = core_regex_tagged(raw_pattern).ok()?;
-    let verified_match = matches_bounded(&candidate.text, &r)?;
+    let verified_match = matches_bounded(&candidate.text, core)?;
     if verified_match != candidate.claimed_match {
         return None;
     }
 
     let failed_after = if !verified_match {
-        let consumed = failed_after_chars(&candidate.text, &r)?;
+        let consumed = failed_after_chars(&candidate.text, core)?;
         let total = candidate.text.chars().count().max(1);
         if candidate.provenance.requires_late_failure()
             && (consumed as f64) < LATE_FAILURE_THRESHOLD * (total as f64)
@@ -347,6 +350,18 @@ pub fn verify_candidate(
     })
 }
 
+/// Verify one candidate, translating the pattern from `raw_pattern` first.
+/// Convenience wrapper around `verify_one` for callers that do not
+/// already have the translated `Regex`.
+pub fn verify_candidate(
+    source: SourceKind,
+    raw_pattern: &str,
+    candidate: Candidate,
+) -> Option<PreparedCase> {
+    let (core, match_intent) = core_regex_tagged(raw_pattern).ok()?;
+    verify_one(source, raw_pattern, &core, match_intent, candidate)
+}
+
 /// Verify every candidate, keeping survivors in original order.
 pub fn verify_all(
     source: SourceKind,
@@ -359,22 +374,62 @@ pub fn verify_all(
         .collect()
 }
 
+/// Verify candidates in order, stopping as soon as `per_side` matches
+/// and `per_side` non-matches have been accepted.
+/// Remaining candidates are dropped without verification.
+///
+/// A candidate whose claimed side is already full is skipped before
+/// verification: it cannot contribute either way.
+///
+/// The batch is expected to be ordered so the source's own given or
+/// classified candidates come before any generated top-up; that ordering
+/// makes this "prefer real" for free.
+///
+/// On success, returns exactly `2 * per_side` cases.
+/// A shorter return means one side could not be filled.
+pub fn verify_until(
+    source: SourceKind,
+    raw_pattern: &str,
+    core: &Regex,
+    match_intent: MatchIntent,
+    candidates: impl IntoIterator<Item = Candidate>,
+    per_side: usize,
+) -> Vec<PreparedCase> {
+    let mut out = Vec::with_capacity(per_side * 2);
+    let mut matches = 0usize;
+    let mut non_matches = 0usize;
+    for candidate in candidates {
+        if matches >= per_side && non_matches >= per_side {
+            break;
+        }
+        // Skip before verifying: a candidate whose claimed side is already
+        // full cannot contribute either way.
+        if candidate.claimed_match && matches >= per_side {
+            continue;
+        }
+        if !candidate.claimed_match && non_matches >= per_side {
+            continue;
+        }
+        if let Some(p) = verify_one(source, raw_pattern, core, match_intent, candidate) {
+            if p.verified_match {
+                matches += 1;
+            } else {
+                non_matches += 1;
+            }
+            out.push(p);
+        }
+    }
+    out
+}
+
 /// Keep exactly `per_side` matches and `per_side` non-matches from one
 /// pattern's verified cases.
 /// Returns empty if either side has fewer than `per_side`.
-/// The caller's `--inputs N` is `2 * per_side`.
 ///
-/// Within each side, a case whose `Provenance::is_from_dataset` is true
-/// is kept ahead of one that is not.
-/// Stable otherwise, so ties keep their generation order.
-/// Innovatorved can mix real classified lines with structural top-up
-/// candidates (see `run_pipeline`'s `RuleContext::Innovatorved` branch).
-/// This ordering means real ones are never displaced by synthetic ones
-/// competing for the same `per_side` slots.
-///
-/// Every pattern that survives contributes the same total count and the
-/// same match/non-match split, which is what makes an aggregate
-/// benchmark over them sound.
+/// Kept for callers that already have a batch of verified cases and want
+/// to trim it, rather than stopping verification early as `verify_until`
+/// does. Not used by `run_pipeline`.
+#[allow(dead_code)]
 pub fn balance_cases(cases: Vec<PreparedCase>, per_side: usize) -> Vec<PreparedCase> {
     let mut cases = cases;
     cases.sort_by_key(|c| !c.provenance.is_from_dataset());
@@ -537,6 +592,91 @@ mod tests {
             .expect("a genuinely late failure should survive verification");
         assert!(!prepared.verified_match);
         assert!(prepared.failed_after_chars.is_some());
+    }
+
+    #[test]
+    fn verify_until_stops_at_per_side_on_both_sides() {
+        let pattern = r"[a-c]+\d{2}";
+        let core_re = core(pattern);
+        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
+        let mut rng = StdRng::seed_from_u64(7);
+
+        let mut candidates = Vec::new();
+        for _ in 0..10 {
+            if let Some(text) = generate::sample_positive(&core_re, &mut rng, 4) {
+                candidates.push(Candidate {
+                    text,
+                    provenance: crate::data::types::Provenance::Structural,
+                    claimed_match: true,
+                });
+            }
+            if let Some(text) = generate::sample_negative_late(&core_re, &mut rng, 4) {
+                candidates.push(Candidate {
+                    text,
+                    provenance: crate::data::types::Provenance::StructuralNegative,
+                    claimed_match: false,
+                });
+            }
+        }
+
+        let result = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
+        assert_eq!(result.len(), 6);
+        assert_eq!(result.iter().filter(|c| c.verified_match).count(), 3);
+        assert_eq!(result.iter().filter(|c| !c.verified_match).count(), 3);
+    }
+
+    #[test]
+    fn verify_until_returns_fewer_when_a_side_is_empty() {
+        let pattern = r"[a-c]+\d{2}";
+        let core_re = core(pattern);
+        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
+        let mut rng = StdRng::seed_from_u64(7);
+
+        let mut candidates = Vec::new();
+        for _ in 0..5 {
+            if let Some(text) = generate::sample_positive(&core_re, &mut rng, 4) {
+                candidates.push(Candidate {
+                    text,
+                    provenance: crate::data::types::Provenance::Structural,
+                    claimed_match: true,
+                });
+            }
+        }
+
+        let result = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
+        assert!(result.len() < 6);
+        assert!(result.iter().all(|c| c.verified_match));
+    }
+
+    #[test]
+    fn verify_until_stops_early_when_the_batch_is_oversized() {
+        let pattern = r"[a-c]+\d{2}";
+        let core_re = core(pattern);
+        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
+        let mut rng = StdRng::seed_from_u64(11);
+
+        let mut candidates = Vec::new();
+        for _ in 0..50 {
+            if let Some(text) = generate::sample_positive(&core_re, &mut rng, 4) {
+                candidates.push(Candidate {
+                    text,
+                    provenance: crate::data::types::Provenance::Structural,
+                    claimed_match: true,
+                });
+            }
+        }
+        for _ in 0..50 {
+            if let Some(text) = generate::sample_negative_late(&core_re, &mut rng, 4) {
+                candidates.push(Candidate {
+                    text,
+                    provenance: crate::data::types::Provenance::StructuralNegative,
+                    claimed_match: false,
+                });
+            }
+        }
+
+        let result = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 2);
+        assert_eq!(result.len(), 4);
     }
 
     fn case(verified_match: bool) -> PreparedCase {

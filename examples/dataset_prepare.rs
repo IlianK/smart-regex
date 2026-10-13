@@ -26,10 +26,11 @@
 //! `--verbose` also lists every pattern excluded at generation, raw text
 //! included.
 //!
-//! Innovatorved always runs both: its classified test lines (when any are
-//! present) plus structurally generated top-up.
-//! `balance_cases` prefers the real ones within each side, so the top-up
-//! is a no-op wherever real supply already meets N/2.
+//! Innovatorved runs its classified test lines first, then tops up with
+//! structurally generated candidates for whichever side has not yet met
+//! N/2.
+//! `verify_until` processes candidates in order, so the real ones fill
+//! first and the top-up is reached only when the real supply was short.
 //! The "from source" line below reports how much of the final corpus is
 //! real versus generated for exactly this reason.
 //! Every other source is unmixed: always 0 for Suricata, SpamAssassin,
@@ -179,11 +180,11 @@ fn print_report(
         );
     }
     println!("  inputs written          {:>7}", report.inputs_usable);
-    let trimmed = report.inputs_verified.saturating_sub(report.inputs_usable);
-    if trimmed > 0 {
+    let dropped = report.inputs_dropped_with_pattern();
+    if dropped > 0 {
         println!(
-            "  trimmed by balance      {:>7}   (surplus on one side, or pattern below target)",
-            trimmed,
+            "  dropped with pattern    {:>7}   (verified, but their pattern fell below target)",
+            dropped,
         );
     }
 
