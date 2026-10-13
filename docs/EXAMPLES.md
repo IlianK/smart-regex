@@ -103,42 +103,9 @@ cargo run --release --example demo_frontend_translation_sizes
 ```
 
 
-## Dataset pipeline examples
-
-Default focus is Suricata (`snort`) and SpamAssassin: both are real-world
-IDS/mail-filter rule sets with a maintained upstream. RegexLib is
-user-submitted with no correctness guarantee, so it is opt-in only -- pass
-it explicitly if you want it.
-
-```bash
-# Coverage report: extraction counts, accepted/rejected split, 
-# rejection causes, and anchor-shape distribution. 
-# No args needed: reads data/raw/{snort,spamAssassin}  
-
-cargo run --release --example dataset_stats
-cargo run --release --example dataset_stats -- --verbose
-cargo run --release --example dataset_stats -- --source regexlib
-```
-
-```bash
-# extract -> generate -> prepare; writes data/processed/<source>/prepared.jsonl
-cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules
-cargo run --release --example dataset_prepare -- spamassassin data/raw/spamAssassin/*.cf
-
-# opt-in, not run by default (see above)
-cargo run --release --example dataset_prepare -- regexlib data/raw/regexLib/*.txt
-
-# --variants controls verified inputs per pattern per category (default 5)
-cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules --variants 3
-```
-
+## Parser Agreement
 ```bash
 # Cross-parser agreement over every prepared case (run dataset_prepare first).
 cargo build --release --example demo_parser_agreement_worker
-cargo run --release --example demo_parser_agreement
-
-# BENCH_SOURCE (comma-separated suricata/snort/spamassassin/regexlib),
-# BENCH_PATTERN_LIMIT (distinct patterns per source), and
-# AGREEMENT_TIMEOUT_MS (per-call kill timeout) narrow or retune a run:
-BENCH_SOURCE=spamassassin BENCH_PATTERN_LIMIT=10 cargo run --release --example demo_parser_agreement
+cargo run   --release --example demo_parser_agreement
 ```

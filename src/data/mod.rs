@@ -72,6 +72,8 @@ pub fn run_pipeline(
             SourceKind::Suricata => extract::extract_suricata(&text),
             SourceKind::SpamAssassin => extract::extract_spamassassin(&text),
             SourceKind::RegexLib => extract::extract_regexlib(&text),
+            SourceKind::S2ELab => extract::extract_s2_elab(&text),
+            SourceKind::Innovatorved => extract::extract_innovatorved(&text),
         };
         rules.extend(extracted);
     }
@@ -95,25 +97,46 @@ pub fn run_pipeline(
         }
 
         let mut candidates = Vec::new();
-        candidates.extend(generate::generate_sample(&core, &mut rng, variants, variants));
 
-        if let RuleContext::Suricata { content_fields, .. } = &rule.context {
-            candidates.extend(generate::generate_from_content_fields(
-                content_fields,
-                &core,
-                &mut rng,
-                variants,
-            ));
-        }
+        match &rule.context {
+            // S2ELab and Innovatorved already carry real examples of
+            // their own; structural sampling would only dilute them with
+            // synthetic input a dataset chosen specifically to avoid that
+            // does not need.
+            RuleContext::S2ELab { matches, non_matches } => {
+                candidates.extend(generate::generate_from_given_examples(matches, non_matches));
+            }
+            RuleContext::Innovatorved { test_text } => {
+                if let Some(text) = test_text {
+                    let lines: Vec<String> =
+                        text.lines().map(str::to_string).collect();
+                    candidates.extend(generate::generate_from_dataset_text(
+                        &lines, &core, variants * 2, &mut rng,
+                    ));
+                }
+            }
+            _ => {
+                candidates.extend(generate::generate_sample(&core, &mut rng, variants, variants));
 
-        if source == SourceKind::SpamAssassin {
-            if let Some(dir) = corpus_dir.filter(|d| d.is_dir()) {
-                candidates.extend(generate::generate_from_corpus_dir(
-                    dir,
-                    &rule.raw_pattern,
-                    variants,
-                    &mut rng,
-                ));
+                if let RuleContext::Suricata { content_fields, .. } = &rule.context {
+                    candidates.extend(generate::generate_from_content_fields(
+                        content_fields,
+                        &core,
+                        &mut rng,
+                        variants,
+                    ));
+                }
+
+                if source == SourceKind::SpamAssassin {
+                    if let Some(dir) = corpus_dir.filter(|d| d.is_dir()) {
+                        candidates.extend(generate::generate_from_corpus_dir(
+                            dir,
+                            &rule.raw_pattern,
+                            variants,
+                            &mut rng,
+                        ));
+                    }
+                }
             }
         }
 
@@ -128,7 +151,8 @@ pub fn run_pipeline(
 
 /// Loads every prepared case for the given sources.
 /// Empty `sources` means Suricata + SpamAssassin.
-/// RegexLib is opt-in only; pass it explicitly.
+/// RegexLib, S2ELab, and Innovatorved are opt-in only; pass them
+/// explicitly.
 pub fn load_prepared_cases(
     data_root: &Path,
     sources: &[SourceKind],

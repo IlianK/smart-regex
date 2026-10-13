@@ -18,7 +18,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
         eprintln!(
-            "usage: cargo run --example dataset_prepare -- <suricata|spamassassin|regexlib> <file> [file...] [--corpus-dir <dir>]"
+            "usage: cargo run --example dataset_prepare -- <suricata|spamassassin|regexlib|s2-elab|innovatorved> <file> [file...] [--corpus-dir <dir>]"
         );
         std::process::exit(2);
     }
@@ -27,8 +27,12 @@ fn main() {
         "suricata" | "snort" => SourceKind::Suricata,
         "spamassassin" => SourceKind::SpamAssassin,
         "regexlib" => SourceKind::RegexLib,
+        "s2-elab" | "s2elab" => SourceKind::S2ELab,
+        "innovatorved" => SourceKind::Innovatorved,
         other => {
-            eprintln!("unknown source {other:?} (expected suricata, spamassassin, or regexlib)");
+            eprintln!(
+                "unknown source {other:?} (expected suricata, spamassassin, regexlib, s2-elab, or innovatorved)"
+            );
             std::process::exit(2);
         }
     };

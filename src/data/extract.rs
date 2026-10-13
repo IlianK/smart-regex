@@ -6,6 +6,7 @@
 //! RegexLib description) `generate` needs.
 
 use crate::data::types::{ContentField, ExtractedRule, RuleContext, SaField, SourceKind};
+use serde::Deserialize;
 
 /// End of the `/PATTERN/FLAGS` span at the start of `s`.
 /// Respects escaped internal slashes (`\/`).
@@ -268,6 +269,80 @@ pub fn extract_regexlib(text: &str) -> Vec<ExtractedRule> {
 }
 
 // -------------------------------
+// S2ELab (s2e-lab/RegexEval)
+// -------------------------------
+
+/// One entry of https://github.com/s2e-lab/RegexEval's
+/// `DatasetCollection/RegexEval.json`: a bare (unwrapped) pattern plus
+/// the author's own labeled match/non-match examples.
+#[derive(Deserialize)]
+struct S2ELabEntry {
+    expression: String,
+    #[serde(default)]
+    matches: Vec<String>,
+    #[serde(default)]
+    non_matches: Vec<String>,
+}
+
+/// Every entry in a RegexEval-format JSON array.
+/// A file that is not a JSON array of this shape yields no rules rather
+/// than erroring, consistent with every other extractor here silently
+/// skipping lines/entries it cannot read.
+pub fn extract_s2_elab(text: &str) -> Vec<ExtractedRule> {
+    let Ok(entries) = serde_json::from_str::<Vec<S2ELabEntry>>(text) else {
+        return Vec::new();
+    };
+    entries
+        .into_iter()
+        .map(|e| ExtractedRule {
+            source: SourceKind::S2ELab,
+            raw_pattern: e.expression,
+            context: RuleContext::S2ELab { matches: e.matches, non_matches: e.non_matches },
+        })
+        .collect()
+}
+
+// -------------------------------
+// Innovatorved (innovatorved/regex_dataset)
+// -------------------------------
+
+/// One entry of https://github.com/innovatorved/regex_dataset's
+/// `data.json`: a pattern plus free-form, *unlabeled* test text.
+/// `text` is `null` for roughly one entry in nine in the real file, so
+/// it is read as `Option<String>` rather than defaulted to `""`: a
+/// present-but-empty string and an absent field are the same case here
+/// either way, but the field is genuinely nullable in the source.
+#[derive(Deserialize)]
+struct InnovatorvedEntry {
+    regex: Option<String>,
+    text: Option<String>,
+}
+
+/// Every entry in an innovatorved/regex_dataset-format JSON array.
+/// Entries with no pattern at all (seen twice in the real 8551-entry
+/// file) are dropped here rather than reaching `core_regex_tagged` as
+/// an empty string.
+pub fn extract_innovatorved(text: &str) -> Vec<ExtractedRule> {
+    let Ok(entries) = serde_json::from_str::<Vec<InnovatorvedEntry>>(text) else {
+        return Vec::new();
+    };
+    entries
+        .into_iter()
+        .filter_map(|e| {
+            let pattern = e.regex?;
+            if pattern.trim().is_empty() {
+                return None;
+            }
+            Some(ExtractedRule {
+                source: SourceKind::Innovatorved,
+                raw_pattern: pattern,
+                context: RuleContext::Innovatorved { test_text: e.text },
+            })
+        })
+        .collect()
+}
+
+// -------------------------------
 // Tests
 // -------------------------------
 
@@ -348,5 +423,69 @@ mod tests {
             panic!("expected RegexLib context")
         };
         assert!(description.contains("Matches an ISBN"));
+    }
+
+    #[test]
+    fn s2_elab_extracts_pattern_and_examples() {
+        let text = r#"[
+            {
+                "expression": "^\\d{5}$",
+                "raw_prompt": "A zip code.",
+                "refined_prompt": "A zip code.",
+                "matches": ["12345", "00000"],
+                "non_matches": ["abcde", "1234"],
+                "id": 1
+            }
+        ]"#;
+        let rules = extract_s2_elab(text);
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].raw_pattern, r"^\d{5}$");
+        let RuleContext::S2ELab { matches, non_matches } = &rules[0].context else {
+            panic!("expected S2ELab context")
+        };
+        assert_eq!(matches, &vec!["12345".to_string(), "00000".to_string()]);
+        assert_eq!(non_matches, &vec!["abcde".to_string(), "1234".to_string()]);
+    }
+
+    #[test]
+    fn s2_elab_not_a_json_array_yields_no_rules() {
+        assert_eq!(extract_s2_elab("not json").len(), 0);
+        assert_eq!(extract_s2_elab("{}").len(), 0);
+    }
+
+    #[test]
+    fn innovatorved_extracts_pattern_and_test_text() {
+        let text = r#"[
+            {
+                "created_at": "2019-07-30T16:27:46.000Z",
+                "title": "ex1",
+                "description": "",
+                "text": ">>Sofa<<312.23!3\n>>TV<<300!5",
+                "regex": ">>(?<name>[A-Za-z]+)<<(?<price>\\d+\\.?\\d+)!(?<quantity>\\d+)"
+            }
+        ]"#;
+        let rules = extract_innovatorved(text);
+        assert_eq!(rules.len(), 1);
+        assert!(rules[0].raw_pattern.starts_with(">>"));
+        let RuleContext::Innovatorved { test_text } = &rules[0].context else {
+            panic!("expected Innovatorved context")
+        };
+        assert_eq!(test_text.as_deref(), Some(">>Sofa<<312.23!3\n>>TV<<300!5"));
+    }
+
+    #[test]
+    fn innovatorved_drops_entries_with_no_pattern_but_keeps_null_text() {
+        let text = r#"[
+            {"created_at": "x", "title": "empty", "description": "", "text": null, "regex": ""},
+            {"created_at": "x", "title": "null-regex", "description": "", "text": null, "regex": null},
+            {"created_at": "x", "title": "kept", "description": "", "text": null, "regex": "a+"}
+        ]"#;
+        let rules = extract_innovatorved(text);
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].raw_pattern, "a+");
+        let RuleContext::Innovatorved { test_text } = &rules[0].context else {
+            panic!("expected Innovatorved context")
+        };
+        assert_eq!(*test_text, None);
     }
 }

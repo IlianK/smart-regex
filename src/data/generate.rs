@@ -8,6 +8,11 @@
 //!   when one is configured.
 //! - RegexLib (and the fallback for the other two): walk the pattern's
 //!   own structure to produce a sample.
+//! - S2ELab: use the pattern author's own labeled `matches`/
+//!   `non_matches` directly; nothing is sampled.
+//! - Innovatorved: classify each line of the pattern's free-form test
+//!   text against the real parser, then hand it to `prepare` as any
+//!   other claim; nothing is sampled.
 //!
 //! Every `Candidate` carries a `claimed_match` that `prepare` verifies.
 
@@ -232,6 +237,71 @@ pub fn generate_from_corpus_dir(
         .collect()
 }
 
+/// S2ELab: wrap the pattern author's own `matches`/`non_matches` as
+/// candidates, unchanged and unsampled. Duplicate strings are kept once;
+/// a string appearing in both lists is kept only as a positive, since
+/// that is the stronger, more specific claim.
+pub fn generate_from_given_examples(matches: &[String], non_matches: &[String]) -> Vec<Candidate> {
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for text in matches {
+        if seen.insert(text.as_str()) {
+            out.push(Candidate { text: text.clone(), provenance: Provenance::DatasetGiven, claimed_match: true });
+        }
+    }
+    for text in non_matches {
+        if seen.insert(text.as_str()) {
+            out.push(Candidate { text: text.clone(), provenance: Provenance::DatasetGiven, claimed_match: false });
+        }
+    }
+    out
+}
+
+/// Innovatorved: classify up to `cap` of `pattern`'s free-form test
+/// lines against the real parser, then hand each to `prepare` as any
+/// other claim (so a negative must still fail late to survive).
+///
+/// The source text is unlabeled -- a line is not claimed to match or
+/// not, so there is nothing to verify a claim *against* here. The
+/// classification itself, running the real bit-coded parser once, is
+/// what supplies the claim; `prepare::verify_candidate` then re-derives
+/// the same outcome a second time, which is redundant but keeps that
+/// function's contract (every candidate carries an independently
+/// checked claim) the same for every source.
+///
+/// A pattern with thousands of test lines (the real corpus has one with
+/// 59,245) is sampled down to `cap` first, picked uniformly at random
+/// rather than always the first `cap` in file order, so one outlier
+/// pattern cannot dominate a benchmark's running time on its own.
+pub fn generate_from_dataset_text(
+    lines: &[String],
+    pattern_core: &Regex,
+    cap: usize,
+    rng: &mut StdRng,
+) -> Vec<Candidate> {
+    let mut distinct: Vec<&String> = Vec::new();
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for line in lines {
+        if !line.is_empty() && seen.insert(line.as_str()) {
+            distinct.push(line);
+        }
+    }
+    distinct.shuffle(rng);
+
+    distinct
+        .into_iter()
+        .take(cap)
+        .filter_map(|text| {
+            let claimed_match = crate::data::prepare::matches_bounded(text, pattern_core)?;
+            Some(Candidate {
+                text: text.clone(),
+                provenance: Provenance::DatasetTextClassified,
+                claimed_match,
+            })
+        })
+        .collect()
+}
+
 // -------------------------------
 // Tests
 // -------------------------------
@@ -425,5 +495,66 @@ mod tests {
         assert_eq!(candidates[0].text, "ab12");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn given_examples_wrap_matches_and_non_matches_unchanged() {
+        let matches = vec!["12345".to_string(), "00000".to_string()];
+        let non_matches = vec!["abcde".to_string()];
+        let candidates = generate_from_given_examples(&matches, &non_matches);
+        assert_eq!(candidates.len(), 3);
+        let positives: Vec<_> = candidates.iter().filter(|c| c.claimed_match).collect();
+        let negatives: Vec<_> = candidates.iter().filter(|c| !c.claimed_match).collect();
+        assert_eq!(positives.len(), 2);
+        assert_eq!(negatives.len(), 1);
+        assert!(candidates.iter().all(|c| c.provenance == Provenance::DatasetGiven));
+        assert_eq!(negatives[0].text, "abcde");
+    }
+
+    #[test]
+    fn given_examples_keep_a_string_in_both_lists_only_as_a_positive() {
+        let matches = vec!["x".to_string()];
+        let non_matches = vec!["x".to_string(), "y".to_string()];
+        let candidates = generate_from_given_examples(&matches, &non_matches);
+        assert_eq!(candidates.len(), 2);
+        let x = candidates.iter().find(|c| c.text == "x").expect("x present");
+        assert!(x.claimed_match);
+    }
+
+    #[test]
+    fn given_examples_with_nothing_given_yields_nothing() {
+        assert!(generate_from_given_examples(&[], &[]).is_empty());
+    }
+
+    #[test]
+    fn dataset_text_classifies_each_line_against_the_real_parser() {
+        let r = core(r"[a-c]+\d{2}");
+        let lines = vec!["ab12".to_string(), "zz99".to_string()];
+        let mut rng = rng();
+        let candidates = generate_from_dataset_text(&lines, &r, 10, &mut rng);
+        assert_eq!(candidates.len(), 2);
+        let ab12 = candidates.iter().find(|c| c.text == "ab12").expect("ab12 present");
+        assert!(ab12.claimed_match);
+        let zz99 = candidates.iter().find(|c| c.text == "zz99").expect("zz99 present");
+        assert!(!zz99.claimed_match);
+        assert!(candidates.iter().all(|c| c.provenance == Provenance::DatasetTextClassified));
+    }
+
+    #[test]
+    fn dataset_text_deduplicates_and_drops_empty_lines() {
+        let r = core(r"a");
+        let lines = vec!["a".to_string(), "a".to_string(), String::new()];
+        let mut rng = rng();
+        let candidates = generate_from_dataset_text(&lines, &r, 10, &mut rng);
+        assert_eq!(candidates.len(), 1);
+    }
+
+    #[test]
+    fn dataset_text_respects_the_cap() {
+        let r = core(r"[a-z]");
+        let lines: Vec<String> = ('a'..='z').map(|c| c.to_string()).collect();
+        let mut rng = rng();
+        let candidates = generate_from_dataset_text(&lines, &r, 5, &mut rng);
+        assert_eq!(candidates.len(), 5);
     }
 }

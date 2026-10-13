@@ -42,7 +42,13 @@ const MAX_PRINTED_PER_BUG_KIND: usize = 20;
 const WORKER_NAME: &str = "demo_parser_agreement_worker";
 const PARSER_NAMES: [&str; 5] = ["rec", "loop", "bc", "pstd", "pbc"];
 
-const SOURCES: [SourceKind; 3] = [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib];
+const SOURCES: [SourceKind; 5] = [
+    SourceKind::Suricata,
+    SourceKind::SpamAssassin,
+    SourceKind::RegexLib,
+    SourceKind::S2ELab,
+    SourceKind::Innovatorved,
+];
 
 fn source_idx(s: SourceKind) -> usize {
     SOURCES.iter().position(|&x| x == s).expect("exhaustive")
@@ -63,8 +69,10 @@ fn selection() -> Selection {
                     "suricata" | "snort" => SourceKind::Suricata,
                     "spamassassin" => SourceKind::SpamAssassin,
                     "regexlib" => SourceKind::RegexLib,
+                    "s2-elab" | "s2elab" => SourceKind::S2ELab,
+                    "innovatorved" => SourceKind::Innovatorved,
                     other => panic!(
-                        "BENCH_SOURCE entries must be suricata, spamassassin, or regexlib, got {other:?}"
+                        "BENCH_SOURCE entries must be suricata, spamassassin, regexlib, s2-elab, or innovatorved, got {other:?}"
                     ),
                 })
                 .collect()
@@ -211,14 +219,14 @@ fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
         .unwrap_or_else(|e| {
             panic!(
                 "couldn't read prepared cases under {} ({e}) -- run `cargo run --release --example \
-                 dataset_prepare -- <suricata|spamassassin|regexlib> <file>...` first",
+                 dataset_prepare -- <suricata|spamassassin|regexlib|s2-elab|innovatorved> <file>...` first",
                 DATA_ROOT
             )
         });
     let Some(limit) = sel.pattern_limit else {
         return cases;
     };
-    let mut admitted: [std::collections::HashSet<String>; 3] = Default::default();
+    let mut admitted: [std::collections::HashSet<String>; 5] = Default::default();
     cases
         .into_iter()
         .filter(|case| {
@@ -293,7 +301,7 @@ fn main() {
         );
     }
 
-    let mut tallies: [Tally; 3] = Default::default();
+    let mut tallies: [Tally; 5] = Default::default();
     let mut printed_membership = 0usize;
     let mut printed_posix = 0usize;
     let mut printed_greedy = 0usize;

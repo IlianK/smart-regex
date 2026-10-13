@@ -13,7 +13,10 @@
 
 use std::path::PathBuf;
 
-use regex_engine::data::extract::{extract_regexlib, extract_spamassassin, extract_suricata};
+use regex_engine::data::extract::{
+    extract_innovatorved, extract_regexlib, extract_s2_elab, extract_spamassassin,
+    extract_suricata,
+};
 use regex_engine::data::types::SourceKind;
 use regex_engine::frontend::parse_pcre_rule;
 
@@ -26,6 +29,8 @@ fn default_dir(source: SourceKind) -> &'static str {
         SourceKind::Suricata => "data/raw/snort",
         SourceKind::SpamAssassin => "data/raw/spamAssassin",
         SourceKind::RegexLib => "data/raw/regexLib",
+        SourceKind::S2ELab => "data/raw/s2-elab",
+        SourceKind::Innovatorved => "data/raw/innovatorved",
     }
 }
 
@@ -66,6 +71,8 @@ fn load_patterns(files: &[(PathBuf, SourceKind)]) -> Vec<(String, &'static str)>
             SourceKind::Suricata => extract_suricata(&text),
             SourceKind::SpamAssassin => extract_spamassassin(&text),
             SourceKind::RegexLib => extract_regexlib(&text),
+            SourceKind::S2ELab => extract_s2_elab(&text),
+            SourceKind::Innovatorved => extract_innovatorved(&text),
         };
         for rule in extracted {
             out.push((rule.raw_pattern, source.dir_name()));

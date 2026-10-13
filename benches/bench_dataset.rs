@@ -15,7 +15,17 @@ use regex_engine::parsers::{
 use regex_engine::types::Regex;
 
 const DATA_ROOT: &str = "data/processed";
-const PATTERN_LIMIT_PER_SOURCE: usize = 30;
+/// Default when `BENCH_PATTERN_LIMIT` is unset: no cap. `usize::MAX`
+/// patterns will never actually accumulate, so `patterns.len() >=
+/// pattern_limit` in `load_corpus` never fires -- every accepted
+/// pattern with at least one verified case is admitted.
+const PATTERN_LIMIT_PER_SOURCE: usize = usize::MAX;
+
+/// `pattern_limit` for display: `usize::MAX` reads as "unlimited"
+/// rather than a giant literal number.
+fn fmt_limit(n: usize) -> String {
+    if n == usize::MAX { "unlimited".to_string() } else { n.to_string() }
+}
 
 /// Overrides a group's hardcoded Criterion sample count. Unset keeps the
 /// caller's own default -- lower than Criterion's own default of 100,
@@ -50,8 +60,10 @@ fn bench_selection() -> BenchSelection {
                     "suricata" | "snort" => SourceKind::Suricata,
                     "spamassassin" => SourceKind::SpamAssassin,
                     "regexlib" => SourceKind::RegexLib,
+                    "s2-elab" | "s2elab" => SourceKind::S2ELab,
+                    "innovatorved" => SourceKind::Innovatorved,
                     other => panic!(
-                        "BENCH_SOURCE entries must be suricata, spamassassin, or regexlib, got {other:?}"
+                        "BENCH_SOURCE entries must be suricata, spamassassin, regexlib, s2-elab, or innovatorved, got {other:?}"
                     ),
                 })
                 .collect()
@@ -79,16 +91,22 @@ fn bench_selection() -> BenchSelection {
 /// patterns, optionally filtered to one `MatchIntent` tier first.
 /// Surveys pattern diversity within a source, not one pattern's candidates.
 /// Source is the dimension examples like `demo_parser_agreement` group by.
-fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<Entry>, Vec<Entry>) {
+type Corpora = (Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>);
+
+fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> Corpora {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources)
         .unwrap_or_else(|e| panic!("cannot read {DATA_ROOT}: {e} -- run dataset_prepare first"));
 
     let mut suricata = Vec::new();
     let mut spamassassin = Vec::new();
     let mut regexlib = Vec::new();
+    let mut s2_elab = Vec::new();
+    let mut innovatorved = Vec::new();
     let mut suricata_patterns = std::collections::HashSet::new();
     let mut spamassassin_patterns = std::collections::HashSet::new();
     let mut regexlib_patterns = std::collections::HashSet::new();
+    let mut s2_elab_patterns = std::collections::HashSet::new();
+    let mut innovatorved_patterns = std::collections::HashSet::new();
 
     for case in cases {
         if let Some(wanted) = sel.match_intent {
@@ -100,6 +118,8 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
             SourceKind::Suricata => (&mut suricata, &mut suricata_patterns),
             SourceKind::SpamAssassin => (&mut spamassassin, &mut spamassassin_patterns),
             SourceKind::RegexLib => (&mut regexlib, &mut regexlib_patterns),
+            SourceKind::S2ELab => (&mut s2_elab, &mut s2_elab_patterns),
+            SourceKind::Innovatorved => (&mut innovatorved, &mut innovatorved_patterns),
         };
         let already_admitted = patterns.contains(&case.pattern);
         if !already_admitted && patterns.len() >= pattern_limit {
@@ -121,10 +141,15 @@ fn load_corpus(sel: &BenchSelection, pattern_limit: usize) -> (Vec<Entry>, Vec<E
         patterns.insert(case.pattern.clone());
         bucket.push(Entry { regex, input: case.input });
     }
-    if suricata.is_empty() && spamassassin.is_empty() && regexlib.is_empty() {
+    if suricata.is_empty()
+        && spamassassin.is_empty()
+        && regexlib.is_empty()
+        && s2_elab.is_empty()
+        && innovatorved.is_empty()
+    {
         panic!("{}", empty_corpus_diagnosis(sel));
     }
-    (suricata, spamassassin, regexlib)
+    (suricata, spamassassin, regexlib, s2_elab, innovatorved)
 }
 
 fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
@@ -136,9 +161,15 @@ fn empty_corpus_diagnosis(sel: &BenchSelection) -> String {
         "no entries loaded from {DATA_ROOT} ({resolved}); \
          sources={:?} (empty = default: suricata, spamassassin) limit={} \
          match_intent={:?} (None = both)",
-        sel.sources, sel.pattern_limit, sel.match_intent
+        sel.sources, fmt_limit(sel.pattern_limit), sel.match_intent
     )];
-    for source in [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib] {
+    for source in [
+        SourceKind::Suricata,
+        SourceKind::SpamAssassin,
+        SourceKind::RegexLib,
+        SourceKind::S2ELab,
+        SourceKind::Innovatorved,
+    ] {
         let path = root.join(source.dir_name()).join("prepared.jsonl");
         let status = match std::fs::read_to_string(&path) {
             Ok(text) => format!("{} lines", text.lines().filter(|l| !l.trim().is_empty()).count()),
@@ -163,13 +194,17 @@ const PARSERS: &[(ParserType, ParserFn)] = &[
 
 fn bench_by_source(c: &mut Criterion) {
     let sel = bench_selection();
-    let (suricata, spamassassin, regexlib) = load_corpus(&sel, sel.pattern_limit);
+    let (suricata, spamassassin, regexlib, s2_elab, innovatorved) =
+        load_corpus(&sel, sel.pattern_limit);
     eprintln!(
-        "bench_dataset: {} suricata, {} spamassassin, {} regexlib (limit {} each, sources={:?}, match_intent={:?})",
+        "bench_dataset: {} suricata, {} spamassassin, {} regexlib, {} s2-elab, {} innovatorved \
+         (limit {} each, sources={:?}, match_intent={:?})",
         suricata.len(),
         spamassassin.len(),
         regexlib.len(),
-        sel.pattern_limit,
+        s2_elab.len(),
+        innovatorved.len(),
+        fmt_limit(sel.pattern_limit),
         sel.sources,
         sel.match_intent,
     );
@@ -178,6 +213,8 @@ fn bench_by_source(c: &mut Criterion) {
         ("dataset_suricata", &suricata),
         ("dataset_spamassassin", &spamassassin),
         ("dataset_regexlib", &regexlib),
+        ("dataset_s2_elab", &s2_elab),
+        ("dataset_innovatorved", &innovatorved),
     ] {
         if corpus.is_empty() {
             eprintln!("skip {label}: no entries");
@@ -201,8 +238,14 @@ fn bench_by_source(c: &mut Criterion) {
 
 fn bench_per_pattern(c: &mut Criterion) {
     let sel = bench_selection();
-    let (suricata, spamassassin, regexlib) = load_corpus(&sel, 5);
-    let combined: Vec<Entry> = suricata.into_iter().chain(spamassassin).chain(regexlib).collect();
+    let (suricata, spamassassin, regexlib, s2_elab, innovatorved) = load_corpus(&sel, 5);
+    let combined: Vec<Entry> = suricata
+        .into_iter()
+        .chain(spamassassin)
+        .chain(regexlib)
+        .chain(s2_elab)
+        .chain(innovatorved)
+        .collect();
 
     let mut group = c.benchmark_group("dataset_per_pattern");
     group.sample_size(sample_size_override(10));

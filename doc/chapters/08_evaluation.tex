@@ -13,13 +13,17 @@ Chapters~\ref{sec:derivative-parser} and
   \item the bit-coded partial-derivative parser (\texttt{pderiv\_bc}).
 \end{itemize}
 
-They are compared along three axes. First, on the real-world corpus
-prepared in Section~\ref{sec:eval-dataset}: how many extracted patterns
-survive translation, and what causes the rest to be rejected. Second, on
-correctness: whether all five parsers (the standard derivative variant
-contributes two implementations, loop and recursive) agree on every
-prepared case. Third, on cost: execution time and memory consumption,
-measured both on synthetic inputs and on the corpus itself.
+Three aspects are covered. 
+Section~\ref{sec:eval-dataset} describes
+how the corpus is prepared and how the verified inputs are generated
+from real patterns. 
+Section~\ref{sec:eval-agreement} then checks, on the prepared corpus,
+how often the POSIX parsers and the non-POSIX parsers agree on the
+shape of the parse tree they build for the same pattern and input.
+The main focus of the chapter, however, is
+Section~\ref{sec:eval-performance}, which compares the four variants
+on execution time and memory consumption, on both synthetic inputs and
+the prepared corpus.
 
 The chapter is organised as follows.
 Section~\ref{sec:eval-dataset} describes the corpus and the pipeline
@@ -376,36 +380,40 @@ unmatchable.
 \section{Parser Agreement}
 \label{sec:eval-agreement}
 
-Before comparing the four parsers on cost, we verify that they agree on
-the corpus. A parser that returns different trees or different membership
-outcomes than its siblings is either misimplemented or exercising a
-specification ambiguity that must be documented.
+Every case in the prepared corpus already carries a verified outcome,
+so membership is a precondition rather than something this section
+establishes. The question here is the shape of the parse tree. On a
+matching case, the POSIX parsers and the non-POSIX parsers may build
+different trees --- the same input can admit more than one valid
+decomposition --- but some patterns and inputs leave neither policy a
+choice, forcing both onto the same structure. This section measures
+how often that happens across the corpus.
 
 \subsection{Method}
 
 The check is implemented in \texttt{demo\_parser\_agreement}. For every
 prepared case, all five parsers --- \texttt{deriv\_std\_rec},
 \texttt{deriv\_std\_loop}, \texttt{deriv\_bc}, \texttt{pderiv\_std},
-\texttt{pderiv\_bc} --- run on the same (pattern, input) pair, and three
-properties are checked:
+\texttt{pderiv\_bc} --- run on the same (pattern, input) pair.
 
-\begin{enumerate}
-  \item the three POSIX parsers (\texttt{deriv\_std\_rec},
-        \texttt{deriv\_std\_loop}, \texttt{deriv\_bc}) agree with each
-        other on the tree;
-  \item the two Greedy parsers (\texttt{pderiv\_std},
-        \texttt{pderiv\_bc}) agree with each other on the tree;
-  \item all five agree with the case's claimed membership outcome.
-\end{enumerate}
+Two conditions are checked as preconditions. First, every parser
+returns the case's verified membership outcome. Second, within each
+family the parsers agree with each other on the tree: the three POSIX
+variants build the same tree, and the two non-POSIX variants build the
+same tree. A violation of either condition is a bug, not a
+measurement.
 
-The first two are hard invariants. A disagreement within a family is a
-bug. The third is the parser's own verification against the real frontend
-(Chapter~\ref{sec:frontend}).
+The measured quantity is cross-family tree agreement: of the cases
+where both families matched and were internally consistent, how many
+produced the same tree. The two families apply different
+disambiguation policies, so a difference is expected where the input
+admits several decompositions; a match where the input admits only one
+forces both families onto the same structure.
 
 Each parser call runs in a subprocess so that a stack overflow or an
 infinite loop is contained. A 2-second wall-clock timeout kills the
-process. Timeouts and crashes are counted separately from membership and
-shape bugs, since neither produces a result to compare.
+process. Timeouts and crashes are counted separately from tree-shape
+outcomes, since neither produces a result to compare.
 
 \begin{verbatim}
 cargo build --release --example demo_parser_agreement_worker
@@ -414,20 +422,21 @@ cargo run --release --example demo_parser_agreement
 
 \subsection{Results}
 
-Table~\ref{tab:agreement} reports the outcome.
+Table~\ref{tab:agreement} reports the outcome. Precondition columns are
+grouped on the left, the measured quantity on the right.
 
 \begin{table}[ht]
 \centering
-\footnotesize
+\scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{lrrrrrrrr}
+\begin{tabular}{lrrrrrrrrr}
 \hline
-Source & Entries & Timeouts & Crashes & Mem. & POSIX & Greedy & Compared & Diff \\
+Source & Entries & Timeouts & Crashes & Mem. & POSIX & non-POSIX & Compared & Same & Diff \\
 \hline
-Snort        & -- & -- & -- & -- & -- & -- & -- & -- \\
-SpamAssassin & -- & -- & -- & -- & -- & -- & -- & -- \\
+Snort        & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+SpamAssassin & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
 \hline
-Total        & -- & -- & -- & -- & -- & -- & -- & -- \\
+Total        & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
 \hline
 \end{tabular}
 \caption{Parser agreement over the prepared corpus.
@@ -437,20 +446,26 @@ Total        & -- & -- & -- & -- & -- & -- & -- & -- \\
 
 The columns are:
 \emph{Entries}: prepared cases processed.
-\emph{Timeouts}, \emph{Crashes}: contained-failure counts.
-\emph{Mem.}: cases where a parser's membership outcome disagreed with
-the verified outcome.
-\emph{POSIX}, \emph{Greedy}: within-family tree disagreements.
-\emph{Compared}: cases where both families were internally consistent and
-matched, so a cross-family comparison was meaningful.
-\emph{Diff}: of those, how many produced different trees.
+\emph{Timeouts}, \emph{Crashes}: contained-failure counts, neither
+counted as a tree-shape disagreement.
+\emph{Mem.}: precondition violation --- a parser's membership outcome
+disagreed with the verified outcome. Expected zero.
+\emph{POSIX}, \emph{non-POSIX}: precondition violations ---
+within-family tree disagreements. Expected zero.
+\emph{Compared}: matching cases where both families were internally
+consistent, so the cross-family comparison was meaningful.
+\emph{Same}, \emph{Diff}: of \emph{Compared}, how many produced the
+same tree and how many produced different trees.
 
 \subsection{Discussion}
 
-To be completed after the corpus run. Expected reading: no rows with
-nonzero membership or within-family shape bugs; timeouts and crashes
-nonnegative; the \emph{Diff} count is the POSIX-versus-Greedy policy
-difference, not a bug.
+To be completed after the corpus run. Expected reading: no
+precondition violations (all of \emph{Mem.}, \emph{POSIX}, and
+\emph{non-POSIX} at zero), timeouts and crashes nonnegative, and the
+\emph{Same} / \emph{Diff} split showing how often the two policies are
+forced onto the same structure. \emph{Diff} is not a bug: it reflects
+a difference in disambiguation policy between the two families, not in
+the underlying matching.
 
 % ---------------------------------------------------------------------
 % 8.3 Performance Analysis
@@ -742,8 +757,8 @@ suffers. The bit-coded variant (\texttt{pderiv\_bc}) is consistently
 faster than the standard variant (\texttt{pderiv\_std}), since it
 replaces the reference-counted injection closures with flat bit-vectors.
 
-The price of partial derivatives is that they produce a greedy parse tree
-rather than a POSIX one. This is a specification difference, not an
+The price of partial derivatives is that they produce a non-POSIX parse
+tree rather than a POSIX one. This is a specification difference, not an
 implementation deficiency, and it is the reason the two families are
 compared separately in Section~\ref{sec:eval-agreement}: within each
 family, the two variants must agree, but between families they are
@@ -763,7 +778,7 @@ Requirement & Parser & Rationale \\
 \hline
 POSIX + long patterns & \texttt{deriv\_bc} & Only POSIX variant with bounded state. \\
 POSIX + short/shallow & \texttt{deriv\_std\_loop} & Lowest code complexity; acceptable when input is small. \\
-Greedy + any input & \texttt{pderiv\_bc} & Fastest and most memory-light overall. \\
+non-POSIX + any input & \texttt{pderiv\_bc} & Fastest and most memory-light overall. \\
 Formal verification/teaching & \texttt{deriv\_std\_rec} & Closest to the paper's definition. \\
 \hline
 \end{tabular}
@@ -813,6 +828,6 @@ a whole derivation sequence and storing a flat bit vector.
 
 All four parsers correctly classify every prepared case in the corpus;
 no membership or within-family shape bugs were found. Within-family tree
-agreement was checked on every matching case, and the POSIX-vs-Greedy
+agreement was checked on every matching case, and the POSIX-vs-non-POSIX
 difference, when it appears, is a specification difference rather than an
 implementation bug.

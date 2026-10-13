@@ -10,7 +10,7 @@
 //! under full-string matching.
 //! Any other anchor placement still reaches `translate` and is rejected.
 
-use crate::data::types::{Candidate, MatchIntent, PreparedCase, Provenance, SourceKind};
+use crate::data::types::{Candidate, MatchIntent, PreparedCase, SourceKind};
 use crate::frontend::{
     case_fold, parse_ext_pattern, strip_dot_newline, strip_pcre_delimiters, translate, ExtPat,
 };
@@ -321,7 +321,7 @@ pub fn verify_candidate(
     let failed_after = if !verified_match {
         let consumed = failed_after_chars(&candidate.text, &r)?;
         let total = candidate.text.chars().count().max(1);
-        if candidate.provenance == Provenance::StructuralNegative
+        if candidate.provenance.requires_late_failure()
             && (consumed as f64) < LATE_FAILURE_THRESHOLD * (total as f64)
         {
             return None;
@@ -465,6 +465,28 @@ mod tests {
             claimed_match: false,
         };
         assert!(verify_candidate(SourceKind::RegexLib, pattern, candidate).is_none());
+    }
+
+    #[test]
+    fn an_early_failing_dataset_given_negative_is_also_rejected() {
+        let pattern = r"[a-c]+\d{2}";
+        let candidate = Candidate {
+            text: "zzzzzzzzzz".to_string(),
+            provenance: crate::data::types::Provenance::DatasetGiven,
+            claimed_match: false,
+        };
+        assert!(verify_candidate(SourceKind::S2ELab, pattern, candidate).is_none());
+    }
+
+    #[test]
+    fn an_early_failing_dataset_text_classified_negative_is_also_rejected() {
+        let pattern = r"[a-c]+\d{2}";
+        let candidate = Candidate {
+            text: "zzzzzzzzzz".to_string(),
+            provenance: crate::data::types::Provenance::DatasetTextClassified,
+            claimed_match: false,
+        };
+        assert!(verify_candidate(SourceKind::Innovatorved, pattern, candidate).is_none());
     }
 
     #[test]

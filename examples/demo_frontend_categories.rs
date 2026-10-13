@@ -19,7 +19,10 @@ use std::path::PathBuf;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use regex_engine::data::extract::{extract_regexlib, extract_spamassassin, extract_suricata};
+use regex_engine::data::extract::{
+    extract_innovatorved, extract_regexlib, extract_s2_elab, extract_spamassassin,
+    extract_suricata,
+};
 use regex_engine::data::generate::generate_sample;
 use regex_engine::data::prepare::core_regex;
 use regex_engine::data::types::SourceKind;
@@ -313,6 +316,13 @@ fn load_all_patterns(files: &[PathBuf]) -> Vec<String> {
             SourceKind::Suricata => extract_suricata(&text),
             SourceKind::SpamAssassin => extract_spamassassin(&text),
             SourceKind::RegexLib => extract_regexlib(&text),
+            // `classify_file` only ever returns these three (`.rules`,
+            // `.cf`, or the RegexLib fallback) -- it has no extension
+            // rule telling an S2ELab `.json` file apart from an
+            // Innovatorved one, so neither is reachable here. Handled
+            // for exhaustiveness, not because this demo supports them.
+            SourceKind::S2ELab => extract_s2_elab(&text),
+            SourceKind::Innovatorved => extract_innovatorved(&text),
         };
         patterns.extend(extracted.into_iter().map(|r| r.raw_pattern));
     }

@@ -9,6 +9,17 @@ pub enum SourceKind {
     Suricata,
     SpamAssassin,
     RegexLib,
+    /// github.com/s2e-lab/RegexEval: each pattern ships with
+    /// author-labeled `matches`/`non_matches`, so generation here is
+    /// "use what's given", not structural sampling. Named for the org
+    /// rather than the repo, to match this project's own `data/raw`
+    /// layout. Opt-in only, like `RegexLib`.
+    S2ELab,
+    /// github.com/innovatorved/regex_dataset: each pattern ships with
+    /// free-form, *unlabeled* test text (a mix of matches and
+    /// non-matches with no marker saying which). Opt-in only, like
+    /// `RegexLib`.
+    Innovatorved,
 }
 
 impl SourceKind {
@@ -18,6 +29,8 @@ impl SourceKind {
             SourceKind::Suricata => "snort",
             SourceKind::SpamAssassin => "spamassassin",
             SourceKind::RegexLib => "regexlib",
+            SourceKind::S2ELab => "s2-elab",
+            SourceKind::Innovatorved => "innovatorved",
         }
     }
 }
@@ -55,6 +68,15 @@ pub enum RuleContext {
     RegexLib {
         description: String,
     },
+    S2ELab {
+        matches: Vec<String>,
+        non_matches: Vec<String>,
+    },
+    Innovatorved {
+        /// Raw multi-line test text as given; `None` when the entry has
+        /// none (`generate` then produces zero candidates for it).
+        test_text: Option<String>,
+    },
 }
 
 /// One rule read from a raw source file: pattern text plus context.
@@ -89,6 +111,30 @@ pub enum Provenance {
     Structural,
     /// Structural sample, claimed non-match (see `sample_negative_late`).
     StructuralNegative,
+    /// S2ELab: one of the pattern author's own `matches`/`non_matches`.
+    /// `claimed_match` says which; both are given, not sampled.
+    DatasetGiven,
+    /// Innovatorved: one line of the pattern's free-form test text,
+    /// unlabeled in the source, classified against the real parser
+    /// before being handed to `verify_candidate` as any other claim.
+    DatasetTextClassified,
+}
+
+impl Provenance {
+    /// Whether a *negative* (`claimed_match == false`) candidate of this
+    /// provenance must additionally fail late (past
+    /// `LATE_FAILURE_THRESHOLD`) to survive verification.
+    /// `RealCorpus` and `ContentDerived` never produce negatives, so they
+    /// are irrelevant here; listed explicitly rather than falling through
+    /// a wildcard so a future provenance must make this choice too.
+    pub fn requires_late_failure(self) -> bool {
+        match self {
+            Provenance::StructuralNegative
+            | Provenance::DatasetGiven
+            | Provenance::DatasetTextClassified => true,
+            Provenance::RealCorpus | Provenance::ContentDerived | Provenance::Structural => false,
+        }
+    }
 }
 
 /// One generated input, not yet verified.
@@ -111,4 +157,23 @@ pub struct PreparedCase {
     pub failed_after_chars: Option<usize>,
     /// See `MatchIntent`.
     pub match_intent: MatchIntent,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn late_failure_is_required_for_every_negative_producing_provenance() {
+        assert!(Provenance::StructuralNegative.requires_late_failure());
+        assert!(Provenance::DatasetGiven.requires_late_failure());
+        assert!(Provenance::DatasetTextClassified.requires_late_failure());
+    }
+
+    #[test]
+    fn late_failure_is_not_required_for_positive_only_provenances() {
+        assert!(!Provenance::RealCorpus.requires_late_failure());
+        assert!(!Provenance::ContentDerived.requires_late_failure());
+        assert!(!Provenance::Structural.requires_late_failure());
+    }
 }

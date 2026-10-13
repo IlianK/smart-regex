@@ -7,9 +7,13 @@
 //! Covers: extraction counts, acceptance, match-intent reliability,
 //! rejection causes, anchor shape distribution, PCRE flag usage.
 //! Defaults to Suricata and SpamAssassin under `data/raw/`.
-//! RegexLib is opt-in only (`--source regexlib`).
-//! It is crowd-sourced, with no correctness guarantee.
-//! The other two sources' rule sets are maintained.
+//! RegexLib, S2ELab, and Innovatorved are opt-in only
+//! (`--source regexlib`/`s2-elab`/`innovatorved`).
+//! RegexLib and Innovatorved are crowd-sourced, with no correctness
+//! guarantee; Innovatorved's test text is also unlabeled (see
+//! `generate::generate_from_dataset_text`). S2ELab (s2e-lab/RegexEval)
+//! is a curated academic benchmark but still not a maintained production
+//! rule set the way Suricata/SpamAssassin are.
 //! Explicit files need one `--source`.
 //!
 //!   Accepted = `core_regex_tagged` produced a Regex.
@@ -30,7 +34,10 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use regex_engine::data::extract::{extract_regexlib, extract_spamassassin, extract_suricata};
+use regex_engine::data::extract::{
+    extract_innovatorved, extract_regexlib, extract_s2_elab, extract_spamassassin,
+    extract_suricata,
+};
 use regex_engine::data::prepare::{anchor_shape, core_regex_tagged, AnchorShape};
 use regex_engine::data::types::{MatchIntent, SourceKind};
 use regex_engine::frontend::{parse_ext_pattern, strip_pcre_delimiters};
@@ -45,6 +52,8 @@ fn default_dir(source: SourceKind) -> &'static str {
         SourceKind::Suricata => "data/raw/snort",
         SourceKind::SpamAssassin => "data/raw/spamAssassin",
         SourceKind::RegexLib => "data/raw/regexLib",
+        SourceKind::S2ELab => "data/raw/s2-elab",
+        SourceKind::Innovatorved => "data/raw/innovatorved",
     }
 }
 
@@ -334,6 +343,8 @@ fn read_source(source: SourceKind, paths: &[PathBuf], verbose: bool) -> SourceSt
             SourceKind::Suricata => extract_suricata(&text),
             SourceKind::SpamAssassin => extract_spamassassin(&text),
             SourceKind::RegexLib => extract_regexlib(&text),
+            SourceKind::S2ELab => extract_s2_elab(&text),
+            SourceKind::Innovatorved => extract_innovatorved(&text),
         };
         for rule in extracted {
             stats.add_pattern(&rule.raw_pattern, verbose);
@@ -606,7 +617,7 @@ fn parse_args() -> Options {
 fn is_source_name(s: &str) -> bool {
     matches!(
         s.to_lowercase().as_str(),
-        "suricata" | "snort" | "spamassassin" | "regexlib"
+        "suricata" | "snort" | "spamassassin" | "regexlib" | "s2-elab" | "s2elab" | "innovatorved"
     )
 }
 
@@ -615,8 +626,12 @@ fn parse_source(s: &str) -> SourceKind {
         "suricata" | "snort" => SourceKind::Suricata,
         "spamassassin" => SourceKind::SpamAssassin,
         "regexlib" => SourceKind::RegexLib,
+        "s2-elab" | "s2elab" => SourceKind::S2ELab,
+        "innovatorved" => SourceKind::Innovatorved,
         other => {
-            eprintln!("unknown source {other:?} (expected suricata, spamassassin, or regexlib)");
+            eprintln!(
+                "unknown source {other:?} (expected suricata, spamassassin, regexlib, s2-elab, or innovatorved)"
+            );
             std::process::exit(2);
         }
     }

@@ -92,8 +92,31 @@ MIT-licensed ("Copyright (c) 2016 University of Birmingham").
 
 
 
+## Dataset statistics
 
-## Statistics
+To inspect the raw datasets with extraction counts, the accepted /
+rejected split, rejection causes, and anchor-shape distribution, run:
+
+```bash
+# No args: reads the default sources under data/raw/
+cargo run --release --example dataset_stats
+
+# --verbose: list each rejected pattern next to its cause
+cargo run --release --example dataset_stats -- --verbose
+
+# --source: restrict the report to one or more sources
+cargo run --release --example dataset_stats -- --source s2-elab
+
+# stats for all five sources in one combined report
+cargo run --release --example dataset_stats -- \
+  --source suricata --source spamassassin --source regexlib --source s2-elab --source innovatorved
+```
+
+Sample size:
+
+```
+wc -l data/processed/*/prepared.jsonl
+```
 
 Run `dataset_stats` (Suricata + SpamAssassin by default):
 
@@ -112,24 +135,37 @@ tables.
 
 
 
+## Dataset preparation
 
-## Preparing the dataset
+To prepare all default datasets (Snort and SpamAssassin) in one go:
 
-```
-cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules
-cargo run --release --example dataset_prepare -- spamassassin data/raw/spamAssassin/*.cf
-cargo run --release --example dataset_prepare -- regexlib data/raw/regexLib/*.txt
+```bash
+cargo run --release --example dataset_prepare
 ```
 
-Each run writes `data/processed/<source>/prepared.jsonl`, replacing the
-file.
-Each pattern contributes up to `--variants N` (default 5) positives,
-plus up to `N` negatives.
-Sample size:
+To prepare a specific dataset, name the source and list its input files:
 
+```bash
+cargo run --release --example dataset_prepare -- suricata      data/raw/snort/*.rules
+cargo run --release --example dataset_prepare -- spamassassin  data/raw/spamAssassin/*.cf
+cargo run --release --example dataset_prepare -- regexlib      data/raw/regexLib/*.txt
+cargo run --release --example dataset_prepare -- s2-elab       data/raw/s2-elab/RegexEval.json
+cargo run --release --example dataset_prepare -- innovatorved  data/raw/innovatorved/data.json
 ```
-wc -l data/processed/*/prepared.jsonl
+
+`regexlib`, `s2-elab`, and `innovatorved` are opt-in: they are not
+read by the default and must be named explicitly.
+
+Each run writes to `data/processed/<source>/prepared.jsonl`, replacing
+the file rather than appending. Each accepted pattern contributes up
+to `--variants N` (default 5) positives, plus up to `N` negatives.
+
+```bash
+# --variants controls verified inputs per pattern per category (default 5)
+cargo run --release --example dataset_prepare -- suricata data/raw/snort/*.rules --variants 3
 ```
+
+
 
 
 
@@ -186,3 +222,6 @@ the first 30 *distinct patterns* per source, then every verified input
 under those 30 (`BENCH_PATTERN_LIMIT` to change the cap). Capping on rows
 would cover only a handful of patterns; capping on patterns guarantees
 30.
+
+
+
