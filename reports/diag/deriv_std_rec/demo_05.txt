@@ -1,0 +1,38 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-17 20:21:34
+Mode:                 POSIX Standard (recursive parser)
+Regex:                ε*
+Input:                ""
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.002ms
+Expressions stored:   1 (r0)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Star(Eps)
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r0) = true → proceed to backward pass
+-------------------------------====
+BACKWARD PASS (mkEps + inject)
+-------------------------------====
+mkEps(r0):
+  mkEps(r*) → []  [zero iterations]
+v0 = []
+
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           []
+Flattened:            ""
+-------------------------------====
+END OF REPORT
+-------------------------------====

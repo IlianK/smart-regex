@@ -1,0 +1,22 @@
+Expression size per derivative step.
+
+(a+(b+ab))* on (ab)^n, with simp   : [8, 12, 17, 25, 35, 51, 71, 103, 143, 207, 287, 415, 575, 831, 1151, 1663, 2303]
+(a+(b+ab))* on (ab)^n, unsimplified: [8, 16, 35, 69, 107, 175, 251, 387, 539, 811, 1115, 1659, 2267]
+a* on a^n, with simp               : [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+a* on a^n, unsimplified            : [2, 4, 9, 14, 19, 24, 29, 34, 39, 44, 49, 54, 59, 64, 69, 74, 79]
+
+-- pgfplots coordinates --
+% (a+(b+ab))*, with simp
+\addplot coordinates {(0,8) (1,12) (2,17) (3,25) (4,35) (5,51) (6,71) (7,103) (8,143) (9,207) (10,287) (11,415) (12,575) (13,831) (14,1151) (15,1663) (16,2303)};
+% (a+(b+ab))*, unsimplified
+\addplot coordinates {(0,8) (1,16) (2,35) (3,69) (4,107) (5,175) (6,251) (7,387) (8,539) (9,811) (10,1115) (11,1659) (12,2267)};
+% a*, with simp
+\addplot coordinates {(0,2) (1,2) (2,2) (3,2) (4,2) (5,2) (6,2) (7,2) (8,2) (9,2) (10,2) (11,2) (12,2) (13,2) (14,2) (15,2) (16,2)};
+% a*, unsimplified
+\addplot coordinates {(0,2) (1,4) (2,9) (3,14) (4,19) (5,24) (6,29) (7,34) (8,39) (9,44) (10,49) (11,54) (12,59) (13,64) (14,69) (15,74) (16,79)};
+
+-- prose claims --
+simp size at step 16 = 2303  (text says 2303)
+simp size at step 24 = 36863  (text says 36863)
+  step 4: ratio to step 2 is 2.059, not 2
+size doubles every two characters from step 4 onward: confirmed

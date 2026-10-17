@@ -1,0 +1,50 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-17 20:21:34
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                (a+b)
+Input:                "c"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.008ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Alt(Lit('a'), Lit('b'))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'c', position 1)
+  frontier before (1 residual(s)):
+    [0] Alt(Lit('a'), Lit('b'))
+  pderiv_tree('c', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('c', r1+r2) = tag(Left, pderiv_tree('c',r1)) ++ tag(Right, pderiv_tree('c',r2)), nub_tree
+      -> []
+  frontier after (0 residual(s)):
+  no nullable residual in this frontier  ✗
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'c'
+Expected:             'a' or 'b'
+  c
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

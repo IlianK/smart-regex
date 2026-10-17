@@ -1,0 +1,68 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-17 20:21:34
+Mode:                 POSIX Bitcoded
+Regex:                a*
+Input:                "aaa"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.008ms
+Derivative steps:     3
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize(a*)
+  rule: internalize(r*) = []@(internalize r)*
+  inner: internalize(Lit('a')) → []@...
+ri0 = []@([]@'a')*
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  ri0 = []@([]@'a')*
+  deriv_bc(ri0, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false]@([]@'a')*
+  ri1 = [false]@([]@'a')*
+  nullable_bc(ri1) = true  ✓  bits accumulating
+
+Step 2 (char: 'a', position 2)
+  ri1 = [false]@([]@'a')*
+  deriv_bc(ri1, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false, false]@([]@'a')*
+  ri2 = [false, false]@([]@'a')*
+  nullable_bc(ri2) = true  ✓  bits accumulating
+
+Step 3 (char: 'a', position 3)
+  ri2 = [false, false]@([]@'a')*
+  deriv_bc(ri2, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false, false, false]@([]@'a')*
+  ri3 = [false, false, false]@([]@'a')*
+  nullable_bc(ri3) = true  ✓  bits accumulating
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri3) = true → proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+mkEpsBC(ri3) = [0001]
+
+decode(a*, [0001]):
+  = [a, a, a]
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [0001]
+Parse tree:           [a, a, a]
+Flattened:            "aaa"
+-------------------------------====
+END OF REPORT
+-------------------------------====

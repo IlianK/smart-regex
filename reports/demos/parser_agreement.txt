@@ -1,0 +1,26 @@
+TIMEOUT >2000ms  Suricata  pat="/^\\/(?:[\\/_]*?[a-f0-9][\\/_]*?){64}$/U"  in="//c//_0//e////7__d/_//2___/__//8_/_/__b_..."  [rec,loop,pstd,pbc]
+TIMEOUT >2000ms  Suricata  pat="/^\\/(?:[\\/_]*?[a-f0-9][\\/_]*?){64}$/U"  in="///__a//_/b__//2///__///3_/_2/__2_//c//3..."  [pstd,pbc]
+TIMEOUT >2000ms  Suricata  pat="/A{1000}/R"  in="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..."  [rec,loop]
+TIMEOUT >2000ms  Suricata  pat="/A{1000}/R"  in="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA..."  [rec,loop]
+TIMEOUT >2000ms  Suricata  pat="/(?:\\%3C){1000}/Ri"  in="%3C%3c%3c%3c%3c%3C%3C%3C%3C%3c%3C%3C%3c%..."  [rec,loop,bc,pstd]
+TIMEOUT >2000ms  Suricata  pat="/(?:\\%3C){1000}/Ri"  in="%3C%3C%3c%3c%3c%3c%3C%3c%3C%3C%3c%3c%3c%..."  [rec,loop,bc,pstd]
+TIMEOUT >2000ms  Suricata  pat="/^\\/[^\\r\\n]+\\.php\\?[a-f0-9]{32}(?:=(?:%3D|\\x3d)*[A-Za-z0-9%\\..."  in="/Z.PHp?3cca4eA3189dBe68FA7Ffd4ebAAf38a9=..."  [rec,loop]
+TIMEOUT >2000ms  Suricata  pat="/(\\x2a\\x3f){700}/U"  in="*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?..."  [rec,loop]
+TIMEOUT >2000ms  Suricata  pat="/(\\x2a\\x3f){700}/U"  in="*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?..."  [rec,loop]
+
+Source         Entries  Timeouts  Crashes   Mem.bugs  POSIX-bugs  Greedy-bugs  Compared     Same   Diff%
+---------------------------------------------------------------------------------------------------------
+Suricata          4160         9        0          0           0            0      2075     2075    0.0
+SpamAssassin       310         0        0          0           0            0       155      155    0.0
+---------------------------------------------------------------------------------------------------------
+Total             4470         9        0          0           0            0      2230     2230    0.0
+
+Compared = matching entries where both families were internally consistent.
+Same / Diff = their POSIX-vs-Greedy shape agreement.
+Diff is not a bug: the two policies may pick different trees for an ambiguous match.
+Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or
+  ambiguous pattern can be infeasible in the configured budget.
+Crashes are counted, not dismissed (usually a stack overflow on a deep expression),
+  but are not membership/shape disagreements -- nothing was produced to compare.
+
+No bugs across 4470 entries (9 timed out, 0 crashed).

@@ -1,0 +1,52 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-17 20:21:34
+Mode:                 POSIX Standard (loop parser)
+Regex:                (ε+a)*
+Input:                "a"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.005ms
+Expressions stored:   2 (r0 → r1)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Star(Alt(Eps, Lit('a')))
+
+Step 1: ∂(r0, 'a')
+  rule: ∂(r*, 'a') = ∂(r, 'a') · r*
+  ∂(Alt(Eps, Lit('a')), 'a'):
+  rule: ∂(r1 + r2, 'a') = ∂(r1, 'a') + ∂(r2, 'a')
+  ∂(Eps, 'a') - see left branch
+  ∂(Lit('a'), 'a') - see right branch
+r1 = Seq(Alt(Phi, Eps), Star(Alt(Eps, Lit('a'))))
+  nullable(r1) = true  ✓ position 1 matched
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r1) = true → proceed to backward pass
+-------------------------------====
+BACKWARD PASS (mkEps + inject)
+-------------------------------====
+mkEps(r1):
+  mkEps(r1 · r2) → Pair(mkEps(r1), mkEps(r2))
+v1 = (Right (), [])
+
+inject(r0, 'a', v1):
+  inject(Star(Alt(Eps, Lit('a'))), 'a', (Right (), []))
+  → [Right a]
+v0 = [Right a]
+
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           [Right a]
+Flattened:            "a"
+-------------------------------====
+END OF REPORT
+-------------------------------====

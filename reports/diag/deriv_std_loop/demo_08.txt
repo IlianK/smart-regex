@@ -1,0 +1,43 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-17 20:21:34
+Mode:                 POSIX Standard (loop parser)
+Regex:                a
+Input:                "b"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.001ms
+Expressions stored:   2 (r0 → r1)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Lit('a')
+
+Step 1: ∂(r0, 'b')
+  rule: ∂('a', 'b') = ∅  [literal mismatch]
+r1 = Phi
+  nullable(r1) = false  ✗ position 1
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r1) = false → no parse tree exists for full input
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

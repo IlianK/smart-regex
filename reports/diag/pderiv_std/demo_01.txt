@@ -1,0 +1,66 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-17 20:21:34
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                (a+ab)(b+ε)
+Input:                "ab"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.064ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+  pderiv_tree('a', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1·r2)  [nullable(r1)=false]
+           = [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+      -> Seq(Eps, Alt(Lit('b'), Eps))  (+ injection closure, not printable)
+      -> Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))  (+ injection closure, not printable)
+  frontier after (2 residual(s)):
+    [0] Seq(Eps, Alt(Lit('b'), Eps))
+    [1] Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))
+  a residual in this frontier is nullable  ✓  parse tree available
+
+Step 2 (char: 'b', position 2)
+  frontier before (2 residual(s)):
+    [0] Seq(Eps, Alt(Lit('b'), Eps))
+    [1] Seq(Seq(Eps, Lit('b')), Alt(Lit('b'), Eps))
+  pderiv_tree('b', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('b', r1·r2)  [nullable(r1)=true]
+           = nub_tree $ [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+                       ++ [(r2', inj: mk_eps(r1) paired with r2's result) | (r2',_) <- pderiv_tree(c,r2)]
+      -> Eps  (+ injection closure, not printable)
+    from [1]:
+      rule: pderiv_tree('b', r1·r2)  [nullable(r1)=false]
+           = [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+      -> Seq(Eps, Alt(Lit('b'), Eps))  (+ injection closure, not printable)
+  frontier after (2 residual(s)):
+    [0] Eps
+    [1] Seq(Eps, Alt(Lit('b'), Eps))
+  a residual in this frontier is nullable  ✓  parse tree available
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to injection (already applied by select)
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           (Left a, Left b)
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====
