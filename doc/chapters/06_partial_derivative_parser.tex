@@ -3,34 +3,21 @@
 
 Chapter~\ref{sec:derivative-parser} presented two derivative-based methods for
 constructing POSIX parse trees. Both keep the structure of the original
-expression throughout the forward pass, defer disambiguation to a final
-$\mathit{mkEps}$ step and, in the standard variant, reconstruct the tree in a
-backward pass. This chapter presents the partial-derivative-based alternative
-of Sulzmann and Lu~\citep{sulzmannlu2012}. Instead of one residual per step,
-the partial derivative produces a set of states, each pairing a residual
-expression with the reconstruction information for one path through the
-original expression. The parser maintains this set as an NFA state set,
-transitions every state on the next input character, and selects the first
-accepting state at the end.
+expression throughout the forward pass and defer disambiguation to a final
+$\mathit{mkEps}$ step. A parser based on partial derivatives must instead
+select among a set of competing states.
 
-The defining difference from the derivative-based parsers is the disambiguation
-policy. Because partial derivatives break apart the structure of the original
-expression---alternations are split into separate states, and concatenations
-are expanded without preserving the outer shape---the NFA traversal yields the
-greedy leftmost parse tree rather than the POSIX one. On the running ambiguous
-example from Chapter~\ref{sec:derivative-parser},
-$r_0 = (a + ab)(b + \varepsilon)$ with input $\mathtt{ab}$, the
-derivative-based parsers return
-$(\mathit{Right}(a,b), \mathit{Right}())$, whereas the partial-derivative
-parsers return
-$(\mathit{Left}(a), \mathit{Left}(b))$.
-
-As in Chapter~\ref{sec:derivative-parser}, two variants are presented. The
-standard partial-derivative parser attaches an injection closure to each
-configuration, composing reconstruction steps during the forward pass. The
-bit-coded partial-derivative parser replaces these closures with bit-sequences
-carried alongside the residuals. Both compute the same greedy parse tree; they
-differ only in how the reconstruction information is represented.
+Following Sulzmann and Lu~\citep{sulzmannlu2012}, this chapter presents the
+partial-derivative alternative. Instead of one residual per step, the partial
+derivative produces a set of states, each pairing a residual expression with
+the reconstruction information for one path through the original expression;
+the parser maintains this set as an NFA state set. Because partial derivatives
+break apart the structure of the original expression, the traversal yields the
+greedy leftmost parse tree rather than the POSIX one. As in
+Chapter~\ref{sec:derivative-parser}, two variants are presented: the standard
+parser attaches an injection closure to each configuration, while the
+bit-coded parser replaces these closures with bit-sequences; both compute the
+same greedy parse tree.
 
 %
 %

@@ -1,7 +1,7 @@
 # Benchmarks
 
-Four `cargo bench` targets, along two axes: synthetic vs. real-corpus
-input, and timing vs. memory measurement.
+Five `cargo bench` targets, along two axes: synthetic vs. real-corpus
+input, and what's measured.
 
 | Target | Input | Measures | Criterion? |
 |---|---|---|---|
@@ -9,14 +9,15 @@ input, and timing vs. memory measurement.
 | `bench_parse` | synthetic | time | yes |
 | `bench_corpus_time` | corpus | time | no |
 | `bench_memory` | corpus | memory | no |
+| `bench_translate` | corpus | time + memory, translation only | no |
 
-The corpus targets read `prepared.jsonl` under `data/processed/`; see
-[DATASET.md](DATASET.md) for how to build that. On the two Criterion
-targets, append `-- --test` to run each benchmark function once as a
-quick correctness check.
+The corpus and translation targets read `prepared.jsonl` under
+`data/processed/`; see [DATASET.md](DATASET.md) for how to build that.
+On the two Criterion targets, append `-- --test` to run each benchmark
+function once as a quick correctness check.
 
-Both corpus targets run every entry through a shared worker binary,
-`bench_worker`, which must be built first:
+`bench_corpus_time` and `bench_memory` run every entry through a
+shared worker binary, `bench_worker`, which must be built first:
 
 ```bash
 cargo build --release --example bench_worker
@@ -28,6 +29,12 @@ what lets a pathological entry be killed outright, recovering its
 memory, rather than merely given up on. See "Why Criterion is not used
 for the corpus" and `BENCH_ENTRY_TIMEOUT_MS` below for why that
 distinction matters here specifically.
+
+`bench_translate` does not use `bench_worker` and needs no build step
+beyond itself -- it measures translation (`core_regex`) only, which
+`core_regex` itself already bounds via a depth/node cap before the
+expensive part runs, so there is no runaway call for process isolation
+to contain. See its own section below.
 
 
 
@@ -58,10 +65,12 @@ CLI arguments.
 | `BENCH_PATTERN_LIMIT` | corpus | positive integer | unset (no cap) |
 | `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `both` |
 | `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` | `1`/`0`, `true`/`false`, `yes`/`no` | `0` |
-| `BENCH_ENTRY_TIMEOUT_MS` | corpus | positive integer (milliseconds) | `2000` |
+| `BENCH_ENTRY_TIMEOUT_MS` | `bench_corpus_time`, `bench_memory` | positive integer (milliseconds) | `2000` |
 | `BENCH_RUN_LABEL` | corpus | any filename-safe string | unset (bare filename) |
 | `BENCH_SIZE_LIMIT` | synthetic | positive integer | unset (no cap) |
 | `BENCH_SAMPLE_SIZE` | Criterion targets | integer ≥ 10 | group-specific |
+| `BENCH_TRANSLATE_RENDER_MAX_NODES` | `bench_translate` | positive integer (nodes) | `150` |
+| `BENCH_TRANSLATE_EXAMPLES` | `bench_translate` | non-negative integer | `5` |
 
 
 **Variables Explanation**:
@@ -108,8 +117,20 @@ CLI arguments.
 - **`BENCH_SAMPLE_SIZE=N`** — Overrides Criterion's sample count on the
   bench that reads it. Unset uses the group's hardcoded default.
 
-If filtering loads nothing, the corpus targets panic with a per-source
-diagnosis and the active filters.
+- **`BENCH_TRANSLATE_RENDER_MAX_NODES=N`** — `bench_translate` only.
+  Its per-pattern catalogue CSV renders a pattern's translated `Regex`
+  (its derived `Debug`, showing the `Seq`/`Alt`/`Star`/`Lit`/`Eps`/`Phi`
+  constructors) only when its node count is at most N; larger patterns
+  get a `<N nodes, not rendered>` placeholder instead, so one oversized
+  real-corpus pattern can't blow up the CSV.
+
+- **`BENCH_TRANSLATE_EXAMPLES=N`** — `bench_translate` only. How many
+  of the smallest distinct patterns per source to write, fully
+  rendered, to `reports/demos/translation_examples.txt`. `0` skips
+  that file entirely.
+
+If filtering loads nothing, the corpus and translation targets panic
+with a per-source diagnosis and the active filters.
 
 
 ## `bench_match.rs`
@@ -267,6 +288,62 @@ standard derivative parsers (`deriv_std_rec`, `deriv_std_loop`).
 Structural reason: `deriv_std` retains its derivation sequence, whereas
 `deriv_bc` reassigns one `ARegex` in place.
 
+## `bench_translate.rs`
+
+No worker to build first -- see "Five `cargo bench` targets" above for
+why not. Then:
+
+```
+cargo bench --bench bench_translate
+BENCH_SOURCE=suricata cargo bench --bench bench_translate
+```
+
+Cost of frontend translation (`core_regex`: PCRE string -> `Regex`)
+only -- the step every other target here excludes (see
+`bench_worker.rs`'s module doc). Measured once per *distinct pattern*,
+not per entry: translation cost depends only on the pattern, and an
+entry-level measurement would re-measure the same pattern's
+translation once per input it carries.
+
+Three outputs, all under `reports/`:
+
+- `reports/benches/bench_translate.csv` -- one row per source:
+  mean/median/p99/max of time (ms), allocation (total and peak bytes),
+  and translated size (nodes), over every pattern that translated
+  successfully (`translated`; `rejected` and `crashed` are excluded
+  the same way `timed_out`/`crashed` are excluded elsewhere in this
+  file, and for the same reason -- they are not real measurements of
+  a successful call).
+- `reports/benches/bench_translate_patterns.csv` -- one row per
+  distinct pattern: its own nodes/micros/bytes, plus the translated
+  `Regex` itself via its derived `Debug` (`Seq(Lit('a'), ...)`-style --
+  the six constructors translation actually produces, not a flattened
+  reading of them) when `BENCH_TRANSLATE_RENDER_MAX_NODES` allows it.
+  The catalogue to hand-pick thesis examples from.
+- `reports/demos/translation_examples.txt` -- the
+  `BENCH_TRANSLATE_EXAMPLES` smallest distinct patterns per source,
+  fully rendered. Always overwritten, never labelled by
+  `BENCH_RUN_LABEL`: a curated starting point, not a measurement run.
+
+Reads `BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`, and
+`BENCH_RUN_LABEL` (the first two CSVs only -- never the examples file)
+the same way `bench_corpus_time`/`bench_memory` do. Does not read
+`BENCH_ENTRY_TIMEOUT_MS` or `BENCH_SPLIT_OUTCOME`: there is no timeout
+concept here (see "Five `cargo bench` targets" above) and no
+match/non-match split (translation doesn't touch the input at all).
+
+No process isolation, unlike every other corpus target in this file.
+Deliberate, not an oversight: every pattern reaching this bench already
+passed `core_regex` once during `dataset_prepare`, and `core_regex`
+enforces its own depth/node cap before the expensive part of
+translation runs -- a pattern that could not blow up there cannot blow
+up here either, same function, same input, same cap. A per-pattern
+`catch_unwind` stands in for process isolation's crash containment, so
+one unexpected panic costs one row (counted as `crashed`), not the
+whole run. One consequence of skipping isolation: this bench's timing
+has no process-spawn overhead, unlike `wall (s)` in
+`bench_corpus_time`.
+
 ## Choosing a target
 
 | Question | Target |
@@ -278,6 +355,8 @@ Structural reason: `deriv_std` retains its derivation sequence, whereas
 | How much memory does each parser allocate? | `bench_memory` |
 | How do the parsers scale on synthetic input? | `bench_parse` |
 | Does the matcher stack behave as expected on `(a*)*`? | `bench_match` |
+| How much does translation itself cost, separately from parsing? | `bench_translate` |
+| What does a real pattern's translated form actually look like? | `bench_translate`'s `_patterns.csv` or `translation_examples.txt` |
 
 
 
@@ -348,4 +427,19 @@ BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
 
 # Only unanchored patterns.
 BENCH_MATCH_INTENT=direct cargo bench --bench bench_memory
+```
+
+**Translation cost** (`bench_translate`, no worker to build, same
+source/pattern-limit variables):
+
+```bash
+# Default sources, every distinct pattern.
+cargo bench --bench bench_translate
+
+# One source, no cap.
+BENCH_SOURCE=suricata cargo bench --bench bench_translate
+
+# Render fewer/more examples, or render larger patterns' trees too.
+BENCH_TRANSLATE_EXAMPLES=10 BENCH_TRANSLATE_RENDER_MAX_NODES=300 \
+  cargo bench --bench bench_translate
 ```

@@ -118,8 +118,7 @@ The following contributions are being made:
   and memory consumption using synthetic benchmarks and a corpus of
   real-world regular expressions from Snort/Suricata, SpamAssassin, and
   RegexLib, following the source categories investigated by Mamouras
-  et al.~\citep{mamouras2024}. They are also compared with Rust's
-  \texttt{regex} crate and Google's RE2.
+  et al.~\citep{mamouras2024}.
 \end{itemize}
 
 %
@@ -147,14 +146,15 @@ This chapter distinguishes regular expression matching from parsing and
 introduces the disambiguation problem.
 
 \item \textbf{Chapter~\ref{sec:derivative-parser} - Derivative Parser.}
-This chapter presents Sulzmann and Lu's derivative-based
-POSIX parser and its Rust implementation in direct
-and bit-coded variants.
+This chapter presents the derivative-based POSIX parsing approach
+of Sulzmann and Lu, along with a Rust implementation developed
+in this work, in both direct and bit-coded variants.
+
 
 \item \textbf{Chapter~\ref{sec:partial-derivative-parser} - Partial-Derivative Parser.}
-This chapter presents the partial-derivative-based parser and its Rust
-implementation in direct and bit-coded variants. It also discusses the
-differences between the two derivative-based approaches.
+This chapter presents the partial-derivative-based parsing approach
+of Sulzmann and Lu, along with a Rust implementation developed
+in this work, in both direct and bit-coded variants.
 
 \item \textbf{Chapter~\ref{sec:frontend} - External versus Internal Syntax.}
 This chapter describes the parsing of regular expression strings into an
@@ -164,11 +164,9 @@ by the parsers.
 \item \textbf{Chapter~\ref{sec:evaluation} - Evaluation.}
 This chapter evaluates the four parser variants with respect to execution
 time, memory consumption, and correctness. The evaluation uses synthetic
-benchmarks and a corpus of real-world regular expressions, and compares
-the implementations with Rust's \texttt{regex} crate and Google's RE2.
+benchmarks and a corpus of real-world regular expressions.
 It also examines optimization challenges and the insights gained from the
-evaluation, including the derivative traces produced by the
-implementations.
+evaluation.
 
 \item \textbf{Chapter~\ref{sec:related-work-conclusion} - Conclusion.}
 Finally, this chapter summarizes the findings of the thesis and discusses
