@@ -9,9 +9,7 @@ cargo build --release --example bench_worker
 `BENCH_SPLIT_OUTCOME=1` is set on every `bench_corpus_time` run below.
 It costs nothing -- the match/non-match split is computed in the same
 pass regardless of the flag; it only gates whether the second table
-gets printed -- so there is no reason to ever omit it. This also
-removes the original plan's T6 (`s2-elab`, uncapped, no split): T2
-already is that run, plus the outcome breakdown for free.
+gets printed -- so there is no reason to ever omit it.
 
 Every run below also sets `BENCH_RUN_LABEL` to its own T/M/X number,
 so each one's CSV lands in its own file (`bench_corpus_time_T3.csv`,
@@ -22,83 +20,69 @@ label, run that exact line, look for the labelled file under
 (`bench_translate.csv`, never labelled) always appends instead of
 writing a separate file per run -- see its own section below.
 
+## Corpus sizes (post-dedup)
+
+`run_pipeline` now skips a rule whose pattern text byte-matches one
+already seen earlier in the same `dataset_prepare` run (see
+`rules_duplicate_pattern` in `reports/data/dataset_prepare.csv`), so
+`patterns_usable` dropped a lot for the two sources that had heavy
+internal reuse -- regenerate `prepared.jsonl` for every source before
+trusting any run below. Current sizes, N=2 (1 match + 1 non-match)
+per pattern:
+
+| Source | Usable patterns | Entries |
+|---|---|---|
+| Suricata | 2080 | 4160 |
+| SpamAssassin | 155 | 310 |
+| RegexLib | 2144 | 4288 |
+| S2ELab | 438 | 876 |
+| Innovatorved | 4795 | 9590 |
+| **All 5, combined** | **9612** | **19224** |
+
+Suricata shrank from 6122 (66% was duplicate signatures sharing one
+generic detection fragment across many `sid`s); RegexLib from 4099
+(48% duplicate, independent users submitting the same validator). The
+other three barely moved (SpamAssassin/S2ELab under 5% duplicate;
+Innovatorved 4.4%).
+
+The corpus is small enough now, across all five sources combined,
+that there is no cost reason left to cap anything or split work across
+many separate invocations -- the plan below reflects that: three runs
+per target instead of eleven.
+
 ## Corpus timing (`bench_corpus_time`)
 
 ```bash
-# T1 -- smoke: corpus reads, ballpark.
-BENCH_SOURCE=suricata,spamassassin BENCH_PATTERN_LIMIT=5 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T1 \
+# T1 -- smoke: all five sources, minimal cap
+BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
+BENCH_PATTERN_LIMIT=5 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T1 \
   cargo bench --bench bench_corpus_time
 
-# T2 -- curated, balanced, whole corpus.
-BENCH_SOURCE=s2-elab BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T2 \
-  cargo bench --bench bench_corpus_time
+# T2 -- default (Suricata + SpamAssassin)
+BENCH_RUN_LABEL=T2 cargo bench --bench bench_corpus_time
 
-# T3 -- Snort at cap 50. Superseded by T10 as the headline number --
-# kept as the cap-sensitivity exhibit (see Notes).
-BENCH_SOURCE=suricata BENCH_PATTERN_LIMIT=50 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T3 \
-  cargo bench --bench bench_corpus_time
-
-# T4 -- main SpamAssassin row, whole corpus.
-BENCH_SOURCE=spamassassin BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T4 \
-  cargo bench --bench bench_corpus_time
-
-# T5 -- RegexLib row at cap 50. Superseded by T11 -- see Notes.
-BENCH_SOURCE=regexlib BENCH_PATTERN_LIMIT=50 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T5 \
-  cargo bench --bench bench_corpus_time
-
-# T7 -- does anchoring change cost? Unanchored side.
-BENCH_SOURCE=suricata BENCH_PATTERN_LIMIT=50 BENCH_MATCH_INTENT=direct BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T7 \
-  cargo bench --bench bench_corpus_time
-
-# T8 -- ^...$-recoverable side.
-BENCH_SOURCE=suricata BENCH_PATTERN_LIMIT=50 BENCH_MATCH_INTENT=explicit BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T8 \
-  cargo bench --bench bench_corpus_time
-
-# T9 -- stability check at 4x T3's cap. Also superseded by T10 as a
-# headline number, kept for the same reason as T3.
-BENCH_SOURCE=suricata BENCH_PATTERN_LIMIT=200 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T9 \
-  cargo bench --bench bench_corpus_time
-
-# T10 -- whole Snort corpus (12244 entries). The headline timing
-# number; see Notes for what running it changed.
-BENCH_SOURCE=suricata BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T10 \
-  cargo bench --bench bench_corpus_time
-
-# T11 -- whole RegexLib corpus. T5's cap=50 anomalies (pderiv-only
-# timeouts, pderiv memory exceeding deriv_std) have the same
-# "artifact or real" question T10 just answered for Suricata.
-BENCH_SOURCE=regexlib BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T11 \
+# T3 -- every source, whole corpus, one run
+BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
+BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=T3 \
   cargo bench --bench bench_corpus_time
 ```
 
 ## Corpus memory (`bench_memory`)
 
-No split variable; mirrors the timing sources/caps above.
+No split variable; same sources, same reasoning as the timing plan
+above.
 
 ```bash
-# M1 -- Suricata at cap 50. Superseded by M10 -- see Notes.
-BENCH_SOURCE=suricata BENCH_PATTERN_LIMIT=50 BENCH_RUN_LABEL=M1 cargo bench --bench bench_memory
+# M1 -- smoke, all five, minimal cap.
+BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
+BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=M1 cargo bench --bench bench_memory
 
-# M2
-BENCH_SOURCE=spamassassin BENCH_RUN_LABEL=M2 cargo bench --bench bench_memory
+# M2 -- default (Suricata + SpamAssassin)
+BENCH_RUN_LABEL=M2 cargo bench --bench bench_memory
 
-# M3 -- RegexLib at cap 50. Superseded by M6.
-BENCH_SOURCE=regexlib BENCH_PATTERN_LIMIT=50 BENCH_RUN_LABEL=M3 cargo bench --bench bench_memory
-
-# M4
-BENCH_SOURCE=s2-elab BENCH_RUN_LABEL=M4 cargo bench --bench bench_memory
-
-# M5 -- stability check, mirrors T9. Superseded by M10.
-BENCH_SOURCE=suricata BENCH_PATTERN_LIMIT=200 BENCH_RUN_LABEL=M5 cargo bench --bench bench_memory
-
-# M6 -- whole RegexLib corpus. Pairs with T11.
-BENCH_SOURCE=regexlib BENCH_RUN_LABEL=M6 cargo bench --bench bench_memory
-
-# M10 -- whole Suricata corpus. Pairs with T10, and is now the single
-# highest-priority run left: the chapter's strongest claim (M1's ~5x
-# total / ~520x peak gap) is still resting on a cap=50 sample, the
-# same unverified-at-scale status T3's timing number had before T10.
-BENCH_SOURCE=suricata BENCH_RUN_LABEL=M10 cargo bench --bench bench_memory
+# M3 -- every source, whole corpus, one run.
+BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
+BENCH_RUN_LABEL=M3 cargo bench --bench bench_memory
 ```
 
 When writing up any M run: report `timed_out`/`crashed` alongside `max
@@ -111,7 +95,7 @@ worst case for that source, not the true worst case.
 ## Translation cost (`bench_translate`)
 
 Frontend translation (`core_regex`: PCRE string -> `Regex`) only --
-the step T1-T11/M1-M10 all deliberately exclude from the parser-call
+the step T1-T3/M1-M3 all deliberately exclude from the parser-call
 numbers above (see `bench_worker.rs`'s module doc). Measured by
 *distinct pattern*, not by entry: translation cost depends only on the
 pattern, so timing it per entry (the way match cost is timed) would
@@ -193,51 +177,64 @@ cargo bench --bench bench_match
 
 ## Notes
 
-- **Source selection.** Suricata, SpamAssassin, S2ELab, RegexLib in
-  the main tables now that T11/M6 exist; justify RegexLib on
-  crowd-sourced-but-cheap-to-check grounds, not "maintained production
-  ruleset." Innovatorved stays out of the main tables -- not only for
-  data-quality reasons, but because it's the corpus that exposed this
-  session's OOM bug and verified the fix; see the appendix runs above
-  instead.
-- **Caps can mislead** T10 found
-  `deriv_bc`'s apparent time edge over both `pderiv` variants on
-  Suricata (real at cap 50 and cap 200) disappears at full scale:
-  mean dropped 149.5ms -> 50.8ms -> 7.06ms across the three caps,
-  meaning the first 50-200 patterns in the file are unusually
-  expensive, not representative. T3/T9 are kept as the exhibit for
-  this, not as headline numbers. The same question is now open for
-  RegexLib (T11/M6) and for Suricata's memory story (M10).
-- **`pderiv_std` beating `pderiv_bc` on time looks real.** Two large,
-  unconfounded comparisons agree: RegexLib (T5, identical entry/timeout
-  counts both sides) and full Suricata (T10, only a 2-entry timeout
-  difference out of 12244 -- too small to explain the gap). Worth a
-  sentence distinguishing this from the cap=200 (M5) case, where
-  `pderiv_std` excluded twice as many entries as `pderiv_bc` and the
-  apparent edge is at least partly that artifact.
-- **Match/non-match asymmetry shrinks at scale.** Real for every
-  parser at cap 50; at full Suricata scale (T10) it washes out for
-  everyone except `deriv_std_rec`/`loop`, which keep ~13%.
-- **Runtime estimates undercount**, direction known: `wall (s)`
-  includes a process spawn + pipe round trip per entry that `mean`
-  excludes by design, so `wall ÷ entries` and `mean` can differ by an
-  order of magnitude on cheap-pattern sources (SpamAssassin) and less
-  on expensive ones (Suricata). Doesn't change feasibility.
-  `bench_translate`'s own numbers (X-series) don't have this problem --
-  no process per pattern -- so they're the clean figure for translation
-  specifically, not just the cheap one.
-- **Isolation safety is proven at both ends now**: the worst single
-  corpus (Innovatorved, this session's OOM investigation, ~420MB peak)
-  and the largest one (T10, 12244 entries, 23 timeouts handled
-  cleanly). M10/M6 use the identical mechanism; expected safe by the
-  same proof, not independently re-verified at this exact scale for
-  `bench_memory` specifically.
-- **Translation cost is now measured directly, not just excluded.**
-  X2-X5 give an actual mean/median/p99/max for `core_regex` itself, by
+- **The old per-source, capped plan (T3-T11/M1-M10 in earlier
+  revisions of this file) is retired, not just renamed -- it no longer
+  appears above.** Those runs measured a corpus with
+  65%/48% duplicate-signature weighting baked in for Suricata/RegexLib
+  (see "Corpus sizes" above) -- the specific numbers (149.5ms, the
+  520x peak gap, the 12244-entry count, all of it) came from a corpus
+  that no longer exists in that shape. The *questions* those runs were
+  trying to answer mostly still matter; the *answers* need re-deriving
+  from T3/M3 against the deduped corpus before any of them go back in
+  the thesis. Kept below only as a record of what was asked and why,
+  not as current findings.
+- **Source selection**: all five in T1-T3/M1-M3 now, no exclusion.
+  Innovatorved's old exclusion was about input-generation quality
+  (real vs. synthetic match/non-match examples) and about it being the
+  corpus that exposed this session's OOM bug -- neither is a reason to
+  leave it out of a combined run: its own `timed_out`/`crashed` columns
+  in T3/M3's output are exactly where "how often does process
+  isolation actually have to intervene" now lives, no separate
+  appendix run needed.
+- **Caps can mislead -- was the headline finding of the old plan,
+  status now open.** T10 (old plan) found `deriv_bc`'s apparent time
+  edge over `pderiv` on Suricata reversed between cap 50 and full
+  scale, which was real *for that corpus*. Whether the same reversal
+  holds on the deduped corpus (T3) is an open question again, not a
+  confirmed one -- the "first N patterns in the file" effect the old
+  finding described is a different mechanism from duplicate-signature
+  weighting, and dedup doesn't obviously fix the former just because it
+  fixed the latter. Re-check once T3 lands, don't assume it carries
+  over.
+- **`pderiv_std` vs `pderiv_bc` on time, match/non-match asymmetry,
+  and the M1 5x/520x memory gap** were all old-plan findings with the
+  same status: plausible mechanisms (worth re-reading the reasoning
+  that produced them), unconfirmed numbers (all computed against the
+  pre-dedup corpus). Re-derive from T3/M3, cite those, not the old
+  ones.
+- **Runtime estimates undercount**, direction known, independent of
+  corpus size: `wall (s)` includes a process spawn + pipe round trip
+  per entry that `mean` excludes by design, so `wall ÷ entries` and
+  `mean` can differ by an order of magnitude on cheap-pattern sources
+  (SpamAssassin) and less on expensive ones (Suricata). Doesn't change
+  feasibility. `bench_translate`'s own numbers don't have this problem
+  -- no process per pattern -- so they're the clean figure for
+  translation specifically, not just the cheap one.
+- **Isolation safety**: proven on the hardest corpus by content
+  (Innovatorved, this session's OOM investigation, ~420MB peak) before
+  any of this; T3/M3 re-exercise it at the new combined scale (9612
+  patterns across all five sources) but that's a repeat of an
+  already-proven mechanism, not a new risk class -- nothing to
+  specifically watch for beyond reading `timed_out`/`crashed` off the
+  output as usual.
+- **Translation cost is measured directly, not just excluded.** X2-X6
+  give an actual mean/median/p99/max for `core_regex` itself, by
   source, plus the same four stats for translated size (nodes) --
   worth a sentence correlating cost with size rather than quoting time
-  alone. The `_patterns.csv` catalogue and `translation_examples.txt`
-  are also where the "here is what translation produces" thesis figure
+  alone; these numbers are already current (collected against the
+  deduped corpus) and don't need re-running the way T/M's old numbers
+  do. The `_patterns.csv` catalogue and `translation_examples.txt` are
+  also where the "here is what translation produces" thesis figure
   should come from -- pick a small pattern, not a real corpus one: a
   character class with an unintended huge range (e.g. `[\--–]`, hyphen
   -to-en-dash) can translate to hundreds of thousands of nodes before
@@ -245,7 +242,8 @@ cargo bench --bench bench_match
   tree is not something to print unconditionally; `bench_translate`
   handles this by only rendering a pattern's tree when it's under
   `BENCH_TRANSLATE_RENDER_MAX_NODES` nodes.
-- **If T11/M6 confirm RegexLib's anomaly survives at full scale**,
-  worth a small diagnostic naming the specific pattern(s) responsible
-  -- a concrete named example reads better than an aggregate anomaly.
-  Not built; flag if wanted once T11 lands.
+- **Dropped from the old plan, not yet replaced**: T7/T8's
+  does-anchoring-change-cost comparison (`BENCH_MATCH_INTENT=direct`
+  vs `explicit`). Not part of T1-T3 -- say the word if it's still
+  wanted; it would slot in as its own small pair of runs rather than
+  folding into the main three.
