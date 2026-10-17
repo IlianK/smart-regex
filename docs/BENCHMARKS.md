@@ -108,7 +108,9 @@ CLI arguments.
   differently-configured runs (e.g. a `BENCH_PLAN.md`-style set of
   labelled commands) lands in separate files instead of each one
   overwriting the last. Unset keeps today's bare filename, replaced on
-  every run as before.
+  every run as before. One exception: `bench_translate`'s aggregate
+  `bench_translate.csv` ignores this variable entirely and always
+  appends -- see its own section below.
 
 - **`BENCH_SIZE_LIMIT=N`** — Caps each synthetic family's hardcoded
   size/depth sweep to values ≤ N. Families with no value ≤ N contribute
@@ -305,7 +307,9 @@ not per entry: translation cost depends only on the pattern, and an
 entry-level measurement would re-measure the same pattern's
 translation once per input it carries.
 
-Three outputs, all under `reports/`:
+Three outputs, all under `reports/`. Two are labelled like every other
+bench's output here; the aggregate one is the one exception in this
+whole file:
 
 - `reports/benches/bench_translate.csv` -- one row per source:
   mean/median/p99/max of time (ms), allocation (total and peak bytes),
@@ -313,24 +317,33 @@ Three outputs, all under `reports/`:
   successfully (`translated`; `rejected` and `crashed` are excluded
   the same way `timed_out`/`crashed` are excluded elsewhere in this
   file, and for the same reason -- they are not real measurements of
-  a successful call).
-- `reports/benches/bench_translate_patterns.csv` -- one row per
+  a successful call). Always exactly this filename, ignoring
+  `BENCH_RUN_LABEL` -- **appended** to, never overwritten, so a run
+  scoped to one source and a run covering all five both add their
+  row(s) to the same growing file instead of replacing each other.
+  Two extra columns, `run_label` and `pattern_limit`, record each
+  row's own invocation, since the (shared) filename no longer can.
+- `reports/benches/bench_translate{label}_patterns.csv` -- one row per
   distinct pattern: its own nodes/micros/bytes, plus the translated
   `Regex` itself via its derived `Debug` (`Seq(Lit('a'), ...)`-style --
   the six constructors translation actually produces, not a flattened
   reading of them) when `BENCH_TRANSLATE_RENDER_MAX_NODES` allows it.
-  The catalogue to hand-pick thesis examples from.
+  The catalogue to hand-pick thesis examples from. Labelled and
+  overwritten as usual -- kept one catalogue per run, on purpose, even
+  though the aggregate CSV next to it isn't.
 - `reports/demos/translation_examples.txt` -- the
   `BENCH_TRANSLATE_EXAMPLES` smallest distinct patterns per source,
   fully rendered. Always overwritten, never labelled by
   `BENCH_RUN_LABEL`: a curated starting point, not a measurement run.
 
-Reads `BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`, and
-`BENCH_RUN_LABEL` (the first two CSVs only -- never the examples file)
-the same way `bench_corpus_time`/`bench_memory` do. Does not read
-`BENCH_ENTRY_TIMEOUT_MS` or `BENCH_SPLIT_OUTCOME`: there is no timeout
-concept here (see "Five `cargo bench` targets" above) and no
-match/non-match split (translation doesn't touch the input at all).
+Reads `BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, and `BENCH_MATCH_INTENT`
+the same way `bench_corpus_time`/`bench_memory` do.
+`BENCH_RUN_LABEL` only affects the `_patterns.csv` filename -- the
+aggregate CSV ignores it (see above), and the examples file is never
+labelled either way. Does not read `BENCH_ENTRY_TIMEOUT_MS` or
+`BENCH_SPLIT_OUTCOME`: there is no timeout concept here (see "Five
+`cargo bench` targets" above) and no match/non-match split
+(translation doesn't touch the input at all).
 
 No process isolation, unlike every other corpus target in this file.
 Deliberate, not an oversight: every pattern reaching this bench already
@@ -432,12 +445,19 @@ BENCH_MATCH_INTENT=direct cargo bench --bench bench_memory
 **Translation cost** (`bench_translate`, no worker to build, same
 source/pattern-limit variables):
 
+One source per invocation, same as `bench_corpus_time`/`bench_memory`
+above -- each one's own label keeps its `_patterns.csv` genuinely
+separate per source, which is the point of that file. Each run still
+appends its row to the single, shared `bench_translate.csv` overview
+regardless of label, so that file ends up covering every source
+without needing a combined run.
+
 ```bash
 # Default sources, every distinct pattern.
 cargo bench --bench bench_translate
 
-# One source, no cap.
-BENCH_SOURCE=suricata cargo bench --bench bench_translate
+# One source, no cap -- appends its own row to the shared overview CSV.
+BENCH_SOURCE=suricata BENCH_RUN_LABEL=X2 cargo bench --bench bench_translate
 
 # Render fewer/more examples, or render larger patterns' trees too.
 BENCH_TRANSLATE_EXAMPLES=10 BENCH_TRANSLATE_RENDER_MAX_NODES=300 \

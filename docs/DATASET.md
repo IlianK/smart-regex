@@ -123,6 +123,7 @@ Run `dataset_stats` (Suricata + SpamAssassin by default):
 | Table | Shows |
 |---|---|
 | Dataset coverage | per source: files, extracted, accepted / rejected, each with % |
+| Pattern duplication | per source: of extracted and of accepted, how many are byte-identical to an earlier pattern's text, each with % |
 | Accepted by match-intent reliability | `Direct` vs `Explicit ^...$` counts, each with % |
 | Rejection reasons | per source: one column per cause (backreference, lookaround, word-boundary, anchor, flag-m, flag-x, other) |
 | Anchor shape | per source: one column per shape (unparseable, none, fully-wrapped, start-only, end-only, nested) |
@@ -172,6 +173,20 @@ more, never fewer. A pattern that cannot reach N/2 of both (even after
 retrying generation) contributes nothing at all and is counted
 separately as below-target — see the summary `dataset_prepare` prints.
 
+A rule whose raw pattern text is byte-identical to an earlier rule's in
+the same run is skipped before translation even starts, rather than
+generating and verifying a second, independent input group for the
+same regex — doing so would silently overweight that one pattern in
+any benchmark that reads `prepared.jsonl` back, in proportion to how
+many times the source corpus happens to repeat it (real rulesets do:
+many Suricata signatures reuse one generic detection fragment across
+several `sid`s, and RegexLib has many near-duplicate crowd submissions
+of the same validator). Counted separately as `rules_duplicate_pattern`
+in the summary and in `reports/data/dataset_prepare.csv`, not folded
+into the unusable/rejected count. The "Pattern duplication" table in
+`dataset_stats` reports the same thing on the raw corpus, without
+running generation or verification to get there.
+
 Unlike `prepared.jsonl`, the same run's summary numbers are *appended*
 as one row to `reports/data/dataset_prepare.csv`, not replaced: the
 point of that file is comparing how the pipeline behaves across
@@ -188,16 +203,20 @@ one adds its own.
 1. `extract` — one raw file's text to `ExtractedRule`s: pattern plus
    source-specific context (`content:` fields for Suricata, rule kind
    for SpamAssassin, description for RegexLib).
-2. `prepare::core_regex_tagged` — parse and translate, with two size
+2. Dedup by raw pattern text against every rule already seen earlier in
+   this run. A repeat is counted (`rules_duplicate_pattern`) and
+   skipped outright -- its fate is already decided by the first
+   occurrence, so nothing downstream re-examines it.
+3. `prepare::core_regex_tagged` — parse and translate, with two size
    caps and one narrow anchor recovery.
    Rejected patterns stop here.
-3. `generate` — one accepted pattern's `Regex` to `Candidate` inputs,
+4. `generate` — one accepted pattern's `Regex` to `Candidate` inputs,
    sampled structurally or from real `content:` fields / a local message
    corpus. Nothing trusted yet.
-4. `prepare::verify_all` — check every candidate against the real
+5. `prepare::verify_all` — check every candidate against the real
    parser, discard what doesn't hold, write survivors as
    `PreparedCase` JSON lines tagged with their `MatchIntent`.
-5. `run_pipeline` — drives 1–4 for one source; returns `PipelineReport`.
+6. `run_pipeline` — drives 1–5 for one source; returns `PipelineReport`.
    `load_prepared_cases` reads the result back for benchmarks.
 
 

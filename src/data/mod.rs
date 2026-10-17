@@ -9,6 +9,7 @@ pub mod generate;
 pub mod prepare;
 pub mod types;
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use rand::rngs::StdRng;
@@ -19,9 +20,23 @@ use types::{MatchIntent, PreparedCase, RuleContext, SourceKind};
 #[derive(Debug, Default, Clone)]
 pub struct PipelineReport {
     pub rules_extracted: usize,
+    /// Of `rules_extracted`, how many carried byte-identical
+    /// `raw_pattern` text to a rule already seen earlier in this same
+    /// run. Checked -- and skipped -- before translation is even
+    /// attempted: a duplicate's fate (accepted or not, usable or not)
+    /// is already decided by its first occurrence, so re-deriving it
+    /// would only double-count the same answer and, worse, write a
+    /// second independently-generated input group for the same regex
+    /// into `prepared.jsonl`, overweighting that pattern in any
+    /// benchmark that reads it. `dataset_stats` reports the same
+    /// duplication on the raw corpus without running generation or
+    /// verification to get there.
+    pub rules_duplicate_pattern: usize,
     /// Rejected by `prepare::core_regex_tagged`.
+    /// Of `rules_extracted - rules_duplicate_pattern`, i.e. of distinct
+    /// patterns only.
     pub patterns_unusable: usize,
-    /// Patterns `core_regex_tagged` could translate.
+    /// Distinct patterns `core_regex_tagged` could translate.
     /// Not what landed in `prepared.jsonl`; see `patterns_usable`.
     pub patterns_accepted: usize,
     /// Of `patterns_accepted`, top-level `^...$` wraps.
@@ -163,7 +178,17 @@ pub fn run_pipeline(
     }
     let _ = std::fs::remove_file(&out_path);
 
+    let mut seen_patterns: HashSet<&str> = HashSet::new();
     for rule in &rules {
+        if !seen_patterns.insert(rule.raw_pattern.as_str()) {
+            // Byte-identical to a rule already processed above in this
+            // same run -- same translation result, same generate/verify
+            // outcome, guaranteed. Skip rather than re-derive it a
+            // second time and write a second independent input group
+            // for the same regex into `prepared.jsonl`.
+            report.rules_duplicate_pattern += 1;
+            continue;
+        }
         let Ok((core, match_intent)) = prepare::core_regex_tagged(&rule.raw_pattern) else {
             report.patterns_unusable += 1;
             continue;
@@ -298,4 +323,51 @@ pub fn load_prepared_cases(
         out.extend(cases);
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn duplicate_pattern_text_is_skipped_not_double_counted() {
+        let dir = std::env::temp_dir().join(format!("data-pipeline-dedup-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let rules_path = dir.join("dedup.rules");
+        // Two rules share byte-identical pcre content (different sid,
+        // same signature -- exactly the real-world Suricata/RegexLib
+        // pattern this dedup exists for); a third is genuinely distinct.
+        std::fs::write(
+            &rules_path,
+            "alert tcp any any -> any any (msg:\"one\"; pcre:\"/abc/\"; sid:1;)\n\
+             alert tcp any any -> any any (msg:\"two\"; pcre:\"/abc/\"; sid:2;)\n\
+             alert tcp any any -> any any (msg:\"three\"; pcre:\"/xyz/\"; sid:3;)\n",
+        )
+        .unwrap();
+
+        let out_root = dir.join("processed");
+        let report = run_pipeline(
+            SourceKind::Suricata,
+            &[rules_path],
+            &out_root,
+            None,
+            20260101,
+            2,
+        )
+        .unwrap();
+
+        assert_eq!(report.rules_extracted, 3);
+        assert_eq!(report.rules_duplicate_pattern, 1, "the second /abc/ should be skipped, not re-derived");
+        assert_eq!(report.patterns_accepted, 2, "two distinct patterns: /abc/ and /xyz/");
+        assert_eq!(report.patterns_usable, 2);
+        assert_eq!(report.inputs_usable, 4, "2 distinct patterns x 2 inputs each");
+
+        let cases = prepare::read_prepared_cases(&out_root.join("snort").join("prepared.jsonl")).unwrap();
+        let mut patterns: Vec<&str> = cases.iter().map(|c| c.pattern.as_str()).collect();
+        patterns.sort_unstable();
+        patterns.dedup();
+        assert_eq!(patterns, vec!["/abc/", "/xyz/"], "prepared.jsonl holds one input group per distinct pattern, not per rule");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

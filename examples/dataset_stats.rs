@@ -4,8 +4,9 @@
 //!          [--source S] [--verbose] [--no-flags] [file...]
 //!
 //! Per-source corpus report.
-//! Covers extraction counts, acceptance, match-intent reliability,
-//! rejection causes, anchor shape distribution, and PCRE flag usage.
+//! Covers extraction counts, acceptance, pattern duplication,
+//! match-intent reliability, rejection causes, anchor shape
+//! distribution, and PCRE flag usage.
 //! Defaults to Suricata and SpamAssassin under `data/raw/`.
 //! RegexLib, S2ELab, and Innovatorved are opt-in only.
 //! RegexLib and Innovatorved are crowd-sourced, with no correctness
@@ -29,7 +30,7 @@
 //!              flag, a translation too large for the pipeline's safety
 //!              caps, or another unsupported construct.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
 
 use regex_engine::data::extract::{
@@ -208,6 +209,18 @@ struct SourceStats {
     anchor_shapes: BTreeMap<AnchorShape, usize>,
     flag_usage: BTreeMap<char, usize>,
     flag_accepted: BTreeMap<char, usize>,
+    /// Distinct raw pattern text among every extracted pattern,
+    /// accepted or not. A source's own redundancy, independent of
+    /// whether a pattern can even be translated -- `dataset_prepare`'s
+    /// dedup only skips *accepted* duplicates (see `run_pipeline`),
+    /// since there is no benchmark-weighting concern for a pattern
+    /// nothing ever generates input for either way.
+    extracted_seen: HashSet<String>,
+    /// Distinct raw pattern text among ACCEPTED patterns only -- the
+    /// subset `dataset_prepare` actually dedups before generating and
+    /// verifying input, and therefore the subset whose duplication
+    /// actually affects `patterns_usable` and benchmark weighting.
+    accepted_seen: HashSet<String>,
     /// Populated only when --verbose.
     rejections: Vec<(String, Cause)>,
 }
@@ -231,8 +244,25 @@ impl SourceStats {
         self.accepted_explicit + self.accepted_ambiguous
     }
 
+    fn distinct_extracted(&self) -> usize {
+        self.extracted_seen.len()
+    }
+
+    fn duplicate_extracted(&self) -> usize {
+        self.extracted.saturating_sub(self.distinct_extracted())
+    }
+
+    fn distinct_accepted(&self) -> usize {
+        self.accepted_seen.len()
+    }
+
+    fn duplicate_accepted(&self) -> usize {
+        self.accepted().saturating_sub(self.distinct_accepted())
+    }
+
     fn add_pattern(&mut self, pattern: &str, context: &RuleContext, verbose: bool) {
         self.extracted += 1;
+        self.extracted_seen.insert(pattern.to_string());
 
         // Flags recorded for every extracted pattern, accepted or not.
         // The point is what the corpus contains, not what survives.
@@ -251,6 +281,7 @@ impl SourceStats {
 
         match classify(pattern) {
             Classification::Accepted(intent) => {
+                self.accepted_seen.insert(pattern.to_string());
                 match intent {
                     MatchIntent::ExplicitFullMatch => self.accepted_explicit += 1,
                     MatchIntent::UnanchoredAmbiguous => self.accepted_ambiguous += 1,
@@ -289,6 +320,11 @@ impl SourceStats {
         for (flag, n) in &self.flag_accepted {
             *total.flag_accepted.entry(*flag).or_default() += n;
         }
+        // True union, not a sum of per-source counts: a pattern shared
+        // across two selected sources should still count once in the
+        // combined total's own distinct count.
+        total.extracted_seen.extend(self.extracted_seen.iter().cloned());
+        total.accepted_seen.extend(self.accepted_seen.iter().cloned());
     }
 
     fn rejected_total(&self) -> usize {
@@ -453,6 +489,51 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
         println!("         from the source. `dataset_prepare`'s `from source`");
         println!("         line reports the real:generated split per source.");
     }
+}
+
+fn duplication_table(stats: &[SourceStats], total: &SourceStats) {
+    header("Pattern duplication (byte-identical raw pattern text)");
+    println!(
+        "{:<13} {:>9} {:>8} {:>6} {:>6} {:>6} {:>9} {:>8} {:>6} {:>6} {:>6}",
+        "Source", "Extract.", "Distinct", "Dist%", "Dup", "Dup%", "Accept.", "Distinct", "Dist%", "Dup", "Dup%",
+    );
+    println!("{}", "-".repeat(93));
+
+    let pct = |n: usize, of: usize| if of == 0 { 0.0 } else { 100.0 * n as f64 / of as f64 };
+
+    let print_row = |s: &SourceStats| {
+        println!(
+            "{:<13} {:>9} {:>8} {:>6.1} {:>6} {:>6.1} {:>9} {:>8} {:>6.1} {:>6} {:>6.1}",
+            s.name(),
+            s.extracted,
+            s.distinct_extracted(),
+            pct(s.distinct_extracted(), s.extracted),
+            s.duplicate_extracted(),
+            pct(s.duplicate_extracted(), s.extracted),
+            s.accepted(),
+            s.distinct_accepted(),
+            pct(s.distinct_accepted(), s.accepted()),
+            s.duplicate_accepted(),
+            pct(s.duplicate_accepted(), s.accepted()),
+        );
+    };
+
+    for s in stats {
+        print_row(s);
+    }
+    println!("{}", "-".repeat(93));
+    print_row(total);
+    println!();
+    println!("Distinct = count of unique raw pattern text, usable as that many separate");
+    println!("benchmark patterns; Dist% = Distinct as a share of the column to its left.");
+    println!("Dup = the rest -- rules/patterns whose exact text already appeared earlier");
+    println!("in this source; Dup% likewise. Distinct% + Dup% = 100% in each half.");
+    println!("Extract. half covers every extracted pattern regardless of");
+    println!("translatability; Accept. half is the subset `dataset_prepare` actually");
+    println!("dedups before generating input (see `rules_duplicate_pattern` in its own");
+    println!("report) -- Accept. Distinct is what ends up as separate patterns in");
+    println!("`prepared.jsonl`, and so what any benchmark reading it sees: the number");
+    println!("that answers \"how many of these can actually be used\".");
 }
 
 fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
@@ -742,6 +823,7 @@ fn main() {
     }
 
     coverage_table(&per_source, &total);
+    duplication_table(&per_source, &total);
     match_intent_table(&per_source, &total);
     rejection_table(&per_source, &total);
     anchor_shape_table(&per_source, &total);

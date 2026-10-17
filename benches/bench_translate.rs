@@ -20,8 +20,13 @@
 //! `micros` here is a clean in-process number, no spawn/pipe overhead.
 //!
 //! Outputs:
-//!   - `reports/benches/bench_translate{label}.csv` -- per source:
-//!     mean/median/p99/max time, alloc (total, peak), nodes.
+//!   - `reports/benches/bench_translate.csv` -- per source:
+//!     mean/median/p99/max time, alloc (total, peak), nodes. Always
+//!     this exact name, ignoring `BENCH_RUN_LABEL` -- appended to, not
+//!     overwritten, so one run per source (or one run covering all of
+//!     them) accumulates into a single overview instead of N separate
+//!     one-line files. `run_label`/`pattern_limit` columns record what
+//!     each row's own invocation actually was.
 //!   - `reports/benches/bench_translate{label}_patterns.csv` -- per
 //!     distinct pattern: nodes/micros/bytes plus the `Regex` via its
 //!     `Debug`, when nodes <= `BENCH_TRANSLATE_RENDER_MAX_NODES`
@@ -476,43 +481,59 @@ fn report(
 // CSV / text output
 // -------------------------------
 
-fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
-    let mut f = std::fs::File::create(path)?;
-    writeln!(
-        f,
-        "source,patterns,translated,rejected,crashed,\
-         mean_ms,median_ms,p99_ms,max_ms,\
-         mean_total_bytes,median_total_bytes,p99_total_bytes,max_total_bytes,\
-         mean_peak_bytes,median_peak_bytes,p99_peak_bytes,max_peak_bytes,\
-         mean_nodes,median_nodes,p99_nodes,max_nodes"
-    )?;
-    for r in rows {
+/// Appends exactly one row for one source's just-finished `report()`
+/// call. Writes the header only when `path` doesn't exist yet -- same
+/// convention `dataset_prepare.rs` uses for its own CSV. Called once
+/// per source as soon as that source finishes, not accumulated and
+/// rewritten the way `write_patterns_csv` still is below: an append is
+/// already durable the moment it returns, so there's nothing later to
+/// lose on a crash, not even the within-this-run safety net the
+/// rewrite approach needed.
+fn append_summary_row(
+    path: &str,
+    run_label: &str,
+    pattern_limit: &str,
+    r: &SummaryRow,
+) -> std::io::Result<()> {
+    let write_header = !Path::new(path).exists();
+    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+    if write_header {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
-            r.source,
-            r.patterns,
-            r.translated,
-            r.rejected,
-            r.crashed,
-            fmt_opt(r.mean_ms),
-            fmt_opt(r.median_ms),
-            fmt_opt(r.p99_ms),
-            fmt_opt(r.max_ms),
-            fmt_opt(r.mean_total_bytes),
-            fmt_opt(r.median_total_bytes),
-            fmt_opt(r.p99_total_bytes),
-            r.max_total_bytes.map(|v| v.to_string()).unwrap_or_default(),
-            fmt_opt(r.mean_peak_bytes),
-            fmt_opt(r.median_peak_bytes),
-            fmt_opt(r.p99_peak_bytes),
-            r.max_peak_bytes.map(|v| v.to_string()).unwrap_or_default(),
-            fmt_opt(r.mean_nodes),
-            fmt_opt(r.median_nodes),
-            fmt_opt(r.p99_nodes),
-            r.max_nodes.map(|v| v.to_string()).unwrap_or_default(),
+            "run_label,pattern_limit,source,patterns,translated,rejected,crashed,\
+             mean_ms,median_ms,p99_ms,max_ms,\
+             mean_total_bytes,median_total_bytes,p99_total_bytes,max_total_bytes,\
+             mean_peak_bytes,median_peak_bytes,p99_peak_bytes,max_peak_bytes,\
+             mean_nodes,median_nodes,p99_nodes,max_nodes"
         )?;
     }
+    writeln!(
+        f,
+        "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+        csv_quote(run_label),
+        pattern_limit,
+        r.source,
+        r.patterns,
+        r.translated,
+        r.rejected,
+        r.crashed,
+        fmt_opt(r.mean_ms),
+        fmt_opt(r.median_ms),
+        fmt_opt(r.p99_ms),
+        fmt_opt(r.max_ms),
+        fmt_opt(r.mean_total_bytes),
+        fmt_opt(r.median_total_bytes),
+        fmt_opt(r.p99_total_bytes),
+        r.max_total_bytes.map(|v| v.to_string()).unwrap_or_default(),
+        fmt_opt(r.mean_peak_bytes),
+        fmt_opt(r.median_peak_bytes),
+        fmt_opt(r.p99_peak_bytes),
+        r.max_peak_bytes.map(|v| v.to_string()).unwrap_or_default(),
+        fmt_opt(r.mean_nodes),
+        fmt_opt(r.median_nodes),
+        fmt_opt(r.p99_nodes),
+        r.max_nodes.map(|v| v.to_string()).unwrap_or_default(),
+    )?;
     Ok(())
 }
 
@@ -623,11 +644,12 @@ fn main() {
         return;
     }
     let label = run_label_suffix();
-    let summary_path = format!("{REPORTS_DIR}/bench_translate{label}.csv");
+    let summary_path = format!("{REPORTS_DIR}/bench_translate.csv");
     let patterns_path = format!("{REPORTS_DIR}/bench_translate{label}_patterns.csv");
     let examples_path = format!("{DEMOS_DIR}/translation_examples.txt");
+    let run_label = std::env::var("BENCH_RUN_LABEL").unwrap_or_default();
+    let pattern_limit_str = fmt_limit(sel.pattern_limit);
 
-    let mut all_summary: Vec<SummaryRow> = Vec::new();
     let mut all_patterns: Vec<(&'static str, SourcePatternStat)> = Vec::new();
     let mut by_source: Vec<(&'static str, Vec<SourcePatternStat>)> = Vec::new();
 
@@ -639,8 +661,10 @@ fn main() {
         ("dataset_innovatorved", &innovatorved),
     ] {
         let (summary, per_pattern) = report(label, patterns, render_cap);
-        if let Some(s) = summary {
-            all_summary.push(s);
+        if let Some(s) = &summary {
+            if let Err(e) = append_summary_row(&summary_path, &run_label, &pattern_limit_str, s) {
+                eprintln!("could not append to {summary_path}: {e}");
+            }
         }
         for p in &per_pattern {
             all_patterns.push((
@@ -658,10 +682,10 @@ fn main() {
         by_source.push((label, per_pattern));
 
         // Re-written after every source, not just once at the end: see
-        // the identical comment in bench_corpus_time.rs's main().
-        if let Err(e) = write_summary_csv(&summary_path, &all_summary) {
-            eprintln!("could not write {summary_path}: {e}");
-        }
+        // the identical comment in bench_corpus_time.rs's main(). The
+        // overview CSV doesn't need this -- `append_summary_row` above
+        // already wrote (and flushed) that source's row the moment it
+        // finished, durable before this point regardless.
         let refs: Vec<(&'static str, &SourcePatternStat)> =
             all_patterns.iter().map(|(s, p)| (*s, p)).collect();
         if let Err(e) = write_patterns_csv(&patterns_path, &refs) {
@@ -673,7 +697,7 @@ fn main() {
             }
         }
     }
-    eprintln!("wrote {summary_path}");
+    eprintln!("appended to {summary_path}");
     eprintln!("wrote {patterns_path}");
     if example_count > 0 {
         eprintln!("wrote {examples_path}");

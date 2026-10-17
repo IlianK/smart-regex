@@ -15,10 +15,12 @@ already is that run, plus the outcome breakdown for free.
 
 Every run below also sets `BENCH_RUN_LABEL` to its own T/M/X number,
 so each one's CSV lands in its own file (`bench_corpus_time_T3.csv`,
-`bench_memory_M3.csv`, `bench_translate_X2.csv`, ...) instead of
-overwriting the last run's. Workflow: name the config here with a
+`bench_memory_M3.csv`, `bench_translate_X2_patterns.csv`, ...) instead
+of overwriting the last run's. Workflow: name the config here with a
 label, run that exact line, look for the labelled file under
-`reports/benches/`.
+`reports/benches/`. One exception: `bench_translate`'s aggregate CSV
+(`bench_translate.csv`, never labelled) always appends instead of
+writing a separate file per run -- see its own section below.
 
 ## Corpus timing (`bench_corpus_time`)
 
@@ -123,37 +125,53 @@ See `bench_translate.rs`'s module doc for the full argument. One
 consequence: no process-spawn overhead, so this file's timing numbers
 are cleaner than `wall (s)` above, not just cheaper to produce.
 
-Three outputs per run: the aggregate CSV below (mean/median/p99/max of
-time, allocation, and translated size, per source); a full per-pattern
-catalogue (`..._patterns.csv`, one row per distinct pattern, including
-the translated `Regex` itself -- its derived `Debug`, `Seq(Lit('a'),
-...)`-style, showing the six constructors translation actually
-produces rather than a flattened reading of them -- when small enough
-to be worth a CSV cell (`BENCH_TRANSLATE_RENDER_MAX_NODES`, default
-150)); and `reports/demos/translation_examples.txt` (the
-`BENCH_TRANSLATE_EXAMPLES` smallest patterns per source, default 5,
-fully rendered -- a starting point for the "here is what translation
-produces" thesis figure, always overwritten rather than labelled,
-since it is a curated pick, not a measurement run. Hand-pick from the
-full catalogue CSV instead if these aren't the most narratively useful
-rows for a given point).
+Three outputs per run. Two follow the labelled-file convention above;
+the aggregate one deliberately doesn't:
+
+- `reports/benches/bench_translate.csv` -- one row per source, always
+  this exact name regardless of `BENCH_RUN_LABEL`. Appended to, never
+  overwritten, so every run -- one source at a time or all of them in
+  one command -- adds its row(s) instead of erasing the last run's. A
+  `run_label`/`pattern_limit` column on each row records which
+  invocation it came from, since the filename no longer does.
+- `..._patterns.csv` -- one row per distinct pattern: nodes/micros/
+  bytes plus the translated `Regex` itself, its derived `Debug`
+  (`Seq(Lit('a'), ...)`-style -- the six constructors translation
+  actually produces, not a flattened reading of them), when small
+  enough to be worth a CSV cell (`BENCH_TRANSLATE_RENDER_MAX_NODES`,
+  default 150). Still labelled -- kept one catalogue per run, on
+  purpose.
+- `reports/demos/translation_examples.txt` -- the
+  `BENCH_TRANSLATE_EXAMPLES` smallest patterns per source, default 5,
+  fully rendered -- a starting point for the "here is what translation
+  produces" thesis figure, always overwritten rather than labelled,
+  since it is a curated pick, not a measurement run. Hand-pick from
+  the full catalogue CSV instead if these aren't the most narratively
+  useful rows for a given point.
+
+Translation is cheap enough (no process-spawn overhead, distinct
+patterns only) not to need batching for cost reasons -- so keep each
+source its own invocation and its own label anyway, same as T/M.
+That's what keeps `_patterns.csv` genuinely separate per source, which
+is the whole point of that file: a single command covering every
+source at once would work too, but collapses all of them into one
+shared `_patterns.csv`, which defeats it.
 
 ```bash
-# X1 -- smoke.
-BENCH_SOURCE=suricata,spamassassin BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=X1 \
-  cargo bench --bench bench_translate
-
-# X2-X5 -- one per main-table source, whole corpus.
+# X2-X6 -- one per source, whole corpus. 
 BENCH_SOURCE=snort BENCH_RUN_LABEL=X2 cargo bench --bench bench_translate
 BENCH_SOURCE=spamassassin BENCH_RUN_LABEL=X3 cargo bench --bench bench_translate
 BENCH_SOURCE=regexlib BENCH_RUN_LABEL=X4 cargo bench --bench bench_translate
 BENCH_SOURCE=s2-elab BENCH_RUN_LABEL=X5 cargo bench --bench bench_translate
-BENCH_SOURCE=innovatorved BENCH_RUN_LABEL=X5 cargo bench --bench bench_translate
+BENCH_SOURCE=innovatorved BENCH_RUN_LABEL=X6 cargo bench --bench bench_translate
 ```
 
-Cheap relative to T/M: distinct patterns only, no process-spawn
-overhead -- X2-X5 together should take well under a minute even at
-Suricata's full scale.
+Each run appends its one row to the shared
+`reports/benches/bench_translate.csv` overview and writes its own
+separate `_X2_patterns.csv`, `_X3_patterns.csv`, etc. Re-running one of
+these later (e.g. after a code change) just appends another row for
+that source to the overview -- useful for seeing how it moved, not
+something to avoid.
 
 
 ## Synthetic (`bench_parse`, `bench_match`)

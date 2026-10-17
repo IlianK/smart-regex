@@ -4,6 +4,14 @@
 //!     <N> [--] <source> <file...> [--corpus-dir DIR] [--verbose]
 //!
 //! Extract patterns from the given raw file(s).
+//! A rule whose `raw_pattern` is byte-identical to an earlier rule's in
+//! the same run is skipped before translation even starts -- its fate
+//! is already decided by the first occurrence, and writing a second,
+//! independently-generated input group for the same regex would just
+//! overweight that one pattern in any benchmark reading the result.
+//! Counted separately (`rules_duplicate_pattern`), not folded into
+//! `patterns_unusable`. `dataset_stats` reports the same duplication on
+//! the raw corpus, without running generation or verification at all.
 //! Generate or read off input per pattern, verify it, then balance it.
 //! A pattern survives into `data/processed/<source>/prepared.jsonl` only
 //! if it has at least N/2 verified matches and N/2 verified non-matches.
@@ -170,11 +178,12 @@ fn append_report_csv(
     if write_header {
         if let Err(e) = writeln!(
             f,
-            "n,source,files,rules_extracted,patterns_unusable,patterns_accepted,\
-             patterns_unanchored_ambiguous,patterns_explicit_full_match,inputs_generated,\
-             inputs_verified,inputs_rejected,inputs_skipped,patterns_unusable_at_generation,\
-             patterns_usable,inputs_usable,inputs_usable_from_source,inputs_usable_synthetic,\
-             inputs_dropped_with_pattern,usable_explicit_full_match,usable_unanchored_ambiguous"
+            "n,source,files,rules_extracted,rules_duplicate_pattern,patterns_unusable,\
+             patterns_accepted,patterns_unanchored_ambiguous,patterns_explicit_full_match,\
+             inputs_generated,inputs_verified,inputs_rejected,inputs_skipped,\
+             patterns_unusable_at_generation,patterns_usable,inputs_usable,\
+             inputs_usable_from_source,inputs_usable_synthetic,inputs_dropped_with_pattern,\
+             usable_explicit_full_match,usable_unanchored_ambiguous"
         ) {
             eprintln!("could not write header to {path}: {e}");
             return;
@@ -183,11 +192,12 @@ fn append_report_csv(
     let files_joined = files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(";");
     if let Err(e) = writeln!(
         f,
-        "{},{:?},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+        "{},{:?},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
         inputs,
         source,
         files_joined,
         report.rules_extracted,
+        report.rules_duplicate_pattern,
         report.patterns_unusable,
         report.patterns_accepted,
         report.patterns_unanchored_ambiguous,
@@ -229,6 +239,12 @@ fn print_report(
     println!();
     println!("Extraction");
     println!("  extracted           {:>7}", report.rules_extracted);
+    if report.rules_duplicate_pattern > 0 {
+        println!(
+            "  duplicate pattern   {:>7}   (byte-identical to an earlier rule; skipped, not re-counted)",
+            report.rules_duplicate_pattern,
+        );
+    }
     println!("  unusable (frontend) {:>7}", report.patterns_unusable);
     println!(
         "  accepted (frontend) {:>7}   [{} direct, {} full-match]",
