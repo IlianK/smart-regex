@@ -9,23 +9,6 @@
 //! The parent enforces the per-entry timeout by killing this process.
 //! A killed process reclaims its memory; a thread cannot be killed.
 //! Killing is immediate and blocking, so entries no longer overlap:
-//! a timed-out entry holds its caller for the full cap before the
-//! next one starts, so a corpus with many slow entries pays close to
-//! `N_timed_out x cap` in wall clock on top of what completes normally.
-//!
-//! argv: <prog> <parser_idx 0..=4>
-//!   Index order is `regex_engine::parsers::ALL`, the one shared
-//!   constant this file and both callers index by -- no file keeps
-//!   its own copy of the order, so they cannot disagree.
-//! stdin: one line of JSON `{"pattern": "...", "input": "..."}`.
-//!   Pattern and input travel over stdin, not argv: some real
-//!   candidates contain a raw NUL byte, which `Command::arg` cannot
-//!   carry.
-//! stdout: on clean exit, one line of JSON
-//!   `{"micros": N, "total_bytes": N, "peak_bytes": N}`.
-//!   `micros` covers only the parser call.
-//!   It excludes job I/O and `core_regex` translation.
-//! exit codes:
 //!   0 = ran to completion (stdout has the result line).
 //!   2 = stdin job unreadable, or the pattern did not translate.
 //!   3 = the parser call panicked.

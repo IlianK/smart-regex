@@ -3,32 +3,25 @@
 //! cargo run --release --example dataset_stats
 //!          [--source S] [--verbose] [--no-flags] [file...]
 //!
-//! Per-source corpus report.
-//! Covers extraction counts, acceptance, pattern duplication,
-//! match-intent reliability, rejection causes, anchor shape
-//! distribution, and PCRE flag usage.
-//! Defaults to Suricata and SpamAssassin under `data/raw/`.
-//! RegexLib, S2ELab, and Innovatorved are opt-in only.
-//! RegexLib and Innovatorved are crowd-sourced, with no correctness
-//! guarantee; Innovatorved's test text is also unlabeled.
-//! S2ELab is a curated academic benchmark, but not a maintained
-//! production rule set the way Suricata and SpamAssassin are.
-//! Explicit files need one `--source`.
+//! Per-source corpus report: extraction counts, acceptance, pattern
+//! duplication, match-intent reliability, rejection causes, anchor shape
+//! distribution, PCRE flag usage.
+//! Defaults: Suricata, SpamAssassin under `data/raw/`.
+//! Opt-in: RegexLib, S2ELab, Innovatorved.
+//! RegexLib / Innovatorved: crowd-sourced, no correctness guarantee;
+//! Innovatorved test text also unlabeled.
+//! S2ELab: curated academic benchmark, not a maintained production rule set.
+//! Explicit files require one `--source`.
 //!
-//!   Accepted = `core_regex_tagged` produced a Regex.
-//!              Same function and same depth/node caps `dataset_prepare`
-//!              benchmarks against, not plain `parse_pcre_rule`.
-//!              No approximate-but-accepted case exists.
-//!              Every accepted pattern's Regex denotes exactly what it
-//!              was translated from.
-//!              Accepted splits into two kinds: Direct / Explicit.
-//!              Both are accepted and generated for.
-//!   Reject   = no Regex produced at all.
-//!              A construct this frontend cannot represent:
-//!              backreference, lookaround, \b/\B, an anchor placement
-//!              other than a top-level `^...$` wrap, the m flag, the x
-//!              flag, a translation too large for the pipeline's safety
-//!              caps, or another unsupported construct.
+//!   Accepted = `core_regex_tagged` produced a Regex, using the same function
+//!              and depth/node caps as `dataset_prepare` (not plain
+//!              `parse_pcre_rule`). No approximate-but-accepted case; each
+//!              Regex denotes exactly what it was translated from.
+//!              Splits into Direct / Explicit; both are accepted and generated for.
+//!   Reject   = no Regex produced. Unrepresentable construct: backreference,
+//!              lookaround, \b/\B, anchor placement other than a top-level
+//!              `^...$` wrap, m flag, x flag, translation exceeding pipeline
+//!              safety caps, or another unsupported construct.
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;

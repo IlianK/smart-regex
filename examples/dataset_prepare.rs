@@ -3,55 +3,18 @@
 //! cargo run --release --example dataset_prepare -- \
 //!     <N> [--] <source> <file...> [--corpus-dir DIR] [--verbose]
 //!
-//! Extract patterns from the given raw file(s).
-//! A rule whose `raw_pattern` is byte-identical to an earlier rule's in
-//! the same run is skipped before translation even starts -- its fate
-//! is already decided by the first occurrence, and writing a second,
-//! independently-generated input group for the same regex would just
-//! overweight that one pattern in any benchmark reading the result.
-//! Counted separately (`rules_duplicate_pattern`), not folded into
-//! `patterns_unusable`. `dataset_stats` reports the same duplication on
-//! the raw corpus, without running generation or verification at all.
-//! Generate or read off input per pattern, verify it, then balance it.
-//! A pattern survives into `data/processed/<source>/prepared.jsonl` only
-//! if it has at least N/2 verified matches and N/2 verified non-matches.
-//! A surviving pattern contributes exactly N/2 of each.
-//! A pattern that does not reach N/2 of both contributes nothing.
-//! It is counted separately (`below target`), not silently dropped.
-//! Every pattern that appears carries the same weight, which is what
-//! makes the final usable count a sound thing to benchmark.
-//!
-//! `<N>` is the total verified inputs each surviving pattern contributes.
-//! It splits evenly into N/2 matches and N/2 non-matches.
-//! It must be a positive even integer.
-//! `N = 1` is not accepted; the smallest meaningful value is 2.
-//!
-//! The optional `--` between N and the source name is accepted and skipped.
-//! Cargo consumes its own `--` before this binary sees any argument.
-//! A `--` reaching here is a literal the caller typed as a separator; it
-//! has no meaning at this point.
-//!
-//! `--verbose` also lists every pattern excluded at generation, raw text
-//! included.
-//!
-//! Innovatorved runs its classified test lines first, then tops up with
-//! structurally generated candidates for whichever side has not yet met
-//! N/2.
-//! `verify_until` processes candidates in order, so the real ones fill
-//! first and the top-up is reached only when the real supply was short.
-//! The "from source" line below reports how much of the final corpus is
-//! real versus generated for exactly this reason.
-//! Every other source is unmixed: always 0 for Suricata, SpamAssassin,
-//! and RegexLib; always 100% for S2ELab.
-//!
-//! Also appends one row to `reports/data/dataset_prepare.csv` per run,
-//! rather than overwriting like `reports/benches/`'s CSVs do: the
-//! point here is comparing how the pipeline behaves across different
-//! `N` (and, over time, across code changes) for the same source, so
-//! each invocation's numbers need to stay once the next one runs, not
-//! replace it. `N` and the source are themselves a natural key, unlike
-//! the benches, which needed `BENCH_RUN_LABEL` added for the same
-//! purpose.
+//! Extract patterns, skip byte-identical duplicates (`rules_duplicate_pattern`)
+//! before translation, then keep only patterns with >= N/2 verified matches
+//! and non-matches, each contributing exactly N/2 of each.
+//! Below-target patterns: counted, not dropped.
+//! Equal per-pattern weight keeps the usable count sound.
+//! N: positive even integer >= 2.
+//! A literal `--` after N is skipped.
+//! `--verbose`: list excluded patterns with raw text.
+//! Innovatorved: tops up short sides with generated candidates.
+//! Other sources: unmixed.
+//! Append one row per run to `reports/data/dataset_prepare.csv`; N + source
+//! form a natural key.
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
