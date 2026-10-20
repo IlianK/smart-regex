@@ -518,123 +518,7 @@ $\mathsf{S}_{3}$ in both branches.}
 \end{figure}
 
 %
-\paragraph{Running example: \boldmath$r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath.}
-Recall from ~\eqref{eq:r01-def} that it is left-associated
-as $\big((0+1)^{*}\cdot0\big)\cdot1$, so the outer operands are
-$r=(0+1)^{*}\cdot0$ and $s=1$. We derive against
-$w=\mathtt{101}$ one symbol at a time.
-
-\begin{enumerate}
-  \item \textbf{Derive by $\mathtt{1}$.}
-  At the outer node, $r = (0+1)^{*} \cdot 0$ and $s = 1$. This $r$ is
-  not nullable:
-  \[
-  n\big((0+1)^{*} \cdot 0\big)
-  = \mathrm{true} \land \mathrm{false}
-  = \mathrm{false},
-  \]
-  by $\mathsf{N}_{\mathrm{seq}}$, $\mathsf{N}_{*}$ and
-  $\mathsf{N}_{\mathrm{lit}}$. Thus $\mathsf{D}_{\mathrm{seq}}$ applies
-  without a second summand:
-  \[
-  r_{01} \backslash \mathtt{1}
-  = \big(((0+1)^{*} \cdot 0) \backslash \mathtt{1}\big) \cdot 1.
-  \]
-  At the middle node, the left operand $(0+1)^{*}$ is nullable, so
-  $\mathsf{D}_{\mathrm{seq}}^{\,n}$ applies. First,
-  \[
-  \begin{aligned}
-  (0+1)^{*} \backslash \mathtt{1}
-    &= \big((0+1)\backslash\mathtt{1}\big)\cdot(0+1)^{*}
-    &&\mathsf{D}_{*} \\
-    &= \big((0\backslash\mathtt{1})+(1\backslash\mathtt{1})\big)
-       \cdot(0+1)^{*}
-    &&\mathsf{D}_{+} \\
-    &= (\emptyset+\varepsilon)\cdot(0+1)^{*}
-    &&\mathsf{D}_{\mathrm{lit}} \\
-    &= (0+1)^{*}
-    &&\mathsf{S}_{3},\ \mathsf{S}_{2}.
-  \end{aligned}
-  \]
-  Hence
-  \[
-  \begin{aligned}
-  ((0+1)^{*}\cdot0)\backslash\mathtt{1}
-    &= (0+1)^{*}\cdot0 + (0\backslash\mathtt{1})
-    &&\mathsf{D}_{\mathrm{seq}}^{\,n} \\
-    &= (0+1)^{*}\cdot0+\emptyset
-    &&\mathsf{D}_{\mathrm{lit}} \\
-    &= (0+1)^{*}\cdot0
-    &&\mathsf{S}_{3}.
-  \end{aligned}
-  \]
-  Substituting back into the outer node gives
-  \begin{equation}\label{eq:der-24}
-  r_{01}\backslash\mathtt{1}
-  = \big((0+1)^{*}\cdot0\big)\cdot1
-  = r_{01}.
-  \end{equation}
-  Thus a $\mathtt{1}$ not yet part of the final $\mathtt{01}$ is absorbed
-  by the leading star.
-
-  \item \textbf{Derive by $\mathtt{0}$.}
-  The expression is unchanged. Again,
-  $(0+1)^{*}\backslash\mathtt{0}$ simplifies to $(0+1)^{*}$, but now
-  the second summand at the middle node survives:
-  \[
-  \begin{aligned}
-  ((0+1)^{*}\cdot0)\backslash\mathtt{0}
-    &= (0+1)^{*}\cdot0 + (0\backslash\mathtt{0})
-    &&\mathsf{D}_{\mathrm{seq}}^{\,n} \\
-    &= (0+1)^{*}\cdot0+\varepsilon
-    &&\mathsf{D}_{\mathrm{lit}}.
-  \end{aligned}
-  \]
-  No simplification applies. The outer node is still non-nullable, so
-  \begin{equation}\label{eq:der-25}
-  r_{01}\backslash\mathtt{1}\backslash\mathtt{0}
-  = \big((0+1)^{*}\cdot0+\varepsilon\big)\cdot1.
-  \end{equation}
-  After $\mathtt{10}$, either the trailing $\mathtt{01}$ is still owed
-  in full, represented by $(0+1)^{*}\cdot0$, or the consumed
-  $\mathtt{0}$ was already its first symbol, represented by $\varepsilon$.
-
-  \item \textbf{Derive by $\mathtt{1}$.}
-  The outer binding has now changed. The left operand is
-  $(0+1)^{*}\cdot0+\varepsilon$, which is nullable by
-  $\mathsf{N}_{+}$ and $\mathsf{N}_{\varepsilon}$. So
-  $\mathsf{D}_{\mathrm{seq}}^{\,n}$ applies and contributes the second
-  summand $1\backslash\mathtt{1}=\varepsilon$. For the first summand,
-  $\mathsf{D}_{+}$ applies, reusing the result from step~1:
-  \[
-  \begin{aligned}
-  ((0+1)^{*}\cdot0+\varepsilon)\backslash\mathtt{1}
-    &= ((0+1)^{*}\cdot0)\backslash\mathtt{1}
-       +(\varepsilon\backslash\mathtt{1})
-    &&\mathsf{D}_{+} \\
-    &= (0+1)^{*}\cdot0+\emptyset
-    &&\text{step~1; }\mathsf{D}_{\varepsilon} \\
-    &= (0+1)^{*}\cdot0
-    &&\mathsf{S}_{3}.
-  \end{aligned}
-  \]
-  Therefore
-  \begin{equation}\label{eq:der-26}
-  r_{01}\backslash\mathtt{1}\backslash\mathtt{0}\backslash\mathtt{1}
-  = \big((0+1)^{*}\cdot0\big)\cdot1+\varepsilon
-  = r_{01}+\varepsilon.
-  \end{equation}
-\end{enumerate}
-
-The final expression is nullable by $\mathsf{N}_{+}$ and
-$\mathsf{N}_{\varepsilon}$, so $\mathtt{101}\in L(r_{01})$. The
-$\varepsilon$ summand witnesses that the match is complete.
-For comparison, $w=\mathtt{10}$ leaves
-$\big((0+1)^{*}\cdot0+\varepsilon\big)\cdot1$. Neither branch is
-nullable: $(0+1)^{*}\cdot0$ still requires a $0$, while
-$\varepsilon\cdot1$ still requires a $1$. Hence
-$\mathtt{10}\notin L(r_{01})$.
-
+%
 %
 
 \paragraph{The matcher.}
@@ -665,6 +549,11 @@ w\in L(r)
 n(r_n)=\mathrm{true}.
 \]
 
+Each step depends only on the current residual and the next symbol, so
+the matcher never revisits a prefix and never backtracks into an earlier
+residual. The cost of one step is the cost of \texttt{deriv} on the
+current residual, which is proportional to its size.
+
 So $r_0\xrightarrow{x_1}r_1\xrightarrow{x_2}\cdots\xrightarrow{x_n}r_n$
 can be viewed as a path through a lazily constructed DFA. Each residual
 expression represents a state, and
@@ -682,7 +571,6 @@ by composing \texttt{deriv}, \texttt{simplify}, and \texttt{nullable}.
 The implementation follows the mathematical definition directly. The current
 residual is transformed at each step, and acceptance is determined after the
 complete input has been consumed.
-
 
 \begin{figure}[H]
 \begin{verbatim}
@@ -717,6 +605,124 @@ preventing the growth shown in ~\eqref{eq:der-growth}.
 %
 %
 
+\paragraph{Worked Example: Applying the derivative-based matcher}
+\label{sec:deriv-worked-example}
+
+Apply \texttt{match\_deriv} to $r_0 = (a + ab)(b + \varepsilon)$ and
+$w = \mathtt{ab}$ with the expression written as:
+\[
+r_0 = \mathit{Seq}(s,\, t),
+\qquad
+s = a + ab,
+\qquad
+t = b + \varepsilon,
+\]
+
+\paragraph{Derive by $\mathtt{a}$.}
+The first factor $s$ is not nullable, so $\mathsf{D}_{\mathrm{seq}}$
+applies to the sequence $r_0$:
+\[
+r_1 = r_0 \backslash \mathtt{a}
+  = (s \backslash \mathtt{a}) \cdot t
+  \qquad (\mathsf{D}_{\mathrm{seq}}).
+\]
+Since $s$ cannot match the empty word, the second factor $t$ is not
+touched by this derivative and appears unchanged. To derive $s$,
+the alternation rule $\mathsf{D}_{+}$ is applied to give:
+\[
+s \backslash \mathtt{a}
+  = (a \backslash \mathtt{a}) + (ab \backslash \mathtt{a})
+  \qquad (\mathsf{D}_{+}).
+\]
+The two summands are derived separately, each by its own rule:
+\[
+\begin{aligned}
+a \backslash \mathtt{a}
+  &= \varepsilon
+  &&(\mathsf{D}_{\mathrm{lit}}), \\[2pt]
+ab \backslash \mathtt{a}
+  &= (a \backslash \mathtt{a}) \cdot b
+   = \varepsilon \cdot b
+  &&(\mathsf{D}_{\mathrm{seq}},\ \mathsf{D}_{\mathrm{lit}}).
+\end{aligned}
+\]
+Substituting both summands into the alternation and the result into the
+outer sequence:
+\[
+\begin{aligned}
+s \backslash \mathtt{a}
+  &= \varepsilon + \varepsilon \cdot b
+  &&(\mathsf{D}_{+}), \\[4pt]
+r_0 \backslash \mathtt{a}
+  &= (\varepsilon + \varepsilon \cdot b) \cdot t
+  &&(\mathsf{D}_{\mathrm{seq}}).
+\end{aligned}
+\]
+Then, applying the simplification rule $\mathsf{S}_{2}$ to the occurrences
+of $\varepsilon \cdot b$, gives the residual:
+\[
+r_1 = (\varepsilon + b) \cdot t
+  \qquad (\mathsf{S}_{2}).
+\]
+
+%
+
+\paragraph{Derive by $\mathtt{b}$.}
+The residual $r_1$ is again a sequence,
+but now the first factor $\varepsilon + b$ is nullable, so the nullable
+sequence rule $\mathsf{D}_{\mathrm{seq}}^{\,n}$ applies when deriving by $b$:
+\[
+r_2 = r_1 \backslash \mathtt{b}
+  = \big((\varepsilon + b) \backslash \mathtt{b}\big) \cdot t
+    + (t \backslash \mathtt{b})
+  \qquad (\mathsf{D}_{\mathrm{seq}}^{\,n}).
+\]
+Since the first factor $\varepsilon + b$ is nullable, it can either
+consume the character itself, leaving $t$ untouched, or match
+$\varepsilon$ and let $t$ consume it. Both are possible, so
+$\mathsf{D}_{\mathrm{seq}}^{\,n}$ produces one summand for each, and
+$\mathsf{D}_{+}$ derives the first factor and $t$ in their respective
+summands:
+\[
+\begin{aligned}
+(\varepsilon + b) \backslash \mathtt{b}
+  &= (\varepsilon \backslash \mathtt{b}) + (b \backslash \mathtt{b})
+   = \emptyset + \varepsilon
+  &&(\mathsf{D}_{+},\ \mathsf{D}_{\varepsilon},\
+           \mathsf{D}_{\mathrm{lit}}), \\[4pt]
+t \backslash \mathtt{b} = (b + \varepsilon) \backslash \mathtt{b}
+  &= (b \backslash \mathtt{b}) + (\varepsilon \backslash \mathtt{b})
+   = \varepsilon + \emptyset
+  &&(\mathsf{D}_{+},\ \mathsf{D}_{\mathrm{lit}},\
+           \mathsf{D}_{\varepsilon}).
+\end{aligned}
+\]
+Substituting both summands into the two-summand expression:
+\[
+r_1 \backslash \mathtt{b}
+  = (\emptyset + \varepsilon) \cdot t
+    + (\varepsilon + \emptyset).
+\]
+Applying the simplification rules $\mathsf{S}_{3}$ and
+$\mathsf{S}_{2}$ to the first summand and $\mathsf{S}_{3}$ to the
+second, gives the final residual after deriving the second character:
+\[
+r_2 
+  = t + \varepsilon
+  \qquad (\mathsf{S}_{3},\ \mathsf{S}_{2},\ \mathsf{S}_{3}).
+\]
+
+\paragraph{Acceptance.}
+The residual $r_2 = (b + \varepsilon) + \varepsilon$ is nullable by
+$\mathsf{N}_{+}$ and $\mathsf{N}_{\varepsilon}$, so
+$\mathtt{ab} \in L(r_0)$.
+
+%
+%
+%
+%
+%
+
 \section{Antimirov Partial Derivatives}
 \label{sec:antimirov-partial-derivatives}
 
@@ -725,7 +731,6 @@ alternative residuals into a single expression using $+$. Antimirov's
 partial derivatives instead keep them as a \emph{set} of expressions,
 one per strand of nondeterminism \citep{antimirov1996}. Writing
 $pd(r,x)$ for this set:
-
 \begin{equation}\label{eq:pd}
 \begin{aligned}
 pd(\emptyset, x) &= \{\} &&(\mathsf{P}_{\emptyset}) \\
@@ -772,18 +777,58 @@ two elements of one set.
 
 %
 
+
+\paragraph{The smart constructor.}
+The concatenation in $\mathsf{P}_{\mathrm{seq}}$ uses an auxiliary
+constructor $\mathit{smartC}$. Since each element of $pd(r,x)$ is a
+separate residual rather than a branch of a sum, $\mathit{smartC}$ is
+applied to each independently. The constructor avoids building
+$\varepsilon \cdot s$:
+\begin{equation}\label{eq:smartc}
+\mathit{smartC}(r', s) =
+  \begin{cases}
+    s & r' = \varepsilon \\
+    r' \cdot s & \text{otherwise.}
+  \end{cases}
+\end{equation}
+
 \paragraph{In Rust.}
+Figure~\ref{fig:smart-seq-rust} implements $\mathit{smartC}$ directly as
+\texttt{smart\_seq}. Matching on \texttt{r} implements the case split of
+\eqref{eq:smartc}: the \texttt{Eps} arm returns a clone of \texttt{s}
+and never builds $\varepsilon \cdot s$, while the second arm wraps
+\texttt{r} in front of a cloned \texttt{s}
+
+\begin{figure}[H]
+\begin{verbatim}
+pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
+    match r {
+        Regex::Eps => s.clone(),
+        r => Regex::seq(r, s.clone()),
+    }
+}
+\end{verbatim}
+\caption{\texttt{smart\_seq}, the smart constructor $\mathit{smartC}$}
+\label{fig:smart-seq-rust}
+\end{figure}
+
+%
+
 Figure~\ref{fig:pderiv-rust} presents the implementation of
-\eqref{eq:pd}, with each \texttt{match} arm corresponding to one of its
-cases. The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} variants implement
+\eqref{eq:pd}, with each \texttt{match} arm corresponding to one case. 
+The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} variants implement
 $\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$, and
 $\mathsf{P}_{\mathrm{lit}}$ directly, returning \texttt{Vec::new()}
 where the equation gives $\{\}$. \texttt{Alt} concatenates the two
-child vectors, implementing the union of $\mathsf{P}_{+}$. \texttt{Star}
-maps \texttt{smart\_seq} over $r$'s own residuals, matching
-$\mathsf{P}_{*}$; \texttt{Regex::star(*r.clone())} clones because
-\texttt{Regex::star} needs an owned \texttt{Regex} and \texttt{r} is
-only borrowed, once per residual since the closure runs once for each.
+child vectors, implementing the union of $\mathsf{P}_{+}$. 
+
+\texttt{Star} maps \texttt{smart\_seq} over $r$'s own residuals,
+matching $\mathsf{P}_{*}$. The star's body is derived, and each
+resulting residual is placed in front of a fresh $\texttt{Regex::star}$
+so the star may continue. \texttt{Regex::star(*r.clone())} clones
+because \texttt{Regex::star} needs an owned \texttt{Regex} and
+\texttt{r} is only borrowed, once per residual since the closure runs
+once for each.
 
 \texttt{Seq} implements the case split directly. The \texttt{map}
 applies \texttt{smart\_seq} to each residual of the left operand,
@@ -799,7 +844,7 @@ Every union in \texttt{pderiv} is therefore a vector
 \texttt{extend}, not a set operation. Duplicate residuals reached by
 different strands are only merged once inserted into the
 \texttt{HashSet} used by the matcher below to keep the residual
-generation separate from deduplication.
+generation separate from deduplication
 
 \begin{figure}[H]
 \small
@@ -835,62 +880,9 @@ fn pderiv(r: &Regex, x: char) -> Vec<Regex> {
     }
 }
 \end{verbatim}
-\caption{$pd(r,x)$ in full, corresponding arm for arm to
-~\eqref{eq:pd}.}
+\caption{\texttt{pderiv}, implementing~\eqref{eq:pd} one arm per case
+of the equation.}
 \label{fig:pderiv-rust}
-\end{figure}
-
-%
-
-\paragraph{The smart constructor.}
-The concatenation in $\mathsf{P}_{\mathrm{seq}}$ is constructed using
-the auxiliary constructor $\mathit{smartC}$, denoted by $\mathsf{SC}$:
-
-\begin{equation}\label{eq:smartc}
-\mathit{smartC}(r', s) =
-  \begin{cases}
-    s & r' = \varepsilon \\
-    r' \cdot s & \text{otherwise}
-  \end{cases}
-\end{equation}
-
-If $r' = \varepsilon$, the consumed symbol completed the left operand
-and there is nothing left to concatenate with $s$, so the residual is
-$s$ alone. Otherwise $r'$ stays in front of $s$. $\mathit{smartC}$
-therefore states the concatenation rule without ever constructing
-$\varepsilon \cdot s$.
-
-A set element is one possible residual, not one branch of a sum. When
-several alternatives can consume the same symbol, they stay as separate
-elements, and $\mathit{smartC}$ is applied to each independently. One
-strand may finish the left operand while another still carries a
-non-empty residual in front of $s$. The constructor is therefore applied
-independently to each residual produced by $pd(r,x)$, preserving the
-distinct continuations of the concatenation without introducing
-redundant $\varepsilon \cdot s$ expressions.
-
-%
-
-\paragraph{In Rust.}
-Figure~\ref{fig:smart-seq-rust} is $\mathit{smartC}$. 
-\texttt{smart\_seq} takes \texttt{r} by value and \texttt{s} by
-reference, matching ~\eqref{eq:smartc}. The residual $r'$ comes
-from the recursive derivative and is consumed, while $s$ must survive
-into the result. The $r'=\varepsilon$ branch clones only \texttt{s} and
-drops $\varepsilon$, so $\varepsilon\cdot s$ is never built.
-
-
-\begin{figure}[H]
-\begin{verbatim}
-pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
-    match r {
-        Regex::Eps => s.clone(),
-        r => Regex::seq(r, s.clone()),
-    }
-}
-\end{verbatim}
-\caption{\texttt{smart\_seq}, the smart constructor $\mathit{smartC}$}
-\label{fig:smart-seq-rust}
 \end{figure}
 
 %
@@ -910,221 +902,104 @@ pd((x+y)^{*},\mathtt{x})
   &&\mathsf{SC},\ r' = \varepsilon.
 \end{aligned}
 \end{equation}
+The set is $\{(x+y)^{*}\}$, so deriving by the second $\mathtt{x}$
+repeats the computation, and the final partial derivative accepts
+$\varepsilon$ since $(x+y)^{*}$ is nullable by $\mathsf{N}_{*}$. So
+$\mathtt{xx}\in L((x+y)^{*})$.
 
-$pd(x+y,\mathtt{x})=\{\varepsilon\}\cup\{\}=\{\varepsilon\}$ by
-$\mathsf{P}_{+}$, since $\mathtt{x}$ matches the left literal and
-misses the right, and $\mathit{smartC}$ absorbs the $\varepsilon$
-straight back into $(x+y)^{*}$.
+Equation~\eqref{eq:growth-comparison} traces the derivative and the
+partial derivative on the same expression:
+\begin{equation}\label{eq:growth-comparison}
+\begin{aligned}
+\text{Derivative (unsimplified):} &\quad
+  \underbrace{(x{+}y)^{*}}_{4}
+  \xrightarrow{\mathtt{x}}
+  \underbrace{(\varepsilon{+}\emptyset)(x{+}y)^{*}}_{8}
+  \xrightarrow{\mathtt{x}}
+  \underbrace{(\emptyset{+}\emptyset)(x{+}y)^{*}{+}(\varepsilon{+}\emptyset)(x{+}y)^{*}}_{17} \\[6pt]
+\text{Partial derivative:} &\quad
+  \underbrace{\{(x{+}y)^{*}\}}_{4}
+  \xrightarrow{\mathtt{x}}
+  \underbrace{\{(x{+}y)^{*}\}}_{4}
+  \xrightarrow{\mathtt{x}}
+  \underbrace{\{(x{+}y)^{*}\}}_{4}
+\end{aligned}
+\end{equation}
 
-The set is $\{(x+y)^{*}\}$, so deriving by the second
-$\mathtt{x}$ repeats the computation:
-\[
-pd((x+y)^{*},\mathtt{x},\mathtt{x}) = \{(x+y)^{*}\}.
-\]
-
-Since $(x+y)^{*}$ is nullable by $\mathsf{N}_{*}$, the final partial 
-derivative accepts $\varepsilon$, so $\mathtt{xx}\in L((x+y)^{*})$.
-
-For comparison, applying the Brzozowski derivative to the same expression
-gives the intermediate alternation in ~\eqref{eq:der-4},
-$(\emptyset+\emptyset)\cdot(x+y)^{*}
-+(\varepsilon+\emptyset)\cdot(x+y)^{*}$.
-Only after simplification in ~\eqref{eq:der-6} does this reduce
-to $(x+y)^{*}$. Under $pd$, the residual set is
-$\{(x+y)^{*}\}$ after both steps, 
-since $\mathsf{P}_{\emptyset}$ and $\mathsf{P}_{\varepsilon}$ produce no
-residual at all. So redundant terms are avoided at construction time rather
-than built and simplified afterwards
-
-%
-
-\paragraph{Running example: \boldmath$r_{01} = (0+1)^{*} \cdot 0 \cdot 1$\unboldmath.}
-Derive $r_{01}$ against $w = \mathtt{101}$, tracking the residual set.
-The concatenations bind as in Section~\ref{sec:brzozowski-derivatives},
-with $(r,s)=((0+1)^{*}\cdot0,1)$ at the outer node and
-$(r,s)=((0+1)^{*},0)$ at the inner node; the star body is $0+1$.
-The derivation proceeds from the inside outward.
-
-\begin{enumerate}
-  \item \textbf{Derive by $\mathtt{1}$.}
-  At the star body, $\mathsf{P}_{+}$ distributes the derivative over
-  two alternatives:
-  \begin{equation}\label{eq:der-16}
-  \begin{aligned}
-  pd(0{+}1,\ \mathtt{1})
-    &= pd(0,\mathtt{1}) \cup pd(1,\mathtt{1})
-    &&\mathsf{P}_{+},\ r = 0,\ s = 1 \\
-    &= \{\} \cup \{\varepsilon\}
-    &&\mathsf{P}_{\mathrm{lit}},\ \text{both branches} \\
-    &= \{\varepsilon\}.
-  \end{aligned}
-  \end{equation}
-
-  The star rule then applies $\mathit{smartC}$ to the resulting
-  residual:
-  \begin{equation}\label{eq:der-17}
-  \begin{aligned}
-  pd\big((0+1)^{*},\ \mathtt{1}\big)
-    &= \{\,\mathit{smartC}(r',(0+1)^{*})
-        \mid r' \in \{\varepsilon\}\,\}
-    &&\mathsf{P}_{*},\ r = 0+1 \\
-    &= \{(0+1)^{*}\}
-    &&\mathsf{SC},\ r' = \varepsilon.
-  \end{aligned}
-  \end{equation}
-
-  At the middle concatenation, the left operand is nullable by
-  $\mathsf{N}_{*}$, so the nullable case contributes both the
-  derivatives through the left and right operand:
-  \begin{equation}\label{eq:der-18}
-  \begin{aligned}
-  pd\big((0+1)^{*}\cdot0,\ \mathtt{1}\big)
-    &= \{\,\mathit{smartC}(r',0)
-        \mid r' \in pd\big((0+1)^{*},\mathtt{1}\big)\,\}
-       \cup pd(0,\mathtt{1})
-    &&\mathsf{P}_{\mathrm{seq}}^{\,n} \\
-    &= \{\mathit{smartC}((0+1)^{*},0)\} \cup \{\}
-    &&\text{above; }\mathsf{P}_{\mathrm{lit}} \\
-    &= \{(0+1)^{*}\cdot0\}
-    &&\mathsf{SC},\ r' \neq \varepsilon.
-  \end{aligned}
-  \end{equation}
-
-  At the outer node, the left operand is not nullable, so only one branch contributes:
-  \begin{equation}\label{eq:der-19}
-  \begin{aligned}
-  pd(r_{01},\ \mathtt{1})
-    &= \{\,\mathit{smartC}(r',1)
-        \mid r' \in \{(0+1)^{*}\cdot0\}\,\}
-    &&\mathsf{P}_{\mathrm{seq}},\
-      r = (0+1)^{*}\cdot0,\ s = 1 \\
-    &= \{(0+1)^{*}\cdot0\cdot1\}
-     = \{r_{01}\}
-    &&\mathsf{SC}.
-  \end{aligned}
-  \end{equation}
-
-  The first symbol leaves $\{r_{01}\}$, returning to the starting expression
-  since the consumed $\mathtt{1}$ belongs to the leading star.
-
-  \item \textbf{Derive by $\mathtt{0}$.}
-  The current set is still $\{r_{01}\}$. As before,
-  $pd\big((0+1)^{*},\mathtt{0}\big) = \{(0+1)^{*}\}$. At the middle
-  concatenation, however, the right operand is now the matching literal
-  $0$, so $\mathsf{P}_{\mathrm{lit}}$ contributes $\{\varepsilon\}$:
-  \begin{equation}\label{eq:der-20}
-  \begin{aligned}
-  pd\big((0+1)^{*}\cdot0,\ \mathtt{0}\big)
-    &= \{\mathit{smartC}((0+1)^{*},0)\}
-       \cup pd(0,\mathtt{0})
-    &&\mathsf{P}_{\mathrm{seq}}^{\,n},\
-      r = (0+1)^{*},\ s = 0 \\
-    &= \{(0+1)^{*}\cdot0\} \cup \{\varepsilon\}
-    &&\mathsf{P}_{\mathrm{lit}},\ \text{since } \mathtt{0} = 0 \\
-    &= \{(0+1)^{*}\cdot0,\ \varepsilon\}.
-  \end{aligned}
-  \end{equation}
-
-  The outer concatenation applies $\mathit{smartC}$ separately to both
-  residuals:
-  \begin{equation}\label{eq:der-21}
-  \begin{aligned}
-  pd(r_{01},\mathtt{1},\mathtt{0})
-    &= \{\,\mathit{smartC}(r',1)
-        \mid r' \in \{(0+1)^{*}\cdot0,\varepsilon\}\,\}
-    &&\mathsf{P}_{\mathrm{seq}},\ s = 1 \\
-    &= \{(0+1)^{*}\cdot0\cdot1,\ 1\}
-    &&\mathsf{SC} \\
-    &= \{r_{01},\ 1\}.
-  \end{aligned}
-  \end{equation}
-
-  The two residuals are the possible strands after $\mathtt{10}$:
-  $r_{01}$ keeps both symbols in the leading star, while $1$ means the
-  $\mathtt{0}$ began the final $\mathtt{01}$. Since
-  $\mathit{smartC}(\varepsilon,1)=1$, the latter is represented directly
-  as $1$.
-
-  \item \textbf{Derive by $\mathtt{1}$.}
-  The two residuals are derived independently and their results are
-  unioned:
-  \begin{equation}\label{eq:der-22}
-  \begin{aligned}
-  pd(r_{01},\mathtt{1},\mathtt{0},\mathtt{1})
-    &= pd(r_{01},\mathtt{1}) \cup pd(1,\mathtt{1})
-    &&\text{union over the set} \\
-    &= \{r_{01}\} \cup \{\varepsilon\}
-    &&\text{step~1; }\mathsf{P}_{\mathrm{lit}} \\
-    &= \{r_{01},\ \varepsilon\}.
-  \end{aligned}
-  \end{equation}
-\end{enumerate}
-
-The final set contains $\varepsilon$, so one surviving residual is
-nullable and $\mathtt{101} \in L(r_{01})$. This agrees with the
-conclusion reached by the Brzozowski derivative in
-~\eqref{eq:der-26}.
-
-For $w=\mathtt{10}$, the first two steps leave $\{r_{01},1\}$, which represents
-the same alternatives as $\big((0+1)^{*}\cdot0+\varepsilon\big)\cdot1$ in 
-~\eqref{eq:der-25}. Either the trailing $\mathtt{01}$ remains to be matched, 
-or the consumed $\mathtt{0}$ was its first symbol. Neither residual is nullable, 
-so $\mathtt{10}\notin L(r_{01})$.
+The unsimplified derivative grows at every step, while the partial derivative
+stays at one element because $\mathsf{P}_{\emptyset}$ and
+$\mathsf{P}_{\varepsilon}$ contribute no residual, so there is nothing
+to simplify.
 
 %
 
 \paragraph{Finiteness.}
-For a fixed regular expression $r$, the set of reachable partial
-derivatives is finite and bounded by $\|r\|+1$, where $\|r\|$ denotes
-the number of literal occurrences in $r$
-\citep[Theorem~3.4, p.~309]{antimirov1996}. For $r_{01}$,
-$\|r_{01}\|=4$ (the four literals: $0, 1, 0, 1$), so the bound is
-$4 + 1 = 5$ distinct residuals across all possible inputs. The example
-with $w = \mathtt{101}$ reaches only three of them: $\{r_{01}\}$,
-$\{r_{01},1\}$, and $\{r_{01},\varepsilon\}$. Other residuals in the
-theoretical set are reachable only by different input sequences.
+For a regular expression $r$, the number of distinct partial derivatives
+reachable by any input is bounded by $\|r\|+1$
+\citep[Theorem~3.4, p.~309]{antimirov1996}. This is a ceiling, not a
+guarantee that all $\|r\|+1$ are reached. For $(x{+}y)^{*}$, $\|r\| = 2$
+the ceiling is $3$, yet only $(x{+}y)^{*}$ is reachable, since
+deriving by either $\mathtt{x}$ or $\mathtt{y}$ returns it unchanged.
 
-For ordinary derivatives, finiteness requires identifying equivalent
-expressions \citep[Theorem~4.3]{brzozowski1964}, yielding an exponential
-bound $d_R\leq 2^{d_P}-1$. Simplification rules eliminate only units and
-redundant $\emptyset$ expressions, not all equivalent forms. The linear
-bound for partial derivatives applies directly without simplification.
-
+Ordinary derivatives need equivalence classes to be finite
+\citep[Theorem~4.3]{brzozowski1964}, giving $d_R \leq 2^{d_P}-1$.
+Simplification removes units and redundant $\emptyset$, but not all
+equivalent forms. 
+In contrast the partial-derivative bound is linear without simplification.
 
 %
 
 \paragraph{The matcher.}
-A \emph{frontier} of residuals is updated one symbol at a time by taking $pd$
-of every element and unioning the results. The frontier $F_i$ represents all
-residuals reachable after consuming the first $i$ input symbols—every possible
-state the computation could be in. For frontier $F_i$ after $i$ symbols,
+The implementation can be summarized by the sequence of state sets
+produced while consuming the input. For $w=x_1x_2\cdots x_n$, the
+initial state set is $S_0=\{r\}$, and each subsequent set is obtained by
+taking $pd$ of every residual in the previous set and unioning the
+results:
 \begin{equation}
-F_0=\{r\},
+S_0=\{r\},
 \qquad
-F_i=\bigcup_{r'\in F_{i-1}} pd(r',x_i)
+S_i=\bigcup_{r'\in S_{i-1}} pd(r',x_i)
 \quad (1\leq i\leq n).
-\label{eq:pderiv-frontier}
+\label{eq:pderiv-state-set}
 \end{equation}
 
-The matcher accepts when some residual in the final frontier is nullable.
-Where Brzozowski's $r_0\to r_1\to\cdots\to r_n$ traces one path through a
-lazily constructed DFA, $F_0\to F_1\to\cdots\to F_n$ traces all states an NFA
-explores simultaneously, holding each state at once rather than committing to
-a single residual expression.
+The state set $S_i$ collects every residual reachable after consuming
+the prefix $x_1\cdots x_i$. Unlike the derivative matcher's single
+residual $r_i$, no element of $S_i$ grows with the input. The number of
+elements is bounded by $\|r\|+1$ as shown above. After the final symbol
+has been consumed, the matcher accepts when some residual in $S_n$ is
+nullable:
+
+\[
+w\in L(r)
+\iff
+\exists r_n \in S_n.\ n(r_n)=\mathrm{true}.
+\]
+
+So $S_0\xrightarrow{x_1}S_1\xrightarrow{x_2}\cdots\xrightarrow{x_n}S_n$
+can be viewed as a path through a lazily constructed NFA. Each state set
+represents the set of NFA states reachable after reading the corresponding
+prefix, and $\xrightarrow{x}$ denotes the transition obtained by taking
+$pd$ with respect to $x$ and unioning. Unlike an explicitly constructed
+NFA, only the states reached by the input are constructed. A state set is
+accepting exactly when it contains at least one nullable residual, so
+acceptance is determined by whether the final state set contains a
+nullable residual.
 
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:pderiv-loop-rust} implements ~\eqref{eq:pderiv-frontier}
-using a \texttt{HashSet<Regex>} frontier, where \texttt{Regex}'s \texttt{Hash}
-and \texttt{Eq} implementations allow residuals from different paths to collapse.
-Where the Brzozowski matcher holds one \texttt{Regex}, this holds a set. The early
-return when the frontier empties follows from construction: no later derivative
-produces residuals from an empty set. The final \texttt{any(nullable)} checks
-whether some residual is nullable. 
-The matcher trades a single growing expression for a set of small ones that
-never need simplification.
+Figure~\ref{fig:pderiv-loop-rust}
+implements~\eqref{eq:pderiv-state-set} with a \texttt{HashSet<Regex>},
+whose \texttt{Hash} and \texttt{Eq} implementations collapse residuals
+reached by different paths. The early return when the set empties
+follows from construction: an empty set has no states to derive. The
+final \texttt{any(nullable)} checks whether some residual is nullable.
+Where the derivative matcher holds one growing \texttt{Regex}, this holds
+a set of small residuals that never need simplification.
+
 \begin{figure}[ht]
+\small
 \begin{verbatim}
 pub fn match_pderiv(input: &str, r: &Regex) -> bool {
     let mut states: HashSet<Regex> = HashSet::new();
@@ -1143,3 +1018,77 @@ pub fn match_pderiv(input: &str, r: &Regex) -> bool {
 \caption{The partial-derivative matcher.}
 \label{fig:pderiv-loop-rust}
 \end{figure}
+
+%
+%
+%
+\paragraph{Worked Example: Applying the partial-derivative-based matcher}
+\label{sec:pderiv-worked-example}
+
+Applying \texttt{match\_pderiv} to $r_0 = (a + ab)(b + \varepsilon)$ and
+$w = \mathtt{ab}$ with the expression written as:
+\[
+r_0 = \mathit{Seq}(s,\, t),
+\qquad
+s = a + ab,
+\qquad
+t = b + \varepsilon.
+\]
+
+\paragraph{Derive by $\mathtt{a}$.}
+Since $s$ is not nullable, $t$ is untouched and $\mathsf{P}_{\mathrm{seq}}$
+applies to $r_0$:
+\[
+S_1 = \{\, \mathit{smartC}(r',t) \mid r' \in pd(s,\mathtt{a}) \,\}
+  \qquad (\mathsf{P}_{\mathrm{seq}}).
+\]
+The alternation rule gives the two branches of $s$ separately:
+\[
+\begin{aligned}
+pd(a,\mathtt{a}) &= \{\varepsilon\}
+  &&(\mathsf{P}_{\mathrm{lit}}), \\[2pt]
+pd(ab,\mathtt{a}) &= \{\mathit{smartC}(\varepsilon,b)\} = \{b\}
+  &&(\mathsf{P}_{\mathrm{seq}}),
+\end{aligned}
+\]
+So $pd(s,\mathtt{a}) = \{\varepsilon, b\}$. Applying $\mathit{smartC}$
+to each element against $t$ prepends that element to $t$, with
+$\varepsilon$ absorbed so that $\varepsilon \cdot t$ is never built:
+\[
+S_1 = \{\, t,\ b\cdot t \,\} = \{\, b+\varepsilon,\ \ b\,(b+\varepsilon) \,\}.
+\]
+
+\paragraph{Derive by $\mathtt{b}$.}
+Each state in $S_1$ is derived separately and the results unioned. 
+
+For the first state $t = b+\varepsilon$:
+\[
+pd(b+\varepsilon,\mathtt{b})
+  = pd(b,\mathtt{b}) \cup pd(\varepsilon,\mathtt{b})
+  = \{\varepsilon\} \cup \{\}
+  = \{\varepsilon\}
+  \qquad (\mathsf{P}_{+},\ \mathsf{P}_{\mathrm{lit}},\
+           \mathsf{P}_{\varepsilon}).
+\]
+
+For the second state $b\cdot t = b\,(b+\varepsilon)$:
+\[
+pd\big(b\,(b+\varepsilon),\mathtt{b}\big)
+  = \{\, \mathit{smartC}(\varepsilon,\,b+\varepsilon) \,\}
+  = \{b+\varepsilon\}
+  \qquad (\mathsf{P}_{\mathrm{seq}}).
+\]
+
+Only the left factor $b$ is derived, as it is a non-nullable literal.
+The union gives:
+\[
+S_2 = \{\varepsilon\} \cup \{b+\varepsilon\}
+    = \{\, \varepsilon,\ \ b+\varepsilon \,\}.
+\]
+
+\paragraph{Acceptance.}
+Both states in $S_2$ are nullable, $\varepsilon$ by
+$\mathsf{N}_{\varepsilon}$ and $b+\varepsilon$ by $\mathsf{N}_{+}$ and
+$\mathsf{N}_{\varepsilon}$, so \texttt{match\_pderiv("ab", $r_0$)}
+returns \texttt{true} and $\mathtt{ab} \in L(r_0)$, agreeing with
+Section~\ref{sec:deriv-worked-example}.

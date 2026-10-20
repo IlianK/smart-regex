@@ -19,9 +19,10 @@ the forward pass, avoiding a separate backward pass.
 
 \section{The Standard Derivative-Based Parser}
 \label{sec:core-algorithm}
-Consider the ambiguous example from Chapter~\ref{sec:matching-vs-parsing},
-$r = (a + ab)(b + \varepsilon)$ with input $w = \mathtt{ab}$, and ask
-whether a parse tree can be recovered from the final derivative.
+Consider the example $r = (a + ab)(b + \varepsilon)$ with input
+$w = \mathtt{ab}$. Chapter~\ref{sec:matching-vs-parsing} showed that it
+is ambiguous, as the word admits two parse trees. The question here is
+whether a parse tree can be recovered from the final derivative:
 \begin{equation}\label{eq:deriv-std-example}
 \begin{aligned}
 r
@@ -32,22 +33,22 @@ r
 \end{aligned}
 \end{equation}
 
-The final derivative is nullable, so \(w \in L(r)\) and
-both disjuncts accept the empty word. Its first disjunct,
+The derivation was already computed in
+Section~\ref{sec:deriv-worked-example}, shown here unsimplified. The
+final derivative is nullable, so \(w \in L(r)\) and both disjuncts
+accept the empty word. Its first disjunct,
 \((\phi+(\phi b+\varepsilon))(b+\varepsilon)\), reflects
 \(ab\cdot\varepsilon\), and its second,
-\((\varepsilon+\phi)\), reflects \(a\cdot b\). 
+\((\varepsilon+\phi)\), reflects \(a\cdot b\).
 
-Since a derivative step only records the remaining input language and not
-how consumed characters were matched, the final derivative alone does not
-indicate which decomposition was selected, and therefore cannot be used
-to recover the parse tree.
-
-However, the derivation sequence itself contains this information. Each step
-consumed one character and is invertible given that character, so
-reversing the steps recovers the tree. Figure~\ref{fig:two-pass} shows
-the forward pass as the derivation sequence and the backward pass as the
-reconstruction.
+Since a derivative step only records the remaining input language and
+not how consumed characters were matched, the final derivative alone does
+not show which decomposition was selected, and cannot be
+used to recover the parse tree.
+However, the derivation sequence itself contains this information. Each
+step consumed one character and is invertible given that character, so
+reversing the steps recovers the tree, as shown in
+Figure~\ref{fig:two-pass}:
 
 \begin{figure}[ht]
 \centering
@@ -166,19 +167,17 @@ contributes \(\mathit{Right}()\) via $(\mathsf{E}_{+}^{R})$, giving:
 \mathit{Left}(\mathit{RightRight}(),\mathit{Right}()).
 \]
 
-Because disambiguation is deferred to \(\mathit{mkEps}\), the forward pass
-cannot simplify. The second injection recovers
-\(\mathit{Right}(a,b)\) only because the forward pass preserved the branch
-that consumed \(a\). Had it been simplified away, the backward pass would
-have had no node to reinsert \(a\) into. For example, simplifying at each
-step collapses the derivation to:
+Because disambiguation is deferred to $\mathit{mkEps}$, the forward pass
+cannot simplify. The second injection recovers $\mathit{Right}(a,b)$
+only because the forward pass preserved the branch that consumed $a$.
+Simplified at each step, the derivation collapses to:
 \[
 r \xrightarrow{\ a\ } (\varepsilon + b)(b + \varepsilon)
   \xrightarrow{\ b\ } \varepsilon,
 \]
-This still witnesses \(w \in L(r)\) but keeps no record of which
-alternative consumed \(a\) or \(b\). The matcher accepts, but a parser
-cannot recover \(\mathit{Right}(a,b)\) from \(\varepsilon\).
+This still witnesses \(w \in L(r)\) but keeps no record of which alternative
+consumed \(a\) or \(b\): the matcher accepts, but a parser cannot
+recover $\mathit{Right}(a,b)$ from $\varepsilon$.
 
 %
 
@@ -261,13 +260,11 @@ The injection function is defined by the following rules \citep[Fig.~3]{sulzmann
 Rules $(\mathsf{I}_{\mathrm{lit}})$ and $(\mathsf{I}_{*})$ invert their
 derivative rules directly, reconstructing the consumed character and the
 current iteration, the latter prepended to the remaining ones.
-
 Since the consumed character lies in exactly one branch of an
 alternation, the incoming tree is either $\mathit{Left}\ v_1$ or
 $\mathit{Right}\ v_2$. Rule $(\mathsf{I}_{+}^{L})$ recurses into $v_1$
 and rebuilds the $\mathit{Left}$ node, and $(\mathsf{I}_{+}^{R})$
 recurses into $v_2$ and rebuilds the $\mathit{Right}$ node.
-
 The concatenation rules cover the three cases of the sequence derivative. If
 $n(r_1) = \mathrm{false}$, $r_1$ cannot match $\varepsilon$ and must consume
 $x$, so $(\mathsf{I}_{\mathrm{seq}})$ recurses into $v_1$. If
@@ -276,9 +273,7 @@ $x$ as a tag: $(\mathsf{I}_{\mathrm{seq}}^{L})$ handles an incoming
 $\mathit{Left}(v_1, v_2)$ tag and recurses into $v_1$, while
 $(\mathsf{I}_{\mathrm{seq}}^{R})$ handles a $\mathit{Right}\ v_2$ tag by
 reconstructing $r_1$'s empty match with $\mathit{mkEps}_{r_1}$ and recursing
-into $v_2$.
-
-Since $\phi$ consumes no characters, $\mathit{inj}$ is never applied with
+into $v_2$. Since $\phi$ consumes no characters, $\mathit{inj}$ is never applied with
 $\phi$ as the residual.
 
 %

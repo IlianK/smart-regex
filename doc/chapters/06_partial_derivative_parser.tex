@@ -38,42 +38,50 @@ consumed:
 \begin{aligned}
 \mathit{pderiv}(r_0, \mathtt{a}) =
   \bigl\{
-    &(\;b + \varepsilon,\;
+    &(\;\varepsilon \cdot (b + \varepsilon),\;
        \lambda(\_, v_2).\; (\mathit{Left}\,a,\, v_2)\;), \\[2pt]
-    &(\;b\,(b + \varepsilon),\;
+    &(\;(\varepsilon \cdot b)\,(b + \varepsilon),\;
        \lambda((v_1, v_2), v_2').\; (\mathit{Right}(a, v_2),\, v_2')\;)
   \bigr\}.
 \end{aligned}
 \end{equation}
-Here, a state is a pair: a residual expression describing what is left to
+A state is a pair: a residual expression describing what is left to
 match, and an injection rebuilding a parse tree of the original
 expression from a parse tree of the residual. The two states above
-correspond to the two branches of the alternation in the first factor.
+correspond to the two branches of the alternation $a + ab$ in the first
+factor. The second factor $b + \varepsilon$ is untouched in both and
+appears as the trailing component of each residual.
 
-The first state's residual $b + \varepsilon$ records that the left branch
-$a$ has been fully consumed and only the second factor remains. Its
-injection takes the tree of the second factor and returns the pair
-$(\mathit{Left}(a), \cdot)$, discarding the trivial tree of the residual's
-leading $\varepsilon$ in favour of the leaf $a$. The second state's
-residual $b\,(b + \varepsilon)$ records that the right branch $ab$ has
-consumed only its leading $a$, so the trailing $b$ still remains before
-the untouched second factor. Its injection destructures the residual's
-tree into the trailing $b$ and the second factor, rebuilding the pair
-$(a, b)$ inside a right injection and passing the second factor's tree
-through.
+Each residual has the shape $r_1' \cdot r_2$: the derivative of the
+first factor, followed by the untouched second factor. The leading
+$\varepsilon$ in each $r_1'$ records that the consumed character matched
+a leading literal and left nothing behind in that position.
 
-The two residuals are shown in simplified form. The unsimplified
-residuals would carry leading $\varepsilon$ factors, like
-$(\varepsilon \cdot b)\,(b + \varepsilon)$ for the second state, that
-$\mathit{smartC}$ collapses since they describe the same language. The
-injection binders follow the unsimplified shape, because they are written
-to destructure the parse tree of the residual before $\mathit{smartC}$
-collapses it. In the second state, $(v_1, v_2)$ destructures the tree of
-$\varepsilon \cdot b$, so $v_1$ holds the trivial tree of $\varepsilon$
-and $v_2$ holds the tree of $b$, even though the residual is displayed
-as $b$. The binder $v_1$ is unused in the body for the same reason the
-first state's binder is \texttt{\_}. The tree of $\varepsilon$ carries no
+The first state's residual $\varepsilon \cdot (b + \varepsilon)$ is a
+sequence, so its tree is a pair $(v_1, v_2)$: $v_1$ is the tree of the
+leading $\varepsilon$, which is necessarily $\mathit{Empty}$, and $v_2$
+is the tree of the untouched second factor $b + \varepsilon$. The closure
+returns $(\mathit{Left}(a), v_2)$. It discards $v_1$ because the tree of
+$\varepsilon$ carries no information, and replaces the first position with
+$\mathit{Left}(a)$ to record that the left branch of the alternation
+$a + ab$ was taken. The second factor's tree $v_2$ is passed through
+unchanged.
+
+The second state's residual $(\varepsilon \cdot b)\,(b + \varepsilon)$
+is a sequence whose first component is itself a sequence, so its tree is
+a pair $((v_1, v_2), v_2')$: the inner pair $(v_1, v_2)$ is the tree of
+$\varepsilon \cdot b$, with $v_1$ the tree of the leading $\varepsilon$
+and $v_2$ the tree of the trailing $b$; the outer $v_2'$ is the tree of
+the untouched second factor. The closure returns
+$(\mathit{Right}(a, v_2), v_2')$. It rebuilds the consumed $a$ (which
+the leading $\varepsilon$ records) and the still-owed $b$ (which $v_2$
+records) as the pair $(a, v_2)$, places that pair inside a right
+injection to record that the right branch $ab$ of the alternation was
+taken, and passes the second factor's tree $v_2'$ through unchanged. The
+binder $v_1$ is bound but not used in the body, for the same reason as
+the first state's \texttt{\_}: the tree of $\varepsilon$ carries no
 information.
+
 Transitioning both states on the second character $\mathtt{b}$ gives a new
 state set:
 \begin{equation}\label{eq:pderiv-std-step2}
@@ -87,11 +95,11 @@ state set:
   \bigr\}.
 \end{aligned}
 \end{equation}
-The first state now has residual $\varepsilon$ and is accepting, meaning
-every input character has been consumed; the second has residual
+The first state now has residual $\varepsilon$, meaning every input
+character has been consumed, and is accepting; the second has residual
 $b + \varepsilon$, which is also accepting. Selection walks the state set
-in generation order and returns the first accepting state, whose injection
-applied to $\mathit{mkEps}_\varepsilon = ()$ yields
+in generation order and returns the first accepting state. Applying its
+injection to $\mathit{mkEps}_\varepsilon = ()$ yields
 $(\mathit{Left}\,a, \mathit{Left}\,b)$, the leftmost alternative at every
 choice (Figure~\ref{fig:pderiv-std-overview}).
 
@@ -153,6 +161,8 @@ injection, so the earlier path wins ties. Both mechanisms favour the
 leftmost alternative at every choice over the longest one, which is what
 distinguishes the tree this parser returns from the POSIX tree of
 Chapter~\ref{sec:derivative-parser}.
+
+%
 
 %
 
