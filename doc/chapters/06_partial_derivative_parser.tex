@@ -4,21 +4,24 @@
 Chapter~\ref{sec:derivative-parser} presented two derivative-based methods for
 constructing POSIX parse trees. Both keep the structure of the original
 expression throughout the forward pass and defer disambiguation to a final
-$\mathit{mkEps}$ step. A parser based on partial derivatives must instead
-select among a set of competing states.
+$\mathit{mkEps}$ step.
 
-Following Sulzmann and Lu~\citep{sulzmannlu2012}, this chapter presents the
-partial-derivative alternative. Instead of one residual per step, the partial
+This chapter presents the partial-derivative alternative of Sulzmann and
+Lu~\citep{sulzmannlu2012}. Instead of one residual per step, the partial
 derivative produces a set of states, each pairing a residual expression with
-the reconstruction information for one path through the original expression;
-the parser maintains this set as an NFA state set. Because partial derivatives
-break apart the structure of the original expression, the traversal yields the
-greedy leftmost parse tree rather than the POSIX one. As in
-Chapter~\ref{sec:derivative-parser}, two variants are presented: the standard
-parser attaches an injection closure to each configuration, while the
-bit-coded parser replaces these closures with bit-sequences; both compute the
-same greedy parse tree.
+the reconstruction information for one path through the original expression.
+The parser maintains this set as an NFA state set, and at the end walks it in
+generation order, taking the first accepting state. Because partial
+derivatives break apart the structure of the original expression, this walk
+yields the leftmost alternative at every choice rather than the longest one,
+and therefore a non-POSIX parse tree.
 
+As in Chapter~\ref{sec:derivative-parser}, two variants are presented. The
+standard parser attaches an injection closure to each state. The bit-coded
+parser replaces these closures with bit-sequences. Both compute the same
+parse tree.
+
+%
 %
 %
 %
@@ -27,8 +30,8 @@ same greedy parse tree.
 \section{The Standard Partial-Derivative Parser}
 \label{sec:pderiv-std}
 
-Consider again the ambiguous example $r_0 = (a + ab)(b + \varepsilon)$ with
-input $w = \mathtt{ab}$. The partial derivative of $r_0$ with respect to
+Consider again $r_0 = (a + ab)(b + \varepsilon)$ with input
+$w = \mathtt{ab}$. The partial derivative of $r_0$ with respect to
 $\mathtt{a}$ produces two states, one for each way $\mathtt{a}$ can be
 consumed:
 \begin{equation}\label{eq:pderiv-std-example}
@@ -42,19 +45,35 @@ consumed:
   \bigr\}.
 \end{aligned}
 \end{equation}
-The first state comes from the left branch $a$ of the first factor: the
-character is matched by $a$, and the injection places it in the left injection
-of the alternation. The second state comes from the right branch $ab$: the
-character is matched by the leading $a$ of $ab$, and the injection places it in
-the right injection, leaving the residual $b$ to be matched later. Two
-notational conventions appear in the closures. The underscore in the first
-injection marks a binder that is never used: the residual is $\varepsilon$,
-whose only tree carries no information, so the closure discards its argument.
-The leading $\varepsilon$ inside the second state's residual has already been
-removed by the smart constructor, since $\varepsilon\,b$ and $b$ describe the
-same language; the closure's pair-binder reflects the shape the residual
-would have had before the simplification.
+Here, a state is a pair: a residual expression describing what is left to
+match, and an injection rebuilding a parse tree of the original
+expression from a parse tree of the residual. The two states above
+correspond to the two branches of the alternation in the first factor.
 
+The first state's residual $b + \varepsilon$ records that the left branch
+$a$ has been fully consumed and only the second factor remains. Its
+injection takes the tree of the second factor and returns the pair
+$(\mathit{Left}(a), \cdot)$, discarding the trivial tree of the residual's
+leading $\varepsilon$ in favour of the leaf $a$. The second state's
+residual $b\,(b + \varepsilon)$ records that the right branch $ab$ has
+consumed only its leading $a$, so the trailing $b$ still remains before
+the untouched second factor. Its injection destructures the residual's
+tree into the trailing $b$ and the second factor, rebuilding the pair
+$(a, b)$ inside a right injection and passing the second factor's tree
+through.
+
+The two residuals are shown in simplified form. The unsimplified
+residuals would carry leading $\varepsilon$ factors, like
+$(\varepsilon \cdot b)\,(b + \varepsilon)$ for the second state, that
+$\mathit{smartC}$ collapses since they describe the same language. The
+injection binders follow the unsimplified shape, because they are written
+to destructure the parse tree of the residual before $\mathit{smartC}$
+collapses it. In the second state, $(v_1, v_2)$ destructures the tree of
+$\varepsilon \cdot b$, so $v_1$ holds the trivial tree of $\varepsilon$
+and $v_2$ holds the tree of $b$, even though the residual is displayed
+as $b$. The binder $v_1$ is unused in the body for the same reason the
+first state's binder is \texttt{\_}. The tree of $\varepsilon$ carries no
+information.
 Transitioning both states on the second character $\mathtt{b}$ gives a new
 state set:
 \begin{equation}\label{eq:pderiv-std-step2}
@@ -68,17 +87,13 @@ state set:
   \bigr\}.
 \end{aligned}
 \end{equation}
-The first configuration has residual $\varepsilon$ and is accepting; the
-second has residual $b + \varepsilon$, which is also accepting. Selection
-walks the state set in priority order and returns the first accepting
-configuration. Applying its injection to $\mathit{mkEps}_\varepsilon = ()$
-yields $(\mathit{Left}\,a, \mathit{Left}\,b)$, the greedy parse tree.
-
-Figure~\ref{fig:pderiv-std-overview} shows the two transitions and the
-selection on the running example. Each arrow is labelled by the function
-that performs the step: $\mathit{pderiv}(-,\mathtt{a})$ and
-$\mathit{pderiv}(-,\mathtt{b})$ advance the state set by one character,
-$\mathit{select}$ picks the first accepting configuration.
+The first state now has residual $\varepsilon$ and is accepting, meaning
+every input character has been consumed; the second has residual
+$b + \varepsilon$, which is also accepting. Selection walks the state set
+in generation order and returns the first accepting state, whose injection
+applied to $\mathit{mkEps}_\varepsilon = ()$ yields
+$(\mathit{Left}\,a, \mathit{Left}\,b)$, the leftmost alternative at every
+choice (Figure~\ref{fig:pderiv-std-overview}).
 
 \begin{figure}[ht]
 \centering
@@ -119,25 +134,27 @@ $\mathit{select}$ picks the first accepting configuration.
 \draw[->] (s1b) -- node[lbl, right] {$\mathit{pderiv}(-,\mathtt{b})$} (s2b);
 \draw[->] (s2a) -- node[lbl, right] {$\mathit{select}$} (r);
 \end{tikzpicture}
-\caption{The standard partial-derivative parser on the ambiguous example
+\caption{The standard partial-derivative parser on
 $r_0 = (a + ab)(b + \varepsilon)$ with input $\mathtt{ab}$. Each box is a
-configuration: a residual expression and an injection $\iota_i$. The
-initial state set $S_0$ contains $(r_0, \mathit{id})$. Applying
-$\mathit{pderiv}(-,\mathtt{a})$ advances every configuration by the
-character $\mathtt{a}$, producing $S_1$ with two configurations. Applying
-$\mathit{pderiv}(-,\mathtt{b})$ advances $S_1$ to $S_2$, in which the first
-configuration has residual $\varepsilon$ and is accepting. Selecting that
-configuration's injection and applying it to
-$\mathit{mkEps}_\varepsilon = ()$ yields the greedy parse tree
-$(\mathit{Left}\,a, \mathit{Left}\,b)$.}
+state $(r, \iota)$: a residual and an injection. $\mathit{pderiv}(-,x)$
+advances every state by one character; $\mathit{select}$ takes the first
+accepting state and applies its injection to $\mathit{mkEps}$ of its
+residual.}
 \label{fig:pderiv-std-overview}
 \end{figure}
 
-The order of configurations in the state set encodes the greedy preference.
-When a state produces several successors, they are appended in the order the
-rules generate them, with the left alternative first. When two configurations
-share a residual, $\mathit{nub}$ keeps the first, discarding the later one and
-its injection. Both mechanisms favour the leftmost path through the expression.
+Two properties of the state set determine which tree is selected. First,
+the order of states in the set encodes the preference. When a state
+produces several successors, they are appended in the order the rules
+generate them, with the left alternative first, so the leftmost path
+appears earliest. Second, when two states share a residual,
+$\mathit{nub}$ keeps the first and discards the later one with its
+injection, so the earlier path wins ties. Both mechanisms favour the
+leftmost alternative at every choice over the longest one, which is what
+distinguishes the tree this parser returns from the POSIX tree of
+Chapter~\ref{sec:derivative-parser}.
+
+%
 
 %
 
