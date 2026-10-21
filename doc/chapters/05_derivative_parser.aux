@@ -31,80 +31,84 @@
 \newlabel{fig:inject-rust}{{5.3}{28}{\texttt {inject}: reinsert a character into a parse tree}{figure.caption.17}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.1.3}Parser}{29}{subsection.5.1.3}\protected@file@percent }
 \newlabel{sec:deriv-std-parser}{{5.1.3}{29}{Parser}{subsection.5.1.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces The standard derivative-based parser. The forward pass stores the residual after each character in \texttt  {expressions}, entry $i$ being the residual after $i$ characters, and returns \texttt  {None} if the final entry is not nullable. The backward pass starts from \texttt  {mk\_eps} of the final entry and applies \texttt  {inject} to the preceding entries in reverse, yielding the parse tree for $r$.}}{29}{figure.caption.18}\protected@file@percent }
-\newlabel{fig:deriv-std-drivers-rust}{{5.4}{29}{The standard derivative-based parser. The forward pass stores the residual after each character in \texttt {expressions}, entry $i$ being the residual after $i$ characters, and returns \texttt {None} if the final entry is not nullable. The backward pass starts from \texttt {mk\_eps} of the final entry and applies \texttt {inject} to the preceding entries in reverse, yielding the parse tree for $r$}{figure.caption.18}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.4}Worked Example: Ambiguous Expression}{30}{subsection.5.1.4}\protected@file@percent }
-\newlabel{sec:worked-example}{{5.1.4}{30}{Worked Example: Ambiguous Expression}{subsection.5.1.4}{}}
+\newlabel{eq:std-driver}{{5.4}{29}{Parser}{equation.5.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{29}{equation.5.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces \texttt  {parse\_deriv\_std\_loop}: the standard parser.}}{29}{figure.caption.18}\protected@file@percent }
+\newlabel{fig:deriv-std-drivers-rust}{{5.4}{29}{\texttt {parse\_deriv\_std\_loop}: the standard parser}{figure.caption.18}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.4}Worked Example: Applying the Standard Parser}{30}{subsection.5.1.4}\protected@file@percent }
+\newlabel{sec:worked-example}{{5.1.4}{30}{Worked Example: Applying the Standard Parser}{subsection.5.1.4}{}}
 \@writefile{toc}{\contentsline {paragraph}{Forward pass.}{30}{subsection.5.1.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Backward pass: mkEps.}{30}{subsection.5.1.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Backward pass: Inj.}{30}{subsection.5.1.4}\protected@file@percent }
 \citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {section}{\numberline {5.2}The Bit-Coded Derivative-Based Parser}{31}{section.5.2}\protected@file@percent }
 \newlabel{sec:bitcoded-construction-formal}{{5.2}{31}{The Bit-Coded Derivative-Based Parser}{section.5.2}{}}
-\newlabel{eq:bitcoded-overview-example}{{5.4}{31}{The Bit-Coded Derivative-Based Parser}{equation.5.4}{}}
+\newlabel{eq:bitcoded-overview-example}{{5.5}{31}{The Bit-Coded Derivative-Based Parser}{equation.5.5}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Overview of the bit-coded derivative parser on the ambiguous example. $\mathit  {internalize}$ introduces the bits, each derivative step threads them forward, so consumed factors' bits transfer to survivors. $\mathit  {mkEpsBC}$ extracts them and $\mathit  {decode}_{r_0}$ reads them against the original pattern.}}{31}{figure.caption.19}\protected@file@percent }
 \newlabel{fig:single-pass}{{5.5}{31}{Overview of the bit-coded derivative parser on the ambiguous example. $\mathit {internalize}$ introduces the bits, each derivative step threads them forward, so consumed factors' bits transfer to survivors. $\mathit {mkEpsBC}$ extracts them and $\mathit {decode}_{r_0}$ reads them against the original pattern}{figure.caption.19}{}}
 \citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {paragraph}{The bit-coded pipeline.}{32}{figure.caption.19}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.1}Annotated Expressions}{32}{subsection.5.2.1}\protected@file@percent }
 \newlabel{sec:annotated-expressions}{{5.2.1}{32}{Annotated Expressions}{subsection.5.2.1}{}}
-\newlabel{eq:aregex-grammar}{{5.5}{32}{Annotated Expressions}{equation.5.5}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{32}{equation.5.5}\protected@file@percent }
-\newlabel{sec:aregex-type}{{5.2.1}{32}{In Rust}{equation.5.5}{}}
+\newlabel{eq:aregex-grammar}{{5.6}{32}{Annotated Expressions}{equation.5.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{32}{equation.5.6}\protected@file@percent }
+\newlabel{sec:aregex-type}{{5.2.1}{32}{In Rust}{equation.5.6}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces The annotated-expression type extends \texttt  {Regex} with a leading bit-list.}}{32}{figure.caption.20}\protected@file@percent }
 \newlabel{fig:aregex-enum}{{5.6}{32}{The annotated-expression type extends \texttt {Regex} with a leading bit-list}{figure.caption.20}{}}
+\citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.2}Fusing Bit-Lists}{33}{subsection.5.2.2}\protected@file@percent }
 \newlabel{sec:fuse}{{5.2.2}{33}{Fusing Bit-Lists}{subsection.5.2.2}{}}
-\newlabel{eq:fuse}{{5.6}{33}{Fusing Bit-Lists}{equation.5.6}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{33}{equation.5.6}\protected@file@percent }
-\newlabel{sec:fuse-impl}{{5.2.2}{33}{In Rust}{equation.5.6}{}}
+\newlabel{eq:fuse}{{5.7}{33}{Fusing Bit-Lists}{equation.5.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{33}{equation.5.7}\protected@file@percent }
+\newlabel{sec:fuse-impl}{{5.2.2}{33}{In Rust}{equation.5.7}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces \texttt  {fuse}: prepend a bit-list to the annotation of the top node.}}{33}{figure.caption.21}\protected@file@percent }
 \newlabel{fig:fuse-rust}{{5.7}{33}{\texttt {fuse}: prepend a bit-list to the annotation of the top node}{figure.caption.21}{}}
 \citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.3}Internalizing Expressions}{34}{subsection.5.2.3}\protected@file@percent }
 \newlabel{sec:internalize}{{5.2.3}{34}{Internalizing Expressions}{subsection.5.2.3}{}}
-\newlabel{eq:internalize}{{5.7}{34}{Internalizing Expressions}{equation.5.7}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{34}{equation.5.7}\protected@file@percent }
-\newlabel{sec:internalize-impl}{{5.2.3}{34}{In Rust}{equation.5.7}{}}
+\newlabel{eq:internalize}{{5.8}{34}{Internalizing Expressions}{equation.5.8}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{34}{equation.5.8}\protected@file@percent }
+\newlabel{sec:internalize-impl}{{5.2.3}{34}{In Rust}{equation.5.8}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces \texttt  {internalize} converts a \texttt  {Regex} into an \texttt  {ARegex}. Each alternation branch receives a tag recording its side, and the two \texttt  {fuse} calls are the only points where new bits are introduced.}}{34}{figure.caption.22}\protected@file@percent }
 \newlabel{fig:internalize-rust}{{5.8}{34}{\texttt {internalize} converts a \texttt {Regex} into an \texttt {ARegex}. Each alternation branch receives a tag recording its side, and the two \texttt {fuse} calls are the only points where new bits are introduced}{figure.caption.22}{}}
-\citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.4}Extracting Bits}{35}{subsection.5.2.4}\protected@file@percent }
 \newlabel{sec:mkepsbc-theory}{{5.2.4}{35}{Extracting Bits}{subsection.5.2.4}{}}
-\newlabel{eq:mkepsbc}{{5.8}{35}{Extracting Bits}{equation.5.8}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{35}{equation.5.8}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces \texttt  {mk\_eps\_bc} implements \eqref  {eq:mkepsbc}. \texttt  {Phi} and \texttt  {Lit} panic, since neither can be nullable.}}{36}{figure.caption.23}\protected@file@percent }
-\newlabel{fig:mkepsbc-rust}{{5.9}{36}{\texttt {mk\_eps\_bc} implements \eqref {eq:mkepsbc}. \texttt {Phi} and \texttt {Lit} panic, since neither can be nullable}{figure.caption.23}{}}
+\newlabel{eq:mkepsbc}{{5.9}{35}{Extracting Bits}{equation.5.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{35}{equation.5.9}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces \texttt  {mk\_eps\_bc} implements \eqref  {eq:mkepsbc}. \texttt  {Phi} and \texttt  {Lit} panic, since neither can be nullable.}}{35}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:mkepsbc-rust}{{5.9}{35}{\texttt {mk\_eps\_bc} implements \eqref {eq:mkepsbc}. \texttt {Phi} and \texttt {Lit} panic, since neither can be nullable}{figure.caption.23}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.5}Annotated Derivatives}{36}{subsection.5.2.5}\protected@file@percent }
 \newlabel{sec:deriv-bc-theory}{{5.2.5}{36}{Annotated Derivatives}{subsection.5.2.5}{}}
-\newlabel{eq:bderiv}{{5.9}{36}{Annotated Derivatives}{equation.5.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{37}{equation.5.9}\protected@file@percent }
-\newlabel{sec:deriv-bc-impl}{{5.2.5}{37}{In Rust}{equation.5.9}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Annotated derivative \texttt  {deriv\_bc}, implementing $\mathsf  {B}_{\emptyset }$, $\mathsf  {B}_{\varepsilon }$, $\mathsf  {B}_{\mathrm  {lit}}$, $\mathsf  {B}_{+}$, $\mathsf  {B}_{\mathrm  {seq}}/\mathsf  {B}_{\mathrm  {seq}}^{\,n}$, $\mathsf  {B}_{*}$.}}{38}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:derivbc-rust}{{5.10}{38}{Annotated derivative \texttt {deriv\_bc}, implementing $\mathsf {B}_{\emptyset }$, $\mathsf {B}_{\varepsilon }$, $\mathsf {B}_{\mathrm {lit}}$, $\mathsf {B}_{+}$, $\mathsf {B}_{\mathrm {seq}}/\mathsf {B}_{\mathrm {seq}}^{\,n}$, $\mathsf {B}_{*}$}{figure.caption.24}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.6}Decoding Bits}{38}{subsection.5.2.6}\protected@file@percent }
-\newlabel{sec:decode}{{5.2.6}{38}{Decoding Bits}{subsection.5.2.6}{}}
-\newlabel{eq:decode}{{5.10}{38}{Decoding Bits}{equation.5.10}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{39}{equation.5.10}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces \texttt  {decode} and the \texttt  {Alt}, \texttt  {Seq}, and \texttt  {Star} arms of \texttt  {decode\_inner}.}}{40}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:decode-rust}{{5.11}{40}{\texttt {decode} and the \texttt {Alt}, \texttt {Seq}, and \texttt {Star} arms of \texttt {decode\_inner}}{figure.caption.25}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.7}Parser}{41}{subsection.5.2.7}\protected@file@percent }
-\newlabel{sec:deriv-bc-driver}{{5.2.7}{41}{Parser}{subsection.5.2.7}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.12}{\ignorespaces \texttt  {parse\_bitcoded\_loop}: the bit-coded parser implementation.}}{41}{figure.caption.26}\protected@file@percent }
-\newlabel{fig:deriv-bc-loop-rust}{{5.12}{41}{\texttt {parse\_bitcoded\_loop}: the bit-coded parser implementation}{figure.caption.26}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.8}Worked Example: Ambigious Expression}{41}{subsection.5.2.8}\protected@file@percent }
-\newlabel{sec:deriv-bc-worked}{{5.2.8}{41}{Worked Example: Ambigious Expression}{subsection.5.2.8}{}}
-\@writefile{toc}{\contentsline {paragraph}{Internalize.}{41}{subsection.5.2.8}\protected@file@percent }
-\newlabel{eq:dpbc-internalize}{{5.11}{41}{Internalize}{equation.5.11}{}}
-\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{41}{equation.5.11}\protected@file@percent }
-\newlabel{eq:dpbc-forward}{{5.12}{41}{Forward pass}{equation.5.12}{}}
-\@writefile{toc}{\contentsline {paragraph}{Extracting and decoding the bits.}{42}{equation.5.12}\protected@file@percent }
-\newlabel{eq:dpbc-mkepsbc}{{5.13}{42}{Extracting and decoding the bits}{equation.5.13}{}}
-\newlabel{eq:dpbc-decode}{{5.14}{42}{Extracting and decoding the bits}{equation.5.14}{}}
-\newlabel{eq:dpbc-flatten}{{5.15}{42}{Extracting and decoding the bits}{equation.5.15}{}}
+\newlabel{eq:bderiv}{{5.10}{36}{Annotated Derivatives}{equation.5.10}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{36}{equation.5.10}\protected@file@percent }
+\newlabel{sec:deriv-bc-impl}{{5.2.5}{36}{In Rust}{equation.5.10}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Annotated derivative \texttt  {deriv\_bc}, implementing $\mathsf  {B}_{\emptyset }$, $\mathsf  {B}_{\varepsilon }$, $\mathsf  {B}_{\mathrm  {lit}}$, $\mathsf  {B}_{+}$, $\mathsf  {B}_{\mathrm  {seq}}/\mathsf  {B}_{\mathrm  {seq}}^{\,n}$, $\mathsf  {B}_{*}$.}}{37}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:derivbc-rust}{{5.10}{37}{Annotated derivative \texttt {deriv\_bc}, implementing $\mathsf {B}_{\emptyset }$, $\mathsf {B}_{\varepsilon }$, $\mathsf {B}_{\mathrm {lit}}$, $\mathsf {B}_{+}$, $\mathsf {B}_{\mathrm {seq}}/\mathsf {B}_{\mathrm {seq}}^{\,n}$, $\mathsf {B}_{*}$}{figure.caption.24}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.6}Decoding Bits}{37}{subsection.5.2.6}\protected@file@percent }
+\newlabel{sec:decode}{{5.2.6}{37}{Decoding Bits}{subsection.5.2.6}{}}
+\newlabel{eq:decode}{{5.11}{37}{Decoding Bits}{equation.5.11}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{38}{equation.5.11}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces \texttt  {decode\_inner}: the worker behind \texttt  {decode}, one arm per expression form.}}{38}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:decode-rust}{{5.11}{38}{\texttt {decode\_inner}: the worker behind \texttt {decode}, one arm per expression form}{figure.caption.25}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.7}Parser}{39}{subsection.5.2.7}\protected@file@percent }
+\newlabel{sec:deriv-bc-driver}{{5.2.7}{39}{Parser}{subsection.5.2.7}{}}
+\newlabel{eq:bitcoded-driver}{{5.12}{39}{Parser}{equation.5.12}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{39}{equation.5.12}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.12}{\ignorespaces \texttt  {parse\_bitcoded\_loop}: the bit-coded parser implementation.}}{39}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:deriv-bc-loop-rust}{{5.12}{39}{\texttt {parse\_bitcoded\_loop}: the bit-coded parser implementation}{figure.caption.26}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.8}Worked Example: Ambiguous Expression}{40}{subsection.5.2.8}\protected@file@percent }
+\newlabel{sec:deriv-bc-worked}{{5.2.8}{40}{Worked Example: Ambiguous Expression}{subsection.5.2.8}{}}
+\@writefile{toc}{\contentsline {paragraph}{Internalize.}{40}{subsection.5.2.8}\protected@file@percent }
+\newlabel{eq:dpbc-internalize}{{5.13}{40}{Internalize}{equation.5.13}{}}
+\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{40}{equation.5.13}\protected@file@percent }
+\newlabel{eq:dpbc-forward}{{5.14}{40}{Forward pass}{equation.5.14}{}}
+\@writefile{toc}{\contentsline {paragraph}{Extracting and decoding the bits.}{40}{equation.5.14}\protected@file@percent }
+\newlabel{eq:dpbc-mkepsbc}{{5.15}{40}{Extracting and decoding the bits}{equation.5.15}{}}
+\newlabel{eq:dpbc-decode}{{5.16}{40}{Extracting and decoding the bits}{equation.5.16}{}}
+\newlabel{eq:dpbc-flatten}{{5.17}{40}{Extracting and decoding the bits}{equation.5.17}{}}
 \@setckpt{chapters/05_derivative_parser}{
-\setcounter{page}{43}
-\setcounter{equation}{15}
+\setcounter{page}{41}
+\setcounter{equation}{17}
 \setcounter{enumi}{0}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}

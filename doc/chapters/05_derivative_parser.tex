@@ -29,7 +29,7 @@ r
   &\xrightarrow{\ a\ }
     (\varepsilon + \varepsilon b)(b + \varepsilon) \\[2pt]
   &\xrightarrow{\ b\ }
-    (\phi + (\phi b + \varepsilon))(b + \varepsilon) + (\varepsilon + \phi).
+    (\emptyset + (\emptyset b + \varepsilon))(b + \varepsilon) + (\varepsilon + \emptyset).
 \end{aligned}
 \end{equation}
 
@@ -37,9 +37,9 @@ The derivation was already computed in
 Section~\ref{sec:deriv-worked-example}, shown here unsimplified. The
 final derivative is nullable, so \(w \in L(r)\) and both disjuncts
 accept the empty word. Its first disjunct,
-\((\phi+(\phi b+\varepsilon))(b+\varepsilon)\), reflects
+\((\emptyset+(\emptyset b+\varepsilon))(b+\varepsilon)\), reflects
 \(ab\cdot\varepsilon\), and its second,
-\((\varepsilon+\phi)\), reflects \(a\cdot b\).
+\((\varepsilon+\emptyset)\), reflects \(a\cdot b\).
 
 Since a derivative step only records the remaining input language and
 not how consumed characters were matched, the final derivative alone does
@@ -69,8 +69,8 @@ Figure~\ref{fig:two-pass}:
 \node[expr] (r1) at (5.4,1.8)
   {$(\varepsilon{+}\varepsilon b)(b{+}\varepsilon)$};
 \node[expr] (r2) at (10.8,1.8)
-  {$(\phi{+}(\phi b{+}\varepsilon))(b{+}\varepsilon)
-    +(\varepsilon{+}\phi)$};
+  {$(\emptyset{+}(\emptyset b{+}\varepsilon))(b{+}\varepsilon)
+    +(\varepsilon{+}\emptyset)$};
 \draw[->] (r0) -- node[lbl, above] {$\backslash\mathtt{a}$} (r1);
 \draw[->] (r1) -- node[lbl, above] {$\backslash\mathtt{b}$} (r2);
 
@@ -153,11 +153,11 @@ tie by preferring the left one, following POSIX's leftmost-longest policy
 \citep{sulzmannlu2014}.
 In the example, the final expression is:
 \[
-(\phi + (\phi b + \varepsilon))(b + \varepsilon) + (\varepsilon + \phi).
+(\emptyset + (\emptyset b + \varepsilon))(b + \varepsilon) + (\varepsilon + \emptyset).
 \]
 At top-level \(+\), both summands are nullable, so
 $(\mathsf{E}_{+}^{L})$ applies and picks the left one. Within the left
-summand's first factor \(\phi + (\phi b + \varepsilon)\), only the right
+summand's first factor \(\emptyset + (\emptyset b + \varepsilon)\), only the right
 alternative is nullable, so $(\mathsf{E}_{+}^{R})$ applies, and within it
 only the right sub-alternative \(\varepsilon\) is nullable, so
 $(\mathsf{E}_{+}^{R})$ applies again, contributing
@@ -213,7 +213,7 @@ pass needs it again during injection.
 The alternation arm encodes disambiguation as a conditional,
 examining \texttt{r2} only when \texttt{nullable(r1)} is false. The panic
 arms enforce the precondition that $\mathit{mkEps}$ applies only to
-nullable expressions, rejecting the non-nullable $\phi$ and literals.
+nullable expressions, rejecting the non-nullable $\emptyset$ and literals.
 
 %
 
@@ -273,8 +273,8 @@ $x$ as a tag: $(\mathsf{I}_{\mathrm{seq}}^{L})$ handles an incoming
 $\mathit{Left}(v_1, v_2)$ tag and recurses into $v_1$, while
 $(\mathsf{I}_{\mathrm{seq}}^{R})$ handles a $\mathit{Right}\ v_2$ tag by
 reconstructing $r_1$'s empty match with $\mathit{mkEps}_{r_1}$ and recursing
-into $v_2$. Since $\phi$ consumes no characters, $\mathit{inj}$ is never applied with
-$\phi$ as the residual.
+into $v_2$. Since $\emptyset$ consumes no characters, $\mathit{inj}$ is never applied with
+$\emptyset$ as the residual.
 
 %
 
@@ -363,28 +363,42 @@ while \texttt{nullable} is cheap to evaluate on demand.
 
 \subsection{Parser}
 \label{sec:deriv-std-parser}
-The parser composes \texttt{mkEps} and \texttt{inject} by storing every
-forward-pass expression and reconstructing the tree in reverse. Since
-\texttt{inject} takes the preceding expression as an explicit argument,
-each call needs $r_{i-1}$. Re-deriving it from $r$ through the same prefix
-would duplicate the forward pass, so storing it avoids computing the derivation again.
 
-Figure~\ref{fig:deriv-std-drivers-rust} implements this iteratively,
-using a \texttt{Vec} that grows dynamically on the heap. 
+The standard parser has two passes. The forward pass stores each
+residual and the backward pass applies $\mathit{mkEps}$ then $\mathit{inj}$
+in reverse. The split is needed because $\mathit{inj}$ requires the
+pre-character residual, which only the stored sequence provides:
+\begin{equation}\label{eq:std-driver}
+\begin{aligned}
+r_0 &= r, & r_i &= r_{i-1} \backslash x_i
+  &&(1 \leq i \leq n), \\
+v_n &= \mathit{mkEps}(r_n), & v_i
+  &= \mathit{inj}_{r_{i-1} \backslash x_i}(x_i,\ v_{i+1})
+  &&(0 \leq i < n).
+\end{aligned}
+\end{equation}
+Every $r_i$ is kept because each injection step needs $r_{i-1}$;
+re-deriving it would duplicate the forward pass. The vector holds the entire sequence $r_0, \ldots, r_n$, not just the final
+residual.
+%
+
+\paragraph{In Rust.}
+Figure~\ref{fig:deriv-std-drivers-rust} implements~\eqref{eq:std-driver}.
+The forward loop fills the \texttt{Vec} \texttt{expressions} with
+$r_0, \ldots, r_n$, the nullability check returns early if $r_n$ is not
+nullable, and the backward loop walks the vector in reverse, applying
+\texttt{inject} to each residual and its character.
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree>
-{
+pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree>{
     let chars: Vec<char> = input.chars().collect();
     let mut expressions = Vec::with_capacity(chars.len() + 1);
     expressions.push(r.clone());
     for &c in &chars {
         expressions.push(deriv(expressions.last().unwrap(), c));
     }
-    if !nullable(expressions.last().unwrap()) { 
-      return None; 
-      }
+    if !nullable(expressions.last().unwrap()) { return None; }
     let mut tree = mk_eps(expressions.last().unwrap());
     for i in (0..chars.len()).rev() {
         tree = inject(&expressions[i], chars[i], tree);
@@ -392,21 +406,17 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree>
     Some(tree)
 }
 \end{verbatim}
-\caption{The standard derivative-based parser. The forward pass stores the
-residual after each character in \texttt{expressions}, entry $i$ being the
-residual after $i$ characters, and returns \texttt{None} if the final entry
-is not nullable. The backward pass starts from \texttt{mk\_eps} of the
-final entry and applies \texttt{inject} to the preceding entries in
-reverse, yielding the parse tree for $r$.}
+\caption{\texttt{parse\_deriv\_std\_loop}: the standard parser.}
 \label{fig:deriv-std-drivers-rust}
 \end{figure}
 
+
+
 %
 
-\subsection{Worked Example: Ambiguous Expression}
+\subsection{Worked Example: Applying the Standard Parser}
 \label{sec:worked-example}
-Recall the ambiguous example of Section~\ref{par:ambiguous-example},
-$r_0=(a\mid ab)(b\mid\varepsilon)$ on input $\texttt{ab}$.
+Recall the ambiguous example $r_0=(a + ab)(b + \varepsilon)$ on input $\texttt{ab}$.
 
 %
 
@@ -421,8 +431,8 @@ r_0 = (a+ab)(b+\varepsilon)
   &\xrightarrow[\mathsf{D}_{\mathrm{seq}}]{a}
     r_1 = (\varepsilon+\varepsilon b)(b+\varepsilon) \\
   &\xrightarrow[\mathsf{D}_{\mathrm{seq}}^{\,n}]{b}
-    r_2 = \underbrace{(\phi+(\phi b+\varepsilon))(b+\varepsilon)}_{X}
-       + \underbrace{(\varepsilon+\phi)}_{Y}.
+    r_2 = \underbrace{(\emptyset+(\emptyset b+\varepsilon))(b+\varepsilon)}_{X}
+       + \underbrace{(\varepsilon+\emptyset)}_{Y}.
 \end{aligned}
 \]
 The resulting final expression is $r_2$, both $X$ and $Y$ are nullable. 
@@ -448,12 +458,12 @@ the trees for its two factors:
   \mathit{mkEps}(X)
   &\xrightarrow{\ \mathsf{E}_{\mathrm{seq}}\ }
      \bigl(
-       \mathit{mkEps}(\phi+(\phi b+\varepsilon)),
+       \mathit{mkEps}(\emptyset+(\emptyset b+\varepsilon)),
        \mathit{mkEps}(b+\varepsilon)
      \bigr).
 \end{aligned}
 \]
-Since $\phi$ and $\phi b$ are not nullable, the first factor
+Since $\emptyset$ and $\emptyset b$ are not nullable, the first factor
 selects $\varepsilon$ by applying the rule $\mathsf{E}_{+}^{R}$ twice, 
 while the second factor selects
 $\varepsilon$ through $\mathsf{E}_{+}^{R}$ since $b$ is not
@@ -461,9 +471,9 @@ nullable, giving $v_2$:
 \[
 \begin{array}{@{}c@{\hspace{1em}}c@{}}
 \begin{aligned}
-\mathit{mkEps}(\phi+(\phi b+\varepsilon))
+\mathit{mkEps}(\emptyset+(\emptyset b+\varepsilon))
   &\xrightarrow{\ \mathsf{E}_{+}^{R}\ }
-    \mathit{Right}\,\mathit{mkEps}(\phi b+\varepsilon)\\
+    \mathit{Right}\,\mathit{mkEps}(\emptyset b+\varepsilon)\\
   &\xrightarrow{\ \mathsf{E}_{+}^{R}\ }
     \mathit{Right}\,\mathit{Right}\,
     \mathit{mkEps}(\varepsilon)\\
@@ -759,8 +769,7 @@ those already recorded in the subtree.
 
 Figure~\ref{fig:fuse-rust} implements the six rules of~\eqref{eq:fuse},
 one per variant. The helper \texttt{combine} corresponds to the
-concatenation $\mathbin{+\!\!+}$ and places \texttt{bs} before \texttt{p},
-so the newly prepended bits precede those already recorded:
+concatenation $\mathbin{+\!\!+}$ and places \texttt{bs} before \texttt{p}:
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -895,11 +904,10 @@ determined during derivative computation.
 \subsection{Extracting Bits}
 \label{sec:mkepsbc-theory}
 
-$\mathit{mkEpsBC}$, from \citep[Fig.~5]{sulzmannlu2014}, mirrors
-$\mathit{mkEps}$ but extracts the corresponding bit-list, using the same
-left preference at alternation and a closing $1$ for a star. Unlike
-$\mathit{mkEps}$, it constructs no parse-tree nodes. Each rule prepends
-the current node's bits to those returned recursively.
+$\mathit{mkEpsBC}$, from \citep[Fig.~5]{sulzmannlu2014}, is the bit-list
+counterpart of $\mathit{mkEps}$. It keeps the left preference and star
+closing bit, but extracts bits instead of building a tree. Each rule
+prepends the current node's bits to those returned recursively.
 \begin{equation}\label{eq:mkepsbc}
 \begin{aligned}
 \mathit{mkEpsBC}_{(bs@\varepsilon)} &= bs \\[2pt]
@@ -916,20 +924,20 @@ the current node's bits to those returned recursively.
 \end{aligned}
 \end{equation}
 
-The rules cover the four expression forms that can be nullable, as in
-$\mathit{mkEps}$. No rules are needed for $\emptyset$ or literals, since
-neither can match the empty word, and $\mathit{mkEpsBC}$ is called only on
-nullable expressions, so both are handled as preconditions.
+As with $\mathit{mkEps}$, the rules cover only the four nullable forms.
+$\emptyset$ and literals cannot match the empty word, so
+$\mathit{mkEpsBC}$ is called only on nullable expressions and both are
+handled as preconditions.
 
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:mkepsbc-rust} mirrors \texttt{mk\_eps}
-(Figure~\ref{fig:mkeps-rust}), with one difference. Where \texttt{mk\_eps}
-builds a \texttt{ParseTree}, \texttt{mk\_eps\_bc} concatenates bit-lists.
-The \texttt{Star} arm also does not recurse, since a star matching the
-empty word uses zero iterations, so it only appends the closing
-\texttt{true} and never examines the child expression:
+Figure~\ref{fig:mkepsbc-rust} implements \texttt{mk\_eps\_bc} alongside
+\texttt{mk\_eps} (Figure~\ref{fig:mkeps-rust}), with one difference. Where
+\texttt{mk\_eps} builds a \texttt{ParseTree}, \texttt{mk\_eps\_bc}
+concatenates bit-lists. The \texttt{Star} arm also does not recurse, since
+a star matching the empty word uses zero iterations, so it only appends
+the closing \texttt{true} and never examines the child expression:
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1116,8 +1124,10 @@ $\mathsf{B}_{*}$.}
 \label{sec:decode}
 
 $\mathit{decode}_r$ reconstructs a \texttt{ParseTree} from the bit
-sequence produced by $\mathit{mkEpsBC}$. It walks the original,
-unannotated $r$ and uses one bit per alternation to choose a branch:
+sequence of $\mathit{mkEpsBC}$, walking $r$ with one bit per
+alternation to choose a branch. Its worker $\mathit{decodeInner}$
+returns the current tree and the remaining bits, so the recursion
+continues at the correct position:
 {\small
 \begin{equation}\label{eq:decode}
 \begin{aligned}
@@ -1146,37 +1156,26 @@ unannotated $r$ and uses one bit per alternation to choose a branch:
 \end{equation}
 }
 
-The annotated expression has been reduced to a bare bit sequence, so
-$\mathit{decode}_r$ walks the original $r$ and uses the bits only to
-choose between alternation branches. Its worker $\mathit{decodeInner}$
-returns both the tree for the current subexpression and the unconsumed
-bits, so the recursion can continue at the correct position.
-
 %
-
 \paragraph{In Rust.}
-Figure~\ref{fig:decode-rust} shows \texttt{decode} and the compound
-arms of its worker \texttt{decode\_inner}. The worker returns a pair,
-\texttt{(ParseTree, \&[bool])}, holding the tree for the current
-subexpression together with whatever bits remain, which is what lets the
-recursion continue at the correct position in the bit-string. Rust's slice
-patterns make the leading-bit test direct, since \texttt{[false, rest @ ..]}
-and \texttt{[true, rest @ ..]} both check the bit and name the remainder in
-one pattern.
+Figure~\ref{fig:decode-rust} shows \texttt{decode\_inner}, the worker
+behind \texttt{decode}. The public entry point \texttt{decode} wraps it
+and asserts that no bits remain. This assertion is the side condition
+under which $\mathit{decode}_r$ is defined. The worker must consume the
+entire bit-string.
+
+The worker consumes the \texttt{\&[bool]} one bit per step using Rust's
+slice patterns: \texttt{[false, rest @ ..]} matches a bit-string whose
+first element is \texttt{false} and binds the remainder to \texttt{rest},
+and \texttt{[true, rest @ ..]} does the same for \texttt{true}.
 
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub fn decode(r: &Regex, bs: &[bool]) -> ParseTree {
-    let (v, rest) = decode_inner(r, bs);
-    assert!(rest.is_empty(),
-        "decode: {} leftover bit(s) after decoding {:?}", rest.len(), r);
-    v
-}
-
 fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
     match r {
-        // ...
+        Regex::Eps => (ParseTree::Empty, bs),
+        Regex::Lit(c) => (ParseTree::Char(*c), bs),
         Regex::Alt(r1, r2) => match bs {
             [false, rest @ ..] => {
                 let (v, remaining) = decode_inner(r1, rest);
@@ -1186,7 +1185,7 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
                 let (v, remaining) = decode_inner(r2, rest);
                 (ParseTree::Right(Box::new(v)), remaining)
             }
-            // ...
+            [] => panic!("decode: unexpected end of bits at Alt"),
         },
         Regex::Seq(r1, r2) => {
             let (v1, after_r1) = decode_inner(r1, bs);
@@ -1194,35 +1193,37 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
             (ParseTree::Pair(Box::new(v1), Box::new(v2)), after_r2)
         }
         Regex::Star(r1) => {
-            let mut items = Vec::new();
+            let mut iterations = Vec::new();
             let mut remaining = bs;
             loop {
                 match remaining {
-                    [true, rest @ ..] => { remaining = rest; break; }
+                    [true, rest @ ..] => {
+                        remaining = rest;
+                        break;
+                    }
                     [false, rest @ ..] => {
                         let (v, after) = decode_inner(r1, rest);
-                        items.push(v);
+                        iterations.push(v);
                         remaining = after;
                     }
-                    // ...
+                    [] => panic!("decode: unexpected end of bits inside Star"),
                 }
             }
-            (ParseTree::Star(items), remaining)
+            (ParseTree::Star(iterations), remaining)
         }
+        Regex::Phi => panic!("decode: called on Phi"),
     }
 }
 \end{verbatim}
-\caption{\texttt{decode} and the \texttt{Alt}, \texttt{Seq}, and
-\texttt{Star} arms of \texttt{decode\_inner}.}
+\caption{\texttt{decode\_inner}: the worker behind \texttt{decode},
+one arm per expression form.}
 \label{fig:decode-rust}
 \end{figure}
 
-\texttt{decode} calls the worker and asserts that no bits remain, which is
-exactly the side condition that $\mathit{decode}_r$ be defined only when
-the worker consumes the entire bit-string. The \texttt{Alt} arm tests the
-leading bit with a slice pattern and recurses into the branch it names,
-returning the remaining bits unchanged, since only the leading bit belongs
-to the alternation.
+The \texttt{Alt} arm matches the leading bit with
+\texttt{[false, rest @ ..]} or \texttt{[true, rest @ ..]} and recurses
+into the branch it names, returning \texttt{rest} as the remaining bits,
+since only the leading bit belongs to the alternation.
 
 The \texttt{Seq} arm shows why the worker returns a pair. It recurses into
 the first factor, receives both a tree and the bits the first factor left
@@ -1232,12 +1233,12 @@ for any enclosing expression. Returning only the tree would leave the
 second recursion with no way to know where to start.
 
 The \texttt{Star} arm loops, since the number of iterations is not known
-in advance and is itself encoded in the bits. Each leading \texttt{false}
-corresponds to one iteration, so the arm recurses into the body and then
-continues the loop from whatever bits the body left behind. The loop ends
-at the leading \texttt{true} that \texttt{mk\_eps\_bc} appended. The
-\texttt{Eps}, \texttt{Lit}, and \texttt{Phi} arms are elided, since the
-first two consume no bits and the third is unreachable.
+in advance and is itself encoded in the bits. Each leading
+\texttt{false} is matched by \texttt{[false, rest @ ..]} and corresponds to
+one iteration, so the arm recurses into the body and continues the loop
+from whatever bits the body left behind. The loop ends at the leading
+\texttt{true} matched by \texttt{[true, rest @ ..]}, which
+\texttt{mk\_eps\_bc} appended.
 
 %
 %
@@ -1246,10 +1247,38 @@ first two consume no bits and the third is unreachable.
 \subsection{Parser}
 \label{sec:deriv-bc-driver}
 
-Figure~\ref{fig:deriv-bc-loop-rust} implements the bit-coded driver.
-It internalizes $r$, applies \texttt{deriv\_bc} and \texttt{simp} to each
-input character, checks nullability and, if successful, calls
-\texttt{mk\_eps\_bc} and \texttt{decode}.
+The bit-coded parser performs three steps on the input. First,
+$\mathit{internalize}$ converts the pattern $r$ into an annotated
+expression $\mathit{ri}$. Then, for each input character $c$, the parser
+takes the annotated derivative $\mathit{ri} \backslash_b c$ and simplifies
+it, replacing $\mathit{ri}$ with $\mathit{simp}(\mathit{ri} \backslash_b c)$.
+After the last character, the parser checks whether the final $\mathit{ri}$
+is nullable. If it is, the parser extracts the bits with
+$\mathit{mkEpsBC}$ and decodes them against the original $r$:
+\begin{equation}\label{eq:bitcoded-driver}
+\begin{aligned}
+\mathit{ri}_0 &= \mathit{internalize}(r), \\
+\mathit{ri}_i &= \mathit{simp}(\mathit{ri}_{i-1} \backslash_b x_i)
+  \quad (1 \leq i \leq n), \\
+\mathit{result} &=
+  \begin{cases}
+    \mathit{decode}_r(\mathit{mkEpsBC}(\mathit{ri}_n))
+      & n(\mathit{ri}_n) \\
+    \text{no match} & \text{otherwise.}
+  \end{cases}
+\end{aligned}
+\end{equation}
+
+The loop holds only the current $\mathit{ri}$. Unlike the standard
+derivative parser, which keeps a growing vector of residuals for the
+backward reconstruction, the bit-coded parser needs no history. The bits
+record everything needed to decode, so the forward pass can discard each
+intermediate expression as soon as the next one is computed.
+
+%
+
+\paragraph{In Rust.}
+Figure~\ref{fig:deriv-bc-loop-rust} implements~\eqref{eq:bitcoded-driver}.
 
 \begin{figure}[H]
 \small
@@ -1265,17 +1294,16 @@ pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
 \label{fig:deriv-bc-loop-rust}
 \end{figure}
 
-Unlike the direct implementation, which has a growing
-\texttt{Vec<Regex>} for backward reconstruction, the bit-coded implementation
-needs only the current \texttt{ri}. The recursive entry point has the same
-three-step computation but differs only in how intermediate expressions
-are stored.
+The loop matches the three cases of~\eqref{eq:bitcoded-driver} one for
+one. \texttt{internalize} initialises \texttt{ri}, the \texttt{for} loop
+applies \texttt{simp(deriv\_bc(ri, l))} to each character and the
+nullability check gates the final \texttt{decode(mk\_eps\_bc(ri))}.
 
 %
 %
 %
 
-\subsection{Worked Example: Ambigious Expression}
+\subsection{Worked Example: Ambiguous Expression}
 \label{sec:deriv-bc-worked}
 
 Consider the same input $\texttt{ab}$ and regular expression $r_0=(a\mid ab)(b\mid\varepsilon)$.
