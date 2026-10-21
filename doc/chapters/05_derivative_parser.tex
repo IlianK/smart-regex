@@ -92,6 +92,8 @@ reconstruct the original parse tree.}
 \label{fig:two-pass}
 \end{figure}
 
+%
+
 \paragraph{The two-pass pipeline.}
 The direct construction uses two passes. The forward pass applies
 \texttt{deriv} (Figure~\ref{fig:deriv-rust}) and \texttt{nullable}
@@ -413,17 +415,15 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree>{
 
 
 %
-
 \subsection{Worked Example: Applying the Standard Parser}
 \label{sec:worked-example}
-Recall the ambiguous example $r_0=(a + ab)(b + \varepsilon)$ on input $\texttt{ab}$.
-
-%
+Apply the standard parser to the ambiguous example
+$r_0=(a + ab)(b + \varepsilon)$ on input $\texttt{ab}$.
 
 \paragraph{Forward pass.}
-There are two derivative steps, one per input symbol. After
-deriving \texttt{a}, the left factor $\varepsilon+\varepsilon b$
-is nullable, so the second derivation on \texttt{b} uses
+There are two derivative steps, one per input symbol. After deriving
+\texttt{a}, the left factor $\varepsilon+\varepsilon b$ is nullable, so
+the second derivation on \texttt{b} uses
 $\mathsf{D}_{\mathrm{seq}}^{\,n}$ rather than $\mathsf{D}_{\mathrm{seq}}$:
 \[
 \begin{aligned}
@@ -435,39 +435,37 @@ r_0 = (a+ab)(b+\varepsilon)
        + \underbrace{(\varepsilon+\emptyset)}_{Y}.
 \end{aligned}
 \]
-The resulting final expression is $r_2$, both $X$ and $Y$ are nullable. 
-The disjunct $X$ is the residual of the
-$ab$ alternative in the first factor, and $Y$ is the residual of the $a$
-alternative. 
-
-%
+The final expression $r_2 = X + Y$ is nullable, and both disjuncts
+accept the empty word. $X$ records $ab \cdot \varepsilon$ (the first
+factor matched $ab$, the second $\varepsilon$); $Y$ records
+$a \cdot b$ (the first matched $a$, the second $b$).
 
 \paragraph{Backward pass: mkEps.}
-The backward pass starts by building the parse tree for the empty word: $\mathit{mkEps}(r_2)$. 
-Since $r_2 = X + Y$ and both disjuncts are nullable,
-$\mathsf{E}_{+}^{L}$ selects $X$.
-As $X$ is a concatenation, $\mathsf{E}_{\mathrm{seq}}$ combines
-the trees for its two factors:
+The backward pass begins by building the parse tree for the empty word,
+$\mathit{mkEps}(r_2)$. Since $r_2 = X + Y$ and both disjuncts are
+nullable, $\mathsf{E}_{+}^{L}$ selects the left one:
+\[
+\mathit{mkEps}(r_2)
+  = \mathit{Left}\bigl(\mathit{mkEps}(X)\bigr)
+  \qquad (\mathsf{E}_{+}^{L}),
+\]
+where $X = (\emptyset+(\emptyset b+\varepsilon))(b+\varepsilon)$.
+Since $X$ is a concatenation, $\mathsf{E}_{\mathrm{seq}}$ combines the
+trees for its two factors:
 \[
 \begin{aligned}
-\mathit{mkEps}(r_2)
-  &= \mathit{mkEps}(X+Y)
-     \xrightarrow{\ \mathsf{E}_{+}^{L}\ }
-     \mathit{Left}\,\mathit{mkEps}(X)
-\\[0.8em]
-  \mathit{mkEps}(X)
+\mathit{mkEps}(X)
   &\xrightarrow{\ \mathsf{E}_{\mathrm{seq}}\ }
      \bigl(
-       \mathit{mkEps}(\emptyset+(\emptyset b+\varepsilon)),
+       \mathit{mkEps}(\emptyset+(\emptyset b+\varepsilon)),\;
        \mathit{mkEps}(b+\varepsilon)
      \bigr).
 \end{aligned}
 \]
-Since $\emptyset$ and $\emptyset b$ are not nullable, the first factor
-selects $\varepsilon$ by applying the rule $\mathsf{E}_{+}^{R}$ twice, 
-while the second factor selects
-$\varepsilon$ through $\mathsf{E}_{+}^{R}$ since $b$ is not
-nullable, giving $v_2$:
+The first factor selects $\varepsilon$ by applying $\mathsf{E}_{+}^{R}$
+twice, since $\emptyset$ and $\emptyset b$ are not nullable; the second
+factor selects $\varepsilon$ by $\mathsf{E}_{+}^{R}$, since $b$ is not
+nullable. These give
 \[
 \begin{array}{@{}c@{\hspace{1em}}c@{}}
 \begin{aligned}
@@ -475,8 +473,7 @@ nullable, giving $v_2$:
   &\xrightarrow{\ \mathsf{E}_{+}^{R}\ }
     \mathit{Right}\,\mathit{mkEps}(\emptyset b+\varepsilon)\\
   &\xrightarrow{\ \mathsf{E}_{+}^{R}\ }
-    \mathit{Right}\,\mathit{Right}\,
-    \mathit{mkEps}(\varepsilon)\\
+    \mathit{Right}\,\mathit{Right}\,\mathit{mkEps}(\varepsilon)\\
   &\xrightarrow{\ \mathsf{E}_{\varepsilon}\ }
     \mathit{Right}\,\mathit{Right}\,()
 \end{aligned}
@@ -490,6 +487,7 @@ nullable, giving $v_2$:
 \end{aligned}
 \end{array}
 \]
+and hence
 \[
 v_2 = \mathit{mkEps}(r_2)
     = \mathit{Left}\bigl(
@@ -500,17 +498,13 @@ v_2 = \mathit{mkEps}(r_2)
 
 \paragraph{Backward pass: Inj.}
 Reinsertion begins with $\mathtt{b}$ and maps $v_2$ to a tree for
-$r_1=(\varepsilon+\varepsilon b)(b+\varepsilon)$. Since $v_2$
-carries a $\mathit{Left}$ tag, $\mathsf{I}_{\mathrm{seq}}^{L}$
-recurses into $\varepsilon+\varepsilon b$, leaving the second
-factor's tree $\mathit{Right}\,()$ unchanged, as all input
-characters belong to the first factor under the
-$ab\cdot\varepsilon$ decomposition. Inside $\varepsilon+\varepsilon b$,
-$\mathsf{I}_{+}^{R}$ selects $\varepsilon b$, the residual of the
-$ab$ alternative. Since $\varepsilon$ is nullable,
-$\mathsf{I}_{\mathrm{seq}}^{R}$ supplies
-$\mathit{mkEps}(\varepsilon)=()$ and recurses into $b$, where
-$\mathsf{I}_{\mathrm{lit}}$ reinserts $\mathtt{b}$.
+$r_1=(\varepsilon+\varepsilon b)(b+\varepsilon)$. The $\mathit{Left}$
+tag of $v_2$ sends $\mathsf{I}_{\mathrm{seq}}^{L}$ into the first
+factor $\varepsilon+\varepsilon b$, leaving the second factor's tree
+$\mathit{Right}\,()$ unchanged. Inside $\varepsilon+\varepsilon b$,
+$\mathsf{I}_{+}^{R}$ selects the $ab$ branch; since $\varepsilon$ is
+nullable, $\mathsf{I}_{\mathrm{seq}}^{R}$ supplies the empty tree for
+$\varepsilon$ before $\mathsf{I}_{\mathrm{lit}}$ reinserts $\mathtt{b}$:
 \[
 \begin{aligned}
 \mathit{inj}_{r_1 \backslash \mathtt{b}}(v_2)
@@ -533,19 +527,20 @@ $\mathsf{I}_{\mathrm{lit}}$ reinserts $\mathtt{b}$.
           \mathit{Right}\,()\bigr)\\
   &\xrightarrow{\ \mathsf{E}_{\varepsilon},\ \mathsf{I}_{\mathrm{lit}}\ }
     \underbrace{\bigl(\mathit{Right}((), b),\;
-          \mathit{Right}\,()\bigr)}_{v_1}
+          \mathit{Right}\,()\bigr)}_{v_1}.
 \end{aligned}
 \]
 
-Reinsertion of $\mathtt{a}$ maps $v_1$ to a parse tree for
-$r_0=(a+ab)(b+\varepsilon)$. The outer sequence's first factor $a+ab$ is
-not nullable, so $\mathsf{I}_{\mathrm{seq}}$ fires directly on $v_1$'s
-first component, again leaving the second component $\mathit{Right}\,()$
-untouched. That first component, $\mathit{Right}((),b)$, carries a
-$\mathit{Right}$ tag, so $\mathsf{I}_{+}^{R}$ selects $ab$. Inside
-$ab=\mathit{Seq}(a,b)$ the first factor $a$ is again not nullable, so
-$\mathsf{I}_{\mathrm{seq}}$ fires once more and recurses into $a$, where
-$\mathsf{I}_{\mathrm{lit}}$ reinserts the character:
+Reinsertion of $\mathtt{a}$ maps $v_1$ to a tree for
+$r_0=(a+ab)(b+\varepsilon)$. The outer sequence's first factor $a+ab$
+is not nullable, so $\mathsf{I}_{\mathrm{seq}}$ fires directly on
+$v_1$'s first component, leaving the second component
+$\mathit{Right}\,()$ untouched. That first component,
+$\mathit{Right}((),b)$, carries a $\mathit{Right}$ tag, so
+$\mathsf{I}_{+}^{R}$ selects $ab$. Inside $ab=\mathit{Seq}(a,b)$ the
+first factor $a$ is again not nullable, so $\mathsf{I}_{\mathrm{seq}}$
+fires once more and recurses into $a$, where $\mathsf{I}_{\mathrm{lit}}$
+reinserts the character:
 \[
 \begin{aligned}
 \mathit{inj}_{r_0 \backslash \mathtt{a}}(v_1)
@@ -569,13 +564,15 @@ $\mathsf{I}_{\mathrm{lit}}$ reinserts the character:
           \mathit{Right}\,()\bigr)\\
   &\xrightarrow{\ \mathsf{I}_{\mathrm{lit}}\ }
     \underbrace{\bigl(\mathit{Right}(a, b),\;
-          \mathit{Right}\,()\bigr)}_{v_0}
+          \mathit{Right}\,()\bigr)}_{v_0}.
 \end{aligned}
 \]
 
-This implementation stores three intermediate expressions, $r_0$, $r_1$,
-and $r_2$, one per input character plus the initial expression, for the
-backward pass to reconstruct from.
+The implementation stores $r_0$, $r_1$, and $r_2$ in its vector. 
+One entry per character, plus the initial expression, 
+kept for the backward pass to reconstruct from. 
+The tree it returns is $(\mathit{Right}(a,b), \mathit{Right}())$, 
+which flattens to $\mathtt{ab}$ and matches the input.
 
 %
 %
@@ -637,11 +634,10 @@ extraction step it feeds into:
 \draw[->, dashed] (r.south) .. controls (0,-2.0) and ($(bs.west)+(-1.2,0)$) ..
   node[lbl, below, pos=0.55] {the original $r_0$} (bs.west);
 \end{tikzpicture}
-\caption{Overview of the bit-coded derivative parser on the ambiguous
-example. $\mathit{internalize}$ introduces the bits, each derivative step threads
-them forward, so consumed factors' bits transfer to survivors.
-$\mathit{mkEpsBC}$ extracts them and $\mathit{decode}_{r_0}$ reads them
-against the original pattern.}
+\caption{The bit-coded parser on the ambiguous example.
+$\mathit{internalize}$ introduces the bits, derivative threads them
+forward, and $\mathit{mkEpsBC}$ and $\mathit{decode}_{r_0}$ extract and
+read them against $r_0$.}
 \label{fig:single-pass}
 \end{figure}
 
@@ -667,11 +663,12 @@ nodes, prepending a bit-sequence to a node's annotation without
 descending into its children. Both $\mathit{deriv}_{\mathit{bc}}$ and
 $\mathit{simp}$ rely on it. 
 
-Unlike the direct construction, the bit-coded construction requires
+Unlike the standard construction, the bit-coded construction requires
 simplification to prevent unbounded growth of annotated expressions.
-The function $\mathit{simp}$ discards dead branches and collapses
-finished subexpressions, while $\mathit{fuse}$ preserves their bits
-on surviving nodes, as when $P$ collapses into $P'$ and then onto $Q$.
+The function $\mathit{simp}$, from \citep[Fig.~6]{sulzmannlu2014},
+discards dead branches and collapses finished subexpressions, while
+$\mathit{fuse}$ preserves bits on surviving nodes, as when $P$
+collapses into $P'$ and then onto $Q$.
 
 Once $\mathtt{ab}$ is exhausted, $\mathit{mkEpsBC}$ walks $\mathit{ri}_2$
 the way $\mathit{mkEps}$ walks a plain expression, taking the leftmost
@@ -1302,18 +1299,17 @@ nullability check gates the final \texttt{decode(mk\_eps\_bc(ri))}.
 %
 %
 %
-
-\subsection{Worked Example: Ambiguous Expression}
+\subsection{Worked Example: Applying the Bitcoded Parser}
 \label{sec:deriv-bc-worked}
 
-Consider the same input $\texttt{ab}$ and regular expression $r_0=(a\mid ab)(b\mid\varepsilon)$.
+Consider the same input $\texttt{ab}$ and regular expression
+$r_0=(a+ab)(b+\varepsilon)$ as in Section~\ref{sec:worked-example}.
 
 %
 
 \paragraph{Internalize.}
-Before consuming input, $\mathit{internalize}$ tags each alternative with $[0]$ for the left 
-branch and $[1]$ for the right branch:
-
+Before consuming input, $\mathit{internalize}$ tags each alternative with
+$[0]$ for the left branch and $[1]$ for the right branch:
 \begin{equation}\label{eq:dpbc-internalize}
 \mathit{internalize}(r_0) = \mathit{ri}_0 =
 [\,]@\big(
@@ -1325,12 +1321,12 @@ branch and $[1]$ for the right branch:
 
 %
 
-\paragraph{Forward pass.}
-The two input symbols are consumed by successive bit-threaded derivatives with $\mathit{simp}$ 
-applied after each step. The first derivative uses $\mathsf{B}_{\mathrm{seq}}$. After consuming $\mathtt{a}$, 
-the first factor becomes nullable, so the second derivative uses $\mathsf{B}_{\mathrm{seq}}^{\,n}$, 
-which propagates bits from the empty match of the first factor into the derivative of the second:
-
+\paragraph{Bit-Threaded Derivatives.}
+The two input symbols are consumed by successive bit-threaded derivatives
+with $\mathit{simp}$ applied after each step. The first derivative uses
+$\mathsf{B}_{\mathrm{seq}}$. After consuming $\mathtt{a}$, the first
+factor becomes nullable, so the second derivative uses
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$:
 \begin{equation}\label{eq:dpbc-forward}
 \begin{aligned}
 \mathit{ri}_0
@@ -1343,6 +1339,14 @@ which propagates bits from the empty match of the first factor into the derivati
   \big) \\
 \mathit{ri}_1
   &\xrightarrow[\mathsf{B}_{\mathrm{seq}}^{\,n}]{\ b\ }
+  \mathit{ri}_2' =
+  [\,]@\Big(
+    \underbrace{[\,]@(\emptyset \oplus [1]@\varepsilon)
+      \cdot [\,]@([0]@b \oplus [1]@\varepsilon)}_{X}
+    \;\oplus\;
+    \underbrace{[0]@\big([0]@\varepsilon \oplus \emptyset\big)}_{Y}
+  \Big) \\
+  &\xrightarrow{\ \mathit{simp}\ }
   \mathit{ri}_2 =
   [\,]@\big(
     [1]@([0]@b \oplus [1]@\varepsilon)
@@ -1352,18 +1356,32 @@ which propagates bits from the empty match of the first factor into the derivati
 \end{aligned}
 \end{equation}
 
-The $[1]$ records the right alternative $ab$ of the first factor. The $[0,0]$ on the second 
-branch results from fusing bits during the derivative. Unlike the direct construction, where 
-$\mathit{inj}$ recovers this information later, the bit-coded method propagates it during 
-the forward pass.
+Each disjunct of $\mathit{ri}_2'$ has a dead branch. In $X$, the first
+factor's derivative by $\mathtt{b}$ is $\emptyset \oplus
+[1]@\varepsilon$: the $[0]$ side cannot consume $\mathtt{b}$, the $[1]$
+side owes one. In $Y$, the second factor's derivative by $\mathtt{b}$ is
+$[0]@\varepsilon \oplus \emptyset$: the $[0]$ side matches, the $[1]$
+side cannot. The outer $[0]$ on $Y$ is the bit that
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$ fused on from the first factor's empty
+match.
+
+$\mathit{simp}$ drops the dead branches. From $X$, the survivor is
+$[1]@\varepsilon$, and since $\varepsilon$ contributes nothing to the
+concatenation, the $[1]$ is carried onto the second factor, giving
+$[1]@([0]@b \oplus [1]@\varepsilon)$. From $Y$, the survivor is
+$[0]@\varepsilon$; the outer $[0]$ is merged with the inner $[0]$ and
+the resulting $[0,0]$ is carried onto the $\varepsilon$, giving
+$[0,0]@\varepsilon$. The two results are the disjuncts of
+$\mathit{ri}_2$, so both bits are recorded there and the tree can later
+be decoded from the bits alone.
 
 %
 
-\paragraph{Extracting and decoding the bits.}
-Both disjuncts of $\mathit{ri}_2$ are nullable, so $\mathit{mkEpsBC}$ applies the left-preference 
-rule and selects the left disjunct. Inside, $b$ is not nullable while $\varepsilon$ is, so 
-$\mathsf{EB}_{+}^{R}$ contributes its $[1]$ tag:
-
+\paragraph{Extracting the bits.}
+Both disjuncts of $\mathit{ri}_2$ are nullable, so
+$\mathsf{EB}_{+}^{L}$ selects the left one. Inside, $b$ is not nullable
+while $\varepsilon$ is, so $\mathsf{EB}_{+}^{R}$ contributes its $[1]$
+tag:
 \begin{equation}\label{eq:dpbc-mkepsbc}
 \mathit{mkEpsBC}(\mathit{ri}_2)
   \xrightarrow{\mathsf{EB}_{+}^{L}}
@@ -1373,26 +1391,31 @@ $\mathsf{EB}_{+}^{R}$ contributes its $[1]$ tag:
   \xrightarrow{\mathsf{EB}_{+}^{R}}
   [1,1].
 \end{equation}
+Unlike $\mathit{mkEps}$, which constructs a partial parse tree,
+$\mathit{mkEpsBC}$ extracts only the committed choices as a bit-string.
 
-Unlike $\mathit{mkEps}$, which constructs a partial parse tree, $\mathit{mkEpsBC}$ extracts 
-only the committed choices as a bit-string. The decoder then interprets $[1,1]$ against the 
-original $r_0$: the first bit selects the right branch of $a+ab$ (producing $ab$), and the 
-second selects the right branch of $b+\varepsilon$:
+%
 
+\paragraph{Decoding the bits.}
+The decoder interprets $[1,1]$ against the original $r_0$: the first
+bit selects the right branch of $a+ab$ (producing $ab$), and the second
+selects the right branch of $b+\varepsilon$:
 \begin{equation}\label{eq:dpbc-decode}
-\mathit{decode}_{r_0}([1,1])
+\mathit{decode}_{r_0}(\,[1,1]\,)
   = \big(
       \mathit{Right}(a,b),
       \mathit{Right}(\,)
     \big)
   = v_0.
 \end{equation}
+The decoder consumes the bits left to right, one per alternation it
+encounters, in the same order that $\mathit{internalize}$ introduced
+them. Because $\mathit{mkEpsBC}$ preserved that order when it fused and
+prepended bits, the first bit always belongs to the outermost
+alternation, and so on down. 
 
-Flattening validates the result:
-\begin{equation}\label{eq:dpbc-flatten}
-\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon = \mathtt{ab}.
-\end{equation}
-
-The bit-coded construction produces the same parse tree as the direct construction but stores 
-only the final annotated expression $\mathit{ri}_2$, not the intermediate expressions $r_0$ 
-and $r_1$.
+Flattening gives $\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon = \mathtt{ab}$,
+confirming the parse.
+The bit-coded construction produces the same tree as the direct
+construction, but stores only $\mathit{ri}_2$, a single expression
+bounded by the pattern instead of one residual per character.

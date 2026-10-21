@@ -1,10 +1,12 @@
 \chapter{Partial-Derivative-Based Parser}
 \label{sec:partial-derivative-parser}
 
-Chapter~\ref{sec:derivative-parser} presented two derivative-based methods for
-constructing POSIX parse trees. Both keep the structure of the original
-expression throughout the forward pass and defer disambiguation to a final
-$\mathit{mkEps}$ step.
+Chapter~\ref{sec:derivative-parser} presented two derivative-based
+methods for constructing POSIX parse trees. The standard parser stores
+the derivation sequence and reconstructs the tree in a backward pass
+using $\mathit{mkEps}$ and the injections. The bit-coded parser records
+the choices as bits during the forward pass and decodes them against the
+original expression at the end.
 
 This chapter presents the partial-derivative alternative of Sulzmann and
 Lu~\citep{sulzmannlu2012}. Instead of one residual per step, the partial
