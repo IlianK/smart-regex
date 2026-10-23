@@ -33,19 +33,8 @@ use regex_engine::data::extract::{
 use regex_engine::data::prepare::{anchor_shape, core_regex_tagged, AnchorShape};
 use regex_engine::data::types::{MatchIntent, RuleContext, SourceKind};
 
-/// Whether an extracted row's own given input is empty.
-/// Applies to the two sources that carry given input at all:
-/// S2ELab's `matches`/`non_matches`, Innovatorved's `test_text`.
-/// Always `false` for the other three, which have no such concept.
-/// They generate their own input downstream, so this check does not
-/// apply to them.
-///
-/// A necessary but not sufficient condition for a pattern to end up
-/// with zero verified cases in `prepared.jsonl`.
-/// A pattern can have non-empty given input and still end up with
-/// zero verified cases, if every example fails real verification.
-/// Catching that second case needs the real generate/verify pass
-/// `dataset_prepare` runs, not this extraction-only check.
+/// Whether an extracted row's own given input is empty. Only S2ELab and
+/// Innovatorved carry such a field at all, and only S2ELab's is ever used.
 fn has_no_given_input(context: &RuleContext) -> bool {
     match context {
         RuleContext::S2ELab { matches, non_matches } => matches.is_empty() && non_matches.is_empty(),
@@ -72,10 +61,8 @@ fn default_dir(source: SourceKind) -> &'static str {
     }
 }
 
-/// Default sweep when no `--source` is given.
-/// RegexLib is deliberately not in this list.
-/// It is crowd-sourced, with no curation or correctness guarantee.
-/// Suricata's and SpamAssassin's maintained rule sets do.
+/// Default sweep when no `--source` is given. RegexLib is deliberately
+/// excluded: it's crowd-sourced, with no curation or correctness guarantee.
 fn all_sources() -> [SourceKind; 2] {
     [SourceKind::Suricata, SourceKind::SpamAssassin]
 }
@@ -133,10 +120,8 @@ impl Cause {
         } else if e.contains("word boundary") {
             Cause::WordBoundary
         } else if e.contains("multiline") {
-            // Checked before "anchor": the multiline rejection mentions
-            // anchors in its own explanation.
-            // Checking "anchor" first would misclassify every multiline
-            // rejection.
+            // Checked before "anchor": the multiline rejection's own message
+            // mentions anchors too, so checking "anchor" first would misclassify it.
             Cause::FlagMultiline
         } else if e.contains("extended") {
             Cause::FlagExtended
@@ -182,44 +167,29 @@ struct SourceStats {
     source: Option<SourceKind>,
     files_read: usize,
     extracted: usize,
-    /// MatchIntent::ExplicitFullMatch.
-    /// Pattern wrapped its whole self in `^...$`.
-    /// Anchors stripped before translation.
+    /// `ExplicitFullMatch`: pattern wrapped itself in `^...$`,
+    /// anchors stripped before translation.
     accepted_explicit: usize,
-    /// MatchIntent::UnanchoredAmbiguous.
-    /// No anchor at all; translated and benchmarked as a full match.
-    /// That reading is this project's own choice.
+    /// `UnanchoredAmbiguous`: no anchor; translated and benchmarked as a
+    /// full match -- that reading is this project's own choice.
     accepted_ambiguous: usize,
-    /// Of the accepted patterns, how many have empty given input.
-    /// See `has_no_given_input`.
-    /// Always 0 for sources without given input.
+    /// Of the accepted patterns, how many have empty given input
+    /// (see `has_no_given_input`); always 0 for sources without one.
     accepted_no_input: usize,
     rejected_by: BTreeMap<Cause, usize>,
-    /// Where `^`/`$` sit structurally across every extracted pattern.
-    /// Independent of accept/reject.
-    /// Explains the "anchor" row of `rejected_by`.
-    /// Also explains the `accepted_explicit` count.
+    /// Where `^`/`$` sit structurally across every extracted pattern,
+    /// independent of accept/reject; explains the anchor-related rows above.
     anchor_shapes: BTreeMap<AnchorShape, usize>,
     flag_usage: BTreeMap<char, usize>,
     flag_accepted: BTreeMap<char, usize>,
-    /// Distinct raw pattern text among every extracted pattern,
-    /// accepted or not. A source's own redundancy, independent of
-    /// whether a pattern can even be translated -- `dataset_prepare`'s
-    /// dedup only skips *accepted* duplicates (see `run_pipeline`),
-    /// since there is no benchmark-weighting concern for a pattern
-    /// nothing ever generates input for either way.
+    /// Distinct raw pattern text among every extracted pattern, accepted
+    /// or not -- a source's own redundancy, independent of translatability.
     extracted_seen: HashSet<String>,
     /// Distinct raw pattern text among ACCEPTED patterns only -- the
-    /// subset `dataset_prepare` actually dedups before generating and
-    /// verifying input, and therefore the subset whose duplication
-    /// actually affects `patterns_usable` and benchmark weighting.
+    /// subset `dataset_prepare` dedups, so the one that affects weighting.
     accepted_seen: HashSet<String>,
-    /// Subset of `accepted_seen` tagged `MatchIntent::ExplicitFullMatch`.
-    /// Deduplicated the same way `accepted_seen` is, so
-    /// `accepted_explicit_seen.len() + accepted_ambiguous_seen.len() ==
-    /// distinct_accepted()` always -- unlike `accepted_explicit`, which
-    /// counts rule instances, not distinct patterns (see
-    /// `match_intent_table`).
+    /// Subset of `accepted_seen` tagged `ExplicitFullMatch`, deduplicated
+    /// the same way, unlike `accepted_explicit` which counts rule instances.
     accepted_explicit_seen: HashSet<String>,
     /// Subset of `accepted_seen` tagged `MatchIntent::UnanchoredAmbiguous`.
     accepted_ambiguous_seen: HashSet<String>,
@@ -258,9 +228,8 @@ impl SourceStats {
         self.accepted_seen.len()
     }
 
-    /// Distinct accepted patterns tagged `ExplicitFullMatch` -- matches
-    /// `dataset_prepare`'s own `patterns_explicit_full_match`, unlike
-    /// `accepted_explicit` (rule instances, not distinct patterns).
+    /// Distinct accepted patterns tagged `ExplicitFullMatch`, unlike
+    /// `accepted_explicit` which counts rule instances, not distinct patterns.
     fn distinct_accepted_explicit(&self) -> usize {
         self.accepted_explicit_seen.len()
     }
@@ -285,11 +254,8 @@ impl SourceStats {
             *self.flag_usage.entry(flag).or_default() += 1;
         }
 
-        // Anchor shape likewise computed independently of accept/reject.
-        // The point is what the corpus contains, including shapes that
-        // go on to be rejected.
-        // A pattern that fails to parse at all still gets a row.
-        // So this always sums to `extracted`.
+        // Anchor shape likewise computed independently of accept/reject, so
+        // this always sums to `extracted` -- even an unparseable pattern gets a row.
         let (body, _flags) = strip_pcre_delimiters(pattern);
         let shape = parse_ext_pattern(body).map(|ep| anchor_shape(&ep)).unwrap_or(AnchorShape::Unparseable);
         *self.anchor_shapes.entry(shape).or_default() += 1;
@@ -341,9 +307,8 @@ impl SourceStats {
         for (flag, n) in &self.flag_accepted {
             *total.flag_accepted.entry(*flag).or_default() += n;
         }
-        // True union, not a sum of per-source counts: a pattern shared
-        // across two selected sources should still count once in the
-        // combined total's own distinct count.
+        // True union, not a sum of per-source counts: a pattern shared across
+        // two selected sources should still count once in the combined total.
         total.extracted_seen.extend(self.extracted_seen.iter().cloned());
         total.accepted_seen.extend(self.accepted_seen.iter().cloned());
         total.accepted_explicit_seen.extend(self.accepted_explicit_seen.iter().cloned());
@@ -407,10 +372,8 @@ fn read_source(source: SourceKind, paths: &[PathBuf], verbose: bool) -> SourceSt
                 continue;
             }
         };
-        // Some corpora are not clean UTF-8 (SpamAssassin's locale files).
-        // Decode lossily rather than drop the whole file.
-        // A corrupted pattern is a per-pattern problem `classify` can
-        // reject.
+        // Some corpora aren't clean UTF-8 (SpamAssassin's locale files); decode
+        // lossily rather than drop the file -- a corrupted pattern just gets rejected.
         let text = match String::from_utf8(bytes) {
             Ok(s) => s,
             Err(e) => {
@@ -499,12 +462,8 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
             }
         }
         println!();
-        println!("   Note: S2ELab carries its own `matches`/`non_matches` and");
-        println!("         has no fallback: a row with both empty produces no");
-        println!("         candidates and never enters a benchmark corpus.");
-        println!();
-        println!("   Note: Innovatorved carries its own test text but does");
-        println!("         have a fallback with structurally generated candidates with `RuleContext::Innovatorved`");
+        println!("Note: only S2ELab's given `matches`/`non_matches` reach a benchmark;");
+        println!("a row with no given input here, from S2ELab or any other source, yields none.");
     }
 }
 
@@ -582,8 +541,7 @@ fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
     println!();
     println!("Counts are by DISTINCT accepted patterns");
     println!("Direct         = no anchor; translated as-is.");
-    println!("Explicit ^...$ = top-level ^...$ wrap; anchors stripped as redundant.");
-    println!("                 Any other anchor placement is rejected (see Rejection reasons).");
+    println!("Explicit ^...$ = top-level wrap, anchors stripped; any other placement is rejected.");
     println!();
 }
 
@@ -728,9 +686,8 @@ fn parse_args() -> Options {
             "--verbose" => verbose = true,
             "--no-flags" => show_flags = false,
             other if !other.starts_with("--") => {
-                // Bare positional: a source name selects it.
-                // Anything else is a file path, honored only for a
-                // single source.
+                // Bare positional: a source name selects it, anything else is
+                // a file path, honored only for a single source.
                 if let Ok(s) = std::str::from_utf8(other.as_bytes()) {
                     if is_source_name(s) {
                         sources.push(parse_source(s));

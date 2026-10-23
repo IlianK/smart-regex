@@ -86,21 +86,13 @@ pub enum MatchIntent {
     UnanchoredAmbiguous,
 }
 
-/// Where a candidate's input came from.
-///
-/// `Structural`/`StructuralNegative` are produced only by the structural
-/// sampler in `data::generate` (`sample_positive`/`sample_negative_late`),
-/// which is no longer part of the benchmark/dataset pipeline (`run_pipeline`
-/// never calls it) -- it survives only as a fixture generator for
-/// `prepare.rs`'s own unit tests and for the illustrative
-/// `demo_frontend_categories` example, neither of which makes a research
-/// claim about parser correctness over generated input. `DatasetGiven` is
-/// the only provenance `run_pipeline` produces today.
+/// Where a candidate's input came from. `Structural`/`StructuralNegative`
+/// are test fixtures only; `DatasetGiven` is what `run_pipeline` produces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Provenance {
-    /// Structural sample, claimed match. Test/demo fixture only.
+    /// Structural sample, claimed match. Test fixture only.
     Structural,
-    /// Structural sample, claimed non-match. Test/demo fixture only.
+    /// Structural sample, claimed non-match. Test fixture only.
     StructuralNegative,
     /// S2ELab: one of the pattern author's own `matches`/`non_matches`.
     DatasetGiven,
@@ -110,8 +102,7 @@ pub enum Provenance {
 
 impl Provenance {
     /// Whether a *negative* (`claimed_match == false`) candidate of this
-    /// provenance must additionally fail late (past
-    /// `LATE_FAILURE_THRESHOLD`) to survive verification.
+    /// provenance must additionally fail late (`LATE_FAILURE_THRESHOLD`).
     pub fn requires_late_failure(self) -> bool {
         match self {
             Provenance::StructuralNegative
