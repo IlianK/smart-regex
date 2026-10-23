@@ -51,13 +51,18 @@ path = "examples/demo_simp_branches.rs"
 
 # Sizes of the Regex produced by frontend translation
 [[example]]
-name = "demo_frontend_translation_sizes"
-path = "examples/demo_frontend_translation_sizes.rs"
+name = "demo_translate_sizes"
+path = "examples/demo_translate_sizes.rs"
 
-# One real corpus pattern per verified frontend behaviour
+# A spread of real S2ELab patterns translated and run on their own input
 [[example]]
-name = "demo_frontend_categories"
-path = "examples/demo_frontend_categories.rs"
+name = "demo_translate"
+path = "examples/demo_translate.rs"
+
+# One synthetic example per accepted frontend construct (breadth)
+[[example]]
+name = "demo_translate_categories"
+path = "examples/demo_translate_categories.rs"
 
 # Cross-parser agreement over the prepared dataset
 [[example]]
@@ -70,10 +75,10 @@ path = "examples/demo_parser_agreement.rs"
 name = "demo_parser_agreement_worker"
 path = "examples/demo_parser_agreement_worker.rs"
 
-# Reject-cause demo (replaces demo_canonical_approx_reject.rs: no more Approx)
+# One hand-authored example per frontend rejection cause
 [[example]]
-name = "demo_canonical_reject"
-path = "examples/demo_canonical_reject.rs"
+name = "demo_translate_reject"
+path = "examples/demo_translate_reject.rs"
 
 # Worker for bench_corpus_time and bench_memory: 
 # isolated (parser, pattern, input) job per process

@@ -2,9 +2,10 @@
 
 Runnable programs under `examples/`, invoked with `cargo run --example <name>`.
 Self-contained programs demonstrating matching and parsing on the worked examples
-(with and without diagnostics), reject-cause coverage on a sample of the real
-corpus (`data/raw/_Samples`), frontend coverage (showing which PCRE features are
-supported or rejected), stack-depth limits comparing the loop and recursive
+(with and without diagnostics), frontend/translation coverage split across three
+demos (real S2ELab patterns in `demo_translate`, synthetic construct breadth in
+`demo_translate_categories`, hand-authored rejection causes in
+`demo_translate_reject`), stack-depth limits comparing the loop and recursive
 approaches for the derivative-based parsers only, the dataset pipeline itself,
 and demos that reproduce the numbers behind the thesis figures.
 
@@ -52,30 +53,53 @@ cargo run --example demo_crash --release
 ## Reject-cause demo
 
 ```bash
-# One real corpus pattern per rejection cause dataset_stats.rs counts
-# (backreference, lookaround, word-boundary, anchor, flag-m, flag-x, other),
-# read from the standard raw directories (data/raw/{snort,spamAssassin,regexLib})
-cargo run --release --example demo_canonical_reject
-
-# Or against an explicit file list instead of the standard directories
-cargo run --release --example demo_canonical_reject -- data/raw/_Samples/emerging-exploit.rules
+# One hand-authored pattern per frontend rejection cause -- backreference,
+# lookaround, word-boundary, flag-m, flag-x, POSIX class, bound-too-large,
+# anchor. Synthetic and self-contained: no corpus file, no CLI args.
+cargo run --release --example demo_translate_reject
 ```
+
+Each example is verified against the real `parse_pcre_rule` error, not
+assumed; POSIX classes and an over-`MAX_BOUND` bound get their own named
+cause here, since `translate.rs`/`parse.rs` already produce distinct
+messages for both rather than folding them into a catch-all. Writes
+`reports/demos/translate_reject.txt`.
 
 A pattern is either translated as-is (`Direct`), has its redundant
 top-level `^...$` stripped first (`Explicit full-match`), or rejected
 outright. See [DATASET.md](DATASET.md) for what each tier means and how
-`dataset_stats` reports them.
+`dataset_stats` reports rejection causes over the real corpus; its
+`Cause::Other` catch-all is untouched by this demo's extra two causes,
+which are specific to this demo, not a change to `dataset_stats` itself.
 
 
-## Frontend coverage demo (supported categories)
+## Translation demo (real S2ELab patterns)
 
 ```bash
-# One real corpus pattern per verified frontend behaviour 
-cargo run --release --example demo_frontend_categories -- \
-  data/raw/_Samples/emerging-exploit.rules data/raw/_Samples/emerging-web_client.rules \
-  data/raw/_Samples/20_body_tests.cf data/raw/_Samples/20_drugs.cf data/raw/_Samples/20_head_tests.cf \
-  data/raw/_Samples/regexlib-manual-processed.sample.txt --seed 1 --diag 1
+# A size spread of real S2ELab patterns, translated and run against
+# their own given match/non-match examples
+cargo run --release --example demo_translate -- data/raw/s2-elab/RegexEval.json --diag 1
 ```
+
+Every pattern this run translates successfully -- not just the few
+shown on stdout -- is also dumped to `reports/demos/translate.txt`, raw
+pattern text next to its translated `Regex`.
+
+
+## Translation breadth demo (synthetic categories)
+
+```bash
+# One hand-authored pattern per accepted frontend construct: literal,
+# '.' with/without '\n', each escape class, classes, bounded quantifiers,
+# alternation, quantifiers, groups (plain/non-capturing/named),
+# case-folding, lazy-marker discard, 'ε'/'∅'. No corpus, no CLI args.
+cargo run --release --example demo_translate_categories
+```
+
+Every category is expected to pass -- a failure here is a bug in the
+example itself, not a dataset gap, unlike `demo_translate` above which
+can only show what the given S2ELab file happens to contain. Writes
+`reports/demos/translate_categories.txt`.
 
 
 ## Thesis figure demos
@@ -99,7 +123,7 @@ cargo run --release --example demo_growth_pderiv
 cargo run --release --example demo_growth_eval
 
 # Sizes of the Regex produced by frontend translation, wildcard_run() size, case-fold cost
-cargo run --release --example demo_frontend_translation_sizes
+cargo run --release --example demo_translate_sizes
 ```
 
 

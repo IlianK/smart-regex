@@ -9,10 +9,12 @@ Each entry below lists what the source looks like, a few real sample
 patterns, and where to download the full corpus.
 
 Few sample files picked from each original corpus are saved under
-`data/raw/_Samples/`, one set per source, used by
-`demo_frontend_categories` to demonstrate behaviours on real patterns.
-Not part of the pipeline; `dataset_prepare` and `dataset_stats` read the
-sources' own directories, not `_Samples`.
+`data/raw/_Samples/`, one set per source. Not part of the pipeline --
+`dataset_prepare` and `dataset_stats` read the sources' own directories,
+not `_Samples` -- and not read by any current example either: the two
+demos that once scanned it for a real example per behaviour/rejection
+cause (`demo_translate`, `demo_translate_reject`) now read the real
+S2ELab file directly or use hand-authored synthetic examples instead.
 
 
 ### Suricata/Snort
