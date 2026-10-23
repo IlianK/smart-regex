@@ -118,7 +118,7 @@ Sample size:
 wc -l data/processed/*/prepared.jsonl
 ```
 
-Run `dataset_stats` (Suricata + SpamAssassin by default):
+Run `dataset_stats` (all 5 sources by default):
 
 | Table | Shows |
 |---|---|

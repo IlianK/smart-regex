@@ -6,8 +6,8 @@
 //! Per-source corpus report: extraction counts, acceptance, pattern
 //! duplication, match-intent reliability, rejection causes, anchor shape
 //! distribution, PCRE flag usage.
-//! Defaults: Suricata, SpamAssassin under `data/raw/`.
-//! Opt-in: RegexLib, S2ELab, Innovatorved.
+//! Defaults to all 5 sources under `data/raw/`; a missing source's
+//! directory just reads as zero files, nothing fails.
 //! RegexLib / Innovatorved: crowd-sourced, no correctness guarantee;
 //! Innovatorved test text also unlabeled.
 //! S2ELab: curated academic benchmark, not a maintained production rule set.
@@ -61,10 +61,16 @@ fn default_dir(source: SourceKind) -> &'static str {
     }
 }
 
-/// Default sweep when no `--source` is given. RegexLib is deliberately
-/// excluded: it's crowd-sourced, with no curation or correctness guarantee.
-fn all_sources() -> [SourceKind; 2] {
-    [SourceKind::Suricata, SourceKind::SpamAssassin]
+/// Default sweep when no `--source` is given: every source, for the
+/// full raw-corpus overview this file exists to provide.
+fn all_sources() -> [SourceKind; 5] {
+    [
+        SourceKind::Suricata,
+        SourceKind::SpamAssassin,
+        SourceKind::RegexLib,
+        SourceKind::S2ELab,
+        SourceKind::Innovatorved,
+    ]
 }
 
 /// Every regular file directly inside `dir`, sorted for determinism.
