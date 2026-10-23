@@ -2,10 +2,14 @@
 //!
 //! Per-source extraction: read a source's raw rule files and produce
 //! `ExtractedRule` values carrying the bare pattern plus whatever
-//! source-specific context (`content:` fields, SpamAssassin rule kind,
-//! RegexLib description) `generate` needs.
+//! source-specific context the rest of the crate still reads (S2ELab's
+//! given examples, Innovatorved's free-form test text). Suricata,
+//! SpamAssassin and RegexLib carry no context payload -- nothing reads
+//! one -- but their extractors stay: `dataset_stats`'s raw-corpus
+//! diagnostics (coverage, dedup, rejection reasons, anchor shape, flags)
+//! use all five, independent of whether a source feeds a benchmark.
 
-use crate::data::types::{ContentField, ExtractedRule, RuleContext, SaField, SourceKind};
+use crate::data::types::{ExtractedRule, RuleContext, SourceKind};
 use serde::Deserialize;
 
 /// End of the `/PATTERN/FLAGS` span at the start of `s`.
@@ -34,8 +38,7 @@ fn find_pcre_span_end(s: &str) -> Option<usize> {
 }
 
 /// Skip `n` leading whitespace-separated tokens; return the rest with
-/// leading whitespace trimmed.
-/// Stands in for `SplitWhitespace::as_str`, unavailable in this edition.
+/// leading whitespace trimmed. Stands in for `SplitWhitespace::as_str`.
 fn skip_whitespace_tokens(s: &str, n: usize) -> &str {
     let mut rest = s;
     for _ in 0..n {
@@ -50,8 +53,7 @@ fn skip_whitespace_tokens(s: &str, n: usize) -> &str {
 // Suricata / Snort
 // -------------------------------
 
-/// Every `pcre:"..."` rule in Suricata/Snort `.rules` text, paired with
-/// that rule's `content:` fields, `msg`, and `sid`.
+/// Every `pcre:"..."` rule's pattern in Suricata/Snort `.rules` text.
 pub fn extract_suricata(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
     for line in text.lines() {
@@ -65,139 +67,20 @@ pub fn extract_suricata(text: &str) -> Vec<ExtractedRule> {
         if rest.as_bytes().get(end) != Some(&b'"') {
             continue;
         }
-        let pattern = rest[..end].to_string();
         out.push(ExtractedRule {
             source: SourceKind::Suricata,
-            raw_pattern: pattern,
-            context: RuleContext::Suricata {
-                msg: extract_option_value(line, "msg"),
-                sid: extract_option_value(line, "sid"),
-                content_fields: extract_content_fields(line),
-            },
+            raw_pattern: rest[..end].to_string(),
+            context: RuleContext::Suricata,
         });
     }
     out
-}
-
-/// Value of a `key:"value";` or `key:value;` rule option.
-fn extract_option_value(line: &str, key: &str) -> Option<String> {
-    let needle = format!("{key}:");
-    let start = line.find(&needle)? + needle.len();
-    let rest = &line[start..];
-    if rest.starts_with('"') {
-        let end = rest[1..].find('"')? + 1;
-        Some(rest[1..end].to_string())
-    } else {
-        let end = rest.find(';').unwrap_or(rest.len());
-        Some(rest[..end].trim().to_string())
-    }
-}
-
-/// Every `content:"..."` field on the line, with modifiers scoped to
-/// just that field (`nocase`, `distance`, `within`, `depth`, `offset`).
-fn extract_content_fields(line: &str) -> Vec<ContentField> {
-    let mut fields = Vec::new();
-    let mut search_from = 0usize;
-    while let Some(rel) = line[search_from..].find("content:\"") {
-        let content_start = search_from + rel + "content:\"".len();
-        let Some(rel_end) = find_unescaped_quote(&line[content_start..]) else { break };
-        let content_end = content_start + rel_end;
-        let raw = &line[content_start..content_end];
-        let bytes = decode_content_bytes(raw);
-
-        // Modifiers run from after the closing quote to the next
-        // `content:`/`pcre:` (or end of line).
-        // This keeps one field's slice from bleeding into the next's.
-        let mods_start = content_end + 1;
-        let next_content = line[mods_start..].find("content:").map(|p| mods_start + p);
-        let next_pcre = line[mods_start..].find("pcre:").map(|p| mods_start + p);
-        let mods_end = [next_content, next_pcre]
-            .into_iter()
-            .flatten()
-            .min()
-            .unwrap_or(line.len());
-        let modifiers = &line[mods_start..mods_end];
-
-        fields.push(ContentField {
-            bytes,
-            nocase: modifiers.contains("nocase"),
-            distance: read_i64_modifier(modifiers, "distance"),
-            within: read_u64_modifier(modifiers, "within"),
-            depth: read_u64_modifier(modifiers, "depth"),
-            offset: read_u64_modifier(modifiers, "offset"),
-        });
-
-        search_from = content_end + 1;
-    }
-    fields
-}
-
-/// First `"` in `s` not preceded by a backslash.
-fn find_unescaped_quote(s: &str) -> Option<usize> {
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'"' && (i == 0 || bytes[i - 1] != b'\\') {
-            return Some(i);
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Decode a Suricata `content:` payload.
-/// Literal characters pass through as bytes; `|XX XX|` groups are hex
-/// byte pairs.
-fn decode_content_bytes(raw: &str) -> Vec<u8> {
-    let mut out = Vec::new();
-    let mut chars = raw.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '|' {
-            let mut hex_group = String::new();
-            for hc in chars.by_ref() {
-                if hc == '|' {
-                    break;
-                }
-                hex_group.push(hc);
-            }
-            for pair in hex_group.split_whitespace() {
-                if let Ok(byte) = u8::from_str_radix(pair, 16) {
-                    out.push(byte);
-                }
-            }
-        } else if c == '\\' {
-            if let Some(&escaped) = chars.peek() {
-                out.extend(escaped.to_string().as_bytes());
-                chars.next();
-            }
-        } else {
-            out.extend(c.to_string().as_bytes());
-        }
-    }
-    out
-}
-
-fn read_i64_modifier(modifiers: &str, key: &str) -> Option<i64> {
-    read_modifier_str(modifiers, key)?.parse().ok()
-}
-
-fn read_u64_modifier(modifiers: &str, key: &str) -> Option<u64> {
-    read_modifier_str(modifiers, key)?.parse().ok()
-}
-
-fn read_modifier_str<'a>(modifiers: &'a str, key: &str) -> Option<&'a str> {
-    let needle = format!("{key}:");
-    let start = modifiers.find(&needle)? + needle.len();
-    let rest = &modifiers[start..];
-    let end = rest.find(';').unwrap_or(rest.len());
-    Some(rest[..end].trim())
 }
 
 // -------------------------------
 // SpamAssassin
 // -------------------------------
 
-/// Every `body`/`header` rule from a SpamAssassin `.cf` file.
+/// Every `body`/`header` rule's pattern from a SpamAssassin `.cf` file.
 ///
 /// The two kinds differ: `header NAME Field =~ /pattern/flags` has the
 /// pattern after `=~`, while `body NAME /pattern/flags` has no operator.
@@ -208,30 +91,19 @@ pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
         if trimmed.starts_with('#') {
             continue;
         }
-        let field = if trimmed.starts_with("body ") {
-            SaField::Body
+        let rest = if trimmed.starts_with("body ") {
+            skip_whitespace_tokens(trimmed, 2)
         } else if trimmed.starts_with("header ") {
-            SaField::Header
+            let Some(op) = line.find("=~") else { continue };
+            line[op + 2..].trim_start()
         } else {
             continue;
-        };
-        let rule_name = trimmed
-            .split_whitespace()
-            .nth(1)
-            .unwrap_or("")
-            .to_string();
-        let rest = match field {
-            SaField::Body => skip_whitespace_tokens(trimmed, 2),
-            SaField::Header => {
-                let Some(op) = line.find("=~") else { continue };
-                line[op + 2..].trim_start()
-            }
         };
         let Some(end) = find_pcre_span_end(rest) else { continue };
         out.push(ExtractedRule {
             source: SourceKind::SpamAssassin,
             raw_pattern: rest[..end].to_string(),
-            context: RuleContext::SpamAssassin { rule_name, field },
+            context: RuleContext::SpamAssassin,
         });
     }
     out
@@ -241,29 +113,20 @@ pub fn extract_spamassassin(text: &str) -> Vec<ExtractedRule> {
 // RegexLib
 // -------------------------------
 
-/// RegexLib's comment-delimited entries: `#`-prefixed description lines,
-/// then the bare pattern, entries separated by blank lines.
+/// RegexLib's comment-delimited entries: the bare pattern line, with
+/// `#`-prefixed description lines and blank separators skipped.
 pub fn extract_regexlib(text: &str) -> Vec<ExtractedRule> {
     let mut out = Vec::new();
-    let mut description_lines: Vec<&str> = Vec::new();
     for line in text.lines() {
         let trimmed = line.trim();
-        if trimmed.is_empty() {
-            description_lines.clear();
-            continue;
-        }
-        if let Some(desc) = trimmed.strip_prefix('#') {
-            description_lines.push(desc.trim());
+        if trimmed.is_empty() || trimmed.starts_with('#') {
             continue;
         }
         out.push(ExtractedRule {
             source: SourceKind::RegexLib,
             raw_pattern: trimmed.to_string(),
-            context: RuleContext::RegexLib {
-                description: description_lines.join(" "),
-            },
+            context: RuleContext::RegexLib,
         });
-        description_lines.clear();
     }
     out
 }
@@ -351,39 +214,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn suricata_extracts_pattern_and_content_fields() {
+    fn suricata_extracts_the_pcre_pattern() {
         let line = r##"alert http $EXTERNAL_NET $HTTP_PORTS -> $HOME_NET any (msg:"ET WEB_CLIENT Possible Microsoft Internet Explorer URI Validation Remote Code Execution Attempt"; flow:established,to_client; content:"#|3A|../../"; content:"C|3A 5C|"; nocase; within:50; pcre:"/\x2E\x2E\x2F\x2E\x2E\x2F.+C\x3A\x5C[a-z]/si"; reference:url,www.securityfocus.com/bid/37884; sid:2010798; rev:4;)"##;
         let rules = extract_suricata(line);
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].raw_pattern, r"/\x2E\x2E\x2F\x2E\x2E\x2F.+C\x3A\x5C[a-z]/si");
-        let RuleContext::Suricata { sid, content_fields, .. } = &rules[0].context else {
-            panic!("expected Suricata context")
-        };
-        assert_eq!(sid.as_deref(), Some("2010798"));
-        assert_eq!(content_fields.len(), 2);
-        assert_eq!(content_fields[0].bytes, b"#:../../");
-        assert_eq!(content_fields[1].bytes, b"C:\\");
-        assert!(content_fields[1].nocase);
-        assert_eq!(content_fields[1].within, Some(50));
+        assert_eq!(rules[0].context, RuleContext::Suricata);
     }
 
     #[test]
-    fn suricata_decodes_hex_and_literal_content() {
-        let bytes = decode_content_bytes("http|3a| -J-jar -J|5C 5C 5C 5C|");
-        assert_eq!(bytes, b"http: -J-jar -J\\\\\\\\");
-    }
-
-    #[test]
-    fn spamassassin_extracts_pattern_and_kind() {
+    fn spamassassin_extracts_a_header_pattern() {
         let line = r"header SUBJECT_DRUG_GAP_X	Subject =~ /x.{0,2}a.{0,2}n.{0,2}a.{0,2}x/i";
         let rules = extract_spamassassin(line);
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].raw_pattern, r"/x.{0,2}a.{0,2}n.{0,2}a.{0,2}x/i");
-        let RuleContext::SpamAssassin { rule_name, field } = &rules[0].context else {
-            panic!("expected SpamAssassin context")
-        };
-        assert_eq!(rule_name, "SUBJECT_DRUG_GAP_X");
-        assert_eq!(*field, SaField::Header);
+        assert_eq!(rules[0].context, RuleContext::SpamAssassin);
     }
 
     #[test]
@@ -400,11 +245,6 @@ mod tests {
         let rules = extract_spamassassin(text);
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].raw_pattern, "/[\\042\\223]{2}/");
-        let RuleContext::SpamAssassin { rule_name, field } = &rules[0].context else {
-            panic!("expected SpamAssassin context")
-        };
-        assert_eq!(rule_name, "WEIRD_QUOTING");
-        assert_eq!(*field, SaField::Body);
     }
 
     #[test]
@@ -414,15 +254,12 @@ mod tests {
     }
 
     #[test]
-    fn regexlib_extracts_pattern_and_description() {
+    fn regexlib_extracts_the_bare_pattern() {
         let text = "# Matches an ISBN\n# ID: 3642\n/[0-9]{10}/\n";
         let rules = extract_regexlib(text);
         assert_eq!(rules.len(), 1);
         assert_eq!(rules[0].raw_pattern, "/[0-9]{10}/");
-        let RuleContext::RegexLib { description } = &rules[0].context else {
-            panic!("expected RegexLib context")
-        };
-        assert!(description.contains("Matches an ISBN"));
+        assert_eq!(rules[0].context, RuleContext::RegexLib);
     }
 
     #[test]

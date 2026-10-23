@@ -286,7 +286,7 @@ struct Tally {
     /// But not dismissed the way a timeout is either.
     crashes: usize,
     /// Checked on EVERY completed entry, match or non-match: did all
-    /// five parsers agree with `verified_match`? This is the "agreement
+    /// five parsers agree with `expected_match`? This is the "agreement
     /// on match result" dimension -- it covers non-matches too, since
     /// agreeing that something does NOT match is as real a check as
     /// agreeing that it does.
@@ -316,7 +316,7 @@ impl Tally {
     }
 
     /// % of `completed()` where all five parsers agreed with
-    /// `verified_match`. Covers match AND non-match entries.
+    /// `expected_match`. Covers match AND non-match entries.
     fn match_agree_pct(&self) -> f64 {
         let n = self.completed();
         if n == 0 { 0.0 } else { 100.0 * (n - self.membership_bugs) as f64 / n as f64 }
@@ -424,7 +424,7 @@ fn main() {
 
         let tally = &mut tallies[source_idx(case.source)];
         tally.entries += 1;
-        if case.verified_match {
+        if case.expected_match {
             tally.matches += 1;
         } else {
             tally.non_matches += 1;
@@ -468,7 +468,7 @@ fn main() {
         });
 
         let all_matched = [rec.is_some(), loop_.is_some(), bc.is_some(), pstd.is_some(), pbc.is_some()];
-        let membership_ok = all_matched.iter().all(|&m| m == case.verified_match);
+        let membership_ok = all_matched.iter().all(|&m| m == case.expected_match);
         if !membership_ok {
             tally.membership_bugs += 1;
             if printed_membership < MAX_PRINTED_PER_BUG_KIND {
@@ -476,7 +476,7 @@ fn main() {
                     buf,
                     "MEMBERSHIP BUG  {:?}  pat={:?}  in={:?}  expected={}  got=[rec={} loop={} bc={} pstd={} pbc={}]",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                    case.verified_match, all_matched[0], all_matched[1], all_matched[2],
+                    case.expected_match, all_matched[0], all_matched[1], all_matched[2],
                     all_matched[3], all_matched[4]
                 ).unwrap();
                 printed_membership += 1;
@@ -484,8 +484,8 @@ fn main() {
             continue;
         }
 
-        if !case.verified_match {
-            // Verified non-match: every parser returned None; no trees.
+        if !case.expected_match {
+            // Expected non-match: every parser returned None; no trees.
             continue;
         }
 

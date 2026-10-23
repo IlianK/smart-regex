@@ -1,99 +1,19 @@
 //! src/data/prepare.rs
 //!
-//! Verification: every candidate from `generate` is checked against the
-//! real parser before becoming a `PreparedCase`.
-//! A negative must also fail late, past `LATE_FAILURE_THRESHOLD`, unless
-//! its provenance is one that never produces negatives.
+//! Pattern preparation: parse, translate, and tag a raw pattern's
+//! `MatchIntent`, with the anchor-stripping and depth/node caps that
+//! `run_pipeline` (`mod.rs`) and `dataset_stats` both rely on.
 //!
 //! `core_regex_tagged` accepts one anchor shape this pipeline recognizes:
-//! a top-level `^...$` wrap.
-//! The anchors are stripped before translation.
-//! They are redundant under full-string matching.
-//! Any other anchor placement still reaches `translate` and is rejected.
+//! a top-level `^...$` wrap. The anchors are stripped before translation,
+//! since they are redundant under full-string matching. Any other anchor
+//! placement still reaches `translate` and is rejected.
 
-use crate::data::types::{Candidate, MatchIntent, PreparedCase, SourceKind};
+use crate::data::types::{MatchIntent, PreparedCase};
 use crate::frontend::{
     case_fold, parse_ext_pattern, strip_dot_newline, strip_pcre_delimiters, translate, ExtPat,
 };
-use crate::parsers::deriv_bc::deriv::deriv_bc;
-use crate::parsers::deriv_bc::internalize::internalize;
-use crate::parsers::deriv_bc::nullable::{is_phi, nullable_bc};
-use crate::parsers::deriv_bc::simplify::simp;
-use crate::types::{ARegex, Regex};
-
-/// Cap on the bit-coded annotated expression's node count.
-const MAX_AREGEX_NODES: usize = 100_000;
-
-fn aregex_node_count(r: &ARegex) -> usize {
-    let mut stack = vec![r];
-    let mut count = 0usize;
-    while let Some(node) = stack.pop() {
-        count += 1;
-        if count > MAX_AREGEX_NODES {
-            return count;
-        }
-        match node {
-            ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => {}
-            ARegex::Alt(_, a, b) | ARegex::Seq(_, a, b) => {
-                stack.push(a);
-                stack.push(b);
-            }
-            ARegex::Star(_, a) => stack.push(a),
-        }
-    }
-    count
-}
-
-enum SteppedOutcome {
-    DiedAt(usize),
-    Finished { nullable: bool },
-    TooExpensive,
-}
-
-/// `internalize`, then `deriv_bc` + `simp` per character.
-fn step_bc_bounded(input: &str, r: &Regex) -> SteppedOutcome {
-    let mut ri = internalize(r);
-    if aregex_node_count(&ri) > MAX_AREGEX_NODES {
-        return SteppedOutcome::TooExpensive;
-    }
-    let mut consumed = 0usize;
-    for c in input.chars() {
-        ri = simp(deriv_bc(ri, c));
-        consumed += 1;
-        if aregex_node_count(&ri) > MAX_AREGEX_NODES {
-            return SteppedOutcome::TooExpensive;
-        }
-        if is_phi(&ri) {
-            return SteppedOutcome::DiedAt(consumed);
-        }
-    }
-    SteppedOutcome::Finished { nullable: nullable_bc(&ri) }
-}
-
-/// Whether `input` matches `r`, via `step_bc_bounded`.
-/// `None` means the check exceeded its own node cap.
-pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
-    match step_bc_bounded(input, r) {
-        SteppedOutcome::DiedAt(_) => Some(false),
-        SteppedOutcome::Finished { nullable } => Some(nullable),
-        SteppedOutcome::TooExpensive => None,
-    }
-}
-
-/// A negative must fail at or past this fraction of the input.
-/// Earlier failures are discarded.
-const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
-
-/// Chars consumed before the match becomes impossible, or full length on a match.
-/// `None` when the check exceeds its node cap.
-pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
-    match step_bc_bounded(input, r) {
-        SteppedOutcome::DiedAt(consumed) => Some(consumed),
-        SteppedOutcome::Finished { .. } => Some(input.chars().count()),
-        SteppedOutcome::TooExpensive => None,
-    }
-}
-
+use crate::types::Regex;
 
 /// Core regex for a PCRE-rule body with `MatchIntent`, plus depth/node caps.
 /// Strips a top-level `^...$` wrap before `translate` sees it.
@@ -305,113 +225,8 @@ const MAX_CORE_DEPTH: usize = 2_000;
 /// Coarser cap on the translated pattern's node count.
 const MAX_CORE_NODES: usize = 20_000;
 
-/// Verify one candidate given a pre-translated `Regex` and `MatchIntent`.
-/// Does not re-translate the pattern for every candidate.
-pub fn verify_one(
-    source: SourceKind,
-    raw_pattern: &str,
-    core: &Regex,
-    match_intent: MatchIntent,
-    candidate: Candidate,
-) -> Option<PreparedCase> {
-    let verified_match = matches_bounded(&candidate.text, core)?;
-    if verified_match != candidate.claimed_match {
-        return None;
-    }
-
-    let failed_after = if !verified_match {
-        let consumed = failed_after_chars(&candidate.text, core)?;
-        let total = candidate.text.chars().count().max(1);
-        if candidate.provenance.requires_late_failure()
-            && (consumed as f64) < LATE_FAILURE_THRESHOLD * (total as f64)
-        {
-            return None;
-        }
-        Some(consumed)
-    } else {
-        None
-    };
-
-    Some(PreparedCase {
-        source,
-        pattern: raw_pattern.to_string(),
-        input: candidate.text,
-        provenance: candidate.provenance,
-        verified_match,
-        failed_after_chars: failed_after,
-        match_intent,
-    })
-}
-
-/// Verify one candidate, translating the pattern from `raw_pattern` first.
-/// For callers that don't already have the translated `Regex`.
-pub fn verify_candidate(
-    source: SourceKind,
-    raw_pattern: &str,
-    candidate: Candidate,
-) -> Option<PreparedCase> {
-    let (core, match_intent) = core_regex_tagged(raw_pattern).ok()?;
-    verify_one(source, raw_pattern, &core, match_intent, candidate)
-}
-
-/// Verify every candidate, keeping survivors in original order.
-pub fn verify_all(
-    source: SourceKind,
-    raw_pattern: &str,
-    candidates: Vec<Candidate>,
-) -> Vec<PreparedCase> {
-    candidates
-        .into_iter()
-        .filter_map(|c| verify_candidate(source, raw_pattern, c))
-        .collect()
-}
-
-/// Verify candidates in order, stopping once `per_side` matches and
-/// `per_side` non-matches are accepted; the rest are dropped unverified.
-pub fn verify_until(
-    source: SourceKind,
-    raw_pattern: &str,
-    core: &Regex,
-    match_intent: MatchIntent,
-    candidates: impl IntoIterator<Item = Candidate>,
-    per_side: usize,
-) -> (Vec<PreparedCase>, usize) {
-    let mut out = Vec::with_capacity(per_side * 2);
-    let mut rejected = 0usize;
-    let mut matches = 0usize;
-    let mut non_matches = 0usize;
-    for candidate in candidates {
-        if matches >= per_side && non_matches >= per_side {
-            break;
-        }
-        // Skip before verifying: a candidate whose claimed side is already
-        // full cannot contribute either way.
-        if candidate.claimed_match && matches >= per_side {
-            continue;
-        }
-        if !candidate.claimed_match && non_matches >= per_side {
-            continue;
-        }
-        match verify_one(source, raw_pattern, core, match_intent, candidate) {
-            Some(p) => {
-                if p.verified_match {
-                    matches += 1;
-                } else {
-                    non_matches += 1;
-                }
-                out.push(p);
-            }
-            None => rejected += 1,
-        }
-    }
-    (out, rejected)
-}
-
 /// Append `cases` to `path` as JSON lines, creating parents if needed.
-pub fn write_prepared_cases(
-    path: &std::path::Path,
-    cases: &[PreparedCase],
-) -> std::io::Result<()> {
+pub fn write_prepared_cases(path: &std::path::Path, cases: &[PreparedCase]) -> std::io::Result<()> {
     use std::io::Write;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -444,231 +259,11 @@ pub fn read_prepared_cases(path: &std::path::Path) -> std::io::Result<Vec<Prepar
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::types::{PreparedCase, SourceKind};
 
     fn core(pattern: &str) -> Regex {
         let ep = crate::frontend::parse_ext_pattern(pattern).expect("should parse");
         translate(&ep).expect("should translate")
-    }
-
-    /// `(text, claimed_match)` pairs as literal `Structural`/`StructuralNegative` candidates.
-    fn literal_candidates(pairs: &[(&str, bool)]) -> Vec<Candidate> {
-        pairs
-            .iter()
-            .map(|(text, claimed_match)| Candidate {
-                text: text.to_string(),
-                provenance: if *claimed_match {
-                    crate::data::types::Provenance::Structural
-                } else {
-                    crate::data::types::Provenance::StructuralNegative
-                },
-                claimed_match: *claimed_match,
-            })
-            .collect()
-    }
-
-    #[test]
-    fn failed_after_chars_is_full_length_on_a_real_match() {
-        let r = core(r"[a-c]+\d{2}");
-        let n = failed_after_chars("ab12", &r).expect("should be verifiable");
-        assert_eq!(n, 4);
-    }
-
-    #[test]
-    fn failed_after_chars_stops_at_the_dead_position() {
-        let r = core(r"a\d");
-        let n = failed_after_chars("aXXXXXXXX", &r).expect("should be verifiable");
-        assert_eq!(n, 2);
-    }
-
-    #[test]
-    fn failed_after_chars_gives_up_past_the_node_cap() {
-        let r = core(r#"</?(\w+)(\s*\w*\s*=\s*("[^"]*"|'[^']'|[^>]*))*|/?>"#);
-        let input = "<wxxzuzzwyyz=}| \n \r\r\r=\t\t \r\t\"}~~|~}\"\n\t\rzzy    \n\n=\r'~'\t \r\t =     \"~~}}~}\"y=\r \n\"~z}}\"\nz \r =\r\t~~~";
-        assert!(failed_after_chars(input, &r).is_none());
-    }
-
-    #[test]
-    fn a_genuine_positive_candidate_survives_verification() {
-        let pattern = r"[a-c]+\d{2}";
-        let candidate = Candidate {
-            text: "ab12".to_string(),
-            provenance: crate::data::types::Provenance::Structural,
-            claimed_match: true,
-        };
-        let prepared = verify_candidate(SourceKind::RegexLib, pattern, candidate)
-            .expect("a genuine match should survive verification");
-        assert!(prepared.verified_match);
-    }
-
-    #[test]
-    fn a_false_claim_is_rejected() {
-        let pattern = r"[a-c]+\d{2}";
-        let candidate = Candidate {
-            text: "zzz".to_string(),
-            provenance: crate::data::types::Provenance::Structural,
-            claimed_match: true,
-        };
-        assert!(verify_candidate(SourceKind::RegexLib, pattern, candidate).is_none());
-    }
-
-    #[test]
-    fn a_candidate_too_expensive_to_verify_is_dropped_not_hung() {
-        let pattern = r#"</?(\w+)(\s*\w*\s*=\s*("[^"]*"|'[^']'|[^>]*))*|/?>"#;
-        let candidate = Candidate {
-            text: "<wxxzuzzwyyz=}| \n \r\r\r=\t\t \r\t\"}~~|~}\"\n\t\rzzy    \n\n=\r'~'\t \r\t =     \"~~}}~}\"y=\r \n\"~z}}\"\nz \r =\r\t~~~".to_string(),
-            provenance: crate::data::types::Provenance::Structural,
-            claimed_match: true,
-        };
-        assert!(verify_candidate(SourceKind::RegexLib, pattern, candidate).is_none());
-    }
-
-    #[test]
-    fn a_trivially_failing_negative_candidate_is_rejected() {
-        let pattern = r"[a-c]+\d{2}";
-        let candidate = Candidate {
-            text: "zzzzzzzzzz".to_string(),
-            provenance: crate::data::types::Provenance::StructuralNegative,
-            claimed_match: false,
-        };
-        assert!(verify_candidate(SourceKind::RegexLib, pattern, candidate).is_none());
-    }
-
-    #[test]
-    fn an_early_failing_dataset_given_negative_is_also_rejected() {
-        let pattern = r"[a-c]+\d{2}";
-        let candidate = Candidate {
-            text: "zzzzzzzzzz".to_string(),
-            provenance: crate::data::types::Provenance::DatasetGiven,
-            claimed_match: false,
-        };
-        assert!(verify_candidate(SourceKind::S2ELab, pattern, candidate).is_none());
-    }
-
-    #[test]
-    fn an_early_failing_dataset_text_classified_negative_is_also_rejected() {
-        let pattern = r"[a-c]+\d{2}";
-        let candidate = Candidate {
-            text: "zzzzzzzzzz".to_string(),
-            provenance: crate::data::types::Provenance::DatasetTextClassified,
-            claimed_match: false,
-        };
-        assert!(verify_candidate(SourceKind::Innovatorved, pattern, candidate).is_none());
-    }
-
-    #[test]
-    fn a_late_failing_negative_candidate_is_accepted() {
-        let pattern = r"[a-c]+\d{2}";
-        let candidate = Candidate {
-            text: "ab1\u{2603}".to_string(),
-            provenance: crate::data::types::Provenance::StructuralNegative,
-            claimed_match: false,
-        };
-        let prepared = verify_candidate(SourceKind::RegexLib, pattern, candidate)
-            .expect("a genuinely late failure should survive verification");
-        assert!(!prepared.verified_match);
-        assert!(prepared.failed_after_chars.is_some());
-    }
-
-    #[test]
-    fn verify_until_stops_at_per_side_on_both_sides() {
-        let pattern = r"[a-c]+\d{2}";
-        let core_re = core(pattern);
-        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
-
-        let candidates = literal_candidates(&[
-            ("a12", true),
-            ("b12", true),
-            ("c12", true),
-            ("ab12", true),
-            ("a1\u{2603}", false),
-            ("b1\u{2603}", false),
-            ("c1\u{2603}", false),
-            ("ab1\u{2603}", false),
-        ]);
-
-        let (result, _) = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
-        assert_eq!(result.len(), 6);
-        assert_eq!(result.iter().filter(|c| c.verified_match).count(), 3);
-        assert_eq!(result.iter().filter(|c| !c.verified_match).count(), 3);
-    }
-
-    #[test]
-    fn verify_until_returns_fewer_when_a_side_is_empty() {
-        let pattern = r"[a-c]+\d{2}";
-        let core_re = core(pattern);
-        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
-
-        let candidates = literal_candidates(&[("a12", true), ("b12", true), ("c12", true), ("ab12", true)]);
-
-        let (result, _) = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 3);
-        assert!(result.len() < 6);
-        assert!(result.iter().all(|c| c.verified_match));
-    }
-
-    #[test]
-    fn verify_until_stops_early_when_the_batch_is_oversized() {
-        let pattern = r"[a-c]+\d{2}";
-        let core_re = core(pattern);
-        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
-
-        let candidates = literal_candidates(&[
-            ("a12", true),
-            ("b12", true),
-            ("c12", true),
-            ("ab12", true),
-            ("a1\u{2603}", false),
-            ("b1\u{2603}", false),
-            ("c1\u{2603}", false),
-            ("ab1\u{2603}", false),
-        ]);
-
-        let (result, _) = verify_until(SourceKind::RegexLib, pattern, &core_re, intent, candidates, 2);
-        assert_eq!(result.len(), 4);
-    }
-
-    #[test]
-    fn verify_until_lets_real_candidates_survive_over_redundant_synthetic_ones() {
-        let pattern = r"[a-c]+\d{2}";
-        let core_re = core(pattern);
-        let (_, intent) = core_regex_tagged(pattern).expect("should translate");
-
-        let candidates = vec![
-            // Real match, pushed first.
-            Candidate {
-                text: "ab12".to_string(),
-                provenance: crate::data::types::Provenance::DatasetTextClassified,
-                claimed_match: true,
-            },
-            // Real non-match, pushed first.
-            Candidate {
-                text: "ab1\u{2603}".to_string(),
-                provenance: crate::data::types::Provenance::DatasetTextClassified,
-                claimed_match: false,
-            },
-            // Redundant top-up, pushed after: both sides are already
-            // full by the time these are reached, so neither is examined.
-            Candidate {
-                text: "ca13".to_string(),
-                provenance: crate::data::types::Provenance::Structural,
-                claimed_match: true,
-            },
-            Candidate {
-                text: "bb1\u{2603}".to_string(),
-                provenance: crate::data::types::Provenance::StructuralNegative,
-                claimed_match: false,
-            },
-        ];
-
-        let (cases, rejected) =
-            verify_until(SourceKind::Innovatorved, pattern, &core_re, intent, candidates, 1);
-        assert_eq!(cases.len(), 2);
-        assert_eq!(rejected, 0);
-        assert!(cases.iter().any(|c| c.input == "ab12"), "the real match should survive");
-        assert!(cases.iter().any(|c| c.input == "ab1\u{2603}"), "the real non-match should survive");
-        assert!(
-            !cases.iter().any(|c| c.input == "ca13" || c.input == "bb1\u{2603}"),
-            "the redundant synthetic candidates should never be reached"
-        );
     }
 
     #[test]
@@ -679,13 +274,11 @@ mod tests {
         let _ = std::fs::remove_file(&path);
 
         let case = PreparedCase {
-            source: SourceKind::SpamAssassin,
-            pattern: r"/x.{0,2}a.{0,2}n.{0,2}a.{0,2}x/i".to_string(),
-            input: "buy xanax now".to_string(),
-            provenance: crate::data::types::Provenance::Structural,
-            verified_match: true,
-            failed_after_chars: None,
-            match_intent: crate::data::types::MatchIntent::UnanchoredAmbiguous,
+            source: SourceKind::S2ELab,
+            pattern: r"^\d{5}$".to_string(),
+            input: "12345".to_string(),
+            expected_match: true,
+            match_intent: MatchIntent::ExplicitFullMatch,
         };
         write_prepared_cases(&path, std::slice::from_ref(&case)).unwrap();
         write_prepared_cases(&path, std::slice::from_ref(&case)).unwrap();
@@ -694,7 +287,7 @@ mod tests {
         assert_eq!(read_back.len(), 2);
         assert_eq!(read_back[0].pattern, case.pattern);
         assert_eq!(read_back[0].input, case.input);
-        assert_eq!(read_back[0].verified_match, case.verified_match);
+        assert_eq!(read_back[0].expected_match, case.expected_match);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -798,19 +391,5 @@ mod tests {
         assert_eq!(shape_of("^"), AnchorShape::StartOnly);
         assert_eq!(shape_of("$"), AnchorShape::EndOnly);
         assert_eq!(shape_of("^$"), AnchorShape::FullyWrapped);
-    }
-
-    #[test]
-    fn verify_candidate_tags_match_intent_on_the_prepared_case() {
-        let r = core("abc");
-        let candidate = Candidate {
-            text: "abc".to_string(),
-            provenance: crate::data::types::Provenance::Structural,
-            claimed_match: true,
-        };
-        let prepared = verify_candidate(SourceKind::RegexLib, "^abc$", candidate)
-            .expect("should verify");
-        assert_eq!(prepared.match_intent, MatchIntent::ExplicitFullMatch);
-        assert_eq!(matches_bounded("abc", &r), Some(true));
     }
 }

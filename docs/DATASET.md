@@ -138,55 +138,47 @@ tables.
 
 ## Dataset preparation
 
-No input is generated, derived, or heuristically assembled anymore.
-`run_pipeline` only ever uses a source's own given match/non-match
-examples, verified against the real parser -- every one of them, not a
-capped subset. Today that means **S2ELab only**
-(`RuleContext::S2ELab`'s own `matches`/`non_matches`). Suricata,
-SpamAssassin, RegexLib, and Innovatorved still extract and translate
-their rules the same as before, but none of them has a given-input
-extraction wired in, so a run against any of them accepts patterns and
-then marks every single one unusable for lack of any example input --
-expected, not a bug, until a given-input source is found among them (see
-"Match-intent" below for why that bar -- genuinely pre-existing,
-author-labeled ground truth -- is the one that matters here).
+No input is generated, derived, or heuristically assembled, and nothing
+is independently re-checked against the real parser either. `run_pipeline`
+is **S2ELab-only**: it extracts, translates, and writes every usable
+pattern's own given `matches`/`non_matches` as-is -- every one of them,
+not a capped subset -- trusting the dataset author's own label
+(`expected_match` on each `PreparedCase`). Suricata, SpamAssassin,
+RegexLib, and Innovatorved still extract and translate their rules the
+same as before (`dataset_stats`'s raw-corpus diagnostics use all five),
+but `run_pipeline` itself never reads them.
 
-Name the source and its input files; there is no longer a count argument:
+Name the input files; there is no source or count argument:
 
 ```bash
-cargo run --release --example dataset_prepare -- s2-elab data/raw/s2-elab/RegexEval.json
-
-# --verbose: also list every pattern that ended up unusable
-cargo run --release --example dataset_prepare -- s2-elab data/raw/s2-elab/RegexEval.json --verbose
+cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 ```
 
-Each run writes to `data/processed/<source>/prepared.jsonl`, replacing
+Each run writes to `data/processed/s2-elab/prepared.jsonl`, replacing
 the file rather than appending. Each *usable* pattern (at least one
-verified match and at least one verified non-match) contributes every
-one of its verified given examples -- a pattern with 10 given matches
-and 12 given non-matches that all verify contributes 22 cases, not a
-fixed count. A pattern that ends up with zero verified matches or zero
-verified non-matches contributes nothing at all, and is counted
+given match and at least one given non-match) contributes every one of
+its given examples -- a pattern with 10 given matches and 12 given
+non-matches contributes 22 cases, not a fixed count. A pattern with only
+one side, or neither, contributes nothing at all, and is counted
 separately as unusable — see the summary `dataset_prepare` prints.
 
 A rule whose raw pattern text is byte-identical to an earlier rule's in
 the same run is skipped before translation even starts, rather than
-re-verifying a second, independent input group for the same regex —
+writing a second, independent input group for the same regex —
 doing so would silently overweight that one pattern in any benchmark
 that reads `prepared.jsonl` back, in proportion to how many times the
 source happens to repeat it. Counted separately as
-`rules_duplicate_pattern` in the summary and in
-`reports/data/dataset_prepare.csv`, not folded into the
-unusable/rejected count. The "Pattern duplication" table in
-`dataset_stats` reports the same thing on the raw corpus, without
-running verification to get there.
+`patterns_duplicate` in the summary and in
+`reports/data/dataset_prepare.csv`, not folded into the unusable count.
+The "Pattern duplication" table in `dataset_stats` reports the same
+thing on the raw corpus.
 
 The same run's summary numbers are *appended* as one row to
 `reports/data/dataset_prepare.csv`, not replaced, so re-runs (or runs
 across code changes) accumulate rather than overwrite each other's row.
-Rows written before this change still carry an `n` column this version
-no longer writes; archive or clear the old file before comparing across
-the change if that matters for your analysis.
+The CSV's columns changed with this version (no `source`, a renamed
+`patterns_duplicate`, nothing about verification); archive or clear the
+old file before comparing across the change if that matters.
 
 
 
@@ -194,23 +186,20 @@ the change if that matters for your analysis.
 
 ## Pipeline
 
-1. `extract` — one raw file's text to `ExtractedRule`s: pattern plus
-   source-specific context (`content:` fields for Suricata, rule kind
-   for SpamAssassin, description for RegexLib).
+1. `extract::extract_s2_elab` — one raw file's JSON text to
+   `ExtractedRule`s: pattern plus the rule author's own
+   `matches`/`non_matches`.
 2. Dedup by raw pattern text against every rule already seen earlier in
-   this run. A repeat is counted (`rules_duplicate_pattern`) and
-   skipped outright -- its fate is already decided by the first
-   occurrence, so nothing downstream re-examines it.
+   this run. A repeat is counted (`patterns_duplicate`) and skipped
+   outright -- its fate is already decided by the first occurrence.
 3. `prepare::core_regex_tagged` — parse and translate, with two size
-   caps and one narrow anchor recovery.
-   Rejected patterns stop here.
-4. `generate::given_examples` — S2ELab's own `matches`/`non_matches` to
-   `Candidate`s, unchanged, uncapped, and unsampled. Nothing trusted yet.
-   Every other source yields no candidates at all.
-5. `prepare::verify_one` — check every candidate against the real
-   parser, discard what doesn't hold, write survivors as
-   `PreparedCase` JSON lines tagged with their `MatchIntent`.
-6. `run_pipeline` — drives 1–5 for one source; returns `PipelineReport`.
+   caps and one narrow anchor recovery. Rejected patterns stop here.
+4. A small dedup/positive-wins helper in `mod.rs` turns
+   `matches`/`non_matches` into `(text, is_match)` pairs, unchanged,
+   uncapped, and unsampled.
+5. Each pair becomes a `PreparedCase` directly -- no verification --
+   written as JSON lines tagged with their `MatchIntent`.
+6. `run_pipeline` — drives 1–5; returns `PipelineReport`.
    `load_prepared_cases` reads the result back for benchmarks.
 
 
@@ -244,20 +233,19 @@ that reading is; `ExplicitFullMatch` carries no such ambiguity.
 **Positives vs negatives, for a given-input source.** A positive is
 sound under either reading: a string in the pattern's own language is
 trivially found by a search over that string. A negative is not
-automatically so for an `UnanchoredAmbiguous` pattern: an early-failing
-negative under full-match semantics can still contain a valid match
-earlier in the same string under search semantics. `verify_one`'s
-late-failure check (`LATE_FAILURE_THRESHOLD`) filters out negatives that
-fail too early to rule this out, for `DatasetGiven` candidates exactly
-as for any other provenance that produces negatives. This only matters
-for `UnanchoredAmbiguous` negatives, not for `ExplicitFullMatch` ones,
-where full-match is the only reading there is.
+automatically so for an `UnanchoredAmbiguous` pattern: a string that
+fails under full-match semantics can still contain a valid match
+earlier in the same string under search semantics. `run_pipeline` does
+not check for this -- every given negative is written as-is, trusting
+the dataset's own label, for every match intent. This caveat only
+applies to `UnanchoredAmbiguous` negatives; `ExplicitFullMatch` ones
+have no such ambiguity, since full-match is the only reading there is.
 
 **Benchmark cap.** `bench_corpus_time`/`bench_memory`/`bench_translate`
 and `demo_parser_agreement` admit every distinct pattern per source by
 default; `BENCH_PATTERN_LIMIT=N` caps that to the first N. The cap is on
 distinct patterns, not on rows, so the number of patterns a bench
-measures is predictable regardless of how many verified inputs each one
+measures is predictable regardless of how many given inputs each one
 carries.
 
 

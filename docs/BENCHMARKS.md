@@ -81,7 +81,7 @@ CLI arguments.
   unusable for lack of example input (see `docs/DATASET.md`).
 
 - **`BENCH_PATTERN_LIMIT=N`** — Admits the first N distinct patterns per
-  source. Each brings all its verified inputs, so row count is at most
+  source. Each brings all its given inputs, so row count is at most
   `N × inputs_per_pattern`. Unset admits every usable pattern.
 
 - **`BENCH_MATCH_INTENT`** — Filters by `MatchIntent`. Unset means
@@ -92,8 +92,8 @@ CLI arguments.
   everything.
 
 - **`BENCH_SPLIT_OUTCOME`** — When set, `bench_corpus_time` prints a
-  second table per source splitting per-entry durations by verified
-  outcome. Off by default; ignored by `bench_memory`.
+  second table per source splitting per-entry durations by expected
+  match/non-match outcome. Off by default; ignored by `bench_memory`.
 
 - **`BENCH_ENTRY_TIMEOUT_MS=N`** — Per-entry wait cap before counting an
   entry as `timed_out`. Exists because a small fraction of real entries

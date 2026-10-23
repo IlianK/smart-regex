@@ -26,39 +26,15 @@ impl SourceKind {
     }
 }
 
-/// Suricata `content:"..."` payload plus modifiers.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ContentField {
-    pub bytes: Vec<u8>,
-    pub nocase: bool,
-    pub distance: Option<i64>,
-    pub within: Option<u64>,
-    pub depth: Option<u64>,
-    pub offset: Option<u64>,
-}
-
-/// Which part of a message a SpamAssassin rule inspects.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SaField {
-    Body,
-    Header,
-}
-
-/// Source-specific context, one variant per `SourceKind`.
+/// Source-specific context, one variant per `SourceKind`. Suricata,
+/// SpamAssassin and RegexLib carry no payload: nothing reads one, since
+/// only `dataset_stats`'s raw-corpus diagnostics use those three extractors,
+/// and it only needs each rule's raw pattern text.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuleContext {
-    Suricata {
-        msg: Option<String>,
-        sid: Option<String>,
-        content_fields: Vec<ContentField>,
-    },
-    SpamAssassin {
-        rule_name: String,
-        field: SaField,
-    },
-    RegexLib {
-        description: String,
-    },
+    Suricata,
+    SpamAssassin,
+    RegexLib,
     S2ELab {
         matches: Vec<String>,
         non_matches: Vec<String>,
@@ -86,89 +62,14 @@ pub enum MatchIntent {
     UnanchoredAmbiguous,
 }
 
-/// Where a candidate's input came from. `Structural`/`StructuralNegative`
-/// are test fixtures only; `DatasetGiven` is what `run_pipeline` produces.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Provenance {
-    /// Structural sample, claimed match. Test fixture only.
-    Structural,
-    /// Structural sample, claimed non-match. Test fixture only.
-    StructuralNegative,
-    /// S2ELab: one of the pattern author's own `matches`/`non_matches`.
-    DatasetGiven,
-    /// Innovatorved: one line of the pattern's free-form test text,
-    DatasetTextClassified,
-}
-
-impl Provenance {
-    /// Whether a *negative* (`claimed_match == false`) candidate of this
-    /// provenance must additionally fail late (`LATE_FAILURE_THRESHOLD`).
-    pub fn requires_late_failure(self) -> bool {
-        match self {
-            Provenance::StructuralNegative
-            | Provenance::DatasetGiven
-            | Provenance::DatasetTextClassified => true,
-            Provenance::Structural => false,
-        }
-    }
-
-    /// Whether this candidate's *text* came from the source's own data
-    /// or was being generated to fill a gap.
-    pub fn is_from_dataset(self) -> bool {
-        match self {
-            Provenance::DatasetGiven | Provenance::DatasetTextClassified => true,
-            Provenance::Structural | Provenance::StructuralNegative => false,
-        }
-    }
-}
-
-/// One generated input, not yet verified.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Candidate {
-    pub text: String,
-    pub provenance: Provenance,
-    pub claimed_match: bool,
-}
-
-/// A candidate after `prepare::verify_candidate` accepted it.
+/// One S2ELab-given (pattern, input) pair that `core_regex_tagged` accepted.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreparedCase {
     pub source: SourceKind,
     pub pattern: String,
     pub input: String,
-    pub provenance: Provenance,
-    pub verified_match: bool,
-    /// Chars consumed before rejection became impossible; `None` for a match.
-    pub failed_after_chars: Option<usize>,
+    /// The dataset author's own label; never independently re-checked.
+    pub expected_match: bool,
     /// See `MatchIntent`.
     pub match_intent: MatchIntent,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn late_failure_is_required_for_every_negative_producing_provenance() {
-        assert!(Provenance::StructuralNegative.requires_late_failure());
-        assert!(Provenance::DatasetGiven.requires_late_failure());
-        assert!(Provenance::DatasetTextClassified.requires_late_failure());
-    }
-
-    #[test]
-    fn late_failure_is_not_required_for_positive_only_provenances() {
-        assert!(!Provenance::Structural.requires_late_failure());
-    }
-
-    #[test]
-    fn from_dataset_is_true_only_for_the_two_given_or_classified_provenances() {
-        assert!(Provenance::DatasetGiven.is_from_dataset());
-        assert!(Provenance::DatasetTextClassified.is_from_dataset());
-    }
-
-    #[test]
-    fn from_dataset_is_false_for_every_generated_provenance() {
-        assert!(!Provenance::Structural.is_from_dataset());
-        assert!(!Provenance::StructuralNegative.is_from_dataset());
-    }
 }

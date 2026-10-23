@@ -159,7 +159,7 @@ fn run_label_suffix() -> String {
 struct Entry {
     pattern: String,
     input: String,
-    verified_match: bool,
+    expected_match: bool,
 }
 
 type Corpora = (Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>);
@@ -213,7 +213,7 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
         bucket.push(Entry {
             pattern: case.pattern,
             input: case.input,
-            verified_match: case.verified_match,
+            expected_match: case.expected_match,
         });
     }
     if suricata.is_empty()
@@ -412,7 +412,7 @@ fn report(
             match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
                 Outcome::Done(dt) => {
                     all.push(dt);
-                    if entry.verified_match {
+                    if entry.expected_match {
                         matches.push(dt);
                     } else {
                         non_matches.push(dt);

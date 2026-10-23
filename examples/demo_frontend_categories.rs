@@ -5,18 +5,66 @@
 //! For each verified category of frontend behaviour, finds a real S2ELab
 //! pattern that exercises it, then shows the actual behaviour: either the
 //! translated `Regex` run against the pattern's own real `matches`/
-//! `non_matches` (whichever genuinely verify), or the exact rejection.
-//! A category with no real example in the given file(s) is reported and
-//! skipped, never faked.
+//! `non_matches` (whichever the real parser agrees with), or the exact
+//! rejection. A category with no real example in the given file(s) is
+//! reported and skipped, never faked.
 
 use std::path::PathBuf;
 
 use regex_engine::data::extract::extract_s2_elab;
-use regex_engine::data::prepare::{core_regex, verify_candidate};
-use regex_engine::data::types::{Candidate, PreparedCase, Provenance, RuleContext, SourceKind};
+use regex_engine::data::prepare::core_regex;
+use regex_engine::data::types::RuleContext;
 use regex_engine::diagnostics::{run_parser, DiagConfig, DiagLevel};
 use regex_engine::frontend::{parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters, ExtPat};
+use regex_engine::parsers::deriv_bc::deriv::deriv_bc;
+use regex_engine::parsers::deriv_bc::internalize::internalize;
+use regex_engine::parsers::deriv_bc::nullable::{is_phi, nullable_bc};
+use regex_engine::parsers::deriv_bc::simplify::simp;
 use regex_engine::parsers::ParserType;
+use regex_engine::types::{ARegex, Regex};
+
+/// Node-count cap so picking a real example can't itself blow up on a
+/// pathological (pattern, input) pair -- this tool runs no process isolation.
+const MAX_CHECK_NODES: usize = 100_000;
+
+fn aregex_node_count(r: &ARegex) -> usize {
+    let mut stack = vec![r];
+    let mut count = 0usize;
+    while let Some(node) = stack.pop() {
+        count += 1;
+        if count > MAX_CHECK_NODES {
+            return count;
+        }
+        match node {
+            ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => {}
+            ARegex::Alt(_, a, b) | ARegex::Seq(_, a, b) => {
+                stack.push(a);
+                stack.push(b);
+            }
+            ARegex::Star(_, a) => stack.push(a),
+        }
+    }
+    count
+}
+
+/// Whether `input` matches `r`, via the bit-coded engine; `None` past the
+/// node cap rather than risking the blowup an unbounded check could hit.
+fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
+    let mut ri = internalize(r);
+    if aregex_node_count(&ri) > MAX_CHECK_NODES {
+        return None;
+    }
+    for c in input.chars() {
+        ri = simp(deriv_bc(ri, c));
+        if aregex_node_count(&ri) > MAX_CHECK_NODES {
+            return None;
+        }
+        if is_phi(&ri) {
+            return Some(false);
+        }
+    }
+    Some(nullable_bc(&ri))
+}
 
 struct RealPattern {
     raw_pattern: String,
@@ -157,34 +205,33 @@ fn is_anchor_rejected(p: &str) -> bool {
 // Demo kinds
 // -------------------------------
 
-/// One of `pattern`'s own given examples, verified at the same bar
-/// `dataset_prepare` applies; `None` if it doesn't hold up. Never generated.
-fn verified_example(pattern: &RealPattern, text: &str, claimed_match: bool) -> Option<PreparedCase> {
-    verify_candidate(
-        SourceKind::S2ELab,
-        &pattern.raw_pattern,
-        Candidate { text: text.to_string(), provenance: Provenance::DatasetGiven, claimed_match },
-    )
+/// One of `pattern`'s own given examples that the real parser agrees
+/// with; `None` if none of them do. Never generated, never re-labeled.
+fn real_example<'a>(core: &Regex, pool: &'a [String], want_match: bool) -> Option<&'a str> {
+    pool.iter().map(String::as_str).find(|t| matches_bounded(t, core) == Some(want_match))
 }
 
-fn has_real_example(pattern: &RealPattern) -> bool {
-    pattern.matches.iter().any(|t| verified_example(pattern, t, true).is_some())
-        || pattern.non_matches.iter().any(|t| verified_example(pattern, t, false).is_some())
+fn has_real_example(core: &Regex, pattern: &RealPattern) -> bool {
+    real_example(core, &pattern.matches, true).is_some()
+        && real_example(core, &pattern.non_matches, false).is_some()
 }
 
 /// Shows the translated `Regex` run against one of the pattern's own real
-/// matches and one of its own real non-matches, whichever verify.
+/// matches and one of its own real non-matches, whichever the real
+/// parser agrees with.
 fn demo_accepted(pattern: &RealPattern, diag: DiagLevel) {
     let core = core_regex(&pattern.raw_pattern).expect("category detector already required acceptance");
     let config = DiagConfig::new(diag, ParserType::DerivStdRec, None);
 
-    let positive = pattern.matches.iter().find_map(|t| verified_example(pattern, t, true));
-    let negative = pattern.non_matches.iter().find_map(|t| verified_example(pattern, t, false));
-
-    for case in [positive, negative].into_iter().flatten() {
-        let label = if case.verified_match { "match" } else { "non-match" };
-        println!("  real {label}: {:?}", case.input);
-        run_parser(&pattern.raw_pattern, &core, &case.input, &config);
+    for (text, label) in [
+        (real_example(&core, &pattern.matches, true), "match"),
+        (real_example(&core, &pattern.non_matches, false), "non-match"),
+    ]
+    .into_iter()
+    .filter_map(|(t, label)| t.map(|t| (t, label)))
+    {
+        println!("  real {label}: {:?}", text);
+        run_parser(&pattern.raw_pattern, &core, text, &config);
     }
 }
 
@@ -287,7 +334,10 @@ fn main() {
         let found = patterns
             .iter()
             .filter(|p| (entry.detect)(&p.raw_pattern))
-            .filter(|p| matches!(entry.kind, Kind::Rejected) || has_real_example(p))
+            .filter(|p| {
+                matches!(entry.kind, Kind::Rejected)
+                    || core_regex(&p.raw_pattern).is_ok_and(|core| has_real_example(&core, p))
+            })
             .min_by_key(|p| p.raw_pattern.len());
 
         let Some(pattern) = found else {

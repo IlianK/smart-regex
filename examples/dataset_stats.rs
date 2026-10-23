@@ -17,7 +17,7 @@
 //!              and depth/node caps as `dataset_prepare` (not plain
 //!              `parse_pcre_rule`). No approximate-but-accepted case; each
 //!              Regex denotes exactly what it was translated from.
-//!              Splits into Direct / Explicit; both are accepted and generated for.
+//!              Splits into Direct / Explicit, the two match-intent categories.
 //!   Reject   = no Regex produced. Unrepresentable construct: backreference,
 //!              lookaround, \b/\B, anchor placement other than a top-level
 //!              `^...$` wrap, m flag, x flag, translation exceeding pipeline
@@ -41,7 +41,7 @@ fn has_no_given_input(context: &RuleContext) -> bool {
         RuleContext::Innovatorved { test_text } => {
             test_text.as_deref().map(str::trim).unwrap_or("").is_empty()
         }
-        RuleContext::Suricata { .. } | RuleContext::SpamAssassin { .. } | RuleContext::RegexLib { .. } => false,
+        RuleContext::Suricata | RuleContext::SpamAssassin | RuleContext::RegexLib => false,
     }
 }
 use regex_engine::frontend::{parse_ext_pattern, strip_pcre_delimiters};
