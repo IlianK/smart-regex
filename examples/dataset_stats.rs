@@ -13,6 +13,18 @@
 //! S2ELab: curated academic benchmark, not a maintained production rule set.
 //! Explicit files require one `--source`.
 //!
+//! Also appends one row per source (plus one `total` row) per run to
+//! `reports/data/dataset_coverage.csv`, `match_intent_reliability.csv`,
+//! `rejection_reasons.csv`, and `anchor_shape.csv`; the two PCRE flag
+//! tables append one row per `(source, flag)` seen to
+//! `reports/data/pcre_flags_all.csv` / `pcre_flags_accepted.csv`
+//! (tidy long format, since which flags appear varies run to run, unlike
+//! the fixed cause/shape columns of the other tables). Same convention as
+//! `dataset_prepare`'s own `reports/data/dataset_prepare.csv`: header
+//! written only the first time, every run after that appends rows, so
+//! the files accumulate a history across runs rather than overwrite it.
+//! `--no-flags` suppresses the flag CSVs along with the printed tables.
+//!
 //!   Accepted = `core_regex_tagged` produced a Regex, using the same function
 //!              and depth/node caps as `dataset_prepare` (not plain
 //!              `parse_pcre_rule`). No approximate-but-accepted case; each
@@ -24,7 +36,8 @@
 //!              safety caps, or another unsupported construct.
 
 use std::collections::{BTreeMap, HashSet};
-use std::path::PathBuf;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
 
 use regex_engine::data::extract::{
     extract_innovatorved, extract_regexlib, extract_s2_elab, extract_spamassassin,
@@ -628,6 +641,168 @@ fn flag_effect(flag: char) -> &'static str {
 }
 
 // ---------------------------------------------------------------------
+// Report files (reports/data/) -- same append convention as
+// dataset_prepare's reports/data/dataset_prepare.csv: create the dir,
+// write the header only the first time a file is created, then append
+// one row per source (+ one `total` row) every run, so the file
+// accumulates a history across runs instead of overwriting it.
+// ---------------------------------------------------------------------
+
+/// `chrono::Local::now()` formatted the same way `diag_3` already does
+/// elsewhere in this codebase, so every row in a run shares one stamp.
+fn run_timestamp() -> String {
+    chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+/// Appends `rows` to `reports/data/<name>`, writing `header` first only
+/// when the file does not already exist. A no-op (but still creates the
+/// file/header) when `rows` is empty, so an empty flag table still leaves
+/// behind a file a reader can see is real rather than missing.
+fn append_csv_rows(name: &str, header: &str, rows: &[String]) {
+    let dir = "reports/data";
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        eprintln!("could not create {dir}: {e}");
+        return;
+    }
+    let path = format!("{dir}/{name}");
+    let write_header = !Path::new(&path).exists();
+    let mut f = match std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("could not open {path}: {e}");
+            return;
+        }
+    };
+    if write_header {
+        if let Err(e) = writeln!(f, "{header}") {
+            eprintln!("could not write header to {path}: {e}");
+            return;
+        }
+    }
+    for row in rows {
+        if let Err(e) = writeln!(f, "{row}") {
+            eprintln!("could not append to {path}: {e}");
+            return;
+        }
+    }
+    eprintln!("appended {} row(s) to {path}", rows.len());
+}
+
+fn save_coverage_csv(stats: &[SourceStats], total: &SourceStats, run_at: &str) {
+    let pct = |n: usize, of: usize| if of == 0 { 0.0 } else { 100.0 * n as f64 / of as f64 };
+    let row = |s: &SourceStats| -> String {
+        format!(
+            "{run_at},{},{},{},{},{},{},{:.1},{},{:.1},{}",
+            s.name(),
+            s.files_read,
+            s.extracted,
+            s.given_inputs,
+            s.duplicate_extracted(),
+            s.distinct_accepted(),
+            pct(s.distinct_accepted(), s.accepted()),
+            s.distinct_rejected(),
+            pct(s.distinct_rejected(), s.rejected_total()),
+            s.accepted_no_input,
+        )
+    };
+    let mut rows: Vec<String> = stats.iter().map(row).collect();
+    rows.push(row(total));
+    append_csv_rows(
+        "dataset_coverage.csv",
+        "run_at,source,files,extracted,inputs_provided,duplicate_extracted,\
+         accepted_distinct,accepted_pct,rejected_distinct,rejected_pct,accepted_no_input",
+        &rows,
+    );
+}
+
+fn save_match_intent_csv(stats: &[SourceStats], total: &SourceStats, run_at: &str) {
+    let row = |s: &SourceStats| -> String {
+        let distinct = s.distinct_accepted();
+        let pct = |n: usize| if distinct == 0 { 0.0 } else { 100.0 * n as f64 / distinct as f64 };
+        format!(
+            "{run_at},{},{},{},{:.1},{},{:.1}",
+            s.name(),
+            distinct,
+            s.distinct_accepted_ambiguous(),
+            pct(s.distinct_accepted_ambiguous()),
+            s.distinct_accepted_explicit(),
+            pct(s.distinct_accepted_explicit()),
+        )
+    };
+    let mut rows: Vec<String> = stats.iter().map(row).collect();
+    rows.push(row(total));
+    append_csv_rows(
+        "match_intent_reliability.csv",
+        "run_at,source,distinct_accepted,unanchored_ambiguous,unanchored_pct,\
+         explicit_full_match,explicit_pct",
+        &rows,
+    );
+}
+
+fn save_rejection_csv(stats: &[SourceStats], total: &SourceStats, run_at: &str) {
+    let row = |s: &SourceStats| -> String {
+        let mut parts = vec![run_at.to_string(), s.name()];
+        for c in Cause::ALL {
+            parts.push(s.rejected_by.get(&c).copied().unwrap_or(0).to_string());
+        }
+        parts.join(",")
+    };
+    let mut rows: Vec<String> = stats.iter().map(row).collect();
+    rows.push(row(total));
+    append_csv_rows(
+        "rejection_reasons.csv",
+        "run_at,source,backreference,lookaround,word_boundary,anchor,flag_m,flag_x,other",
+        &rows,
+    );
+}
+
+fn save_anchor_shape_csv(stats: &[SourceStats], total: &SourceStats, run_at: &str) {
+    let row = |s: &SourceStats| -> String {
+        let mut parts = vec![run_at.to_string(), s.name()];
+        for shape in AnchorShape::ALL {
+            parts.push(s.anchor_shapes.get(&shape).copied().unwrap_or(0).to_string());
+        }
+        parts.join(",")
+    };
+    let mut rows: Vec<String> = stats.iter().map(row).collect();
+    rows.push(row(total));
+    append_csv_rows(
+        "anchor_shape.csv",
+        "run_at,source,unparseable,none,fully_wrapped,start_only,end_only,nested",
+        &rows,
+    );
+}
+
+/// Tidy long format (one row per `(source, flag)`), unlike the other
+/// tables' fixed columns: which flag letters appear at all depends on the
+/// corpus, so a wide per-flag-column CSV would change shape run to run.
+fn save_flag_csv(
+    name: &str,
+    stats: &[SourceStats],
+    total: &SourceStats,
+    run_at: &str,
+    select: impl Fn(&SourceStats) -> &BTreeMap<char, usize>,
+) {
+    let mut all_flags: Vec<char> = select(total).keys().copied().collect();
+    all_flags.sort_unstable();
+
+    let mut rows: Vec<String> = Vec::new();
+    for flag in all_flags {
+        for s in stats.iter().chain(std::iter::once(total)) {
+            let count = select(s).get(&flag).copied().unwrap_or(0);
+            rows.push(format!(
+                "{run_at},{},{},{},\"{}\"",
+                s.name(),
+                flag,
+                count,
+                flag_effect(flag),
+            ));
+        }
+    }
+    append_csv_rows(name, "run_at,source,flag,count,effect", &rows);
+}
+
+// ---------------------------------------------------------------------
 // Argument parsing
 // ---------------------------------------------------------------------
 
@@ -764,10 +939,20 @@ fn main() {
         per_source.push(stats);
     }
 
+    let run_at = run_timestamp();
+
     coverage_table(&per_source, &total);
+    save_coverage_csv(&per_source, &total, &run_at);
+
     match_intent_table(&per_source, &total);
+    save_match_intent_csv(&per_source, &total, &run_at);
+
     rejection_table(&per_source, &total);
+    save_rejection_csv(&per_source, &total, &run_at);
+
     anchor_shape_table(&per_source, &total);
+    save_anchor_shape_csv(&per_source, &total, &run_at);
+
     flag_table(
         &per_source,
         &total,
@@ -782,5 +967,10 @@ fn main() {
         "PCRE flag distribution (accepted patterns only)",
         |s| &s.flag_accepted,
     );
+    if opts.show_flags {
+        save_flag_csv("pcre_flags_all.csv", &per_source, &total, &run_at, |s| &s.flag_usage);
+        save_flag_csv("pcre_flags_accepted.csv", &per_source, &total, &run_at, |s| &s.flag_accepted);
+    }
+
     rejection_detail(&per_source, opts.verbose);
 }
