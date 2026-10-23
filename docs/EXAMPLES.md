@@ -1,16 +1,19 @@
 # Examples
 
 Runnable programs under `examples/`, invoked with `cargo run --example <name>`.
-Self-contained programs demonstrating matching and parsing on the worked examples
-(with and without diagnostics), frontend/translation coverage split across three
-demos (real S2ELab patterns in `demo_translate`, synthetic construct breadth in
-`demo_translate_categories`, hand-authored rejection causes in
-`demo_translate_reject`), stack-depth limits comparing the loop and recursive
-approaches for the derivative-based parsers only, the dataset pipeline itself,
-and demos that reproduce the numbers behind the thesis figures.
 
-`demo_parse` reuses the CLI's `--parser`/`--diag`/`--diag-report` names.
-For the CLI itself, see [CLI.md](CLI.md).
+| Area | Demos | What they show |
+|---|---|---|
+| **Matching** | `demo_match` | Naive / Brzozowski / Antimirov matchers side by side |
+| **Parsing** | `demo_parse` | Any one of the five parsers, with optional diagnostics.      Reuses the CLI's `--parser`/`--diag`/`--diag-report` names (See [CLI.md](CLI.md)) |
+| **Stack limits** | `demo_crash`, `demo_crash_worker` | Recursive vs. loop `deriv_std` before stack overflow |
+| **Translation — real corpus** | `demo_translate` | S2ELab patterns translated and run on their own examples |
+| **Translation — construct breadth** | `demo_translate_categories` | One example per accepted frontend construct |
+| **Translation — rejection causes** | `demo_translate_reject` | One example per rejected cause |
+| **Translation — sizes** | `demo_translate_sizes` | Node count of the `Regex` each pattern translates to |
+| **Dataset pipeline** | `dataset_prepare`, `dataset_stats` | Extract, verify, and report on the raw corpus |
+| **Parser agreement** | `demo_parser_agreement`, `demo_parser_agreement_worker` | Cross-parser agreement on parse tree shape over the prepared dataset |
+| **Thesis figures** | `demo_simp_branches`, `demo_growth_deriv`, `demo_growth_pderiv`, `demo_growth_eval` | Node growth figures |
 
 
 ## Matching demo
@@ -38,7 +41,8 @@ cargo run --example demo_parse -- --parser all
 ```
 
 
-## Crash demo (stack overflow: recursive vs. loop)
+## Demo Crash Test: Stack Overflow
+Demo Recursive vs. Loop deriv_std parser
 
 ```bash
 # demo_crash spawns demo_crash_worker; build the worker first
@@ -50,56 +54,57 @@ cargo run --example demo_crash --release
 ```
 
 
-## Reject-cause demo
+
+## Translation Demos
+
+### Translate S2-ELAB
+```bash
+# A size spread of real S2ELab patterns,
+# translated and run against their own given match/non-match examples
+cargo run --release --example demo_translate -- data/raw/s2-elab/RegexEval.json --diag 1
+```
+Every pattern this run translates successfully is also saved into
+`reports/demos/translate.txt`, showing the original raw pattern text
+next to its translated `Regex`.
+
+
+### Rejected Patterns
 
 ```bash
-# One hand-authored pattern per frontend rejection cause -- backreference,
-# lookaround, word-boundary, flag-m, flag-x, POSIX class, bound-too-large,
-# anchor. Synthetic and self-contained: no corpus file, no CLI args.
+# Example patterns per rejected cause
 cargo run --release --example demo_translate_reject
 ```
-
-Each example is verified against the real `parse_pcre_rule` error, not
-assumed; POSIX classes and an over-`MAX_BOUND` bound get their own named
+Each example is verified against the `parse_pcre_rule` error.
+POSIX classes and an over-`MAX_BOUND` bound get their own named
 cause here, since `translate.rs`/`parse.rs` already produce distinct
-messages for both rather than folding them into a catch-all. Writes
-`reports/demos/translate_reject.txt`.
+messages for both rather than folding them into a catch-all. 
+Writes `reports/demos/translate_reject.txt`.
+
+
+### Accepted Patterns
+```bash
+# Example patterns per accepted frontend construct
+cargo run --release --example demo_translate_categories
+```
+
+Every category is expected to pass, unlike `demo_translate` above which
+can only show what the given S2ELab file happens to contain. 
+Writes `reports/demos/translate_categories.txt`.
+
+
+### Translation Sizes
+```bash
+# Sizes of the Regex produced by frontend translation,
+# wildcard_run() size, case-fold cost
+cargo run --release --example demo_translate_sizes
+```
 
 A pattern is either translated as-is (`Direct`), has its redundant
 top-level `^...$` stripped first (`Explicit full-match`), or rejected
 outright. See [DATASET.md](DATASET.md) for what each tier means and how
-`dataset_stats` reports rejection causes over the real corpus; its
-`Cause::Other` catch-all is untouched by this demo's extra two causes,
-which are specific to this demo, not a change to `dataset_stats` itself.
+`dataset_stats` reports rejection causes over the real corpus.
 
 
-## Translation demo (real S2ELab patterns)
-
-```bash
-# A size spread of real S2ELab patterns, translated and run against
-# their own given match/non-match examples
-cargo run --release --example demo_translate -- data/raw/s2-elab/RegexEval.json --diag 1
-```
-
-Every pattern this run translates successfully -- not just the few
-shown on stdout -- is also dumped to `reports/demos/translate.txt`, raw
-pattern text next to its translated `Regex`.
-
-
-## Translation breadth demo (synthetic categories)
-
-```bash
-# One hand-authored pattern per accepted frontend construct: literal,
-# '.' with/without '\n', each escape class, classes, bounded quantifiers,
-# alternation, quantifiers, groups (plain/non-capturing/named),
-# case-folding, lazy-marker discard, 'ε'/'∅'. No corpus, no CLI args.
-cargo run --release --example demo_translate_categories
-```
-
-Every category is expected to pass -- a failure here is a bug in the
-example itself, not a dataset gap, unlike `demo_translate` above which
-can only show what the given S2ELab file happens to contain. Writes
-`reports/demos/translate_categories.txt`.
 
 
 ## Thesis figure demos
@@ -121,9 +126,6 @@ cargo run --release --example demo_growth_pderiv
 
 # All four growth families side by side
 cargo run --release --example demo_growth_eval
-
-# Sizes of the Regex produced by frontend translation, wildcard_run() size, case-fold cost
-cargo run --release --example demo_translate_sizes
 ```
 
 
@@ -135,6 +137,4 @@ cargo run   --release --example demo_parser_agreement
 ```
 
 Also saves its output to `reports/demos/parser_agreement.txt`,
-replacing any previous run -- the one demo in this file whose exit
-code matters (1 on a real bug) and whose "last known clean" state is
-worth a persisted record rather than only ever existing in scrollback.
+replacing any previous run.

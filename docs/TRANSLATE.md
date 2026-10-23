@@ -7,34 +7,26 @@ For the CLI's own `match`/`parse` behavior, see [CLI.md](CLI.md).
 
 ## Two-stage design: `ExtPat` vs `Regex`
 
-`parse_ext_pattern` produces `ExtPat`, a **surface AST** that mirrors the
-constructs a real regex dialect (PCRE, POSIX) uses.
+`parse_ext_pattern` tries to parse an external pattern string into an
+`ExtPat`, a **surface AST** that mirrors the constructs a real regex
+dialect (PCRE, POSIX) uses. Not every external pattern is supported, so
+there are three outcomes:
 
-The reason `ExtPat` is a separate AST from the internal `Regex` is that
-`ExtPat` can *represent* constructs the internal `Regex` cannot. The
-frontend deliberately splits recognition from lowering:
+1. **Not parseable into `ExtPat`**: rejected at parse, with a named error. Not reaching
+   `translate`.
+2. **Parsed into `ExtPat`, but not lowerable to `Regex`**: rejected at `translate`.
+   - **`^` / `$`** (`Carat`, `Dollar`): the node exists because a
+     downstream consumer needs it. `core_regex_tagged` strips a top-level
+     `^...$` wrap and tags `ExplicitFullMatch`, and `anchor_shape`
+     classifies the anchor distribution. If unstrippable placements would reach
+     `translate` they would be rejected there.
+   - **`\b` / `\B`** (`WordBoundary`): kept so that a future consumer could inspect word-boundary placement.
+3. **Parsed into `ExtPat` and lowered to `Regex`**: accepted, and becomes
+   one of `Regex`'s six constructors. 
 
-- `parse_ext_pattern` produces `ExtPat` nodes. For constructs with no
-  `ExtPat` variant at all -- lookaround, backreferences, POSIX classes --
-  it cannot build a node, so it returns `Err` immediately: **rejected at
-  parse**.
-- For `^`, `$`, `\b`, `\B` there *is* an `ExtPat` variant (`Carat`,
-  `Dollar`, `WordBoundary`), so `parse_ext_pattern` succeeds and hands
-  the node to `translate`. `translate` has no `Regex` lowering for those
-  variants, so it returns `Err` with a message naming the construct:
-  **rejected at lower**.
-- `translate` lowers every remaining `ExtPat` arm to one of `Regex`'s
-  six constructors. This two-stage split exists so that anchors and word
-  boundaries get a *named* error ("anchor `^` is not supported") instead
-  of a generic parse failure -- the `ExtPat` variants exist for
-  diagnosis, not for use.
 
-This split is what makes errors useful ("`^` is not supported by this
-frontend") instead of generic ("unexpected character `^`"), and it
-keeps the parser honest about what PCRE actually allows while the
-lowering stage enforces what the matcher actually supports.
 
-### Rejected -- hard `Err` from `parse_ext_pattern` or `translate`
+### Rejected - hard `Err` from `parse_ext_pattern` or `translate`
 
 | Construct | Rejected by | Reason |
 |---|---|---|
@@ -46,14 +38,8 @@ lowering stage enforces what the matcher actually supports.
 | Bounds > 1000 | `translate` (`MAX_BOUND`) | unrolling would be prohibitive |
 | Flags `m`, `x` | `parse_pcre_rule` (`PcreFlags::unsupported`) | `m` needs anchors; `x` changes whitespace significance |
 
-**Consequence for stress-test datasets:** every pattern fed through
-`parse_pattern` or `parse_pcre_rule` must avoid the "Rejected" column --
-otherwise the harness records a compile error, not a timing datum. In
-particular, do **not** wrap patterns in `^...$`; matching is
-full-string-only by construction, so anchors are unnecessary and cause
-a hard rejection.
 
-### Accepted -- lowered by `translate` to the six `Regex` constructors
+### Accepted - lowered by `translate` to the six `Regex` constructors
 
 | Construct | Syntax | Notes |
 |---|---|---|
