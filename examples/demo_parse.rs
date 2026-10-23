@@ -104,15 +104,15 @@ impl TestCase {
         let rec  = self.run_parser_row(parse_deriv_std_rec,  ParserType::DerivStdRec.name(),  "POSIX");
         let loop_ = self.run_parser_row(parse_deriv_std_loop, ParserType::DerivStdLoop.name(), "POSIX");
         let bc   = self.run_parser_row(parse_deriv_bc,       ParserType::DerivBc.name(),       "POSIX");
-        let pstd = self.run_parser_row(parse_pderiv_std,     ParserType::PDerivStd.name(),     "Greedy");
-        let pbc  = self.run_parser_row(parse_pderiv_bc,      ParserType::PDerivBc.name(),      "Greedy");
+        let pstd = self.run_parser_row(parse_pderiv_std,     ParserType::PDerivStd.name(),     "non-POSIX");
+        let pbc  = self.run_parser_row(parse_pderiv_bc,      ParserType::PDerivBc.name(),      "non-POSIX");
 
-        let posix_agree  = rec == loop_ && loop_ == bc;
-        let greedy_agree = pstd == pbc;
+        let posix_agree     = rec == loop_ && loop_ == bc;
+        let non_posix_agree = pstd == pbc;
 
-        // Informational only: no Greedy `expected` tree exists by design --
-        // Greedy's own correctness is checked in `examples/parser_agreement.rs`.
-        let greedy_vs_posix = if pstd == self.expected { "agree" } else { "disagree" };
+        // Informational only: no non-POSIX `expected` tree exists by design --
+        // non-POSIX's own correctness is checked in `examples/parser_agreement.rs`.
+        let non_posix_vs_posix = if pstd == self.expected { "agree" } else { "disagree" };
 
         let matched = [rec.is_some(), loop_.is_some(), bc.is_some(), pstd.is_some(), pbc.is_some()];
         let membership_agree = matched.iter().all(|&m| m == matched[0]);
@@ -124,9 +124,9 @@ impl TestCase {
 
         println!("\n  summary");
         println!("    membership       : {}", membership);
-        println!("    POSIX parsers    : {}", if posix_agree  { "[ok] agree" } else { "[FAIL] DISAGREE" });
-        println!("    Greedy parsers   : {}", if greedy_agree { "[ok] agree" } else { "[FAIL] DISAGREE" });
-        println!("    Greedy vs POSIX  : {}", greedy_vs_posix);
+        println!("    POSIX parsers    : {}", if posix_agree     { "[ok] agree" } else { "[FAIL] DISAGREE" });
+        println!("    non-POSIX parsers: {}", if non_posix_agree { "[ok] agree" } else { "[FAIL] DISAGREE" });
+        println!("    non-POSIX vs POSIX: {}", non_posix_vs_posix);
 
         if !membership_agree {
             println!(
@@ -451,7 +451,7 @@ fn main() {
         println!("Mode:        {} parser", config.parser_type.name());
         if matches!(config.parser_type, ParserType::PDerivStd | ParserType::PDerivBc) {
             println!(
-                "Note:        {} is a Greedy parser, not POSIX -- it may diverge from the POSIX \
+                "Note:        {} is a non-POSIX parser -- it may diverge from the POSIX \
                  behaviour the examples below are described in terms of (see --parser all)",
                 config.parser_type.name()
             );
