@@ -1,4 +1,4 @@
-//! benches/bench_memory.rs
+//! benches/bench_corpus_memory.rs
 //!
 //! Heap allocation of the five parsers against real corpus patterns.
 //! S2ELab only -- the only source with real prepared data today (see
@@ -50,12 +50,12 @@
 //! to have had the largest true peak. `measured` is how many entries
 //! `avg_bytes`/`max_peak` are actually computed over.
 //!
-//! Writes a CSV summary to `reports/benches/bench_memory.csv`,
+//! Writes a CSV summary to `reports/benches/bench_corpus_memory.csv`,
 //! replacing any existing file.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_worker
-//!   cargo bench --bench bench_memory
+//!   cargo bench --bench bench_corpus_memory
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -390,7 +390,7 @@ fn main() {
     let worker = worker_path();
     let corpus = load_corpus(&sel);
     eprintln!(
-        "bench_memory: {} s2-elab entries (limit {}, match_intent={:?}, entry_timeout={:?})",
+        "bench_corpus_memory: {} s2-elab entries (limit {}, match_intent={:?}, entry_timeout={:?})",
         corpus.len(),
         fmt_limit(sel.pattern_limit),
         sel.match_intent,
@@ -401,7 +401,7 @@ fn main() {
         eprintln!("could not create {REPORTS_DIR}: {e}");
         return;
     }
-    let path = format!("{REPORTS_DIR}/bench_memory{}.csv", run_label_suffix());
+    let path = format!("{REPORTS_DIR}/bench_corpus_memory{}.csv", run_label_suffix());
 
     let rows = report("dataset_s2_elab", &corpus, &worker, cap);
     if let Err(e) = write_summary_csv(&path, &rows) {

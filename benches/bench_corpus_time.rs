@@ -11,7 +11,7 @@
 //! would report sample-count variance, not corpus-scale performance.
 //!
 //! Every entry runs in its own worker *process* (`bench_worker`,
-//! shared with `bench_memory`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
+//! shared with `bench_corpus_memory`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
 //! (default 2000). A call that exceeds the cap is counted as
 //! `timed_out`, not folded into the duration stats as if it were a
 //! real measurement: on real corpora (Innovatorved and RegexLib
@@ -217,7 +217,7 @@ fn worker_path() -> PathBuf {
 #[derive(serde::Deserialize)]
 struct JobResult {
     micros: u64,
-    #[allow(dead_code)] // bench_memory reads this field from the same wire format
+    #[allow(dead_code)] // bench_corpus_memory reads this field from the same wire format
     total_bytes: usize,
     #[allow(dead_code)]
     peak_bytes: usize,

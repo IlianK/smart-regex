@@ -1,9 +1,9 @@
-//! benches/bench_translate.rs
+//! benches/bench_corpus_translate.rs
 //!
 //! Cost of frontend translation (`core_regex`: PCRE string -> `Regex`)
 //! over the real corpus, grouped by distinct pattern.
 //!
-//! Other benches in this family (`bench_corpus_time`, `bench_memory`)
+//! Other benches in this family (`bench_corpus_time`, `bench_corpus_memory`)
 //! measure the *parser* call per *entry* (pattern+input), translation
 //! excluded. Translation cost depends only on the pattern, so timing it
 //! per entry would re-measure the same pattern once per input. This file
@@ -20,14 +20,14 @@
 //! `micros` here is a clean in-process number, no spawn/pipe overhead.
 //!
 //! Outputs:
-//!   - `reports/benches/bench_translate.csv` -- per source:
+//!   - `reports/benches/bench_corpus_translate.csv` -- per source:
 //!     mean/median/p99/max time, alloc (total, peak), nodes. Always
 //!     this exact name, ignoring `BENCH_RUN_LABEL` -- appended to, not
 //!     overwritten, so one run per source (or one run covering all of
 //!     them) accumulates into a single overview instead of N separate
 //!     one-line files. `run_label`/`pattern_limit` columns record what
 //!     each row's own invocation actually was.
-//!   - `reports/benches/bench_translate{label}_patterns.csv` -- per
+//!   - `reports/benches/bench_corpus_translate{label}_patterns.csv` -- per
 //!     distinct pattern: nodes/micros/bytes plus the `Regex` via its
 //!     `Debug`, when nodes <= `BENCH_TRANSLATE_RENDER_MAX_NODES`
 //!     (default 150). Catalogue for thesis examples.
@@ -39,7 +39,7 @@
 //! `BENCH_RUN_LABEL` as in `bench_corpus_time.rs` (CSVs only). No
 //! `BENCH_ENTRY_TIMEOUT_MS`: nothing to bound.
 //!
-//! cargo bench --bench bench_translate
+//! cargo bench --bench bench_corpus_translate
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -106,7 +106,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
 static GLOBAL: CountingAllocator = CountingAllocator;
 
 // -------------------------------
-// Selection (mirrors bench_corpus_time.rs/bench_memory.rs)
+// Selection (mirrors bench_corpus_time.rs/bench_corpus_memory.rs)
 // -------------------------------
 
 struct BenchSelection {
@@ -591,9 +591,9 @@ fn write_examples_txt(
 ) -> std::io::Result<()> {
     let mut buf = String::new();
     writeln!(buf, "Smallest {count} translated patterns per source, by node count.").unwrap();
-    writeln!(buf, "Produced by `cargo bench --bench bench_translate`.").unwrap();
+    writeln!(buf, "Produced by `cargo bench --bench bench_corpus_translate`.").unwrap();
     writeln!(buf, "Not a measurement -- a starting point for hand-picking thesis examples;").unwrap();
-    writeln!(buf, "see the full catalogue in reports/benches/bench_translate*_patterns.csv").unwrap();
+    writeln!(buf, "see the full catalogue in reports/benches/bench_corpus_translate*_patterns.csv").unwrap();
     writeln!(buf, "for anything more narratively specific.").unwrap();
 
     for (source, per_pattern) in by_source {
@@ -623,7 +623,7 @@ fn main() {
     let example_count = examples_per_source();
     let (suricata, spamassassin, regexlib, s2_elab, innovatorved) = load_patterns(&sel);
     eprintln!(
-        "bench_translate: {} suricata, {} spamassassin, {} regexlib, {} s2-elab, {} innovatorved \
+        "bench_corpus_translate: {} suricata, {} spamassassin, {} regexlib, {} s2-elab, {} innovatorved \
          distinct patterns (limit {} each, sources={:?}, match_intent={:?}, render_cap={render_cap} nodes)",
         suricata.len(),
         spamassassin.len(),
@@ -644,8 +644,8 @@ fn main() {
         return;
     }
     let label = run_label_suffix();
-    let summary_path = format!("{REPORTS_DIR}/bench_translate.csv");
-    let patterns_path = format!("{REPORTS_DIR}/bench_translate{label}_patterns.csv");
+    let summary_path = format!("{REPORTS_DIR}/bench_corpus_translate.csv");
+    let patterns_path = format!("{REPORTS_DIR}/bench_corpus_translate{label}_patterns.csv");
     let examples_path = format!("{DEMOS_DIR}/translation_examples.txt");
     let run_label = std::env::var("BENCH_RUN_LABEL").unwrap_or_default();
     let pattern_limit_str = fmt_limit(sel.pattern_limit);

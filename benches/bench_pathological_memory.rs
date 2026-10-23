@@ -4,10 +4,10 @@
 //! dataset (`data/pathological/pathological_patterns.json`) -- the
 //! memory counterpart to `bench_pathological_time.rs`, which documents
 //! the sweep/expansion/grouping scheme and the `PATHO_*` variables
-//! shared with this file. See `bench_memory.rs` for why "heap"
+//! shared with this file. See `bench_corpus_memory.rs` for why "heap"
 //! specifically, not memory in general.
 //!
-//! Same process-isolation architecture as `bench_memory.rs`,
+//! Same process-isolation architecture as `bench_corpus_memory.rs`,
 //! deliberately duplicated rather than shared (this codebase's existing
 //! convention): every entry runs in its own `bench_worker` process,
 //! bounded by `BENCH_ENTRY_TIMEOUT_MS`, killed on timeout, with the
@@ -77,7 +77,7 @@ fn pattern_limit() -> usize {
         .unwrap_or(PATTERN_LIMIT)
 }
 
-/// Per-entry cap. See `bench_memory.rs`'s module doc.
+/// Per-entry cap. See `bench_corpus_memory.rs`'s module doc.
 fn entry_timeout() -> Duration {
     let ms: u64 = std::env::var("BENCH_ENTRY_TIMEOUT_MS")
         .ok()
@@ -86,7 +86,7 @@ fn entry_timeout() -> Duration {
     Duration::from_millis(ms)
 }
 
-/// Optional filename suffix, same role as in `bench_memory.rs`.
+/// Optional filename suffix, same role as in `bench_corpus_memory.rs`.
 fn run_label_suffix() -> String {
     std::env::var("BENCH_RUN_LABEL").ok().map(|l| format!("_{l}")).unwrap_or_default()
 }
@@ -184,7 +184,7 @@ fn group_by_category(entries: Vec<Entry>) -> BTreeMap<String, Vec<Entry>> {
 }
 
 // -------------------------------
-// Isolated call -- mirrors bench_memory.rs's run_entry_isolated
+// Isolated call -- mirrors bench_corpus_memory.rs's run_entry_isolated
 // exactly; duplicated, not shared, per this codebase's convention.
 // -------------------------------
 

@@ -80,7 +80,8 @@ path = "examples/demo_parser_agreement_worker.rs"
 name = "demo_translate_reject"
 path = "examples/demo_translate_reject.rs"
 
-# Worker for bench_corpus_time and bench_memory:
+# Worker for bench_corpus_time, bench_corpus_memory,
+# bench_pathological_time, and bench_pathological_memory:
 # isolated (parser, pattern, input) job per process
 [[example]]
 name = "bench_worker"
@@ -89,15 +90,15 @@ path = "examples/bench_worker.rs"
 
 # Benchmarks
 [[bench]]
-name = "bench_memory"
-harness = false
-
-[[bench]]
 name = "bench_corpus_time"
 harness = false
 
 [[bench]]
-name = "bench_translate"
+name = "bench_corpus_memory"
+harness = false
+
+[[bench]]
+name = "bench_corpus_translate"
 harness = false
 
 [[bench]]
