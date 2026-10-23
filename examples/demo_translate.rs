@@ -1,31 +1,38 @@
-//! examples/demo_frontend_categories.rs
+//! examples/demo_translate.rs
 //!
-//! cargo run --release --example demo_frontend_categories -- <s2-elab-json-file...> [--diag 0|1|2|3]
+//! cargo run --release --example demo_translate -- <s2-elab-json-file...> [--diag 0|1|2|3]
 //!
-//! For each verified category of frontend behaviour, finds a real S2ELab
-//! pattern that exercises it, then shows the actual behaviour: either the
-//! translated `Regex` run against the pattern's own real `matches`/
-//! `non_matches` (whichever the real parser agrees with), or the exact
-//! rejection. A category with no real example in the given file(s) is
-//! reported and skipped, never faked.
+//! Translates real S2ELab patterns and runs a spread of them against
+//! their own real match/non-match examples. Every pattern this run
+//! translates successfully (not just the few shown on stdout) is dumped
+//! to reports/demos/translate.txt, raw text plus its translated `Regex`.
+//! Breadth-of-categories coverage lives in `demo_translate_categories`
+//! (synthetic examples) instead -- this file only ever shows what the
+//! given dataset happens to contain.
 
+#[path = "common/thesis_figures.rs"]
+mod common;
+
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use regex_engine::data::extract::extract_s2_elab;
 use regex_engine::data::prepare::core_regex;
 use regex_engine::data::types::RuleContext;
 use regex_engine::diagnostics::{run_parser, DiagConfig, DiagLevel};
-use regex_engine::frontend::{parse_ext_pattern, parse_pcre_rule, strip_pcre_delimiters, ExtPat};
+use regex_engine::parsers::ParserType;
 use regex_engine::parsers::deriv_bc::deriv::deriv_bc;
 use regex_engine::parsers::deriv_bc::internalize::internalize;
 use regex_engine::parsers::deriv_bc::nullable::{is_phi, nullable_bc};
 use regex_engine::parsers::deriv_bc::simplify::simp;
-use regex_engine::parsers::ParserType;
 use regex_engine::types::{ARegex, Regex};
 
 /// Node-count cap so picking a real example can't itself blow up on a
 /// pathological (pattern, input) pair -- this tool runs no process isolation.
 const MAX_CHECK_NODES: usize = 100_000;
+
+/// How many translated-and-verified patterns to show running on stdout.
+const SAMPLE_COUNT: usize = 5;
 
 fn aregex_node_count(r: &ARegex) -> usize {
     let mut stack = vec![r];
@@ -72,139 +79,6 @@ struct RealPattern {
     non_matches: Vec<String>,
 }
 
-fn contains_dot(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Dot => true,
-        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_dot),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner)
-        | ExtPat::Bound(inner, ..) => contains_dot(inner),
-        _ => false,
-    }
-}
-
-fn contains_bound(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Bound(..) => true,
-        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_bound),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner) => contains_bound(inner),
-        _ => false,
-    }
-}
-
-fn contains_or(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Or(_) => true,
-        ExtPat::Concat(parts) => parts.iter().any(contains_or),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner)
-        | ExtPat::Bound(inner, ..) => contains_or(inner),
-        _ => false,
-    }
-}
-
-fn contains_class(ep: &ExtPat) -> bool {
-    match ep {
-        ExtPat::Any(_) => true,
-        ExtPat::Or(parts) | ExtPat::Concat(parts) => parts.iter().any(contains_class),
-        ExtPat::Group(inner)
-        | ExtPat::GroupNonMarking(inner)
-        | ExtPat::Opt(inner)
-        | ExtPat::Plus(inner)
-        | ExtPat::Star(inner)
-        | ExtPat::Bound(inner, ..) => contains_class(inner),
-        _ => false,
-    }
-}
-
-/// Textual scan for a bare `\0` outside any `[...]` class.
-fn has_bare_backslash_zero(body: &str) -> bool {
-    let chars: Vec<char> = body.chars().collect();
-    let mut in_class = false;
-    let mut i = 0;
-    while i < chars.len() {
-        match chars[i] {
-            '[' if !in_class => in_class = true,
-            ']' if in_class => in_class = false,
-            '\\' if !in_class && chars.get(i + 1) == Some(&'0') => return true,
-            _ => {}
-        }
-        i += 1;
-    }
-    false
-}
-
-fn accepted(p: &str) -> bool {
-    parse_pcre_rule(p).is_ok()
-}
-
-fn accepted_ep(p: &str) -> Option<ExtPat> {
-    let (body, _) = strip_pcre_delimiters(p);
-    accepted(p).then(|| parse_ext_pattern(body).ok()).flatten()
-}
-
-fn rejected_because(p: &str, needle: &str) -> bool {
-    matches!(parse_pcre_rule(p), Err(e) if e.contains(needle))
-}
-
-// -------------------------------
-// Category detectors
-// -------------------------------
-
-fn is_dot_without_s(p: &str) -> bool {
-    !strip_pcre_delimiters(p).1.dot_all && accepted_ep(p).is_some_and(|ep| contains_dot(&ep))
-}
-
-fn is_bare_backslash_zero(p: &str) -> bool {
-    accepted(p) && has_bare_backslash_zero(strip_pcre_delimiters(p).0)
-}
-
-fn is_bounded_quantifier(p: &str) -> bool {
-    accepted_ep(p).is_some_and(|ep| contains_bound(&ep))
-}
-
-fn is_alternation(p: &str) -> bool {
-    accepted_ep(p).is_some_and(|ep| contains_or(&ep))
-}
-
-fn is_character_class(p: &str) -> bool {
-    accepted_ep(p).is_some_and(|ep| contains_class(&ep))
-}
-
-fn is_backreference_rejected(p: &str) -> bool {
-    rejected_because(p, "backreference")
-}
-
-fn is_lookahead_rejected(p: &str) -> bool {
-    rejected_because(p, "lookahead")
-}
-
-fn is_lookbehind_rejected(p: &str) -> bool {
-    rejected_because(p, "lookbehind")
-}
-
-fn is_word_boundary_rejected(p: &str) -> bool {
-    rejected_because(p, "word boundary")
-}
-
-fn is_anchor_rejected(p: &str) -> bool {
-    rejected_because(p, "anchor")
-}
-
-// -------------------------------
-// Demo kinds
-// -------------------------------
-
 /// One of `pattern`'s own given examples that the real parser agrees
 /// with; `None` if none of them do. Never generated, never re-labeled.
 fn real_example<'a>(core: &Regex, pool: &'a [String], want_match: bool) -> Option<&'a str> {
@@ -216,54 +90,20 @@ fn has_real_example(core: &Regex, pattern: &RealPattern) -> bool {
         && real_example(core, &pattern.non_matches, false).is_some()
 }
 
-/// Shows the translated `Regex` run against one of the pattern's own real
-/// matches and one of its own real non-matches, whichever the real
-/// parser agrees with.
-fn demo_accepted(pattern: &RealPattern, diag: DiagLevel) {
-    let core = core_regex(&pattern.raw_pattern).expect("category detector already required acceptance");
+/// Shows `core` (already translated from `pattern.raw_pattern`) run
+/// against one of the pattern's own real matches and real non-matches.
+fn demo_accepted(pattern: &RealPattern, core: &Regex, diag: DiagLevel) {
     let config = DiagConfig::new(diag, ParserType::DerivStdRec, None);
-
     for (text, label) in [
-        (real_example(&core, &pattern.matches, true), "match"),
-        (real_example(&core, &pattern.non_matches, false), "non-match"),
+        (real_example(core, &pattern.matches, true), "match"),
+        (real_example(core, &pattern.non_matches, false), "non-match"),
     ]
     .into_iter()
     .filter_map(|(t, label)| t.map(|t| (t, label)))
     {
         println!("  real {label}: {:?}", text);
-        run_parser(&pattern.raw_pattern, &core, text, &config);
+        run_parser(&pattern.raw_pattern, core, text, &config);
     }
-}
-
-fn demo_rejected(pattern: &str) {
-    let err = parse_pcre_rule(pattern).expect_err("category detector already required rejection");
-    println!("rejected: {err}");
-}
-
-struct Entry {
-    name: &'static str,
-    detect: fn(&str) -> bool,
-    kind: Kind,
-}
-
-enum Kind {
-    Accepted,
-    Rejected,
-}
-
-fn entries() -> Vec<Entry> {
-    vec![
-        Entry { name: "accepted: '.' excludes '\\n' (no flag)", detect: is_dot_without_s, kind: Kind::Accepted },
-        Entry { name: "accepted: bare '\\0' outside a class", detect: is_bare_backslash_zero, kind: Kind::Accepted },
-        Entry { name: "accepted: bounded quantifier '{n,m}'", detect: is_bounded_quantifier, kind: Kind::Accepted },
-        Entry { name: "accepted: alternation '|'", detect: is_alternation, kind: Kind::Accepted },
-        Entry { name: "accepted: character class '[...]'", detect: is_character_class, kind: Kind::Accepted },
-        Entry { name: "rejected: backreference", detect: is_backreference_rejected, kind: Kind::Rejected },
-        Entry { name: "rejected: lookahead", detect: is_lookahead_rejected, kind: Kind::Rejected },
-        Entry { name: "rejected: lookbehind", detect: is_lookbehind_rejected, kind: Kind::Rejected },
-        Entry { name: "rejected: word boundary", detect: is_word_boundary_rejected, kind: Kind::Rejected },
-        Entry { name: "rejected: anchor ('^' or '$')", detect: is_anchor_rejected, kind: Kind::Rejected },
-    ]
 }
 
 fn load_all_patterns(files: &[PathBuf]) -> Vec<RealPattern> {
@@ -285,11 +125,22 @@ fn load_all_patterns(files: &[PathBuf]) -> Vec<RealPattern> {
     out
 }
 
+/// `want` indices spread evenly across `0..len`; all of them if `len <= want`.
+fn spread_indices(len: usize, want: usize) -> Vec<usize> {
+    if len == 0 {
+        return Vec::new();
+    }
+    if len <= want || want <= 1 {
+        return (0..len.min(want.max(1))).collect();
+    }
+    (0..want).map(|i| i * (len - 1) / (want - 1)).collect()
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!(
-            "usage: cargo run --release --example demo_frontend_categories -- \
+            "usage: cargo run --release --example demo_translate -- \
              <s2-elab-json-file> [file...] [--diag 0|1|2|3]"
         );
         std::process::exit(2);
@@ -325,32 +176,41 @@ fn main() {
 
     let patterns = load_all_patterns(&files);
     println!("{} patterns from {} file(s)", patterns.len(), files.len());
+
+    let translated: Vec<(&RealPattern, Regex)> = patterns
+        .iter()
+        .filter_map(|p| core_regex(&p.raw_pattern).ok().map(|r| (p, r)))
+        .collect();
+    println!("{} of {} translate successfully", translated.len(), patterns.len());
     println!();
 
-    for entry in entries() {
-        println!("[{}]", entry.name);
-        println!("{}", "-".repeat(60));
+    let mut verified: Vec<&(&RealPattern, Regex)> =
+        translated.iter().filter(|(p, r)| has_real_example(r, p)).collect();
+    verified.sort_by_key(|(p, _)| p.raw_pattern.len());
 
-        let found = patterns
-            .iter()
-            .filter(|p| (entry.detect)(&p.raw_pattern))
-            .filter(|p| {
-                matches!(entry.kind, Kind::Rejected)
-                    || core_regex(&p.raw_pattern).is_ok_and(|core| has_real_example(&core, p))
-            })
-            .min_by_key(|p| p.raw_pattern.len());
-
-        let Some(pattern) = found else {
-            println!("  no example in this dataset -- skipped");
-            println!();
-            continue;
-        };
-
-        println!("  raw: {}", pattern.raw_pattern);
-        match entry.kind {
-            Kind::Accepted => demo_accepted(pattern, diag),
-            Kind::Rejected => demo_rejected(&pattern.raw_pattern),
-        }
+    let picks = spread_indices(verified.len(), SAMPLE_COUNT);
+    println!(
+        "Showing {} translated patterns (a size spread) run against their own real input:",
+        picks.len()
+    );
+    println!();
+    for &idx in &picks {
+        let (pattern, core) = verified[idx];
+        println!("raw: {}", pattern.raw_pattern);
+        demo_accepted(pattern, core, diag);
         println!();
     }
+
+    let mut buf = String::new();
+    writeln!(
+        buf,
+        "{} of {} given S2ELab patterns translated successfully this run.\n",
+        translated.len(),
+        patterns.len()
+    )
+    .unwrap();
+    for (pattern, core) in &translated {
+        writeln!(buf, "{}  =>  {:?}", pattern.raw_pattern, core).unwrap();
+    }
+    common::report("translate", &buf);
 }
