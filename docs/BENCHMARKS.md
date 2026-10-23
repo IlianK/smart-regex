@@ -1,23 +1,29 @@
 # Benchmarks
 
-Five `cargo bench` targets, along two axes: synthetic vs. real-corpus
-input, and what's measured.
+Seven `cargo bench` targets, along two axes: synthetic vs. real-corpus
+vs. curated-stress-pattern input, and what's measured.
 
 | Target | Input | Measures | Criterion? |
 |---|---|---|---|
 | `bench_match` | synthetic | time | yes |
 | `bench_parse` | synthetic | time | yes |
-| `bench_corpus_time` | corpus | time | no |
-| `bench_memory` | corpus | memory | no |
+| `bench_corpus_time` | corpus (S2ELab) | time | no |
+| `bench_memory` | corpus (S2ELab) | memory | no |
 | `bench_translate` | corpus | time + memory, translation only | no |
+| `bench_pathological_time` | curated stress patterns | time | no |
+| `bench_pathological_memory` | curated stress patterns | memory | no |
 
 The corpus and translation targets read `prepared.jsonl` under
 `data/processed/`; see [DATASET.md](DATASET.md) for how to build that.
-On the two Criterion targets, append `-- --test` to run each benchmark
-function once as a quick correctness check.
+The two `bench_pathological_*` targets instead read
+`data/pathological/pathological_patterns.json` directly -- no
+preparation step, no `prepared.jsonl`. On the two Criterion targets,
+append `-- --test` to run each benchmark function once as a quick
+correctness check.
 
-`bench_corpus_time` and `bench_memory` run every entry through a
-shared worker binary, `bench_worker`, which must be built first:
+`bench_corpus_time`, `bench_memory`, `bench_pathological_time`, and
+`bench_pathological_memory` all run every entry through one shared
+worker binary, `bench_worker`, which must be built first:
 
 ```bash
 cargo build --release --example bench_worker
@@ -28,7 +34,9 @@ Same reasoning as `demo_parser_agreement`'s own worker (see
 what lets a pathological entry be killed outright, recovering its
 memory, rather than merely given up on. See "Why Criterion is not used
 for the corpus" and `BENCH_ENTRY_TIMEOUT_MS` below for why that
-distinction matters here specifically.
+distinction matters here specifically. The two `bench_pathological_*`
+targets reuse this worker unchanged -- it already takes a generic
+`{pattern, input}` job and a `parser_idx`, exactly the shape they need.
 
 `bench_translate` does not use `bench_worker` and needs no build step
 beyond itself -- it measures translation (`core_regex`) only, which
@@ -62,15 +70,20 @@ CLI arguments.
 | Variable | Applies to | Values | Default |
 |---|---|---|---|
 | `BENCH_SOURCE` | `bench_translate` only | comma-separated `suricata`/`snort`, `spamassassin`, `regexlib`, `s2-elab`, `innovatorved` | S2ELab |
-| `BENCH_PATTERN_LIMIT` | corpus | positive integer | unset (no cap) |
+| `BENCH_PATTERN_LIMIT` | corpus, pathological (caps rows there) | positive integer | unset (no cap) |
 | `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `explicit` |
 | `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` | `1`/`0`, `true`/`false`, `yes`/`no` | `0` |
-| `BENCH_ENTRY_TIMEOUT_MS` | `bench_corpus_time`, `bench_memory` | positive integer (milliseconds) | `2000` |
-| `BENCH_RUN_LABEL` | corpus | any filename-safe string | unset (bare filename) |
+| `BENCH_ENTRY_TIMEOUT_MS` | corpus, pathological | positive integer (milliseconds) | `2000` |
+| `BENCH_RUN_LABEL` | corpus, pathological | any filename-safe string | unset (bare filename) |
 | `BENCH_SIZE_LIMIT` | synthetic | positive integer | unset (no cap) |
 | `BENCH_SAMPLE_SIZE` | Criterion targets | integer ≥ 10 | group-specific |
 | `BENCH_TRANSLATE_RENDER_MAX_NODES` | `bench_translate` | positive integer (nodes) | `150` |
 | `BENCH_TRANSLATE_EXAMPLES` | `bench_translate` | non-negative integer | `5` |
+| `PATHO_JSON_PATH` | pathological | file path | `data/pathological/pathological_patterns.json` |
+| `PATHO_SECTION` | pathological | `pathological`, `baseline`, `generated`, `all` | `all` |
+| `PATHO_CATEGORY` | pathological | comma-separated `A`-`L` | unset (every category present) |
+| `PATHO_N` | pathological | comma-separated positive integers | unset (each row's own `suggested_n`) |
+| `PATHO_P` | pathological | comma-separated positive integers | unset (each row's own `suggested_p`) |
 
 
 **Variables Explanation**:
@@ -102,6 +115,9 @@ CLI arguments.
   entry as `timed_out`. Exists because a small fraction of real entries
   (Innovatorved, RegexLib) make `deriv_std_rec`/`deriv_std_loop` run for
   seconds to minutes; without it, one such entry blocks the whole run.
+  The two `bench_pathological_*` targets read the same variable, for
+  the same reason -- a pathological pattern swept to a large `n`/`p` is
+  exactly the kind of call this exists to bound.
   - Each entry runs in its own `bench_worker` process, killed outright
     on timeout. A killed process reclaims memory; a thread
     stopped-waiting-on does not. The thread-based version this replaced
@@ -140,8 +156,29 @@ CLI arguments.
   rendered, to `reports/demos/translation_examples.txt`. `0` skips
   that file entirely.
 
+- **`PATHO_JSON_PATH`** — Both `bench_pathological_*` targets only.
+  Path to the dataset file to load, in place of the default.
+
+- **`PATHO_SECTION`** — Both `bench_pathological_*` targets only.
+  Restricts rows to one of the dataset's three arrays
+  (`pathological_patterns`, `baseline_and_edge_patterns`,
+  `generated_patterns`); `all` (the default) reads every one.
+
+- **`PATHO_CATEGORY`** — Both `bench_pathological_*` targets only.
+  Restricts rows to the given category letters. Unset keeps every
+  category present in the selected section(s).
+
+- **`PATHO_N`** / **`PATHO_P`** — Both `bench_pathological_*` targets
+  only. Overrides the swept input-length (`n`) / pattern-size (`p`)
+  values for every selected row. Unset uses each row's own category's
+  `suggested_n`/`suggested_p` from the dataset's own metadata, falling
+  back to `pathological::DEFAULT_N`/`DEFAULT_P` (20/100) for a category
+  that defines neither. `PATHO_P` only matters for a `generated_patterns`
+  row with a `generator` -- every other row ignores it.
+
 If filtering loads nothing, these targets panic with a diagnosis of
-the active filters (per-source, for `bench_translate`).
+the active filters (per-source, for `bench_translate`; per
+section/category, for the `bench_pathological_*` pair).
 
 
 ## `bench_match.rs`
@@ -366,6 +403,67 @@ whole run. One consequence of skipping isolation: this bench's timing
 has no process-spawn overhead, unlike `wall (s)` in
 `bench_corpus_time`.
 
+## `bench_pathological_time.rs`
+
+Build `bench_worker` first (see above), then:
+
+```
+cargo bench --bench bench_pathological_time
+PATHO_CATEGORY=A,B               cargo bench --bench bench_pathological_time
+PATHO_SECTION=generated PATHO_P=1000 cargo bench --bench bench_pathological_time
+```
+
+Wall-clock cost per parser over the hand-curated stress-pattern
+dataset (`data/pathological/pathological_patterns.json`), not the real
+corpus -- that one is `bench_corpus_time`. Each selected row's
+`match_input`/`nomatch_input` is expanded at every swept `n` (and, for
+a `generated_patterns` row with a `generator`, every swept `p` too),
+each expansion becoming up to two entries (match + non-match: a row
+whose `match_input` is `null`, like the `∅` row, contributes only the
+non-match side). Entries are grouped by category (A-L) for reporting
+-- the same role `source` plays in `bench_corpus_time` -- and reported
+the same way: `measured`/`timed_out`/`crashed`/`wall (s)`/`mean`/
+`median`/`p99`/`max (ms)`, per parser, per category.
+
+Reuses `bench_worker` unchanged and the identical
+timeout/kill/crash accounting as `bench_corpus_time` (see that
+section above and `BENCH_ENTRY_TIMEOUT_MS` below). One difference: no
+pre-filtering by `core_regex` before spawning a worker -- a
+pathological pattern's translation itself failing (hitting
+`core_regex`'s own depth/node cap, e.g. a category J pattern swept to
+a very large `p`) is a real outcome worth seeing here, so it is left
+to show up as `crashed` rather than being filtered out beforehand.
+
+Reads `BENCH_PATTERN_LIMIT` (caps selected *rows*, before the `n`/`p`
+sweep), `BENCH_ENTRY_TIMEOUT_MS`, `BENCH_RUN_LABEL`, and its own
+`PATHO_JSON_PATH`/`PATHO_SECTION`/`PATHO_CATEGORY`/`PATHO_N`/`PATHO_P`.
+No `BENCH_MATCH_INTENT` or `BENCH_SPLIT_OUTCOME`: these patterns carry
+no anchor/match-intent concept, and match vs. non-match cost is not
+split out separately here.
+
+Writes `reports/benches/bench_pathological_time.csv`, replacing any
+existing file, same "latest run, not a log" convention as
+`bench_corpus_time`.
+
+## `bench_pathological_memory.rs`
+
+Build `bench_worker` first (see above), then:
+
+```
+cargo bench --bench bench_pathological_memory
+```
+
+The heap-allocation counterpart to `bench_pathological_time`, same
+relationship as `bench_memory` to `bench_corpus_time`: same dataset,
+same row/category grouping, same sweep, same `PATHO_*` variables, same
+worker reuse and timeout/kill/crash accounting, but reporting bytes
+(`total_bytes`/`avg_bytes`/`max_peak`) instead of durations. See
+`bench_memory.rs`'s own section above for what "heap" does and does
+not cover.
+
+Writes `reports/benches/bench_pathological_memory.csv`, replacing any
+existing file.
+
 ## Choosing a target
 
 | Question | Target |
@@ -379,6 +477,8 @@ has no process-spawn overhead, unlike `wall (s)` in
 | Does the matcher stack behave as expected on `(a*)*`? | `bench_match` |
 | How much does translation itself cost, separately from parsing? | `bench_translate` |
 | What does a real pattern's translated form actually look like? | `bench_translate`'s `_patterns.csv` or `translation_examples.txt` |
+| How does a parser scale on a known-pathological pattern, by category? | `bench_pathological_time` |
+| How much does a pathological pattern allocate as it's swept larger? | `bench_pathological_memory` |
 
 
 
@@ -446,4 +546,23 @@ BENCH_SOURCE=suricata BENCH_RUN_LABEL=X2 cargo bench --bench bench_translate
 # Render fewer/more examples, or render larger patterns' trees too.
 BENCH_TRANSLATE_EXAMPLES=10 BENCH_TRANSLATE_RENDER_MAX_NODES=300 \
   cargo bench --bench bench_translate
+```
+
+**Pathological stress patterns** (`bench_pathological_time` /
+`bench_pathological_memory`, own `PATHO_*` variables):
+
+```bash
+# Cheap smoke test: small n/p, few rows, tight timeout.
+PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 \
+  cargo bench --bench bench_pathological_time
+
+# Every row, every category, each row's own suggested n/p sweep.
+cargo bench --bench bench_pathological_time
+cargo bench --bench bench_pathological_memory
+
+# Just the nested-quantifier and overlapping-alternation categories.
+PATHO_CATEGORY=A,B cargo bench --bench bench_pathological_time
+
+# Only the generated_patterns section, overriding its pattern-size sweep.
+PATHO_SECTION=generated PATHO_P=1000 cargo bench --bench bench_pathological_memory
 ```

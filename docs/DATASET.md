@@ -281,3 +281,23 @@ measures is predictable regardless of how many given inputs each one
 carries.
 
 
+
+
+## Pathological stress patterns
+
+A second, unrelated dataset lives at
+`data/pathological/pathological_patterns.json`: 106 hand-curated rows
+(nested quantifiers, overlapping/prefix-overlap alternation, bounded
+repeats over a star, large generated patterns, and baseline/edge
+cases) designed to stress this project's own derivative engines
+specifically, not backtracking blowup. See the file's own
+`meta.purpose` and `meta.engine_notes` fields for exactly what
+"pathological" means here and what anchor/backreference/lookaround
+shapes were excluded and why. It is tracked like
+`data/raw/s2-elab/RegexEval.json` -- a curated input, not pipeline
+output -- and is read directly by `bench_pathological_time` and
+`bench_pathological_memory` (see [BENCHMARKS.md](BENCHMARKS.md)),
+never through `run_pipeline`/`prepared.jsonl`. `src/data/pathological.rs`
+has the loader and the `{N}`/`{P}`-template expansion logic.
+
+
