@@ -266,6 +266,20 @@ shapes appear:
 > hard-reject at parse/translate time, so none appear below. Every pattern
 > is full-string-match only.
 
+Row count alone is misleading: `suggested_n`/`suggested_p` sweeps mean
+one row expands into several entries. Run `pathological_stats` for the
+real breakdown:
+
+```bash
+cargo run --release --example pathological_stats
+```
+
+Saves `reports/data/pathological_stats.csv` (per category: rows,
+generator rows, `suggested_n`/`suggested_p`, swept entries under the
+default sweep) and `reports/data/pathological_rows.csv` (per row). As
+of this writing: 107 rows, 723 entries under the default sweep --
+category `L` alone (33 baseline/edge rows) accounts for 195 of them.
+
 ### Categories
 
 Every row belongs to one of 11 categories (`A`–`L`, skipping `G`), read
