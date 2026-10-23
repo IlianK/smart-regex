@@ -5,7 +5,7 @@
 For the CLI's own `match`/`parse` behavior, see [CLI.md](CLI.md).
 
 
-## Two-stage design: `ExtPat` vs `Regex`
+## `ExtPat` vs `Regex`
 
 `parse_ext_pattern` tries to parse an external pattern string into an
 `ExtPat`, a **surface AST** that mirrors the constructs a real regex
