@@ -4,11 +4,15 @@
 //! translates, and writes every usable pattern's own given examples,
 //! each checked with one direct `prepare::matches_bounded` call against
 //! its claimed label -- not the deleted generated-candidate verification
-//! machinery, just a boolean agree/disagree check. `dataset_stats`
-//! separately still uses the other four extractors for raw-corpus
-//! diagnostics unrelated to this pipeline, which is why they still
-//! exist in `extract.rs`. `load_prepared_cases` reads the result back
-//! for benchmarks.
+//! machinery, just a boolean agree/disagree check. After that check, the
+//! longer of the surviving match/non-match sides is truncated down to
+//! the shorter side's count, so every usable pattern contributes an
+//! equal number of matches and non-matches -- an imbalanced pattern
+//! would otherwise skew aggregate parser-timing/memory stats toward
+//! whichever outcome dominates it. `dataset_stats` separately still
+//! uses the other four extractors for raw-corpus diagnostics unrelated
+//! to this pipeline, which is why they still exist in `extract.rs`.
+//! `load_prepared_cases` reads the result back for benchmarks.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -44,6 +48,25 @@ pub struct PipelineReport {
     /// disagreed with the dataset's own claimed label (or the check
     /// couldn't be confirmed within its safety bound).
     pub inputs_label_mismatch: usize,
+    /// Given examples dropped, per pattern, to balance that one
+    /// pattern's own match/non-match counts after the label check above
+    /// -- truncating its longer side down to its shorter side's count.
+    /// Distinct from `inputs_label_mismatch`.
+    pub inputs_dropped_for_pattern_balance: usize,
+    /// The smallest per-pattern balanced count (`k_i`) across every
+    /// usable pattern; every usable pattern is truncated down to this
+    /// many matches and this many non-matches, so every one contributes
+    /// exactly `2 * balance_k_global` rows dataset-wide. `0` if no
+    /// pattern is usable.
+    pub balance_k_global: usize,
+    /// Given examples dropped by that further, dataset-wide truncation
+    /// down to `balance_k_global`. Distinct from
+    /// `inputs_dropped_for_pattern_balance`, which happens first.
+    pub inputs_dropped_for_global_balance: usize,
+    /// Of `patterns_usable`, how many had their own per-pattern balanced
+    /// count (`k_i`) above `balance_k_global` and so lost rows in that
+    /// second, global truncation.
+    pub patterns_truncated_for_global_balance: usize,
 }
 
 /// `(text, is_match)` for every given example, unchanged and uncapped.
@@ -65,8 +88,22 @@ fn given_examples(matches: &[String], non_matches: &[String]) -> Vec<(String, bo
     out
 }
 
-/// Extracts S2ELab, translates each distinct pattern, and writes every
-/// usable one's own given examples, label-checked, to `<data_root>/s2-elab/prepared.jsonl`.
+/// One usable pattern's own matches/non-matches, already truncated to
+/// its own per-pattern balanced count (`matches.len() == non_matches.len()`).
+struct UsablePattern {
+    pattern: String,
+    match_intent: MatchIntent,
+    matches: Vec<String>,
+    non_matches: Vec<String>,
+}
+
+/// Extracts S2ELab, translates each distinct pattern, label-checks its
+/// given examples, and writes every usable one to
+/// `<data_root>/s2-elab/prepared.jsonl`, truncated in two stages so every
+/// usable pattern ends up contributing the same total row count: first
+/// each pattern's own longer side down to its shorter side, then every
+/// pattern down to the smallest such count (`balance_k_global`) seen
+/// anywhere in this run.
 pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<PipelineReport> {
     let mut report = PipelineReport::default();
 
@@ -95,6 +132,12 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
         std::fs::create_dir_all(parent)?;
     }
     let _ = std::fs::remove_file(&out_path);
+
+    // Stage 1 (per pattern): label-check, then balance each pattern's
+    // own matches/non-matches. Held in memory, not written yet -- stage
+    // 2 below needs every pattern's `k_i` before any of them can be
+    // truncated to the dataset-wide minimum.
+    let mut usable: Vec<UsablePattern> = Vec::new();
 
     let mut seen_patterns: HashSet<&str> = HashSet::new();
     for rule in &rules {
@@ -134,24 +177,66 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
             })
             .collect();
 
-        let has_match = examples.iter().any(|(_, is_match)| *is_match);
-        let has_non_match = examples.iter().any(|(_, is_match)| !*is_match);
-        if !has_match || !has_non_match {
-            continue;
+        // Preserves `given_examples`'s own order: every match in its
+        // original order, then every non-match in its original order.
+        let (mut pattern_matches, mut pattern_non_matches): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+        for (text, is_match) in examples {
+            if is_match {
+                pattern_matches.push(text);
+            } else {
+                pattern_non_matches.push(text);
+            }
         }
 
-        let prepared: Vec<PreparedCase> = examples
+        let k_i = pattern_matches.len().min(pattern_non_matches.len());
+        report.inputs_dropped_for_pattern_balance +=
+            (pattern_matches.len() - k_i) + (pattern_non_matches.len() - k_i);
+        if k_i == 0 {
+            continue;
+        }
+        pattern_matches.truncate(k_i);
+        pattern_non_matches.truncate(k_i);
+
+        report.patterns_usable += 1;
+        usable.push(UsablePattern {
+            pattern: rule.raw_pattern.clone(),
+            match_intent,
+            matches: pattern_matches,
+            non_matches: pattern_non_matches,
+        });
+    }
+
+    // Stage 2 (dataset-wide): truncate every usable pattern down to the
+    // smallest `k_i` seen anywhere, so every one contributes the same
+    // total row count. `k_i == matches.len() == non_matches.len()` here.
+    let k_global = usable.iter().map(|u| u.matches.len()).min().unwrap_or(0);
+    report.balance_k_global = k_global;
+
+    for mut u in usable {
+        let k_i = u.matches.len();
+        if k_i > k_global {
+            report.patterns_truncated_for_global_balance += 1;
+            report.inputs_dropped_for_global_balance += 2 * (k_i - k_global);
+        }
+        u.matches.truncate(k_global);
+        u.non_matches.truncate(k_global);
+
+        let pattern = u.pattern;
+        let match_intent = u.match_intent;
+        let prepared: Vec<PreparedCase> = u
+            .matches
             .into_iter()
+            .map(|input| (input, true))
+            .chain(u.non_matches.into_iter().map(|input| (input, false)))
             .map(|(input, expected_match)| PreparedCase {
                 source: SourceKind::S2ELab,
-                pattern: rule.raw_pattern.clone(),
+                pattern: pattern.clone(),
                 input,
                 expected_match,
                 match_intent,
             })
             .collect();
 
-        report.patterns_usable += 1;
         report.inputs_usable += prepared.len();
         prepare::write_prepared_cases(&out_path, &prepared)?;
     }
@@ -253,6 +338,8 @@ mod tests {
         assert_eq!(report.patterns_accepted, 2, "two distinct patterns: abc and xyz");
         assert_eq!(report.patterns_usable, 2);
         assert_eq!(report.inputs_usable, 4, "2 distinct patterns x (1 match + 1 non-match) each");
+        assert_eq!(report.balance_k_global, 1, "both patterns already have k_i == 1");
+        assert_eq!(report.patterns_truncated_for_global_balance, 0);
 
         let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
         let mut patterns: Vec<&str> = cases.iter().map(|c| c.pattern.as_str()).collect();
@@ -303,9 +390,78 @@ mod tests {
         assert_eq!(report.inputs_label_mismatch, 1, "the mislabeled \"xyz\" claim should be dropped");
         assert_eq!(report.patterns_usable, 1, "the real match and non-match still make this usable");
         assert_eq!(report.inputs_usable, 2);
+        assert_eq!(report.balance_k_global, 1, "the one usable pattern already has k_i == 1");
 
         let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
         assert!(!cases.iter().any(|c| c.input == "xyz"), "the mislabeled example should never be written");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_pattern_with_more_matches_than_non_matches_is_truncated_to_the_shorter_side() {
+        let dir = std::env::temp_dir().join(format!("data-pipeline-balance-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let rules_path = dir.join("balance.json");
+        // 3 genuine matches, 1 genuine non-match: k_i == 1, so only the
+        // first match (original order) and the one non-match survive.
+        std::fs::write(
+            &rules_path,
+            r#"[{"expression": "abc|abd|abe", "matches": ["abc", "abd", "abe"], "non_matches": ["xyz"]}]"#,
+        )
+        .unwrap();
+
+        let out_root = dir.join("processed");
+        let report = run_pipeline(&[rules_path], &out_root).unwrap();
+
+        assert_eq!(report.patterns_usable, 1);
+        assert_eq!(report.inputs_dropped_for_pattern_balance, 2, "abd and abe dropped to match the 1 non-match");
+        assert_eq!(report.balance_k_global, 1, "the only usable pattern's own k_i");
+        assert_eq!(report.inputs_dropped_for_global_balance, 0, "nothing left to drop at the global stage");
+        assert_eq!(report.inputs_usable, 2);
+
+        let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
+        let kept_match = cases.iter().find(|c| c.expected_match).expect("one match kept");
+        assert_eq!(kept_match.input, "abc", "the first match in original order, not abd or abe");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn every_usable_pattern_is_truncated_to_the_dataset_wide_minimum() {
+        let dir = std::env::temp_dir().join(format!("data-pipeline-globalbalance-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let rules_path = dir.join("globalbalance.json");
+        // "abc|abd|abe" is already balanced at k_i == 3 on its own; "xyz"
+        // is balanced at k_i == 1. The dataset-wide minimum is 1, so the
+        // first pattern loses 2 matches + 2 non-matches it didn't lose
+        // to its own per-pattern balance.
+        std::fs::write(
+            &rules_path,
+            r#"[
+                {"expression": "abc|abd|abe", "matches": ["abc", "abd", "abe"], "non_matches": ["x1", "x2", "x3"]},
+                {"expression": "xyz", "matches": ["xyz"], "non_matches": ["abX"]}
+            ]"#,
+        )
+        .unwrap();
+
+        let out_root = dir.join("processed");
+        let report = run_pipeline(&[rules_path], &out_root).unwrap();
+
+        assert_eq!(report.patterns_usable, 2);
+        assert_eq!(report.inputs_dropped_for_pattern_balance, 0, "both patterns already balanced on their own");
+        assert_eq!(report.balance_k_global, 1, "the smaller of the two patterns' k_i (3 and 1)");
+        assert_eq!(report.patterns_truncated_for_global_balance, 1, "only abc|abd|abe had k_i > 1");
+        assert_eq!(report.inputs_dropped_for_global_balance, 4, "2 matches + 2 non-matches from abc|abd|abe");
+        assert_eq!(report.inputs_usable, 4, "2 patterns x (1 match + 1 non-match) each");
+
+        let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
+        let first_pattern_cases: Vec<_> = cases.iter().filter(|c| c.pattern == "abc|abd|abe").collect();
+        assert_eq!(first_pattern_cases.len(), 2, "truncated down to 1 match + 1 non-match");
+        let kept_match = first_pattern_cases.iter().find(|c| c.expected_match).expect("one match kept");
+        assert_eq!(kept_match.input, "abc", "the first match in original order");
+        let kept_non_match = first_pattern_cases.iter().find(|c| !c.expected_match).expect("one non-match kept");
+        assert_eq!(kept_non_match.input, "x1", "the first non-match in original order");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -138,15 +138,16 @@ tables.
 
 ## Dataset preparation
 
-No input is generated, derived, or heuristically assembled, and nothing
-is independently re-checked against the real parser either. `run_pipeline`
-is **S2ELab-only**: it extracts, translates, and writes every usable
-pattern's own given `matches`/`non_matches` as-is -- every one of them,
-not a capped subset -- trusting the dataset author's own label
-(`expected_match` on each `PreparedCase`). Suricata, SpamAssassin,
-RegexLib, and Innovatorved still extract and translate their rules the
-same as before (`dataset_stats`'s raw-corpus diagnostics use all five),
-but `run_pipeline` itself never reads them.
+No input is generated, derived, or heuristically assembled; nothing is
+independently re-checked against the real parser beyond the one direct
+label check below. `run_pipeline` is **S2ELab-only**: it extracts,
+translates, and writes every usable pattern's own given
+`matches`/`non_matches`, trusting the dataset author's own label
+(`expected_match` on each `PreparedCase`) wherever that label agrees
+with the real translated `Regex`. Suricata, SpamAssassin, RegexLib, and
+Innovatorved still extract and translate their rules the same as before
+(`dataset_stats`'s raw-corpus diagnostics use all five), but
+`run_pipeline` itself never reads them.
 
 Name the input files; there is no source or count argument:
 
@@ -155,12 +156,31 @@ cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 ```
 
 Each run writes to `data/processed/s2-elab/prepared.jsonl`, replacing
-the file rather than appending. Each *usable* pattern (at least one
-given match and at least one given non-match) contributes every one of
-its given examples -- a pattern with 10 given matches and 12 given
-non-matches contributes 22 cases, not a fixed count. A pattern with only
-one side, or neither, contributes nothing at all, and is counted
-separately as unusable — see the summary `dataset_prepare` prints.
+the file rather than appending. **Every usable pattern contributes the
+same total number of rows.** That guarantee comes from two truncations,
+applied after the label check (below) drops any example the real
+`Regex` disagrees with:
+
+1. **Per-pattern balance.** Each pattern's own longer side (matches or
+   non-matches) is truncated down to its shorter side's count, keeping
+   the first examples in their original given order. A pattern needs at
+   least one surviving match and one surviving non-match after this to
+   be usable at all; below that, it is counted as unusable, not dropped
+   silently.
+2. **Dataset-wide balance.** Every usable pattern is then truncated
+   further down to the *smallest* per-pattern count (`balance_k_global`)
+   seen anywhere in the run, so a pattern with 40 matches/40 non-matches
+   and one with 1 match/1 non-match end up contributing the same total
+   row count, not 80 vs. 2.
+
+This is a literal reading of "every pattern must have the same number
+of inputs," and on the real S2ELab corpus it is an expensive one: as
+long as even one real pattern's own balanced count is `1`, every other
+pattern -- however much given data it has -- is truncated down to `1`
+match + `1` non-match too. See `dataset_prepare`'s own printed summary
+(`global balance k`, `global balance`) for the real numbers from the
+most recent run; they are also appended to
+`reports/data/dataset_prepare.csv`.
 
 A rule whose raw pattern text is byte-identical to an earlier rule's in
 the same run is skipped before translation even starts, rather than
@@ -176,9 +196,11 @@ thing on the raw corpus.
 The same run's summary numbers are *appended* as one row to
 `reports/data/dataset_prepare.csv`, not replaced, so re-runs (or runs
 across code changes) accumulate rather than overwrite each other's row.
-The CSV's columns changed with this version (no `source`, a renamed
-`patterns_duplicate`, nothing about verification); archive or clear the
-old file before comparing across the change if that matters.
+The CSV's columns changed with this version (four new balance columns:
+`inputs_dropped_for_pattern_balance`, `balance_k_global`,
+`inputs_dropped_for_global_balance`, `patterns_truncated_for_global_balance`);
+archive or clear the old file before comparing across the change if
+that matters.
 
 
 
@@ -197,9 +219,19 @@ old file before comparing across the change if that matters.
 4. A small dedup/positive-wins helper in `mod.rs` turns
    `matches`/`non_matches` into `(text, is_match)` pairs, unchanged,
    uncapped, and unsampled.
-5. Each pair becomes a `PreparedCase` directly -- no verification --
-   written as JSON lines tagged with their `MatchIntent`.
-6. `run_pipeline` — drives 1–5; returns `PipelineReport`.
+5. `prepare::matches_bounded` re-checks each pair against the real
+   translated `Regex`; a claim it disagrees with is dropped
+   (`inputs_label_mismatch`).
+6. Per-pattern balance: the surviving matches/non-matches are split,
+   and the longer side is truncated down to the shorter side's count
+   (`inputs_dropped_for_pattern_balance`). Fewer than one of each after
+   this makes the pattern unusable.
+7. Dataset-wide balance: every usable pattern is truncated again, down
+   to the smallest per-pattern count seen anywhere in the run
+   (`balance_k_global`, `inputs_dropped_for_global_balance`).
+8. Each surviving pair becomes a `PreparedCase`, written as JSON lines
+   tagged with their `MatchIntent`.
+9. `run_pipeline` — drives 1–8; returns `PipelineReport`.
    `load_prepared_cases` reads the result back for benchmarks.
 
 
