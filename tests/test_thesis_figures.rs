@@ -11,7 +11,7 @@
 //!   cargo run --release --example demo_growth_deriv
 //!   cargo run --release --example demo_simp_branches
 //!   cargo run --release --example demo_growth_pderiv
-//!   cargo run --release --example demo_frontend_translation_sizes
+//!   cargo run --release --example demo_translate_sizes
 
 use regex_engine::frontend::parse_pattern;
 use regex_engine::parsers::deriv_bc::{

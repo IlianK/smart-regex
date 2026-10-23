@@ -1,0 +1,22 @@
+Node count of translated Regex, per pattern
+
+  pattern           nodes
+  a*                    2
+  abc                   5
+  a{2,4}               15
+  \d                   19
+  \d{2}                41
+  [a-c]+\d{2}          54
+  \w                  125
+  [^a]                193
+  .                   195
+  \w+                 252
+
+Other translated sizes
+  pattern           nodes
+  a+                    4
+  a?                    3
+  a{2}                  5
+  a{2,}                 8
+
+Case folding: /abc/ = 5 nodes, /abc/i = 11 nodes (6 extra, 2 per letter)

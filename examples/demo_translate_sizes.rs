@@ -1,13 +1,13 @@
-//! examples/demo_frontend_translation_sizes.rs
+//! examples/demo_translate_sizes.rs
 //!
-//! cargo run --release --example demo_frontend_translation_sizes
+//! cargo run --release --example demo_translate_sizes
 //!
 //! Sizes of the Regex produced by frontend translation.
 //! Node count per pattern.
 //! Case-folding's per-letter cost.
 //! Deterministic; pinned by `tests/test_thesis_figures.rs`.
 //!
-//! Also saves its output to reports/demos/frontend_translation_sizes.txt.
+//! Also saves its output to reports/demos/translate_sizes.txt.
 
 #[path = "common/thesis_figures.rs"]
 mod common;
@@ -52,5 +52,5 @@ fn main() {
     )
     .unwrap();
 
-    report("frontend_translation_sizes", &buf);
+    report("translate_sizes", &buf);
 }
