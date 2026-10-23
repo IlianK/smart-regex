@@ -1,5 +1,8 @@
 row_id,category,parser,max_n_survived,outcome,next_n,elapsed_s,detail
-P01,A,deriv_std_rec,16,timed_out,32,2.182,"exceeded the 2.0s per-probe cap, not a crash"
-P01,A,deriv_std_loop,16,timed_out,32,2.152,"exceeded the 2.0s per-probe cap, not a crash"
-P30,H,deriv_std_rec,32,timed_out,64,2.873,"exceeded the 2.0s per-probe cap, not a crash"
-P30,H,deriv_std_loop,32,timed_out,64,3.020,"exceeded the 2.0s per-probe cap, not a crash"
+P01,A,deriv_std_rec,16,timed_out,32,15.262,"exceeded the 15.0s per-probe cap, not a crash"
+P01,A,deriv_std_loop,16,timed_out,32,15.273,"exceeded the 15.0s per-probe cap, not a crash"
+P30,H,deriv_std_rec,64,timed_out,128,24.665,"exceeded the 15.0s per-probe cap, not a crash"
+P30,H,deriv_std_loop,64,timed_out,128,23.377,"exceeded the 15.0s per-probe cap, not a crash"
+E51,L,deriv_std_rec,32768,crashed,65536,7.912,"killed by signal (stack overflow); stderr=thread 'main' (3750) has overflowed its stack
+fatal runtime error: stack overflow, aborting"
+E51,L,deriv_std_loop,1048576,reached_sweep_cap,2097152,0.180,"survived every N up to the sweep cap (2000000)"

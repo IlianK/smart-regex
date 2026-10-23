@@ -238,12 +238,14 @@ distinct patterns, not rows.
 ## Pathological stress patterns
 
 A second, unrelated dataset at
-`data/pathological/pathological_patterns.json`: 106 hand-curated rows
-(56 `pathological_patterns` + 42 `baseline_and_edge_patterns` + 8
+`data/pathological/pathological_patterns.json`: 107 hand-curated rows
+(56 `pathological_patterns` + 43 `baseline_and_edge_patterns` + 8
 `generated_patterns`) designed to stress this project's own derivative
 engines, not backtracking blowup. Tracked like
 `data/raw/s2-elab/RegexEval.json` (curated input, not pipeline output),
-read directly by `bench_pathological_time` and `bench_pathological_memory`
+read directly by `bench_pathological_time`, `bench_pathological_memory`
+and `bench_pathological_translate`, plus row `E51` specifically by
+`bench_stack_depth` as a state-blowup-free recursion-depth control
 (see [BENCHMARKS.md](BENCHMARKS.md)), never through
 `run_pipeline`/`prepared.jsonl`. `src/data/pathological.rs` has the
 loader and the `{N}`/`{P}`-template expansion.

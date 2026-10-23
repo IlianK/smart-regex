@@ -1583,6 +1583,20 @@
       },
       "stress_axis": "linear throughput -- sanity/warmup",
       "notes": "hex escape"
+    },
+    {
+      "id": "E51",
+      "category": "L",
+      "regex": "x",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "x"
+      },
+      "stress_axis": "constant",
+      "notes": "match_input mismatches on the first char (not a real match -- bench_stack_depth sweeps match_input regardless), so the regex never grows past a tiny fixed residual as N grows -- a state-blowup-free control used to isolate deriv_std_rec's native recursion depth from derivative-size blowup, not a stress case itself"
     }
   ],
   "generated_patterns": [

@@ -52,6 +52,29 @@
 //! happens -- printed, not smoothed over (the project's own standing
 //! rule; see `demo_growth_eval.rs`'s module doc).
 //!
+//! A third row, E51 (category L, pattern `x`, swept input `a`*N),
+//! actually separates the two parsers. Picked because it mismatches on
+//! the very first character: `deriv()` sends it straight to a tiny,
+//! fixed-size `Phi`-wrapping residual that never grows again, so there
+//! is no derivative-size wall to hide behind -- confirmed directly
+//! (release build): `deriv_std_loop` clears 2,000,000 characters in
+//! 0.06s flat (truly O(n), zero crash risk), while `deriv_std_rec` on
+//! the IDENTICAL input survives 55,000 characters (~4.9s) and genuinely
+//! stack-overflows (a real aborted process, not a timeout) at 60,000.
+//! That gap is the one difference this bench exists to show.
+//!
+//! E51's own timing is not what it looks like, though:
+//! `parse_recursive_helper` does `let rest: String = chars.collect()`
+//! on EVERY recursive call, reallocating the whole remaining suffix at
+//! every depth -- an O(n^2) cost from this implementation alone,
+//! regardless of pattern, which is why 55,000 plain characters already
+//! takes ~5s. `DEFAULT_TIMEOUT_MS` is raised accordingly (see below) so
+//! this row's real crash is observed as `crashed`, not masked behind a
+//! false `timed_out` from that unrelated inefficiency. That inefficiency
+//! is itself a separate, real finding -- worth fixing in
+//! `src/parsers/deriv_std/parse.rs` on its own merits, but out of scope
+//! for this bench, which only measures what exists today.
+//!
 //! Each probe is its own `bench_stack_depth_worker` subprocess, the same
 //! process-isolation reasoning `bench_worker.rs`/`bench_corpus_time.rs`
 //! already use: a crashed PROCESS is cleanly detected (killed by a
@@ -71,8 +94,8 @@
 //! Configuration (env vars, same `SCREAMING_CASE` convention as the
 //! other benches in this file's family):
 //!   - `STACKDEPTH_JSON_PATH` (default `data/pathological/pathological_patterns.json`)
-//!   - `STACKDEPTH_ROW_IDS` (comma-separated row ids, default `P01,P30`)
-//!   - `STACKDEPTH_TIMEOUT_MS` (per-probe cap, default 2000)
+//!   - `STACKDEPTH_ROW_IDS` (comma-separated row ids, default `P01,P30,E51`)
+//!   - `STACKDEPTH_TIMEOUT_MS` (per-probe cap, default 15000 -- see E51 above)
 //!   - `STACKDEPTH_N_START` (default 1)
 //!   - `STACKDEPTH_N_CAP` (default 2,000,000)
 //!
@@ -93,8 +116,12 @@ use std::time::{Duration, Instant};
 use regex_engine::data::pathological::{self, PathologicalRow};
 
 const DEFAULT_JSON_PATH: &str = "data/pathological/pathological_patterns.json";
-const DEFAULT_ROW_IDS: &str = "P01,P30";
-const DEFAULT_TIMEOUT_MS: u64 = 2000;
+const DEFAULT_ROW_IDS: &str = "P01,P30,E51";
+/// 2000ms would mask E51's real crash behind a false `timed_out`: its
+/// per-call cost is O(n^2) from `parse_recursive_helper`'s own
+/// `rest: String = chars.collect()` on every frame (see module doc),
+/// not from regex growth, so n=55,000 alone already takes ~5s.
+const DEFAULT_TIMEOUT_MS: u64 = 15_000;
 const DEFAULT_N_START: u32 = 1;
 const DEFAULT_N_CAP: u32 = 2_000_000;
 const REPORTS_DIR: &str = "reports/benches";
