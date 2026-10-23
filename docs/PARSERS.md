@@ -2,7 +2,7 @@
 
 The five `--parser` values, one example call each.
 - Full flag/diagnostics reference: [docs/CLI.md](CLI.md). 
-- Frontend/syntax reference: [docs/FRONTEND.md](FRONTEND.md)
+- Frontend/syntax reference: [docs/TRANSLATE.md](TRANSLATE.md)
 ---
 
 
