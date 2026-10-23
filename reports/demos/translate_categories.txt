@@ -1,0 +1,177 @@
+Frontend translation breadth: one hand-authored example per accepted construct.
+
+[literal character]
+  pattern: a
+  regex:   Lit('a')
+  pass  input="a"  expected_match=true  actual_match=true
+  pass  input="b"  expected_match=false  actual_match=false
+
+['.' (bare parse_pattern: includes '\n')]
+  pattern: .
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('\t'), Lit('\n')), Lit('\r')), Lit(' ')), Lit('!')), Lit('"')), Lit('#')), Lit('$')), Lit('%')), Lit('&')), Lit('\'')), Lit('(')), Lit(')')), Lit('*')), Lit('+')), Lit(',')), Lit('-')), Lit('.')), Lit('/')), Lit('0')), Lit('1')), Lit('2')), Lit('3')), Lit('4')), Lit('5')), Lit('6')), Lit('7')), Lit('8')), Lit('9')), Lit(':')), Lit(';')), Lit('<')), Lit('=')), Lit('>')), Lit('?')), Lit('@')), Lit('A')), Lit('B')), Lit('C')), Lit('D')), Lit('E')), Lit('F')), Lit('G')), Lit('H')), Lit('I')), Lit('J')), Lit('K')), Lit('L')), Lit('M')), Lit('N')), Lit('O')), Lit('P')), Lit('Q')), Lit('R')), Lit('S')), Lit('T')), Lit('U')), Lit('V')), Lit('W')), Lit('X')), Lit('Y')), Lit('Z')), Lit('[')), Lit('\\')), Lit(']')), Lit('^')), Lit('_')), Lit('`')), Lit('a')), Lit('b')), Lit('c')), Lit('d')), Lit('e')), Lit('f')), Lit('g')), Lit('h')), Lit('i')), Lit('j')), Lit('k')), Lit('l')), Lit('m')), Lit('n')), Lit('o')), Lit('p')), Lit('q')), Lit('r')), Lit('s')), Lit('t')), Lit('u')), Lit('v')), Lit('w')), Lit('x')), Lit('y')), Lit('z')), Lit('{')), Lit('|')), Lit('}')), Lit('~'))
+  pass  input="\n"  expected_match=true  actual_match=true
+  pass  input=""  expected_match=false  actual_match=false
+
+['.' under /PATTERN/ (no s flag: excludes '\n')]
+  pattern: /./
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('\t'), Lit('\r')), Lit(' ')), Lit('!')), Lit('"')), Lit('#')), Lit('$')), Lit('%')), Lit('&')), Lit('\'')), Lit('(')), Lit(')')), Lit('*')), Lit('+')), Lit(',')), Lit('-')), Lit('.')), Lit('/')), Lit('0')), Lit('1')), Lit('2')), Lit('3')), Lit('4')), Lit('5')), Lit('6')), Lit('7')), Lit('8')), Lit('9')), Lit(':')), Lit(';')), Lit('<')), Lit('=')), Lit('>')), Lit('?')), Lit('@')), Lit('A')), Lit('B')), Lit('C')), Lit('D')), Lit('E')), Lit('F')), Lit('G')), Lit('H')), Lit('I')), Lit('J')), Lit('K')), Lit('L')), Lit('M')), Lit('N')), Lit('O')), Lit('P')), Lit('Q')), Lit('R')), Lit('S')), Lit('T')), Lit('U')), Lit('V')), Lit('W')), Lit('X')), Lit('Y')), Lit('Z')), Lit('[')), Lit('\\')), Lit(']')), Lit('^')), Lit('_')), Lit('`')), Lit('a')), Lit('b')), Lit('c')), Lit('d')), Lit('e')), Lit('f')), Lit('g')), Lit('h')), Lit('i')), Lit('j')), Lit('k')), Lit('l')), Lit('m')), Lit('n')), Lit('o')), Lit('p')), Lit('q')), Lit('r')), Lit('s')), Lit('t')), Lit('u')), Lit('v')), Lit('w')), Lit('x')), Lit('y')), Lit('z')), Lit('{')), Lit('|')), Lit('}')), Lit('~'))
+  pass  input="x"  expected_match=true  actual_match=true
+  pass  input="\n"  expected_match=false  actual_match=false
+
+[escape \d (digit)]
+  pattern: \d
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('0'), Lit('1')), Lit('2')), Lit('3')), Lit('4')), Lit('5')), Lit('6')), Lit('7')), Lit('8')), Lit('9'))
+  pass  input="7"  expected_match=true  actual_match=true
+  pass  input="x"  expected_match=false  actual_match=false
+
+[escape \D (non-digit)]
+  pattern: \D
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('\t'), Lit('\n')), Lit('\r')), Lit(' ')), Lit('!')), Lit('"')), Lit('#')), Lit('$')), Lit('%')), Lit('&')), Lit('\'')), Lit('(')), Lit(')')), Lit('*')), Lit('+')), Lit(',')), Lit('-')), Lit('.')), Lit('/')), Lit(':')), Lit(';')), Lit('<')), Lit('=')), Lit('>')), Lit('?')), Lit('@')), Lit('A')), Lit('B')), Lit('C')), Lit('D')), Lit('E')), Lit('F')), Lit('G')), Lit('H')), Lit('I')), Lit('J')), Lit('K')), Lit('L')), Lit('M')), Lit('N')), Lit('O')), Lit('P')), Lit('Q')), Lit('R')), Lit('S')), Lit('T')), Lit('U')), Lit('V')), Lit('W')), Lit('X')), Lit('Y')), Lit('Z')), Lit('[')), Lit('\\')), Lit(']')), Lit('^')), Lit('_')), Lit('`')), Lit('a')), Lit('b')), Lit('c')), Lit('d')), Lit('e')), Lit('f')), Lit('g')), Lit('h')), Lit('i')), Lit('j')), Lit('k')), Lit('l')), Lit('m')), Lit('n')), Lit('o')), Lit('p')), Lit('q')), Lit('r')), Lit('s')), Lit('t')), Lit('u')), Lit('v')), Lit('w')), Lit('x')), Lit('y')), Lit('z')), Lit('{')), Lit('|')), Lit('}')), Lit('~'))
+  pass  input="x"  expected_match=true  actual_match=true
+  pass  input="7"  expected_match=false  actual_match=false
+
+[escape \w (word)]
+  pattern: \w
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('0'), Lit('1')), Lit('2')), Lit('3')), Lit('4')), Lit('5')), Lit('6')), Lit('7')), Lit('8')), Lit('9')), Lit('A')), Lit('B')), Lit('C')), Lit('D')), Lit('E')), Lit('F')), Lit('G')), Lit('H')), Lit('I')), Lit('J')), Lit('K')), Lit('L')), Lit('M')), Lit('N')), Lit('O')), Lit('P')), Lit('Q')), Lit('R')), Lit('S')), Lit('T')), Lit('U')), Lit('V')), Lit('W')), Lit('X')), Lit('Y')), Lit('Z')), Lit('_')), Lit('a')), Lit('b')), Lit('c')), Lit('d')), Lit('e')), Lit('f')), Lit('g')), Lit('h')), Lit('i')), Lit('j')), Lit('k')), Lit('l')), Lit('m')), Lit('n')), Lit('o')), Lit('p')), Lit('q')), Lit('r')), Lit('s')), Lit('t')), Lit('u')), Lit('v')), Lit('w')), Lit('x')), Lit('y')), Lit('z'))
+  pass  input="a"  expected_match=true  actual_match=true
+  pass  input="-"  expected_match=false  actual_match=false
+
+[escape \W (non-word)]
+  pattern: \W
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('\t'), Lit('\n')), Lit('\r')), Lit(' ')), Lit('!')), Lit('"')), Lit('#')), Lit('$')), Lit('%')), Lit('&')), Lit('\'')), Lit('(')), Lit(')')), Lit('*')), Lit('+')), Lit(',')), Lit('-')), Lit('.')), Lit('/')), Lit(':')), Lit(';')), Lit('<')), Lit('=')), Lit('>')), Lit('?')), Lit('@')), Lit('[')), Lit('\\')), Lit(']')), Lit('^')), Lit('`')), Lit('{')), Lit('|')), Lit('}')), Lit('~'))
+  pass  input="-"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[escape \s (space)]
+  pattern: \s
+  regex:   Alt(Alt(Alt(Lit('\t'), Lit('\n')), Lit('\r')), Lit(' '))
+  pass  input=" "  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[escape \S (non-space)]
+  pattern: \S
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('!'), Lit('"')), Lit('#')), Lit('$')), Lit('%')), Lit('&')), Lit('\'')), Lit('(')), Lit(')')), Lit('*')), Lit('+')), Lit(',')), Lit('-')), Lit('.')), Lit('/')), Lit('0')), Lit('1')), Lit('2')), Lit('3')), Lit('4')), Lit('5')), Lit('6')), Lit('7')), Lit('8')), Lit('9')), Lit(':')), Lit(';')), Lit('<')), Lit('=')), Lit('>')), Lit('?')), Lit('@')), Lit('A')), Lit('B')), Lit('C')), Lit('D')), Lit('E')), Lit('F')), Lit('G')), Lit('H')), Lit('I')), Lit('J')), Lit('K')), Lit('L')), Lit('M')), Lit('N')), Lit('O')), Lit('P')), Lit('Q')), Lit('R')), Lit('S')), Lit('T')), Lit('U')), Lit('V')), Lit('W')), Lit('X')), Lit('Y')), Lit('Z')), Lit('[')), Lit('\\')), Lit(']')), Lit('^')), Lit('_')), Lit('`')), Lit('a')), Lit('b')), Lit('c')), Lit('d')), Lit('e')), Lit('f')), Lit('g')), Lit('h')), Lit('i')), Lit('j')), Lit('k')), Lit('l')), Lit('m')), Lit('n')), Lit('o')), Lit('p')), Lit('q')), Lit('r')), Lit('s')), Lit('t')), Lit('u')), Lit('v')), Lit('w')), Lit('x')), Lit('y')), Lit('z')), Lit('{')), Lit('|')), Lit('}')), Lit('~'))
+  pass  input="a"  expected_match=true  actual_match=true
+  pass  input=" "  expected_match=false  actual_match=false
+
+[\n \t \r literal escapes]
+  pattern: \n\t\r
+  regex:   Seq(Seq(Lit('\n'), Lit('\t')), Lit('\r'))
+  pass  input="\n\t\r"  expected_match=true  actual_match=true
+  pass  input="abc"  expected_match=false  actual_match=false
+
+[\xHH hex escape]
+  pattern: \x41
+  regex:   Lit('A')
+  pass  input="A"  expected_match=true  actual_match=true
+  pass  input="B"  expected_match=false  actual_match=false
+
+[octal escape outside a class (\0 family)]
+  pattern: \012
+  regex:   Lit('\n')
+  pass  input="\n"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[octal escape inside a class (\0-\7)]
+  pattern: [\101]
+  regex:   Lit('A')
+  pass  input="A"  expected_match=true  actual_match=true
+  pass  input="B"  expected_match=false  actual_match=false
+
+[character class with a range]
+  pattern: [a-c]
+  regex:   Alt(Alt(Lit('a'), Lit('b')), Lit('c'))
+  pass  input="b"  expected_match=true  actual_match=true
+  pass  input="d"  expected_match=false  actual_match=false
+
+[negated class]
+  pattern: [^abc]
+  regex:   Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Lit('\t'), Lit('\n')), Lit('\r')), Lit(' ')), Lit('!')), Lit('"')), Lit('#')), Lit('$')), Lit('%')), Lit('&')), Lit('\'')), Lit('(')), Lit(')')), Lit('*')), Lit('+')), Lit(',')), Lit('-')), Lit('.')), Lit('/')), Lit('0')), Lit('1')), Lit('2')), Lit('3')), Lit('4')), Lit('5')), Lit('6')), Lit('7')), Lit('8')), Lit('9')), Lit(':')), Lit(';')), Lit('<')), Lit('=')), Lit('>')), Lit('?')), Lit('@')), Lit('A')), Lit('B')), Lit('C')), Lit('D')), Lit('E')), Lit('F')), Lit('G')), Lit('H')), Lit('I')), Lit('J')), Lit('K')), Lit('L')), Lit('M')), Lit('N')), Lit('O')), Lit('P')), Lit('Q')), Lit('R')), Lit('S')), Lit('T')), Lit('U')), Lit('V')), Lit('W')), Lit('X')), Lit('Y')), Lit('Z')), Lit('[')), Lit('\\')), Lit(']')), Lit('^')), Lit('_')), Lit('`')), Lit('d')), Lit('e')), Lit('f')), Lit('g')), Lit('h')), Lit('i')), Lit('j')), Lit('k')), Lit('l')), Lit('m')), Lit('n')), Lit('o')), Lit('p')), Lit('q')), Lit('r')), Lit('s')), Lit('t')), Lit('u')), Lit('v')), Lit('w')), Lit('x')), Lit('y')), Lit('z')), Lit('{')), Lit('|')), Lit('}')), Lit('~'))
+  pass  input="d"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[bounded quantifier {m,n}]
+  pattern: a{2,4}
+  regex:   Seq(Seq(Seq(Eps, Lit('a')), Lit('a')), Alt(Eps, Seq(Lit('a'), Alt(Eps, Seq(Lit('a'), Eps)))))
+  pass  input="aaa"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[bounded quantifier {m,}]
+  pattern: a{2,}
+  regex:   Seq(Seq(Seq(Eps, Lit('a')), Lit('a')), Star(Lit('a')))
+  pass  input="aaaaa"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[bounded quantifier {m}]
+  pattern: a{3}
+  regex:   Seq(Seq(Seq(Eps, Lit('a')), Lit('a')), Lit('a'))
+  pass  input="aaa"  expected_match=true  actual_match=true
+  pass  input="aa"  expected_match=false  actual_match=false
+
+[alternation '|']
+  pattern: a|b
+  regex:   Alt(Lit('a'), Lit('b'))
+  pass  input="b"  expected_match=true  actual_match=true
+  pass  input="c"  expected_match=false  actual_match=false
+
+[star '*']
+  pattern: a*
+  regex:   Star(Lit('a'))
+  pass  input="aaa"  expected_match=true  actual_match=true
+  pass  input="b"  expected_match=false  actual_match=false
+
+[plus '+']
+  pattern: a+
+  regex:   Seq(Lit('a'), Star(Lit('a')))
+  pass  input="aaa"  expected_match=true  actual_match=true
+  pass  input=""  expected_match=false  actual_match=false
+
+[opt '?']
+  pattern: a?
+  regex:   Alt(Lit('a'), Eps)
+  pass  input="a"  expected_match=true  actual_match=true
+  pass  input="aa"  expected_match=false  actual_match=false
+
+[lazy marker discarded (a*? behaves as a*)]
+  pattern: a*?
+  regex:   Star(Lit('a'))
+  pass  input="aa"  expected_match=true  actual_match=true
+  pass  input="ab"  expected_match=false  actual_match=false
+
+[capturing group '(...)' (no capture semantics kept)]
+  pattern: (ab)
+  regex:   Seq(Lit('a'), Lit('b'))
+  pass  input="ab"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[non-capturing group '(?:...)']
+  pattern: (?:ab)
+  regex:   Seq(Lit('a'), Lit('b'))
+  pass  input="ab"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[named group, either syntax: (?<name>...) / (?P<name>...)]
+  pattern: (?P<year>ab)
+  regex:   Seq(Lit('a'), Lit('b'))
+  pass  input="ab"  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+[case-folding via /i]
+  pattern: /abc/i
+  regex:   Seq(Seq(Alt(Lit('A'), Lit('a')), Alt(Lit('B'), Lit('b'))), Alt(Lit('C'), Lit('c')))
+  pass  input="AbC"  expected_match=true  actual_match=true
+  pass  input="abd"  expected_match=false  actual_match=false
+
+['ε' token (empty word)]
+  pattern: ε
+  regex:   Eps
+  pass  input=""  expected_match=true  actual_match=true
+  pass  input="a"  expected_match=false  actual_match=false
+
+['∅' token (empty language: nothing matches)]
+  pattern: ∅
+  regex:   Phi
+  pass  input=""  expected_match=false  actual_match=false
+  pass  input="a"  expected_match=false  actual_match=false
+
+29/29 categories pass
