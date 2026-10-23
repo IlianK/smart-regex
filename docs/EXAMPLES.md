@@ -6,7 +6,6 @@ Runnable programs under `examples/`, invoked with `cargo run --example <name>`.
 |---|---|---|
 | **Matching** | `demo_match` | Naive / Brzozowski / Antimirov matchers side by side |
 | **Parsing** | `demo_parse` | Any one of the five parsers, with optional diagnostics.      Reuses the CLI's `--parser`/`--diag`/`--diag-report` names (See [CLI.md](CLI.md)) |
-| **Stack limits** | `demo_crash`, `demo_crash_worker` | Recursive vs. loop `deriv_std` before stack overflow |
 | **Translation — real corpus** | `demo_translate` | S2ELab patterns translated and run on their own examples |
 | **Translation — construct breadth** | `demo_translate_categories` | One example per accepted frontend construct |
 | **Translation — rejection causes** | `demo_translate_reject` | One example per rejected cause |
@@ -41,18 +40,12 @@ cargo run --example demo_parse -- --parser all
 ```
 
 
-## Demo Crash Test: Stack Overflow
-Demo Recursive vs. Loop deriv_std parser
-
-```bash
-# demo_crash spawns demo_crash_worker; build the worker first
-cargo build --example demo_crash_worker
-cargo build --example demo_crash_worker --release
-
-cargo run --example demo_crash
-cargo run --example demo_crash --release
-```
-
+Stack-overflow behaviour (recursive `deriv_std_rec` vs. loop `deriv_std_loop`)
+moved out of `examples/` into `benches/bench_stack_depth.rs` -- it sweeps
+real stress-pattern inputs rather than a single synthetic sample, and reports
+a comparable number (largest N survived per parser), which fits this
+project's bench-output conventions better than an example's prose. See that
+file's own module doc.
 
 
 ## Translation Demos

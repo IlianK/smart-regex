@@ -23,10 +23,6 @@ name = "demo_parse"
 path = "examples/demo_parse.rs"
 
 [[example]]
-name = "demo_crash"
-path = "examples/demo_crash.rs"
-
-[[example]]
 name = "dataset_prepare"
 path = "examples/dataset_prepare.rs"
 
@@ -87,6 +83,12 @@ path = "examples/demo_translate_reject.rs"
 name = "bench_worker"
 path = "examples/bench_worker.rs"
 
+# Worker for bench_stack_depth: isolated (parser_idx 0|1, pattern, input)
+# job per process, no custom large-stack thread (see its own module doc)
+[[example]]
+name = "bench_stack_depth_worker"
+path = "examples/bench_stack_depth_worker.rs"
+
 
 # Benchmarks
 [[bench]]
@@ -111,6 +113,10 @@ harness = false
 
 [[bench]]
 name = "bench_pathological_translate"
+harness = false
+
+[[bench]]
+name = "bench_stack_depth"
 harness = false
 
 

@@ -14,7 +14,7 @@ cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_std_rec
 
 Brzozowski derivatives, POSIX leftmost-longest, native recursion
 (`mkEps`/`inject`). The default parser. Its recursion depth is bounded by
-the input length; `examples/demo_crash.rs` binary-searches the point at
+the input length; `benches/bench_stack_depth.rs` sweeps the point at
 which a long enough input overflows the stack.
 
 
@@ -27,7 +27,7 @@ cargo run -- parse "(a|ab)(b|ε)" "ab" --parser deriv_std_loop
 Identical algorithm to `deriv_std_rec` with the same `mkEps`/`inject` and
 POSIX disambiguation, but with an explicit `Vec` in place of native
 recursion. Both exist so the two can be compared directly:
-`examples/demo_crash.rs` measures how much deeper the loop version
+`benches/bench_stack_depth.rs` measures how much deeper the loop version
 survives on the same input.
 
 
