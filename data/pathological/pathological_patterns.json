@@ -1,0 +1,1757 @@
+{
+  "meta": {
+    "purpose": "Stress-test patterns for the derivative-based matcher (Brzozowski/Antimirov, deriv_std/pderiv engines). 'Pathological' here means derivative-state explosion or polynomial/compile blow-up under this engine family, not backtracking blowup -- catastrophic backtracking does not apply.",
+    "engine_notes": "All patterns verified against the real src/frontend/{parse,translate,alphabet}.rs on the benches branch: anchors, \\b/\\B, backreferences, lookaround and POSIX classes all hard-reject at parse/translate time, so none appear below. Every pattern is full-string-match only.",
+    "max_bound": 1000,
+    "max_bound_policy": "Kept as-is -- this is a frontend input-validation cap (translate() hard-errors above it), not an engine limit worth loosening. Raising it would only test parse-time allocation, not matcher behavior. Compile/translate blow-up (categories C/D/J) is stressed instead by NESTING bounded repeats so the unrolled tree size multiplies while every individual bound stays <= 1000 (see E40's notes for a concrete worked example)."
+  },
+  "macros": {
+    "{N}": "input-length sweep parameter; a harness substitutes one value from the row's (or category's) suggested_n per run",
+    "{P}": "pattern-size parameter for J/K rows; expand via each row's `generator` before parsing -- not a numeric substitution into existing regex text",
+    "WORD_i": "deterministic word generator for {P}-rows: word i is `f'w{i:06d}'` (e.g. w000001, w000002, ...)"
+  },
+  "categories": {
+    "A": {
+      "name": "Nested quantifiers",
+      "mechanism": "Quantified group inside another quantifier (+, *, {1,})",
+      "stress_axis": "derivative-state explosion",
+      "suggested_n": [
+        20,
+        50,
+        100,
+        200
+      ]
+    },
+    "B": {
+      "name": "Overlapping alternation",
+      "mechanism": "Alternatives matching the same prefix under a quantifier",
+      "stress_axis": "derivative-state explosion",
+      "suggested_n": [
+        20,
+        50,
+        100,
+        200
+      ]
+    },
+    "C": {
+      "name": "Bounded rep over star",
+      "mechanism": "{m,n} wrapping a */+ body; unrolled at translate time",
+      "stress_axis": "compile blow-up (unrolled) + polynomial match",
+      "suggested_n": [
+        100,
+        500,
+        1000,
+        5000
+      ]
+    },
+    "D": {
+      "name": "Anchored-failure style",
+      "mechanism": "Must fully consume input; near-miss tail forces full enumeration",
+      "stress_axis": "compile blow-up (unrolled) + derivative-state explosion",
+      "suggested_n": [
+        40,
+        60,
+        100
+      ]
+    },
+    "E": {
+      "name": "Prefix-overlap alternation",
+      "mechanism": "One alternative is a strict prefix of another",
+      "stress_axis": "derivative-state explosion",
+      "suggested_n": [
+        20,
+        50,
+        100,
+        200
+      ]
+    },
+    "F": {
+      "name": "Alternation-star + literal",
+      "mechanism": "(alt)* or (alt)+ then a literal that fails late",
+      "stress_axis": "polynomial (simple alt) or derivative-state explosion (nested)",
+      "suggested_n": [
+        100,
+        500,
+        1000
+      ]
+    },
+    "H": {
+      "name": "Many adjacent stars/groups",
+      "mechanism": "Product of .+, .*, \\w+ etc. in sequence",
+      "stress_axis": "polynomial O(N^k), k = number of stars",
+      "suggested_n": [
+        100,
+        500,
+        1000,
+        5000
+      ]
+    },
+    "I": {
+      "name": "Huge input, trivial pattern",
+      "mechanism": "Simple pattern on a very long input",
+      "stress_axis": "linear throughput / constant-factor",
+      "suggested_n": [
+        100000,
+        1000000,
+        10000000
+      ]
+    },
+    "J": {
+      "name": "Large pattern, trivial input",
+      "mechanism": "Thousands of literals/groups; short input",
+      "stress_axis": "compile blow-up (pattern size)",
+      "suggested_p": [
+        100,
+        1000,
+        10000,
+        100000
+      ]
+    },
+    "K": {
+      "name": "Large pattern + large input",
+      "mechanism": "Both axes simultaneously",
+      "stress_axis": "compile + match blow-up",
+      "suggested_p": [
+        1000
+      ],
+      "suggested_n": [
+        1000
+      ]
+    },
+    "L": {
+      "name": "Baseline / easy",
+      "mechanism": "Simple pattern, simple input",
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "suggested_n": [
+        10,
+        100,
+        1000
+      ]
+    }
+  },
+  "pathological_patterns": [
+    {
+      "id": "P01",
+      "category": "A",
+      "regex": "(a+)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "nested plus"
+    },
+    {
+      "id": "P02",
+      "category": "A",
+      "regex": "(a*)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "nested star"
+    },
+    {
+      "id": "P03",
+      "category": "A",
+      "regex": "(a+)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P04",
+      "category": "A",
+      "regex": "(a*)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P05",
+      "category": "A",
+      "regex": "((a+)+)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "triple nest"
+    },
+    {
+      "id": "P06",
+      "category": "A",
+      "regex": "((a*)*)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P07",
+      "category": "A",
+      "regex": "(a{1,})*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "unbounded inside star"
+    },
+    {
+      "id": "P08",
+      "category": "A",
+      "regex": "(a+){1,}",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P09",
+      "category": "B",
+      "regex": "(a|aa)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "overlapping alt"
+    },
+    {
+      "id": "P10",
+      "category": "B",
+      "regex": "(a|aa)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P11",
+      "category": "B",
+      "regex": "(a|a?)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P12",
+      "category": "B",
+      "regex": "(a|aa|aaa)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P13",
+      "category": "B",
+      "regex": "(a|a+)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P14",
+      "category": "B",
+      "regex": "(a|a*)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P15",
+      "category": "B",
+      "regex": "(a|aa?)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P16",
+      "category": "E",
+      "regex": "(ab|a)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "prefix overlap"
+    },
+    {
+      "id": "P17",
+      "category": "E",
+      "regex": "(ab|a)*",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P18",
+      "category": "E",
+      "regex": "(a|ab)*",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P19",
+      "category": "E",
+      "regex": "(ab|ba)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P20",
+      "category": "E",
+      "regex": "(a|b|ab)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P21",
+      "category": "E",
+      "regex": "(a|ab|abc|abcd)+",
+      "match_input": {
+        "repeat": "abcd",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "abcd",
+        "count": "{N}",
+        "suffix": "e"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P22",
+      "category": "C",
+      "regex": "(.*a){1,10}",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "polynomial (unrolled)",
+      "notes": "poly via unrolled {1,10}"
+    },
+    {
+      "id": "P23",
+      "category": "C",
+      "regex": "(.*x){1,10}",
+      "match_input": {
+        "repeat": "x",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": "{N}",
+        "suffix": "y"
+      },
+      "stress_axis": "polynomial (unrolled)"
+    },
+    {
+      "id": "P24",
+      "category": "C",
+      "regex": "(.*x*){1,10}",
+      "match_input": {
+        "repeat": "x",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": "{N}",
+        "suffix": "y"
+      },
+      "stress_axis": "polynomial (unrolled)"
+    },
+    {
+      "id": "P25",
+      "category": "F",
+      "regex": "(a|b)*c",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "d"
+      },
+      "stress_axis": "polynomial (simple alt) or derivative-state explosion (nested)",
+      "notes": "alt star then literal"
+    },
+    {
+      "id": "P26",
+      "category": "F",
+      "regex": "(a|b)+c",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "d"
+      },
+      "stress_axis": "polynomial (simple alt) or derivative-state explosion (nested)"
+    },
+    {
+      "id": "P27",
+      "category": "F",
+      "regex": "([ab]+)*c",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "d"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P28",
+      "category": "F",
+      "regex": "([ab]*)*c",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "d"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P29",
+      "category": "H",
+      "regex": "(.+)(.+)(.+)(.+)(.+)(.+)(.+)(.+)(.+)(.+)",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "polynomial (product of stars)",
+      "notes": "N must be >= 10 (one char per group)"
+    },
+    {
+      "id": "P30",
+      "category": "H",
+      "regex": "(\\w+)(\\w+)(\\w+)(\\w+)(\\w+)(\\w+)(\\w+)(\\w+)(\\w+)(\\w+)",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "polynomial (product of stars)",
+      "notes": "N must be >= 10"
+    },
+    {
+      "id": "P31",
+      "category": "H",
+      "regex": "(.*)(.*)(.*)(.*)(.*)(.*)(.*)(.*)(.*)(.*)",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "polynomial (product of stars)"
+    },
+    {
+      "id": "P32",
+      "category": "A",
+      "regex": "(\\d+)*",
+      "match_input": {
+        "repeat": "1",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "1",
+        "count": "{N}",
+        "suffix": "x"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P33",
+      "category": "B",
+      "regex": "(\\d|\\d\\d)+",
+      "match_input": {
+        "repeat": "1",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "1",
+        "count": "{N}",
+        "suffix": "x"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P34",
+      "category": "B",
+      "regex": "([a-zA-Z]+)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "1"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P35",
+      "category": "F",
+      "regex": "(\\w|\\w\\w)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P36",
+      "category": "A",
+      "regex": "(x+x+)+y",
+      "match_input": {
+        "repeat": "x",
+        "count": "{N}",
+        "suffix": "y"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": "{N}"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P37",
+      "category": "A",
+      "regex": "(x+x+)*",
+      "match_input": {
+        "repeat": "x",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": "{N}",
+        "suffix": "y"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P38",
+      "category": "A",
+      "regex": "(x+)+(x+)+y",
+      "match_input": {
+        "repeat": "x",
+        "count": "{N}",
+        "suffix": "y"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": "{N}"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P39",
+      "category": "B",
+      "regex": "(x|xx)+y",
+      "match_input": {
+        "repeat": "x",
+        "count": "{N}",
+        "suffix": "y"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": "{N}"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P40",
+      "category": "B",
+      "regex": "(x|xx)*y",
+      "match_input": {
+        "repeat": "x",
+        "count": "{N}",
+        "suffix": "y"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": "{N}"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P41",
+      "category": "C",
+      "regex": "(x?){20}y",
+      "match_input": {
+        "repeat": "x",
+        "count": 20,
+        "suffix": "y"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": 20
+      },
+      "stress_axis": "compile blow-up (unrolled)",
+      "notes": "FIXED vs proposal: match/nomatch were swapped (pattern needs a trailing y); count capped at 20 (the unrolled bound)"
+    },
+    {
+      "id": "P42",
+      "category": "C",
+      "regex": "(x{1,}){20}y",
+      "match_input": {
+        "repeat": "x",
+        "count": 20,
+        "suffix": "y"
+      },
+      "nomatch_input": {
+        "repeat": "x",
+        "count": 20
+      },
+      "stress_axis": "compile + derivative blow-up",
+      "notes": "FIXED vs proposal: same match/nomatch swap as P41"
+    },
+    {
+      "id": "P43",
+      "category": "D",
+      "regex": "(a?){20}a{20}",
+      "match_input": {
+        "repeat": "a",
+        "count": 40
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": 19
+      },
+      "stress_axis": "compile blow-up (unrolled)",
+      "notes": "FIXED vs proposal: a^39 actually matches (valid range is 20..40); classic, now compile-only"
+    },
+    {
+      "id": "P44",
+      "category": "D",
+      "regex": "(a*){20}a{20}",
+      "match_input": {
+        "repeat": "a",
+        "count": 40
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": 19
+      },
+      "stress_axis": "compile + derivative blow-up",
+      "notes": "FIXED vs proposal: a^39 actually matches (valid range is 20..inf)"
+    },
+    {
+      "id": "P45",
+      "category": "D",
+      "regex": "(a+){20}a{20}",
+      "match_input": {
+        "repeat": "a",
+        "count": 40
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": 39
+      },
+      "stress_axis": "compile + derivative blow-up",
+      "notes": "a^39 correctly fails here (valid range is 40..inf); unchanged from proposal"
+    },
+    {
+      "id": "P46",
+      "category": "A",
+      "regex": "((a){20})+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P47",
+      "category": "F",
+      "regex": "(a|b){1,}c{0,}",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "d"
+      },
+      "stress_axis": "polynomial (simple alt) or derivative-state explosion (nested)"
+    },
+    {
+      "id": "P48",
+      "category": "B",
+      "regex": "(a|b|ab|ba|aab|aba|baa)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P49",
+      "category": "A",
+      "regex": "(a+?)+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "lazy marker discarded by the parser; identical pattern to P01"
+    },
+    {
+      "id": "P50",
+      "category": "A",
+      "regex": "(a*?)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "lazy marker discarded; identical pattern to P02"
+    },
+    {
+      "id": "P51",
+      "category": "H",
+      "regex": "(\\w+\\s{0,1})*",
+      "match_input": {
+        "repeat": "ab ",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab ",
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "email/log-line style"
+    },
+    {
+      "id": "P52",
+      "category": "C",
+      "regex": "(.{0,5}a){1,10}",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "polynomial (unrolled)"
+    },
+    {
+      "id": "P53",
+      "category": "C",
+      "regex": "([a-z]{1,3}){1,10}",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "1"
+      },
+      "stress_axis": "polynomial (unrolled)"
+    },
+    {
+      "id": "P54",
+      "category": "B",
+      "regex": "([^x]+)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "x"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "negated class in star"
+    },
+    {
+      "id": "P55",
+      "category": "B",
+      "regex": "([^x]*)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "x"
+      },
+      "stress_axis": "derivative-state explosion"
+    },
+    {
+      "id": "P56",
+      "category": "F",
+      "regex": "(a|b)*c",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "d"
+      },
+      "stress_axis": "polynomial (simple alt) or derivative-state explosion (nested)",
+      "notes": "intentional duplicate of P25, used as a cross-run control"
+    }
+  ],
+  "baseline_and_edge_patterns": [
+    {
+      "id": "E01",
+      "category": "L",
+      "regex": "a+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "b",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "baseline"
+    },
+    {
+      "id": "E02",
+      "category": "L",
+      "regex": "[a-z]+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "A",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E03",
+      "category": "L",
+      "regex": "\\d+",
+      "match_input": {
+        "repeat": "1",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E04",
+      "category": "L",
+      "regex": "\\w+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "!",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E05",
+      "category": "L",
+      "regex": ".*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "b",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "dot-star, no newline in the swept alphabet"
+    },
+    {
+      "id": "E06",
+      "category": "L",
+      "regex": "(abc)+",
+      "match_input": {
+        "repeat": "abc",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "abd",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E07",
+      "category": "L",
+      "regex": "foo",
+      "match_input": {
+        "literal": "foo"
+      },
+      "nomatch_input": {
+        "literal": "baz"
+      },
+      "stress_axis": "constant",
+      "notes": "tiny literal"
+    },
+    {
+      "id": "E08",
+      "category": "L",
+      "regex": "\\s+",
+      "match_input": {
+        "repeat": " ",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E09",
+      "category": "L",
+      "regex": "[0-9a-fA-F]+",
+      "match_input": {
+        "repeat": "deadbeef",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "xyz"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E10",
+      "category": "L",
+      "regex": "(?:abc)+",
+      "match_input": {
+        "repeat": "abc",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "abd",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "non-capturing equivalent of E06"
+    },
+    {
+      "id": "E11",
+      "category": "L",
+      "regex": "a*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "b",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E12",
+      "category": "L",
+      "regex": "a?",
+      "match_input": {
+        "literal": "a"
+      },
+      "nomatch_input": {
+        "literal": ""
+      },
+      "stress_axis": "constant"
+    },
+    {
+      "id": "E13",
+      "category": "L",
+      "regex": "a{3}",
+      "match_input": {
+        "literal": "aaa"
+      },
+      "nomatch_input": {
+        "literal": "aa"
+      },
+      "stress_axis": "constant"
+    },
+    {
+      "id": "E14",
+      "category": "L",
+      "regex": "a{2,4}",
+      "match_input": {
+        "literal": "aaa"
+      },
+      "nomatch_input": {
+        "literal": "aaaaa"
+      },
+      "stress_axis": "constant"
+    },
+    {
+      "id": "E15",
+      "category": "L",
+      "regex": "a{2,}",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "a"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E16",
+      "category": "L",
+      "regex": "\\d{1,3}",
+      "match_input": {
+        "literal": "123"
+      },
+      "nomatch_input": {
+        "literal": "1234"
+      },
+      "stress_axis": "constant"
+    },
+    {
+      "id": "E17",
+      "category": "L",
+      "regex": "(?:ab|cd)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "disjoint alt is safe"
+    },
+    {
+      "id": "E18",
+      "category": "L",
+      "regex": "(?:[a-z][0-9])+",
+      "match_input": {
+        "repeat": "a1",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a1",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E19",
+      "category": "L",
+      "regex": "(?:ab|cd|ef|gh)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "4-way disjoint alt; cleaned up a stray token from the draft CSV"
+    },
+    {
+      "id": "E20",
+      "category": "L",
+      "regex": "",
+      "match_input": {
+        "literal": ""
+      },
+      "nomatch_input": {
+        "literal": "x"
+      },
+      "stress_axis": "constant",
+      "notes": "empty pattern parses as Eps"
+    },
+    {
+      "id": "E21",
+      "category": "L",
+      "regex": "ε",
+      "match_input": {
+        "literal": ""
+      },
+      "nomatch_input": {
+        "literal": "x"
+      },
+      "stress_axis": "constant",
+      "notes": "explicit Eps token (U+03B5)"
+    },
+    {
+      "id": "E22",
+      "category": "L",
+      "regex": "∅",
+      "match_input": null,
+      "nomatch_input": {
+        "literal": "x"
+      },
+      "stress_axis": "constant",
+      "notes": "explicit Phi token (U+2205); never matches, so no match_input"
+    },
+    {
+      "id": "E23",
+      "category": "L",
+      "regex": "[ -~]+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "\u0000"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "printable ASCII 0x20-0x7E"
+    },
+    {
+      "id": "E24",
+      "category": "L",
+      "regex": "[^\\n]+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "a\nb"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "negated newline"
+    },
+    {
+      "id": "E25",
+      "category": "L",
+      "regex": "[\\t\\n\\r ]+",
+      "match_input": {
+        "repeat": "\t\n\r ",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "a"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "whitespace class"
+    },
+    {
+      "id": "E26",
+      "category": "I",
+      "regex": "a+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "huge input, trivial pattern",
+      "notes": "N = 10^6..10^8"
+    },
+    {
+      "id": "E27",
+      "category": "I",
+      "regex": "[ab]*",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "abc"
+      },
+      "stress_axis": "huge input, trivial pattern"
+    },
+    {
+      "id": "E28",
+      "category": "I",
+      "regex": ".*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "literal": "\u0001"
+      },
+      "stress_axis": "huge input, trivial pattern",
+      "notes": "FIXED: proposal's nomatch \"\" also matches .* (star matches empty); any ASCII control char outside the 98-char alphabet (tab/\\n/\\r excepted) is a real nomatch"
+    },
+    {
+      "id": "E29",
+      "category": "I",
+      "regex": "a*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "b",
+        "count": "{N}"
+      },
+      "stress_axis": "huge input, trivial pattern"
+    },
+    {
+      "id": "E30",
+      "category": "I",
+      "regex": "[^!]*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "huge input, trivial pattern"
+    },
+    {
+      "id": "E31",
+      "category": "I",
+      "regex": "\\w+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "!",
+        "count": "{N}"
+      },
+      "stress_axis": "huge input, trivial pattern",
+      "notes": "FIXED: proposal's nomatch was '1'*N, but \\w includes digits so that still matches; '!' does not"
+    },
+    {
+      "id": "E32",
+      "category": "I",
+      "regex": "a{1000}",
+      "match_input": {
+        "repeat": "a",
+        "count": 1000
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": 999
+      },
+      "stress_axis": "fixed large count",
+      "notes": "MAX_BOUND edge"
+    },
+    {
+      "id": "E33",
+      "category": "I",
+      "regex": "a{1,1000}",
+      "match_input": {
+        "repeat": "a",
+        "count": 1000
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": 1001
+      },
+      "stress_axis": "bounded, large",
+      "notes": "MAX_BOUND edge"
+    },
+    {
+      "id": "E34",
+      "category": "I",
+      "regex": "(?:ab)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "a"
+      },
+      "stress_axis": "huge input, trivial pattern"
+    },
+    {
+      "id": "E35",
+      "category": "I",
+      "regex": "\\d{1,10}",
+      "match_input": {
+        "literal": "1234567890"
+      },
+      "nomatch_input": {
+        "literal": "12345678901"
+      },
+      "stress_axis": "bounded",
+      "notes": "constant upper bound"
+    },
+    {
+      "id": "E44",
+      "category": "L",
+      "regex": "a*?",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "b",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "lazy marker discarded -> identical pattern to E11"
+    },
+    {
+      "id": "E45",
+      "category": "L",
+      "regex": "(a*)*?",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "lazy marker on outer * discarded -> identical pattern to P02"
+    },
+    {
+      "id": "E46",
+      "category": "L",
+      "regex": "\\D+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "1",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E47",
+      "category": "L",
+      "regex": "\\W+",
+      "match_input": {
+        "repeat": "!",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E48",
+      "category": "L",
+      "regex": "\\S+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": " ",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E49",
+      "category": "L",
+      "regex": "[^a]+",
+      "match_input": {
+        "repeat": "b",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup"
+    },
+    {
+      "id": "E50",
+      "category": "L",
+      "regex": "\\x41+",
+      "match_input": {
+        "repeat": "A",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "B",
+        "count": "{N}"
+      },
+      "stress_axis": "linear throughput -- sanity/warmup",
+      "notes": "hex escape"
+    }
+  ],
+  "generated_patterns": [
+    {
+      "id": "E36",
+      "category": "J",
+      "pattern_template": "(?:{WORDS})+",
+      "generator": {
+        "kind": "word_alternation",
+        "word_fn": "w%06d",
+        "p_values": [
+          100,
+          1000,
+          10000,
+          100000
+        ]
+      },
+      "match_input": {
+        "repeat_word": 1,
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat_word": 1,
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "compile blow-up (large pat)",
+      "notes": "sweep P with N held small (e.g. 10); see E41 for the same generator with N swept instead"
+    },
+    {
+      "id": "E37",
+      "category": "J",
+      "pattern_template": "(?:{WORDS})",
+      "generator": {
+        "kind": "fixed_width_trie",
+        "width": 4,
+        "alphabet": "abcdefghijklmnopqrstuvwxyz",
+        "p_values": [
+          4096
+        ]
+      },
+      "match_input": {
+        "literal": "aaaa"
+      },
+      "nomatch_input": {
+        "literal": "zzzz"
+      },
+      "stress_axis": "compile blow-up (large pat)",
+      "notes": "trie of the first 4096 (of 26^4) 4-letter words in lexicographic order; 'zzzz' is provably outside that prefix so it's a safe nomatch at P=4096 -- re-check if P is changed"
+    },
+    {
+      "id": "E38",
+      "category": "J",
+      "pattern_template": "(?:{WORDS})",
+      "generator": {
+        "kind": "word_alternation",
+        "word_fn": "w%06d",
+        "p_values": [
+          100,
+          1000,
+          10000,
+          100000
+        ]
+      },
+      "match_input": {
+        "repeat_word": 1,
+        "count": 1
+      },
+      "nomatch_input": {
+        "repeat_word": 1,
+        "count": 1,
+        "and_word": 2
+      },
+      "stress_axis": "compile blow-up (large pat)",
+      "notes": "single occurrence, no quantifier -- pure parse/translate-size stress, no match-time stress; nomatch is word1 concatenated with word2"
+    },
+    {
+      "id": "E39",
+      "category": "J",
+      "pattern_template": "{P_GROUPS_OF_A}",
+      "generator": {
+        "kind": "sequential_groups",
+        "body": "(a)",
+        "p_values": [
+          100,
+          1000,
+          5000
+        ]
+      },
+      "match_input": {
+        "repeat": "a",
+        "count": "{P}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{P}-1"
+      },
+      "stress_axis": "compile blow-up (large pat)",
+      "notes": "P capture groups each matching literal 'a'"
+    },
+    {
+      "id": "E40",
+      "category": "J",
+      "regex": "(?:a{1,10}){1,100}",
+      "match_input": {
+        "repeat": "a",
+        "count": 1000
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": 1001
+      },
+      "stress_axis": "compile blow-up (unrolled)",
+      "notes": "nested bounded repeat; each bound stays <= MAX_BOUND individually but translate's repeat_exact/optional_extra clone the inner ~10-node tree up to 100x, so the unrolled tree is ~1000 nodes -- multiplicative, not additive"
+    },
+    {
+      "id": "E41",
+      "category": "K",
+      "pattern_template": "(?:{WORDS})+",
+      "generator": {
+        "kind": "word_alternation",
+        "word_fn": "w%06d",
+        "p_values": [
+          1000
+        ]
+      },
+      "match_input": {
+        "repeat_word": 1,
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat_word": 1,
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "large pattern + large input",
+      "notes": "same generator as E36, but P held large/fixed and N swept -- both axes covered across the E36/E41 pair"
+    },
+    {
+      "id": "E42",
+      "category": "K",
+      "regex": "(?:a{100})+",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "large pattern + large input",
+      "notes": null
+    },
+    {
+      "id": "E43",
+      "category": "K",
+      "regex": "(?:ab|cd|ef|gh)+",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "large pattern + large input",
+      "notes": "disjoint alternatives, so this is actually safe at both axes -- useful as a K-category control alongside E36/E41"
+    }
+  ]
+}

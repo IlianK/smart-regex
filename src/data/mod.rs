@@ -18,6 +18,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub mod extract;
+pub mod pathological;
 pub mod prepare;
 pub mod types;
 
