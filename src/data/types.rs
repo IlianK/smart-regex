@@ -87,15 +87,20 @@ pub enum MatchIntent {
 }
 
 /// Where a candidate's input came from.
+///
+/// `Structural`/`StructuralNegative` are produced only by the structural
+/// sampler in `data::generate` (`sample_positive`/`sample_negative_late`),
+/// which is no longer part of the benchmark/dataset pipeline (`run_pipeline`
+/// never calls it) -- it survives only as a fixture generator for
+/// `prepare.rs`'s own unit tests and for the illustrative
+/// `demo_frontend_categories` example, neither of which makes a research
+/// claim about parser correctness over generated input. `DatasetGiven` is
+/// the only provenance `run_pipeline` produces today.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Provenance {
-    /// Real corpus message (SpamAssassin only).
-    RealCorpus,
-    /// Assembled from the rule's own `content:` fields (Suricata only).
-    ContentDerived,
-    /// Structural sample, claimed match.
+    /// Structural sample, claimed match. Test/demo fixture only.
     Structural,
-    /// Structural sample, claimed non-match 
+    /// Structural sample, claimed non-match. Test/demo fixture only.
     StructuralNegative,
     /// S2ELab: one of the pattern author's own `matches`/`non_matches`.
     DatasetGiven,
@@ -112,7 +117,7 @@ impl Provenance {
             Provenance::StructuralNegative
             | Provenance::DatasetGiven
             | Provenance::DatasetTextClassified => true,
-            Provenance::RealCorpus | Provenance::ContentDerived | Provenance::Structural => false,
+            Provenance::Structural => false,
         }
     }
 
@@ -121,10 +126,7 @@ impl Provenance {
     pub fn is_from_dataset(self) -> bool {
         match self {
             Provenance::DatasetGiven | Provenance::DatasetTextClassified => true,
-            Provenance::RealCorpus
-            | Provenance::ContentDerived
-            | Provenance::Structural
-            | Provenance::StructuralNegative => false,
+            Provenance::Structural | Provenance::StructuralNegative => false,
         }
     }
 }
@@ -164,8 +166,6 @@ mod tests {
 
     #[test]
     fn late_failure_is_not_required_for_positive_only_provenances() {
-        assert!(!Provenance::RealCorpus.requires_late_failure());
-        assert!(!Provenance::ContentDerived.requires_late_failure());
         assert!(!Provenance::Structural.requires_late_failure());
     }
 
@@ -177,8 +177,6 @@ mod tests {
 
     #[test]
     fn from_dataset_is_false_for_every_generated_provenance() {
-        assert!(!Provenance::RealCorpus.is_from_dataset());
-        assert!(!Provenance::ContentDerived.is_from_dataset());
         assert!(!Provenance::Structural.is_from_dataset());
         assert!(!Provenance::StructuralNegative.is_from_dataset());
     }

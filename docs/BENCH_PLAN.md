@@ -1,5 +1,29 @@
 # Bench plan
 
+**Stale below this line, pending a re-plan.** Written against the old
+input-generation pipeline (every source's rules got up to N generated
+match/non-match examples each). That pipeline is gone: `run_pipeline`
+now only uses a source's own given, pre-labeled match/non-match
+examples, and today only S2ELab has any wired in (see
+`docs/DATASET.md`). Concretely, that means:
+- The "Corpus sizes" table below, and every number derived from it
+  (9612 patterns, the T3/M3/X2-X6 figures, all of it), was measured
+  against the retired generated corpus and no longer describes
+  anything real.
+- Every `BENCH_SOURCE=...` run below that includes `snort`,
+  `spamassassin`, `regexlib`, or `innovatorved` will now report those
+  sources as 100% unusable (zero given examples), not run them with
+  generated input the way it used to.
+- The bare, no-`BENCH_SOURCE` runs (T2, M2) default to S2ELab only now,
+  not Suricata + SpamAssassin.
+
+Re-deriving a plan against the S2ELab-only corpus, and deciding whether
+it's worth folding in any of the other four sources once (if) a given-
+input extraction exists for them, is follow-up work, not done here.
+Treat everything below as a record of what was asked and why under the
+old pipeline, same standing the notes section already gives the
+*previous* retired plan.
+
 Prerequisite, once per checkout:
 
 ```bash

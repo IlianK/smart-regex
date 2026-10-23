@@ -61,9 +61,9 @@ CLI arguments.
 
 | Variable | Applies to | Values | Default |
 |---|---|---|---|
-| `BENCH_SOURCE` | corpus | comma-separated `suricata`/`snort`, `spamassassin`, `regexlib`, `s2-elab`, `innovatorved` | Suricata + SpamAssassin |
+| `BENCH_SOURCE` | corpus | comma-separated `suricata`/`snort`, `spamassassin`, `regexlib`, `s2-elab`, `innovatorved` | S2ELab |
 | `BENCH_PATTERN_LIMIT` | corpus | positive integer | unset (no cap) |
-| `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `both` |
+| `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `explicit` |
 | `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` | `1`/`0`, `true`/`false`, `yes`/`no` | `0` |
 | `BENCH_ENTRY_TIMEOUT_MS` | `bench_corpus_time`, `bench_memory` | positive integer (milliseconds) | `2000` |
 | `BENCH_RUN_LABEL` | corpus | any filename-safe string | unset (bare filename) |
@@ -74,16 +74,22 @@ CLI arguments.
 
 
 **Variables Explanation**:
-- **`BENCH_SOURCE`** — Unset means Suricata + SpamAssassin, not all
-  five. RegexLib, S2ELab, and Innovatorved are opt-in.
+- **`BENCH_SOURCE`** — Unset means S2ELab only, not all five. Suricata,
+  SpamAssassin, RegexLib, and Innovatorved are opt-in, though none of
+  them has a given-input extraction wired in yet, so running a bench
+  against one today accepts patterns and then finds every single one
+  unusable for lack of example input (see `docs/DATASET.md`).
 
 - **`BENCH_PATTERN_LIMIT=N`** — Admits the first N distinct patterns per
   source. Each brings all its verified inputs, so row count is at most
   `N × inputs_per_pattern`. Unset admits every usable pattern.
 
-- **`BENCH_MATCH_INTENT`** — Filters by `MatchIntent`. `direct` keeps
-  `UnanchoredAmbiguous`; `explicit` keeps `ExplicitFullMatch`; `both`
-  keeps everything.
+- **`BENCH_MATCH_INTENT`** — Filters by `MatchIntent`. Unset means
+  `explicit` — `ExplicitFullMatch` only, since an unanchored pattern's
+  intended reading (search vs. full match) is genuinely ambiguous and
+  benchmarking it by default would overstate how settled that reading
+  is. `direct` keeps `UnanchoredAmbiguous` instead; `both` keeps
+  everything.
 
 - **`BENCH_SPLIT_OUTCOME`** — When set, `bench_corpus_time` prints a
   second table per source splitting per-entry durations by verified

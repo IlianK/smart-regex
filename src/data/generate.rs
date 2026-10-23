@@ -1,30 +1,24 @@
 //! src/data/generate.rs
 //!
-//! Per-source input generation.
-//! Every strategy here produces at most a bounded number of candidates
-//! per side; the caller decides how much slack over `per_side` to allow.
-//! See `slack_for` in `mod.rs`.
+//! Structural sampling, and S2ELab's own given examples.
 //!
-//! - Snort/Suricata: assemble candidates from the rule's own `content:`
-//!   fields (real evidence of what a triggering payload contains).
-//! - SpamAssassin: sample real messages from a local ham/spam corpus,
-//!   when one is configured.
-//! - RegexLib, and as the structural fallback for every other source:
-//!   walk the pattern's own structure to produce a sample.
-//! - S2ELab: use the pattern author's own labeled `matches`/
-//!   `non_matches` directly, capped per side; nothing is sampled.
-//! - Innovatorved: classify each line of the pattern's free-form test
-//!   text against the real parser, capped at `cap`; nothing is sampled.
+//! `run_pipeline` (`mod.rs`) only ever calls `given_examples` now: the
+//! dataset/benchmark pipeline no longer fabricates or heuristically
+//! assembles any input -- it only ever uses `data::prepare`-verified
+//! copies of a source's own labeled examples. `sample_positive`,
+//! `sample_negative_late`, and the `generate_*` structural-sampling
+//! helpers below survive only as (a) fixture generators for
+//! `prepare.rs`'s own unit tests and (b) the illustrative
+//! `demo_frontend_categories` example, which shows what a translated
+//! pattern's language looks like and makes no benchmark claim over the
+//! samples it prints. Do not wire any of this back into `run_pipeline`.
 //!
 //! Every `Candidate` carries a `claimed_match` that `prepare` verifies.
 
-use std::path::Path;
-
 use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
 use rand::Rng;
 
-use crate::data::types::{Candidate, ContentField, Provenance};
+use crate::data::types::{Candidate, Provenance};
 use crate::types::Regex;
 
 const OUT_OF_ALPHABET_CHAR: char = '\u{2603}';
@@ -175,99 +169,18 @@ pub fn generate_sample(
 }
 
 // -------------------------------
-// Source-specific generation
+// Given-input sources
 // -------------------------------
 
-/// Suricata: join the rule's own `content:` field bytes.
-/// A short filler goes between consecutive fields.
-/// A rule with fewer than two fields has no filler to vary, so it
-/// converges on one candidate.
-pub fn generate_from_content_fields(
-    fields: &[ContentField],
-    pattern_core: &Regex,
-    rng: &mut StdRng,
-    count: usize,
-) -> Vec<Candidate> {
-    if fields.is_empty() {
-        return Vec::new();
-    }
-    let count = count.max(1);
-    let mut texts: Vec<String> = Vec::new();
-    for _ in 0..count * 3 {
-        if texts.len() >= count {
-            break;
-        }
-        let mut text = String::new();
-        for (i, field) in fields.iter().enumerate() {
-            if i > 0 {
-                if let Some(filler) = sample_positive(pattern_core, rng, 1) {
-                    let take = filler.chars().take(3).collect::<String>();
-                    text.push_str(&take);
-                }
-            }
-            text.push_str(&String::from_utf8_lossy(&field.bytes));
-        }
-        if !texts.contains(&text) {
-            texts.push(text);
-        }
-    }
-    texts
-        .into_iter()
-        .map(|text| Candidate { text, provenance: Provenance::ContentDerived, claimed_match: true })
-        .collect()
-}
-
-/// SpamAssassin: sample real messages from a local corpus directory
-/// that match the pattern.
-/// Returns empty if the directory does not exist or the pattern does
-/// not parse.
-///
-/// Uses `prepare::core_regex`, not `parse_pcre_rule` directly: the same
-/// `raw_pattern` was already accepted via `core_regex_tagged`, and some
-/// accepted patterns only parse because of `core_regex`'s `^...$`
-/// stripping; re-deriving with the same function avoids dropping those.
-///
-/// Under full-string matching, "match" means the entire file content
-/// equals a match; most corpus files are not exact matches of a short
-/// pattern, so this finds little against a real corpus.
-pub fn generate_from_corpus_dir(
-    corpus_dir: &Path,
-    raw_pattern: &str,
-    sample_count: usize,
-    rng: &mut StdRng,
-) -> Vec<Candidate> {
-    let Ok(r) = crate::data::prepare::core_regex(raw_pattern) else {
-        return Vec::new();
-    };
-    let Ok(entries) = std::fs::read_dir(corpus_dir) else {
-        return Vec::new();
-    };
-    let mut files: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
-    files.shuffle(rng);
-    files
-        .into_iter()
-        .take(sample_count)
-        .filter_map(|path| std::fs::read_to_string(&path).ok())
-        .filter(|text| crate::data::prepare::matches_bounded(text, &r) == Some(true))
-        .map(|text| Candidate { text, provenance: Provenance::RealCorpus, claimed_match: true })
-        .collect()
-}
-
 /// S2ELab: wrap the pattern author's own `matches`/`non_matches` as
-/// candidates, unchanged and unsampled.
-/// At most `cap_per_side` entries of each list are considered: an entry
-/// can ship hundreds of given examples, and verifying all of them to
-/// write `per_side` wastes parser calls.
+/// candidates, unchanged, unsampled, and uncapped -- every given
+/// example becomes a candidate.
 /// Duplicate strings are kept once.
 /// A string in both lists is kept only as a positive, the stronger claim.
-pub fn generate_from_given_examples(
-    matches: &[String],
-    non_matches: &[String],
-    cap_per_side: usize,
-) -> Vec<Candidate> {
+pub fn given_examples(matches: &[String], non_matches: &[String]) -> Vec<Candidate> {
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut out = Vec::new();
-    for text in matches.iter().take(cap_per_side) {
+    for text in matches {
         if seen.insert(text.as_str()) {
             out.push(Candidate {
                 text: text.clone(),
@@ -276,7 +189,7 @@ pub fn generate_from_given_examples(
             });
         }
     }
-    for text in non_matches.iter().take(cap_per_side) {
+    for text in non_matches {
         if seen.insert(text.as_str()) {
             out.push(Candidate {
                 text: text.clone(),
@@ -286,53 +199,6 @@ pub fn generate_from_given_examples(
         }
     }
     out
-}
-
-/// Innovatorved: classify up to `cap` of `text`'s free-form lines
-/// against the real parser.
-/// Each resulting candidate is handed to `prepare` as any other claim,
-/// so a negative must still fail late to survive.
-///
-/// The source text is unlabeled: a line is not claimed to match or not,
-/// so there is nothing to verify a claim against here.
-/// The classification itself supplies the claim.
-/// `prepare::verify_candidate` then re-derives the same outcome a
-/// second time, which keeps that function's contract (every candidate
-/// carries an independently checked claim) the same for every source.
-///
-/// Iterates the lines of `text` directly; only the lines that survive
-/// deduplication, shuffling, and the cap are allocated as `String`.
-/// A pattern with thousands of test lines is sampled down to `cap`
-/// first, uniformly at random rather than always the first `cap` in
-/// file order, so one outlier pattern cannot dominate a benchmark's
-/// running time on its own.
-pub fn generate_from_dataset_text(
-    text: &str,
-    pattern_core: &Regex,
-    cap: usize,
-    rng: &mut StdRng,
-) -> Vec<Candidate> {
-    let mut distinct: Vec<&str> = Vec::new();
-    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    for line in text.lines() {
-        if !line.is_empty() && seen.insert(line) {
-            distinct.push(line);
-        }
-    }
-    distinct.shuffle(rng);
-
-    distinct
-        .into_iter()
-        .take(cap)
-        .filter_map(|line| {
-            let claimed_match = crate::data::prepare::matches_bounded(line, pattern_core)?;
-            Some(Candidate {
-                text: line.to_string(),
-                provenance: Provenance::DatasetTextClassified,
-                claimed_match,
-            })
-        })
-        .collect()
 }
 
 // -------------------------------
@@ -490,85 +356,10 @@ mod tests {
     }
 
     #[test]
-    fn content_fields_assemble_into_up_to_count_candidates() {
-        let fields = vec![
-            ContentField {
-                bytes: b"PDF-".to_vec(),
-                nocase: false,
-                distance: None,
-                within: None,
-                depth: Some(300),
-                offset: None,
-            },
-            ContentField {
-                bytes: b"Launch".to_vec(),
-                nocase: false,
-                distance: Some(0),
-                within: None,
-                depth: None,
-                offset: None,
-            },
-        ];
-        let core = Regex::star(Regex::lit('x'));
-        let mut rng = rng();
-        let candidates = generate_from_content_fields(&fields, &core, &mut rng, 5);
-        assert!(!candidates.is_empty());
-        assert!(candidates.len() <= 5);
-        for candidate in &candidates {
-            assert!(candidate.text.contains("PDF-"));
-            assert!(candidate.text.contains("Launch"));
-            assert_eq!(candidate.provenance, Provenance::ContentDerived);
-        }
-    }
-
-    #[test]
-    fn content_fields_with_no_gap_converge_on_one_candidate() {
-        let fields = vec![ContentField {
-            bytes: b"PDF-".to_vec(),
-            nocase: false,
-            distance: None,
-            within: None,
-            depth: None,
-            offset: None,
-        }];
-        let core = Regex::star(Regex::lit('x'));
-        let mut rng = rng();
-        let candidates = generate_from_content_fields(&fields, &core, &mut rng, 5);
-        assert_eq!(candidates.len(), 1);
-    }
-
-    #[test]
-    fn corpus_dir_missing_yields_no_candidates() {
-        let mut rng = rng();
-        let candidates = generate_from_corpus_dir(
-            Path::new("/nonexistent/path/for/tests"),
-            r"[a-c]+\d{2}",
-            5,
-            &mut rng,
-        );
-        assert!(candidates.is_empty());
-    }
-
-    #[test]
-    fn corpus_dir_only_keeps_messages_that_actually_match() {
-        let dir = std::env::temp_dir().join(format!("data-corpus-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("1.txt"), "ab12").unwrap();
-        std::fs::write(dir.join("2.txt"), "this one has ab12 in it, plus more text").unwrap();
-
-        let mut rng = rng();
-        let candidates = generate_from_corpus_dir(&dir, r"[a-c]+\d{2}", 10, &mut rng);
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].text, "ab12");
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
     fn given_examples_wrap_matches_and_non_matches_unchanged() {
         let matches = vec!["12345".to_string(), "00000".to_string()];
         let non_matches = vec!["abcde".to_string()];
-        let candidates = generate_from_given_examples(&matches, &non_matches, 10);
+        let candidates = given_examples(&matches, &non_matches);
         assert_eq!(candidates.len(), 3);
         let positives: Vec<_> = candidates.iter().filter(|c| c.claimed_match).collect();
         let negatives: Vec<_> = candidates.iter().filter(|c| !c.claimed_match).collect();
@@ -579,20 +370,20 @@ mod tests {
     }
 
     #[test]
-    fn given_examples_respect_the_per_side_cap() {
+    fn given_examples_are_not_capped() {
         let matches: Vec<String> = (0..100).map(|i| format!("m{i}")).collect();
         let non_matches: Vec<String> = (0..100).map(|i| format!("n{i}")).collect();
-        let candidates = generate_from_given_examples(&matches, &non_matches, 5);
-        assert_eq!(candidates.len(), 10);
-        assert_eq!(candidates.iter().filter(|c| c.claimed_match).count(), 5);
-        assert_eq!(candidates.iter().filter(|c| !c.claimed_match).count(), 5);
+        let candidates = given_examples(&matches, &non_matches);
+        assert_eq!(candidates.len(), 200);
+        assert_eq!(candidates.iter().filter(|c| c.claimed_match).count(), 100);
+        assert_eq!(candidates.iter().filter(|c| !c.claimed_match).count(), 100);
     }
 
     #[test]
     fn given_examples_keep_a_string_in_both_lists_only_as_a_positive() {
         let matches = vec!["x".to_string()];
         let non_matches = vec!["x".to_string(), "y".to_string()];
-        let candidates = generate_from_given_examples(&matches, &non_matches, 10);
+        let candidates = given_examples(&matches, &non_matches);
         assert_eq!(candidates.len(), 2);
         let x = candidates.iter().find(|c| c.text == "x").expect("x present");
         assert!(x.claimed_match);
@@ -600,36 +391,6 @@ mod tests {
 
     #[test]
     fn given_examples_with_nothing_given_yields_nothing() {
-        assert!(generate_from_given_examples(&[], &[], 10).is_empty());
-    }
-
-    #[test]
-    fn dataset_text_classifies_each_line_against_the_real_parser() {
-        let r = core(r"[a-c]+\d{2}");
-        let mut rng = rng();
-        let candidates = generate_from_dataset_text("ab12\nzz99", &r, 10, &mut rng);
-        assert_eq!(candidates.len(), 2);
-        let ab12 = candidates.iter().find(|c| c.text == "ab12").expect("ab12 present");
-        assert!(ab12.claimed_match);
-        let zz99 = candidates.iter().find(|c| c.text == "zz99").expect("zz99 present");
-        assert!(!zz99.claimed_match);
-        assert!(candidates.iter().all(|c| c.provenance == Provenance::DatasetTextClassified));
-    }
-
-    #[test]
-    fn dataset_text_deduplicates_and_drops_empty_lines() {
-        let r = core(r"a");
-        let mut rng = rng();
-        let candidates = generate_from_dataset_text("a\na\n\n", &r, 10, &mut rng);
-        assert_eq!(candidates.len(), 1);
-    }
-
-    #[test]
-    fn dataset_text_respects_the_cap() {
-        let r = core(r"[a-z]");
-        let text: String = ('a'..='z').map(|c| format!("{c}\n")).collect();
-        let mut rng = rng();
-        let candidates = generate_from_dataset_text(&text, &r, 5, &mut rng);
-        assert_eq!(candidates.len(), 5);
+        assert!(given_examples(&[], &[]).is_empty());
     }
 }

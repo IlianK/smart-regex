@@ -1,61 +1,40 @@
 //! examples/dataset_prepare.rs
 //!
 //! cargo run --release --example dataset_prepare -- \
-//!     <N> [--] <source> <file...> [--corpus-dir DIR] [--verbose]
+//!     <source> <file...> [--verbose]
 //!
 //! Extract patterns, skip byte-identical duplicates (`rules_duplicate_pattern`)
-//! before translation, then keep only patterns with >= N/2 verified matches
-//! and non-matches, each contributing exactly N/2 of each.
-//! Below-target patterns: counted, not dropped.
-//! Equal per-pattern weight keeps the usable count sound.
-//! N: positive even integer >= 2.
-//! A literal `--` after N is skipped.
+//! before translation, then keep only patterns with at least one verified
+//! match and at least one verified non-match. Below that: counted, not
+//! dropped.
+//!
+//! No input is generated, derived, or assembled -- every candidate comes
+//! from the source's own given examples (today: S2ELab's `matches`/
+//! `non_matches`), and every one of them is used, not a capped subset.
+//! Suricata, SpamAssassin, RegexLib, and Innovatorved have no given-input
+//! extraction wired in yet, so running this against them extracts and
+//! translates their rules but produces zero usable patterns -- that is
+//! the correct, expected result, not a bug.
+//!
 //! `--verbose`: list excluded patterns with raw text.
-//! Innovatorved: tops up short sides with generated candidates.
-//! Other sources: unmixed.
-//! Append one row per run to `reports/data/dataset_prepare.csv`; N + source
-//! form a natural key.
+//! Appends one row per run to `reports/data/dataset_prepare.csv`.
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use regex_engine::data::types::SourceKind;
 use regex_engine::data::run_pipeline;
+use regex_engine::data::types::SourceKind;
+
+fn usage() -> &'static str {
+    "usage: cargo run --release --example dataset_prepare -- \
+     <suricata|spamassassin|regexlib|s2-elab|innovatorved> <file> [file...] [--verbose]"
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    // First positional is N. Missing or unparsable -> usage.
-    let Some(inputs) = args.get(1).and_then(|s| s.parse::<usize>().ok()) else {
-        eprintln!(
-            "usage: cargo run --release --example dataset_prepare -- \
-             <N> [--] <suricata|spamassassin|regexlib|s2-elab|innovatorved> \
-             <file> [file...] [--corpus-dir <dir>] [--verbose]"
-        );
-        std::process::exit(2);
-    };
-    if inputs == 0 || inputs % 2 != 0 {
-        eprintln!(
-            "N must be a positive even integer (got {inputs}); it splits evenly into \
-             N/2 matches and N/2 non-matches per pattern"
-        );
-        std::process::exit(2);
-    }
-    let per_side = inputs / 2;
-
-    // Optional literal `--` after N, skipped.
-    let mut i = 2;
-    if args.get(i).map(String::as_str) == Some("--") {
-        i += 1;
-    }
-
-    // Source name is required from here on.
-    let Some(source_arg) = args.get(i).map(String::as_str) else {
-        eprintln!(
-            "usage: cargo run --release --example dataset_prepare -- \
-             <N> [--] <suricata|spamassassin|regexlib|s2-elab|innovatorved> \
-             <file> [file...] [--corpus-dir <dir>] [--verbose]"
-        );
+    let Some(source_arg) = args.get(1).map(String::as_str) else {
+        eprintln!("{}", usage());
         std::process::exit(2);
     };
     let source = match source_arg {
@@ -71,29 +50,21 @@ fn main() {
             std::process::exit(2);
         }
     };
-    i += 1;
 
     let mut files: Vec<PathBuf> = Vec::new();
-    let mut corpus_dir: Option<PathBuf> = None;
     let mut verbose = false;
-    while i < args.len() {
-        let a = args[i].as_str();
-        if a == "--corpus-dir" {
-            i += 1;
-            corpus_dir = args.get(i).map(PathBuf::from);
-        } else if a == "--verbose" {
+    for a in &args[2..] {
+        if a == "--verbose" {
             verbose = true;
         } else if a == "--" {
-            // A second `--` after the source name is also tolerated.
-            // Cargo has already stripped its own separator, so anything
-            // reaching here is a literal the caller wrote.
+            // Cargo has already stripped its own separator; a literal
+            // `--` reaching here is tolerated and ignored.
         } else if a.starts_with("--") {
             eprintln!("unknown argument {a:?}");
             std::process::exit(2);
         } else {
-            files.push(PathBuf::from(a));
+            files.push(PathBuf::from(a.as_str()));
         }
-        i += 1;
     }
 
     if files.is_empty() {
@@ -102,16 +73,14 @@ fn main() {
     }
 
     let data_root = Path::new("data/processed");
-    let seed = 20260101; // fixed, so re-runs reproduce the same dataset
 
-    let report = run_pipeline(source, &files, data_root, corpus_dir.as_deref(), seed, inputs)
-        .unwrap_or_else(|e| {
-            eprintln!("pipeline failed: {e}");
-            std::process::exit(1);
-        });
+    let report = run_pipeline(source, &files, data_root).unwrap_or_else(|e| {
+        eprintln!("pipeline failed: {e}");
+        std::process::exit(1);
+    });
 
-    print_report(&report, source, per_side, verbose);
-    append_report_csv(inputs, source, &files, &report);
+    print_report(&report, source, verbose);
+    append_report_csv(source, &files, &report);
 }
 
 /// Appends one row per run to `reports/data/dataset_prepare.csv`.
@@ -119,7 +88,6 @@ fn main() {
 /// repeated runs accumulate rows instead of repeating the header
 /// partway through the file.
 fn append_report_csv(
-    inputs: usize,
     source: SourceKind,
     files: &[PathBuf],
     report: &regex_engine::data::PipelineReport,
@@ -141,7 +109,7 @@ fn append_report_csv(
     if write_header {
         if let Err(e) = writeln!(
             f,
-            "n,source,files,rules_extracted,rules_duplicate_pattern,patterns_unusable,\
+            "source,files,rules_extracted,rules_duplicate_pattern,patterns_unusable,\
              patterns_accepted,patterns_unanchored_ambiguous,patterns_explicit_full_match,\
              inputs_generated,inputs_verified,inputs_rejected,inputs_skipped,\
              patterns_unusable_at_generation,patterns_usable,inputs_usable,\
@@ -155,8 +123,7 @@ fn append_report_csv(
     let files_joined = files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(";");
     if let Err(e) = writeln!(
         f,
-        "{},{:?},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
-        inputs,
+        "{:?},\"{}\",{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
         source,
         files_joined,
         report.rules_extracted,
@@ -184,19 +151,10 @@ fn append_report_csv(
     eprintln!("appended to {path}");
 }
 
-fn print_report(
-    report: &regex_engine::data::PipelineReport,
-    source: SourceKind,
-    per_side: usize,
-    verbose: bool,
-) {
-    let inputs = per_side * 2;
+fn print_report(report: &regex_engine::data::PipelineReport, source: SourceKind, verbose: bool) {
     let rule = "─".repeat(72);
 
-    println!(
-        "{:?}  --  target: {inputs} inputs per pattern ({per_side} match + {per_side} non-match)",
-        source
-    );
+    println!("{:?}  --  using every given match/non-match example", source);
     println!("{rule}");
 
     println!();
@@ -217,9 +175,9 @@ fn print_report(
     );
 
     println!();
-    println!("Generation");
+    println!("Given examples");
     println!(
-        "  candidates generated  {:>7}",
+        "  candidates considered {:>7}   (every given match/non-match of every accepted pattern)",
         report.inputs_generated
     );
     println!(
@@ -230,20 +188,16 @@ fn print_report(
         "  candidates rejected   {:>7}   (examined and failed the real parser)",
         report.inputs_rejected
     );
-    println!(
-        "  candidates skipped    {:>7}   (never examined; target already reached)",
-        report.inputs_skipped()
-    );
 
     println!();
-    println!("Balanced corpus");
+    println!("Usable corpus");
     println!(
-        "  patterns meeting target {:>7}   of {} accepted  ({per_side} match + {per_side} non-match each)",
+        "  patterns usable         {:>7}   of {} accepted  (>= 1 match + >= 1 non-match each)",
         report.patterns_usable, report.patterns_accepted,
     );
     if report.patterns_unusable_at_generation > 0 {
         println!(
-            "  patterns below target   {:>7}   (could not fill {per_side}+{per_side}, even after retry)",
+            "  patterns unusable       {:>7}   (no verified match, no verified non-match, or no given examples at all)",
             report.patterns_unusable_at_generation,
         );
     }
@@ -251,39 +205,22 @@ fn print_report(
     let dropped = report.inputs_dropped_with_pattern();
     if dropped > 0 {
         println!(
-            "  dropped with pattern    {:>7}   (verified, but their pattern fell below target)",
+            "  dropped with pattern    {:>7}   (verified, but their pattern ended up unusable)",
             dropped,
         );
-    }
-
-    // The two provenance lines only say something when the source
-    // actually ships given input.
-    // Skipped for the three generated-only sources.
-    // For those, both numbers are trivially 0 and 100%.
-    if report.inputs_usable_from_source > 0 || source == SourceKind::S2ELab {
-        let from_source = report.inputs_usable_from_source;
-        let synthetic = report.inputs_usable_synthetic();
-        let pct_source = if report.inputs_usable == 0 {
-            0.0
-        } else {
-            100.0 * from_source as f64 / report.inputs_usable as f64
-        };
-        let pct_synth = 100.0 - pct_source;
-        println!("  from source             {:>7}   ({pct_source:>5.1}%)", from_source);
-        println!("  generated to fill       {:>7}   ({pct_synth:>5.1}%)", synthetic);
     }
 
     println!();
     println!("  wrote  data/processed/{}/prepared.jsonl", source.dir_name());
     println!(
-        "  {} patterns with {} inputs each ({} match + {} non-match)",
-        report.patterns_usable, inputs, per_side, per_side,
+        "  {} patterns, {} inputs total",
+        report.patterns_usable, report.inputs_usable,
     );
 
     if verbose && !report.unusable_at_generation_patterns.is_empty() {
         println!();
         println!(
-            "Patterns below target ({} total):",
+            "Unusable patterns ({} total):",
             report.unusable_at_generation_patterns.len()
         );
         for pattern in &report.unusable_at_generation_patterns {

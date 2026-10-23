@@ -1,19 +1,23 @@
 //! src/data/mod.rs
 //!
 //! Pipeline entry points.
-//! `run_pipeline` drives extract → generate → prepare for one source.
+//! `run_pipeline` drives extract → verify for one source, using only
+//! that source's own given match/non-match examples -- no input is
+//! generated, derived, or assembled. Today that means S2ELab only
+//! (`RuleContext::S2ELab`'s own `matches`/`non_matches`); every other
+//! source's raw-extraction code (`extract::extract_*`) still runs, so a
+//! future source that ships its own given examples can be wired in the
+//! same way, but none of the other four produce any usable case right
+//! now -- that is expected, not a bug to route around.
 //! `load_prepared_cases` reads the result back for benchmarks.
+
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 pub mod extract;
 pub mod generate;
 pub mod prepare;
 pub mod types;
-
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-
-use rand::rngs::StdRng;
-use rand::SeedableRng;
 
 use types::{MatchIntent, PreparedCase, RuleContext, SourceKind};
 
@@ -43,36 +47,31 @@ pub struct PipelineReport {
     pub patterns_explicit_full_match: usize,
     /// Of `patterns_accepted`, patterns with no anchor at all.
     pub patterns_unanchored_ambiguous: usize,
-    /// Candidates produced before verification.
-    /// Bounded per pattern by `slack_for(source)` times the strategies used.
+    /// Candidates considered before verification: every one of the
+    /// source's own given examples for `patterns_accepted` patterns.
     pub inputs_generated: usize,
     /// Of `inputs_generated`, how many verified against the real parser.
-    /// `verify_until` stops as soon as `per_side` has been reached on both
-    /// sides, so this equals `inputs_usable` plus whatever the below-target
-    /// patterns happened to verify before their batch ran out.
     pub inputs_verified: usize,
     /// Of `inputs_generated`, how many were examined by `verify_one` and
     /// rejected: either the claim did not hold, or a negative failed
     /// before `LATE_FAILURE_THRESHOLD`.
     pub inputs_rejected: usize,
-    /// Of `patterns_accepted`, how many never reached `per_side` verified
-    /// matches and `per_side` verified non-matches.
-    /// These contribute nothing to `prepared.jsonl`.
-    /// Two common causes:
-    /// too-small language, or examples assuming substring search while
-    /// this frontend's matching is full-string-only.
+    /// Of `patterns_accepted`, how many ended up with zero verified
+    /// matches or zero verified non-matches (or had no given examples at
+    /// all, which is every pattern from a source with no given-input
+    /// extraction wired in). These contribute nothing to `prepared.jsonl`
+    /// -- a pattern needs at least one of each side to be benchmarkable.
     pub patterns_unusable_at_generation: usize,
     /// `patterns_accepted - patterns_unusable_at_generation`.
     /// What a benchmark over this source's `prepared.jsonl` actually sees.
-    /// Each contributes exactly `per_side` matches and `per_side` non-matches.
     pub patterns_usable: usize,
-    /// `patterns_usable` times the CLI's `--inputs N`.
-    /// Total (pattern, input) rows written to `prepared.jsonl`.
+    /// Total (pattern, input) rows written to `prepared.jsonl`: every
+    /// verified given example of every usable pattern, not a fixed count.
     pub inputs_usable: usize,
     /// Of `inputs_usable`, how many came from the source's own data.
-    /// Always 0 for Suricata, SpamAssassin, RegexLib.
-    /// Always equal to `inputs_usable` for S2ELab.
-    /// Innovatorved can mix within a pattern.
+    /// Equals `inputs_usable` for every source today, since nothing is
+    /// generated anymore; kept as its own field for when a source mixes
+    /// given input with something else in the future.
     pub inputs_usable_from_source: usize,
     /// Of `patterns_usable`, top-level `^...$` wraps.
     pub usable_explicit_full_match: usize,
@@ -93,55 +92,29 @@ impl PipelineReport {
             .saturating_sub(self.inputs_rejected)
     }
 
-    /// `inputs_usable - inputs_usable_from_source`.
+    /// `inputs_usable - inputs_usable_from_source`. Always 0 today --
+    /// nothing is generated to fill a gap anymore -- kept for when a
+    /// future source mixes given input with something else.
     pub fn inputs_usable_synthetic(&self) -> usize {
         self.inputs_usable - self.inputs_usable_from_source
     }
 
     /// `inputs_verified - inputs_usable`.
     /// Verified candidates that did not reach `prepared.jsonl` because
-    /// their pattern fell below target.
+    /// their pattern ended up with zero on the other side.
     pub fn inputs_dropped_with_pattern(&self) -> usize {
         self.inputs_verified.saturating_sub(self.inputs_usable)
     }
 }
 
-/// Per-side candidate generation cap, as a multiple of `per_side`.
-/// Every strategy generates at most `slack * per_side` per side.
-/// Slack reflects how reliably the source's candidates verify:
-/// - structural sampling walks the pattern's own language, so 1 is enough;
-/// - content-derived and corpus messages are real bytes, mostly verifiable;
-/// - given examples and classified lines often fail.
-fn slack_for(source: SourceKind) -> usize {
-    match source {
-        SourceKind::Suricata => 1,
-        SourceKind::SpamAssassin => 1,
-        SourceKind::RegexLib => 3,
-        SourceKind::S2ELab => 5,
-        SourceKind::Innovatorved => 10,
-    }
-}
-
-/// Runs extract → generate → prepare for one source.
+/// Runs extract → verify for one source, using only that source's own
+/// given match/non-match examples.
 /// Writes to `<data_root>/<source>/prepared.jsonl`, replacing any existing file.
-///
-/// `inputs` is the CLI's `--inputs N`: total verified inputs per surviving
-/// pattern, split evenly.
-/// Must be even; the CLI enforces this, and there is a debug assert as a
-/// safety net here.
 pub fn run_pipeline(
     source: SourceKind,
     raw_files: &[PathBuf],
     data_root: &Path,
-    corpus_dir: Option<&Path>,
-    seed: u64,
-    inputs: usize,
 ) -> std::io::Result<PipelineReport> {
-    debug_assert!(inputs % 2 == 0, "--inputs must be even; got {inputs}");
-    let per_side = (inputs / 2).max(1);
-    let cap = slack_for(source) * per_side;
-
-    let mut rng = StdRng::seed_from_u64(seed);
     let mut report = PipelineReport::default();
 
     let mut rules = Vec::new();
@@ -199,90 +172,31 @@ pub fn run_pipeline(
             MatchIntent::UnanchoredAmbiguous => report.patterns_unanchored_ambiguous += 1,
         }
 
-        // Each strategy below generates at most `cap` per side.
-        // Total candidates per pattern stay bounded regardless of raw file size.
-        let mut candidates = Vec::new();
-
-        match &rule.context {
-            // S2ELab carries real matches and non-matches of its own.
-            // Structural sampling would dilute them with synthetic input
-            // a dataset chosen to avoid that does not need.
+        // Only a source with its own given examples produces candidates.
+        // Every other context yields none, so its patterns always end up
+        // in `patterns_unusable_at_generation` below -- expected, not a
+        // bug: there is nothing to generate anymore.
+        let candidates = match &rule.context {
             RuleContext::S2ELab { matches, non_matches } => {
-                candidates.extend(generate::generate_from_given_examples(
-                    matches, non_matches, cap,
-                ));
+                generate::given_examples(matches, non_matches)
             }
-            // Innovatorved carries unlabeled free-form text.
-            // Classify the text lines first, then top up structurally.
-            //
-            // A classified positive always verifies: `verify_one` calls
-            // `matches_bounded` again on the same input and gets the same
-            // answer, and positives skip the late-failure check. So the
-            // positive top-up is exactly the shortfall.
-            //
-            // A classified negative may still be rejected by
-            // `verify_one`'s late-failure rule, which counts from
-            // `claimed_match` alone cannot see. Sizing the negative
-            // top-up by the pre-verification count would therefore
-            // under-fill the side when some negatives are rejected.
-            // The negative top-up is always the full `cap`.
-            //
-            // Real candidates are pushed before the top-up, so
-            // `verify_until`'s first-come order prefers them; the
-            // surplus is skipped without verification.
-            RuleContext::Innovatorved { test_text } => {
-                let real: Vec<_> = test_text
-                    .as_deref()
-                    .map(|text| generate::generate_from_dataset_text(text, &core, cap, &mut rng))
-                    .unwrap_or_default();
-                let real_matches = real.iter().filter(|c| c.claimed_match).count();
-                candidates.extend(real);
-                candidates.extend(generate::generate_positives(
-                    &core,
-                    &mut rng,
-                    cap.saturating_sub(real_matches),
-                ));
-                candidates.extend(generate::generate_negatives(&core, &mut rng, cap));
-            }
-            _ => {
-                candidates.extend(generate::generate_sample(&core, &mut rng, cap, cap));
-
-                if let RuleContext::Suricata { content_fields, .. } = &rule.context {
-                    candidates.extend(generate::generate_from_content_fields(
-                        content_fields,
-                        &core,
-                        &mut rng,
-                        cap,
-                    ));
-                }
-
-                if source == SourceKind::SpamAssassin {
-                    if let Some(dir) = corpus_dir.filter(|d| d.is_dir()) {
-                        candidates.extend(generate::generate_from_corpus_dir(
-                            dir,
-                            &rule.raw_pattern,
-                            cap,
-                            &mut rng,
-                        ));
-                    }
-                }
-            }
-        }
+            _ => Vec::new(),
+        };
 
         report.inputs_generated += candidates.len();
-        let (prepared, rejected) = prepare::verify_until(
-            source,
-            &rule.raw_pattern,
-            &core,
-            match_intent,
-            candidates,
-            per_side,
-        );
+        let candidates_len = candidates.len();
+        let prepared: Vec<PreparedCase> = candidates
+            .into_iter()
+            .filter_map(|c| prepare::verify_one(source, &rule.raw_pattern, &core, match_intent, c))
+            .collect();
         let prepared_len = prepared.len();
         report.inputs_verified += prepared_len;
-        report.inputs_rejected += rejected;
+        report.inputs_rejected += candidates_len - prepared_len;
 
-        if prepared_len < per_side * 2 {
+        let verified_matches = prepared.iter().filter(|c| c.verified_match).count();
+        let verified_non_matches = prepared_len - verified_matches;
+
+        if verified_matches == 0 || verified_non_matches == 0 {
             report.patterns_unusable_at_generation += 1;
             report.unusable_at_generation_patterns.push(rule.raw_pattern.clone());
         } else {
@@ -302,14 +216,18 @@ pub fn run_pipeline(
 }
 
 /// Loads every prepared case for the given sources.
-/// Empty `sources` means Suricata + SpamAssassin.
-/// RegexLib, S2ELab, and Innovatorved are opt-in only.
+/// Empty `sources` means S2ELab, the one source `run_pipeline` can
+/// currently produce any usable case for. Suricata, SpamAssassin,
+/// RegexLib, and Innovatorved are opt-in only -- selecting them yields
+/// nothing today, since none of them has a given-input extraction wired
+/// in yet, but `load_prepared_cases` still reads whatever
+/// `prepared.jsonl` happens to be there if one is.
 pub fn load_prepared_cases(
     data_root: &Path,
     sources: &[SourceKind],
 ) -> std::io::Result<Vec<PreparedCase>> {
     let sources: &[SourceKind] = if sources.is_empty() {
-        &[SourceKind::Suricata, SourceKind::SpamAssassin]
+        &[SourceKind::S2ELab]
     } else {
         sources
     };
@@ -333,40 +251,61 @@ mod tests {
     fn duplicate_pattern_text_is_skipped_not_double_counted() {
         let dir = std::env::temp_dir().join(format!("data-pipeline-dedup-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let rules_path = dir.join("dedup.rules");
-        // Two rules share byte-identical pcre content (different sid,
-        // same signature -- exactly the real-world Suricata/RegexLib
-        // pattern this dedup exists for); a third is genuinely distinct.
+        let rules_path = dir.join("dedup.json");
+        // Two entries share byte-identical pattern text (this dedup
+        // exists for exactly this real-world shape); a third is
+        // genuinely distinct. Each carries its own given examples,
+        // S2ELab-style. Non-matches are chosen to fail *late* (past
+        // two of three characters): a given negative still has to
+        // clear `LATE_FAILURE_THRESHOLD` like any other, so an
+        // immediately-failing one such as "xyz" against "abc" would
+        // be rejected by that real quality filter, not by this test.
         std::fs::write(
             &rules_path,
-            "alert tcp any any -> any any (msg:\"one\"; pcre:\"/abc/\"; sid:1;)\n\
-             alert tcp any any -> any any (msg:\"two\"; pcre:\"/abc/\"; sid:2;)\n\
-             alert tcp any any -> any any (msg:\"three\"; pcre:\"/xyz/\"; sid:3;)\n",
+            r#"[
+                {"expression": "abc", "matches": ["abc"], "non_matches": ["abX"]},
+                {"expression": "abc", "matches": ["abc"], "non_matches": ["abX"]},
+                {"expression": "xyz", "matches": ["xyz"], "non_matches": ["xyX"]}
+            ]"#,
         )
         .unwrap();
 
         let out_root = dir.join("processed");
-        let report = run_pipeline(
-            SourceKind::Suricata,
-            &[rules_path],
-            &out_root,
-            None,
-            20260101,
-            2,
-        )
-        .unwrap();
+        let report = run_pipeline(SourceKind::S2ELab, &[rules_path], &out_root).unwrap();
 
         assert_eq!(report.rules_extracted, 3);
-        assert_eq!(report.rules_duplicate_pattern, 1, "the second /abc/ should be skipped, not re-derived");
-        assert_eq!(report.patterns_accepted, 2, "two distinct patterns: /abc/ and /xyz/");
+        assert_eq!(report.rules_duplicate_pattern, 1, "the second \"abc\" entry should be skipped, not re-derived");
+        assert_eq!(report.patterns_accepted, 2, "two distinct patterns: abc and xyz");
         assert_eq!(report.patterns_usable, 2);
-        assert_eq!(report.inputs_usable, 4, "2 distinct patterns x 2 inputs each");
+        assert_eq!(report.inputs_usable, 4, "2 distinct patterns x (1 match + 1 non-match) each");
 
-        let cases = prepare::read_prepared_cases(&out_root.join("snort").join("prepared.jsonl")).unwrap();
+        let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
         let mut patterns: Vec<&str> = cases.iter().map(|c| c.pattern.as_str()).collect();
         patterns.sort_unstable();
         patterns.dedup();
-        assert_eq!(patterns, vec!["/abc/", "/xyz/"], "prepared.jsonl holds one input group per distinct pattern, not per rule");
+        assert_eq!(patterns, vec!["abc", "xyz"], "prepared.jsonl holds one input group per distinct pattern, not per entry");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_pattern_with_only_matches_or_only_non_matches_is_unusable() {
+        let dir = std::env::temp_dir().join(format!("data-pipeline-onesided-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let rules_path = dir.join("onesided.json");
+        std::fs::write(
+            &rules_path,
+            r#"[{"expression": "abc", "matches": ["abc"], "non_matches": []}]"#,
+        )
+        .unwrap();
+
+        let out_root = dir.join("processed");
+        let report = run_pipeline(SourceKind::S2ELab, &[rules_path], &out_root).unwrap();
+
+        assert_eq!(report.patterns_accepted, 1);
+        assert_eq!(report.patterns_usable, 0, "no non-match side -- not benchmarkable");
+        assert_eq!(report.patterns_unusable_at_generation, 1);
+        assert!(!out_root.join("s2-elab").join("prepared.jsonl").exists());
 
         let _ = std::fs::remove_dir_all(&dir);
     }

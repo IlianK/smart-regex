@@ -111,7 +111,7 @@ fn bench_selection() -> BenchSelection {
         })
         .unwrap_or(PATTERN_LIMIT_PER_SOURCE);
     let match_intent = match std::env::var("BENCH_MATCH_INTENT").ok() {
-        None => None,
+        None => Some(MatchIntent::ExplicitFullMatch),
         Some(s) => match s.trim().to_lowercase().as_str() {
             "both" => None,
             "direct" => Some(MatchIntent::UnanchoredAmbiguous),
