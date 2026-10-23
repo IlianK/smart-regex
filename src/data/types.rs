@@ -95,7 +95,7 @@ pub enum Provenance {
     ContentDerived,
     /// Structural sample, claimed match.
     Structural,
-    /// Structural sample, claimed non-match (see `sample_negative_late`).
+    /// Structural sample, claimed non-match 
     StructuralNegative,
     /// S2ELab: one of the pattern author's own `matches`/`non_matches`.
     DatasetGiven,

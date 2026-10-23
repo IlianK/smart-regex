@@ -275,6 +275,11 @@ fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
 #[derive(Default)]
 struct Tally {
     entries: usize,
+    /// How many `entries` are verified matches vs. non-matches, per the
+    /// dataset's own labeling -- independent of what any parser does.
+    /// `matches + non_matches == entries` always.
+    matches: usize,
+    non_matches: usize,
     /// At least one parser timed out -- not a bug.
     timeouts: usize,
     /// At least one worker crashed -- not a membership/shape bug.
@@ -286,19 +291,18 @@ struct Tally {
     /// agreeing that something does NOT match is as real a check as
     /// agreeing that it does.
     membership_bugs: usize,
-    /// Verified matches where membership was also correct, so a shape
-    /// comparison is meaningful at all -- a non-match has no tree to
-    /// compare. Denominator for the "agreement on shape" dimension;
-    /// deliberately excludes non-matches, unlike `membership_bugs`.
-    shape_eligible: usize,
-    /// A `shape_eligible` entry with a POSIX-internal and/or
-    /// Greedy-internal disagreement. Counted once per entry even if
-    /// both families disagreed, so this never exceeds `shape_eligible`.
-    shape_bugs: usize,
+    /// A verified match with correct membership and a POSIX-internal
+    /// and/or Greedy-internal shape disagreement. Internal-family
+    /// consistency (3-way POSIX, 2-way Greedy) is a given -- each is its
+    /// own correctness property, pinned by its own test -- so these are
+    /// tracked only for the detailed bug lines and the overall bug
+    /// count below, not as their own summary-table column. The
+    /// comparison worth a column is the next one: POSIX vs. Greedy.
     posix_shape_bugs: usize,
     greedy_shape_bugs: usize,
-    /// Entries where both families were internally consistent and matched.
-    /// So the POSIX-vs-Greedy shape comparison was meaningful.
+    /// Entries where both families were internally consistent and
+    /// matched, so a single POSIX tree and a single Greedy tree both
+    /// exist to compare. Denominator for shape agreement/disagreement.
     cross_compared: usize,
     cross_same_shape: usize,
     cross_different_shape: usize,
@@ -318,19 +322,20 @@ impl Tally {
         if n == 0 { 0.0 } else { 100.0 * (n - self.membership_bugs) as f64 / n as f64 }
     }
 
-    /// % of `shape_eligible` with no internal-family shape disagreement.
-    /// Restricted to genuine matches with correct membership -- a
-    /// non-match contributes nothing here, by construction.
+    /// % of `cross_compared` where POSIX and Greedy picked the SAME tree.
     fn shape_agree_pct(&self) -> f64 {
-        let n = self.shape_eligible;
-        if n == 0 { 0.0 } else { 100.0 * (n - self.shape_bugs) as f64 / n as f64 }
+        if self.cross_compared == 0 {
+            0.0
+        } else {
+            100.0 * self.cross_same_shape as f64 / self.cross_compared as f64
+        }
     }
 
-    /// % of `cross_compared` where POSIX and Greedy picked different
+    /// % of `cross_compared` where POSIX and Greedy picked DIFFERENT
     /// trees. Not a bug -- the two policies may legitimately disagree
-    /// on an ambiguous pattern -- so tracked separately from
-    /// `shape_agree_pct`, never folded into it.
-    fn ambiguous_pct(&self) -> f64 {
+    /// on an ambiguous pattern. `shape_agree_pct + shape_disagree_pct`
+    /// sums to 100% (of `cross_compared`).
+    fn shape_disagree_pct(&self) -> f64 {
         if self.cross_compared == 0 {
             0.0
         } else {
@@ -340,11 +345,11 @@ impl Tally {
 
     fn accumulate(&mut self, t: &Tally) {
         self.entries += t.entries;
+        self.matches += t.matches;
+        self.non_matches += t.non_matches;
         self.timeouts += t.timeouts;
         self.crashes += t.crashes;
         self.membership_bugs += t.membership_bugs;
-        self.shape_eligible += t.shape_eligible;
-        self.shape_bugs += t.shape_bugs;
         self.posix_shape_bugs += t.posix_shape_bugs;
         self.greedy_shape_bugs += t.greedy_shape_bugs;
         self.cross_compared += t.cross_compared;
@@ -402,6 +407,7 @@ fn main() {
     let mut printed_greedy = 0usize;
     let mut printed_timeout = 0usize;
     let mut printed_crash = 0usize;
+    let mut printed_ambiguous = 0usize;
 
     for case in &cases {
         // Translation itself is not the source of the memory-pileup problem.
@@ -418,6 +424,11 @@ fn main() {
 
         let tally = &mut tallies[source_idx(case.source)];
         tally.entries += 1;
+        if case.verified_match {
+            tally.matches += 1;
+        } else {
+            tally.non_matches += 1;
+        }
 
         if let Some(names) = timed_out_names(&outcomes) {
             tally.timeouts += 1;
@@ -478,8 +489,6 @@ fn main() {
             continue;
         }
 
-        tally.shape_eligible += 1;
-
         let posix_shape_ok = rec == loop_ && loop_ == bc;
         if !posix_shape_ok {
             tally.posix_shape_bugs += 1;
@@ -508,10 +517,6 @@ fn main() {
             }
         }
 
-        if !posix_shape_ok || !greedy_shape_ok {
-            tally.shape_bugs += 1;
-        }
-
         if posix_shape_ok && greedy_shape_ok {
             tally.cross_compared += 1;
             let posix_tree: &Option<ParseTree> = &bc;
@@ -520,6 +525,22 @@ fn main() {
                 tally.cross_same_shape += 1;
             } else {
                 tally.cross_different_shape += 1;
+                // Not a bug -- POSIX and Greedy may legitimately pick
+                // different trees on an ambiguous pattern. One
+                // representative per family is enough: every POSIX
+                // parser already agrees with `bc` (posix_shape_ok,
+                // checked above), and every Greedy parser with `pbc`
+                // (greedy_shape_ok), so printing all five would just
+                // repeat each tree two or three times over.
+                if printed_ambiguous < MAX_PRINTED_PER_BUG_KIND {
+                    writeln!(
+                        buf,
+                        "AMBIGUOUS SHAPE  {:?}  pat={:?}  in={:?}\n  posix (bc)   ={:?}\n  greedy (pbc) ={:?}",
+                        case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
+                        posix_tree, greedy_tree
+                    ).unwrap();
+                    printed_ambiguous += 1;
+                }
             }
         }
     }
@@ -527,10 +548,11 @@ fn main() {
     writeln!(buf).unwrap();
     writeln!(
         buf,
-        "{:<13} {:>8} {:>9} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
-        "Source", "Entries", "Timeouts", "Crashes", "Match%", "Shape%", "ShapeN", "Ambig%", "AmbigN"
+        "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>10} {:>10} {:>10} {:>10} {:>10}",
+        "Source", "Entries", "Matches", "NonMatch", "Timeouts", "Crashes",
+        "MatchAgr%", "ShapeAgr%", "ShapeDis%", "ShapeNAgr", "ShapeNDis"
     ).unwrap();
-    writeln!(buf, "{}", "-".repeat(90)).unwrap();
+    writeln!(buf, "{}", "-".repeat(118)).unwrap();
 
     let mut total = Tally::default();
     for &source in &SOURCES {
@@ -540,34 +562,40 @@ fn main() {
         }
         writeln!(
             buf,
-            "{:<13} {:>8} {:>9} {:>8} {:>7.1}% {:>7.1}% {:>8} {:>7.1}% {:>8}",
-            format!("{:?}", source), t.entries, t.timeouts, t.crashes,
-            t.match_agree_pct(), t.shape_agree_pct(), t.shape_eligible,
-            t.ambiguous_pct(), t.cross_compared
+            "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>9.1}% {:>9.1}% {:>9.1}% {:>10} {:>10}",
+            format!("{:?}", source), t.entries, t.matches, t.non_matches, t.timeouts, t.crashes,
+            t.match_agree_pct(), t.shape_agree_pct(), t.shape_disagree_pct(),
+            t.cross_same_shape, t.cross_different_shape
         ).unwrap();
         total.accumulate(t);
     }
-    writeln!(buf, "{}", "-".repeat(90)).unwrap();
+    writeln!(buf, "{}", "-".repeat(118)).unwrap();
     writeln!(
         buf,
-        "{:<13} {:>8} {:>9} {:>8} {:>7.1}% {:>7.1}% {:>8} {:>7.1}% {:>8}",
-        "Total", total.entries, total.timeouts, total.crashes,
-        total.match_agree_pct(), total.shape_agree_pct(), total.shape_eligible,
-        total.ambiguous_pct(), total.cross_compared
+        "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>9.1}% {:>9.1}% {:>9.1}% {:>10} {:>10}",
+        "Total", total.entries, total.matches, total.non_matches, total.timeouts, total.crashes,
+        total.match_agree_pct(), total.shape_agree_pct(), total.shape_disagree_pct(),
+        total.cross_same_shape, total.cross_different_shape
     ).unwrap();
     writeln!(buf).unwrap();
-    writeln!(buf, "Match%  = agreement on MATCH RESULT: of entries where every parser ran to").unwrap();
-    writeln!(buf, "  completion (Entries minus Timeouts minus Crashes), the % where all five").unwrap();
-    writeln!(buf, "  agreed with the verified expected result. Covers non-matches too -- agreeing").unwrap();
-    writeln!(buf, "  something does NOT match is as real a check as agreeing that it does.").unwrap();
-    writeln!(buf, "Shape%  = agreement on SHAPE: restricted to ShapeN, the verified matches with").unwrap();
-    writeln!(buf, "  correct membership (a non-match has no tree, so it is excluded, not counted").unwrap();
-    writeln!(buf, "  as trivially agreeing). The % of ShapeN with no POSIX-internal or").unwrap();
-    writeln!(buf, "  Greedy-internal shape disagreement.").unwrap();
-    writeln!(buf, "Ambig%  = of AmbigN (ShapeN entries with no internal disagreement in either").unwrap();
-    writeln!(buf, "  family), the % where POSIX and Greedy picked different trees. Not a bug --").unwrap();
-    writeln!(buf, "  the two policies may legitimately disagree on an ambiguous match -- tracked").unwrap();
-    writeln!(buf, "  separately from Shape%, never folded into it.").unwrap();
+    writeln!(buf, "Entries = Matches + NonMatch, per the dataset's own labeling, regardless of").unwrap();
+    writeln!(buf, "  what any parser actually did with them.").unwrap();
+    writeln!(buf, "MatchAgr%  = of entries where every parser ran to completion (Entries minus").unwrap();
+    writeln!(buf, "  Timeouts minus Crashes), the % where all five parsers agreed with the").unwrap();
+    writeln!(buf, "  verified expected result. Should be 100% for every parser on every source --").unwrap();
+    writeln!(buf, "  this is a real bug, not ambiguity, if it is ever not.").unwrap();
+    writeln!(buf, "ShapeAgr% / ShapeDis% = of ShapeNAgr + ShapeNDis (verified matches where both").unwrap();
+    writeln!(buf, "  the 3-way POSIX and 2-way Greedy families agreed with themselves, so one").unwrap();
+    writeln!(buf, "  POSIX tree and one Greedy tree both exist), the % where POSIX and Greedy").unwrap();
+    writeln!(buf, "  picked the SAME tree vs. a DIFFERENT one. Disagreement here is not a bug --").unwrap();
+    writeln!(buf, "  the two policies may legitimately pick different trees on an ambiguous").unwrap();
+    writeln!(buf, "  pattern. (Internal 3-way/2-way family agreement is checked separately, each").unwrap();
+    writeln!(buf, "  pinned by its own test; any failure there is printed below as its own bug").unwrap();
+    writeln!(buf, "  line and counted in the total bug count, not folded into this column.)").unwrap();
+    writeln!(buf, "Every ShapeDis% entry is printed above as \"AMBIGUOUS SHAPE\", with the pattern,").unwrap();
+    writeln!(buf, "  input, and one representative tree per family (bc for POSIX, pbc for Greedy --").unwrap();
+    writeln!(buf, "  every parser in a family already agrees with its own representative, so the").unwrap();
+    writeln!(buf, "  other two/one would just repeat it), capped at {MAX_PRINTED_PER_BUG_KIND} total like the bug lines.").unwrap();
     writeln!(buf, "Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or").unwrap();
     writeln!(buf, "  ambiguous pattern can be infeasible in the configured budget.").unwrap();
     writeln!(buf, "Crashes are counted, not dismissed (usually a stack overflow on a deep expression),").unwrap();
