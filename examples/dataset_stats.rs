@@ -214,6 +214,15 @@ struct SourceStats {
     /// verifying input, and therefore the subset whose duplication
     /// actually affects `patterns_usable` and benchmark weighting.
     accepted_seen: HashSet<String>,
+    /// Subset of `accepted_seen` tagged `MatchIntent::ExplicitFullMatch`.
+    /// Deduplicated the same way `accepted_seen` is, so
+    /// `accepted_explicit_seen.len() + accepted_ambiguous_seen.len() ==
+    /// distinct_accepted()` always -- unlike `accepted_explicit`, which
+    /// counts rule instances, not distinct patterns (see
+    /// `match_intent_table`).
+    accepted_explicit_seen: HashSet<String>,
+    /// Subset of `accepted_seen` tagged `MatchIntent::UnanchoredAmbiguous`.
+    accepted_ambiguous_seen: HashSet<String>,
     /// Populated only when --verbose.
     rejections: Vec<(String, Cause)>,
 }
@@ -249,6 +258,19 @@ impl SourceStats {
         self.accepted_seen.len()
     }
 
+    /// Distinct accepted patterns tagged `ExplicitFullMatch` -- matches
+    /// `dataset_prepare`'s own `patterns_explicit_full_match`, unlike
+    /// `accepted_explicit` (rule instances, not distinct patterns).
+    fn distinct_accepted_explicit(&self) -> usize {
+        self.accepted_explicit_seen.len()
+    }
+
+    /// Distinct accepted patterns tagged `UnanchoredAmbiguous` -- matches
+    /// `dataset_prepare`'s own `patterns_unanchored_ambiguous`.
+    fn distinct_accepted_ambiguous(&self) -> usize {
+        self.accepted_ambiguous_seen.len()
+    }
+
     fn duplicate_accepted(&self) -> usize {
         self.accepted().saturating_sub(self.distinct_accepted())
     }
@@ -276,8 +298,14 @@ impl SourceStats {
             Classification::Accepted(intent) => {
                 self.accepted_seen.insert(pattern.to_string());
                 match intent {
-                    MatchIntent::ExplicitFullMatch => self.accepted_explicit += 1,
-                    MatchIntent::UnanchoredAmbiguous => self.accepted_ambiguous += 1,
+                    MatchIntent::ExplicitFullMatch => {
+                        self.accepted_explicit += 1;
+                        self.accepted_explicit_seen.insert(pattern.to_string());
+                    }
+                    MatchIntent::UnanchoredAmbiguous => {
+                        self.accepted_ambiguous += 1;
+                        self.accepted_ambiguous_seen.insert(pattern.to_string());
+                    }
                 }
                 if has_no_given_input(context) {
                     self.accepted_no_input += 1;
@@ -318,6 +346,8 @@ impl SourceStats {
         // combined total's own distinct count.
         total.extracted_seen.extend(self.extracted_seen.iter().cloned());
         total.accepted_seen.extend(self.accepted_seen.iter().cloned());
+        total.accepted_explicit_seen.extend(self.accepted_explicit_seen.iter().cloned());
+        total.accepted_ambiguous_seen.extend(self.accepted_ambiguous_seen.iter().cloned());
     }
 
     fn rejected_total(&self) -> usize {
@@ -474,13 +504,7 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
         println!("         candidates and never enters a benchmark corpus.");
         println!();
         println!("   Note: Innovatorved carries its own test text but does");
-        println!("         have a fallback -- its `RuleContext::Innovatorved`");
-        println!("         branch tops up with structurally generated");
-        println!("         candidates regardless of whether any test text is");
-        println!("         present. A null-text row can therefore still enter");
-        println!("         the corpus, but with every candidate generated, none");
-        println!("         from the source. `dataset_prepare`'s `from source`");
-        println!("         line reports the real:generated split per source.");
+        println!("         have a fallback with structurally generated candidates with `RuleContext::Innovatorved`");
     }
 }
 
@@ -517,41 +541,36 @@ fn duplication_table(stats: &[SourceStats], total: &SourceStats) {
     println!("{}", "-".repeat(93));
     print_row(total);
     println!();
-    println!("Distinct = count of unique raw pattern text, usable as that many separate");
-    println!("benchmark patterns; Dist% = Distinct as a share of the column to its left.");
-    println!("Dup = the rest -- rules/patterns whose exact text already appeared earlier");
-    println!("in this source; Dup% likewise. Distinct% + Dup% = 100% in each half.");
-    println!("Extract. half covers every extracted pattern regardless of");
-    println!("translatability; Accept. half is the subset `dataset_prepare` actually");
-    println!("dedups before generating input (see `rules_duplicate_pattern` in its own");
-    println!("report) -- Accept. Distinct is what ends up as separate patterns in");
-    println!("`prepared.jsonl`, and so what any benchmark reading it sees: the number");
-    println!("that answers \"how many of these can actually be used\".");
+    println!("Extract = every extracted pattern regardless of translatability");
+    println!("Distinct = count of unique raw pattern text");
+    println!("Dup = Duplicates");
+
 }
 
 fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
     header("Accepted by match-intent reliability");
     println!(
         "{:<13} {:>10} {:>7} {:>14} {:>7}",
-        "Source", "Direct", "%", "Explicit ^...$", "%",
+        "Source", "UnanchoredAmbiguous", "%", "ExplicitFullMatch ^...$", "%",
     );
     println!("{}", "-".repeat(56));
 
     let print_row = |s: &SourceStats| {
+        let distinct = s.distinct_accepted();
         let pct = |n: usize| {
-            if s.accepted() == 0 {
+            if distinct == 0 {
                 0.0
             } else {
-                100.0 * n as f64 / s.accepted() as f64
+                100.0 * n as f64 / distinct as f64
             }
         };
         println!(
             "{:<13} {:>10} {:>7.1} {:>14} {:>7.1}",
             s.name(),
-            s.accepted_ambiguous,
-            pct(s.accepted_ambiguous),
-            s.accepted_explicit,
-            pct(s.accepted_explicit),
+            s.distinct_accepted_ambiguous(),
+            pct(s.distinct_accepted_ambiguous()),
+            s.distinct_accepted_explicit(),
+            pct(s.distinct_accepted_explicit()),
         );
     };
 
@@ -561,10 +580,11 @@ fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
     println!("{}", "-".repeat(56));
     print_row(total);
     println!();
+    println!("Counts are by DISTINCT accepted patterns");
     println!("Direct         = no anchor; translated as-is.");
     println!("Explicit ^...$ = top-level ^...$ wrap; anchors stripped as redundant.");
-    println!("                 Both tiers are accepted and generated for.");
     println!("                 Any other anchor placement is rejected (see Rejection reasons).");
+    println!();
 }
 
 fn rejection_table(stats: &[SourceStats], total: &SourceStats) {
@@ -616,10 +636,9 @@ fn anchor_shape_table(stats: &[SourceStats], total: &SourceStats) {
     println!("{}", "-".repeat(16 + 15 * shapes.len()));
     print_row(&total.name(), total);
     println!();
-    println!("Rows sum to Extracted.");
     println!("Unparseable   = rejected before an ExtPat even exists.");
-    println!("Fully-wrapped = recovered by core_regex_tagged (Accepted tier).");
-    println!("start/end/nested = unrecovered constraint; see Rejection reasons.");
+    println!("Fully-wrapped = recovered by core_regex_tagged");
+    println!("start/end/nested = rejected");
 }
 
 fn flag_table(

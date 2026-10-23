@@ -28,14 +28,22 @@ parse tree.
 %
 %
 %
-
 \section{The Standard Partial-Derivative Parser}
 \label{sec:pderiv-std}
 
 Consider again $r_0 = (a + ab)(b + \varepsilon)$ with input
-$w = \mathtt{ab}$. The partial derivative of $r_0$ with respect to
-$\mathtt{a}$ produces two states, one for each way $\mathtt{a}$ can be
-consumed:
+$w = \mathtt{ab}$. Where $\mathit{deriv}$ reduces $r_0$ to a single
+residual at each step, Antimirov's partial derivative $\mathit{pderiv}$
+reduces it to a \emph{set} of states, one per way the next character can
+be consumed. Each state pairs a residual expression with an injection
+that rebuilds a parse tree for $r_0$ from a parse tree for that residual.
+The injection is attached to its state as soon as the state is created,
+rather than recovered afterwards from a stored sequence the way
+$\mathit{inj}$ was for the standard derivative parser in
+Section~\ref{sec:core-algorithm}.
+
+Deriving $r_0$ by $\mathtt{a}$ produces two states, one for each way
+$\mathtt{a}$ can be consumed:
 \begin{equation}\label{eq:pderiv-std-example}
 \begin{aligned}
 \mathit{pderiv}(r_0, \mathtt{a}) =
@@ -54,10 +62,12 @@ correspond to the two branches of the alternation $a + ab$ in the first
 factor. The second factor $b + \varepsilon$ is untouched in both and
 appears as the trailing component of each residual.
 
-Each residual has the shape $r_1' \cdot r_2$: the derivative of the
-first factor, followed by the untouched second factor. The leading
-$\varepsilon$ in each $r_1'$ records that the consumed character matched
-a leading literal and left nothing behind in that position.
+Each residual has the shape $r' \cdot (b + \varepsilon)$: the derivative of
+the first factor, followed by the untouched second factor, never simplified. The
+leading $\varepsilon$ in each $r'$ records that the consumed character
+matched a leading literal and left nothing behind in that position; it is
+not removed, because the injection below pattern-matches on exactly this
+pair shape.
 
 The first state's residual $\varepsilon \cdot (b + \varepsilon)$ is a
 sequence, so its tree is a pair $(v_1, v_2)$: $v_1$ is the tree of the
@@ -92,14 +102,16 @@ state set:
   \bigl\{
     &(\;\varepsilon,\;
        \lambda \_.\; (\mathit{Left}\,a,\, \mathit{Left}\,b)\;), \\[2pt]
-    &(\;b + \varepsilon,\;
+    &(\;\varepsilon \cdot (b + \varepsilon),\;
        \lambda(\_, v_2).\; (\mathit{Right}(a,b),\, v_2)\;)
   \bigr\}.
 \end{aligned}
 \end{equation}
 The first state now has residual $\varepsilon$, meaning every input
 character has been consumed, and is accepting; the second has residual
-$b + \varepsilon$, which is also accepting. Selection walks the state set
+$\varepsilon \cdot (b + \varepsilon)$ -- the second factor is untouched
+by $\mathtt{b}$, since it was the first factor's leftover $b$ that
+matched -- which is also accepting. Selection walks the state set
 in generation order and returns the first accepting state. Applying its
 injection to $\mathit{mkEps}_\varepsilon = ()$ yields
 $(\mathit{Left}\,a, \mathit{Left}\,b)$, the leftmost alternative at every
@@ -125,13 +137,13 @@ choice (Figure~\ref{fig:pderiv-std-overview}).
 \node[cfg] (s0) at (0, 0)
   {$r_0$\\[-2pt]\scriptsize $\mathit{id}$};
 \node[cfg] (s1a) at (-2.8, -2.4)
-  {$b + \varepsilon$\\[-2pt]\scriptsize $\iota_1$};
+  {$\varepsilon{\cdot}(b + \varepsilon)$\\[-2pt]\scriptsize $\iota_1$};
 \node[cfg] (s1b) at ( 2.8, -2.4)
-  {$b\,(b + \varepsilon)$\\[-2pt]\scriptsize $\iota_2$};
+  {$(\varepsilon{\cdot}b)(b + \varepsilon)$\\[-2pt]\scriptsize $\iota_2$};
 \node[cfg] (s2a) at (-2.8, -4.8)
   {$\varepsilon$\\[-2pt]\scriptsize $\iota_3$};
 \node[cfg] (s2b) at ( 2.8, -4.8)
-  {$b + \varepsilon$\\[-2pt]\scriptsize $\iota_4$};
+  {$\varepsilon{\cdot}(b + \varepsilon)$\\[-2pt]\scriptsize $\iota_4$};
 \node[res] (r) at (-2.8, -7.2)
   {$(\mathit{Left}\,a, \mathit{Left}\,b)$};
 
@@ -146,7 +158,8 @@ choice (Figure~\ref{fig:pderiv-std-overview}).
 \end{tikzpicture}
 \caption{The standard partial-derivative parser on
 $r_0 = (a + ab)(b + \varepsilon)$ with input $\mathtt{ab}$. Each box is a
-state $(r, \iota)$: a residual and an injection. $\mathit{pderiv}(-,x)$
+state $(r, \iota)$: a residual and an injection, both shown without any
+simplification. $\mathit{pderiv}(-,x)$
 advances every state by one character; $\mathit{select}$ takes the first
 accepting state and applies its injection to $\mathit{mkEps}$ of its
 residual.}
@@ -164,80 +177,111 @@ leftmost alternative at every choice over the longest one, which is what
 distinguishes the tree this parser returns from the POSIX tree of
 Chapter~\ref{sec:derivative-parser}.
 
-%
-
-%
-
-%
-
-%
-
 \subsection{Partial Derivatives with Injections}
 \label{sec:pderiv-tree-theory}
 
 A partial derivative of an expression $r$ with respect to a character $x$ is
 not a single expression but a set of pairs. Each pair consists of a residual
 expression $r'$ whose language is one component of the left quotient, together
-with an injection closure $\mathit{inj}$ that maps a parse tree for $r'$ back
-to a parse tree for $r$. The function $\mathit{pderiv}$, following
-\citep[Fig.~10]{sulzmannlu2012}, is defined recursively:
-\begin{equation}\label{eq:pderiv-tree}
+with an injection closure $\iota$ that maps a parse tree for $r'$ back
+to a parse tree for $r$. Stripped of the injection, the residual side of this
+definition is exactly $pd$, the Antimirov partial derivative already used by
+the matcher of Section~\ref{sec:antimirov-partial-derivatives}
+\citep{antimirov1996}, so $\mathit{pderiv}$ reuses its rule names
+$\mathsf{P}_{\emptyset}, \mathsf{P}_{\varepsilon}, \mathsf{P}_{\mathrm{lit}},
+\mathsf{P}_{+}, \mathsf{P}_{\mathrm{seq}}, \mathsf{P}_{\mathrm{seq}}^{\,n},
+\mathsf{P}_{*}$ from Equation~\ref{eq:pd}, each now additionally threading an
+injection alongside its residual. The idea of pairing a residual with a
+reconstruction function is, in turn, in the style of Sulzmann and Lu's pattern
+partial derivative \citep[Fig.~11]{sulzmannlu2012}, which pairs a residual
+\emph{pattern} with a function building a variable-binding environment; here
+the same idea builds a $\mathit{ParseTree}$ instead.
+
+The rules that do not depend on whether their operand is nullable are:
+\begin{equation}\label{eq:pderiv-tree-base}
 \begin{aligned}
-\mathit{pderiv}(\phi, x) &= \emptyset \\
-\mathit{pderiv}(\varepsilon, x) &= \emptyset \\
-\mathit{pderiv}(c, x) &=
+\mathit{pderiv}(\emptyset, x) &= \{\} &&(\mathsf{P}_{\emptyset}) \\
+\mathit{pderiv}(\varepsilon, x) &= \{\} &&(\mathsf{P}_{\varepsilon}) \\
+\mathit{pderiv}(y, x) &=
   \begin{cases}
-    \{(\varepsilon,\, \lambda\_.\, c)\} & c = x \\
-    \emptyset & \text{otherwise}
-  \end{cases} \\[4pt]
-\mathit{pderiv}(r_1 + r_2, x) &=
-  \{\,(r_1',\, \lambda v.\, \mathit{Left}\,(\mathit{inj}_1\,v))
-    \mid (r_1', \mathit{inj}_1) \in \mathit{pderiv}(r_1, x)\,\} \\
-  &\cup \{\,(r_2',\, \lambda v.\, \mathit{Right}\,(\mathit{inj}_2\,v))
-    \mid (r_2', \mathit{inj}_2) \in \mathit{pderiv}(r_2, x)\,\} \\[4pt]
-\mathit{pderiv}(r_1\,r_2, x) &=
-  \{\,(r_1'\,r_2,\,
-     \lambda(v_1, v_2).\, (\mathit{inj}_1\,v_1,\, v_2))
-    \mid (r_1', \mathit{inj}_1) \in \mathit{pderiv}(r_1, x)\,\} \\
-  &\cup \begin{cases}
-    \{\,(r_2',\, \lambda v.\, (\mathit{mkEps}_{r_1},\, \mathit{inj}_2\,v))
-      \mid (r_2', \mathit{inj}_2) \in \mathit{pderiv}(r_2, x)\,\}
-      & n(r_1) \\
-    \emptyset & \text{otherwise}
-  \end{cases} \\[4pt]
+    \{(\varepsilon,\ \lambda\_.\, y)\} & x = y \\
+    \{\} & x \neq y
+  \end{cases}
+  &&(\mathsf{P}_{\mathrm{lit}}) \\
+\mathit{pderiv}(r + s, x) &=
+  \{\,(r',\, \lambda v.\, \mathit{Left}\,(\iota\,v))
+    \mid (r', \iota) \in \mathit{pderiv}(r, x)\,\} \\
+  &\quad \cup\ \{\,(s',\, \lambda v.\, \mathit{Right}\,(\iota\,v))
+    \mid (s', \iota) \in \mathit{pderiv}(s, x)\,\}
+  &&(\mathsf{P}_{+}) \\
 \mathit{pderiv}(r^{*}, x) &=
   \{\,(r'\,r^{*},\,
      \lambda(v, \mathit{Star}(vs)).\,
-     \mathit{Star}([\mathit{inj}\,v] \mathbin{+\!\!+} vs))
-    \mid (r', \mathit{inj}) \in \mathit{pderiv}(r, x)\,\}.
+     \mathit{Star}([\iota\,v] \mathbin{+\!\!+} vs))
+    \mid (r', \iota) \in \mathit{pderiv}(r, x)\,\}
+  &&(\mathsf{P}_{*})
 \end{aligned}
 \end{equation}
-After expansion, the list is deduplicated by residual, keeping the first
-occurrence. This is the step that breaks apart the original expression: where
-the derivative of $r_1 + r_2$ produces a single alternation, the partial
-derivative produces separate states for each branch, and the outer
-alternation disappears from the residual.
-
-The injection in each pair records the path taken through the expression.
-Rule~$(\mathsf{P}_{+})$ wraps the recursive injection in a $\mathit{Left}$ or
-$\mathit{Right}$ node, reinserting the alternation choice. Rule
-$(\mathsf{P}_{\mathrm{seq}})$ for a non-nullable first factor passes the outer
-pair through unchanged, with the recursive injection applied to the first
-component only. When the first factor is nullable, the rule generates two kinds
-of states: those that continue inside the first factor, and those that skip
-the first factor entirely, using $\mathit{mkEps}_{r_1}$ to synthesise its empty
-match. Rule~$(\mathsf{P}_{*})$ reconstructs the current iteration by applying
-the recursive injection and prepending it to the remaining iterations.
-
-No rules are needed for $\phi$ or $\varepsilon$ beyond their empty results,
+exactly as in $pd$, with the recursive call's injection wrapped by
+$\mathit{Left}$, $\mathit{Right}$, or prepended to the iteration list. No
+rule is needed for $\emptyset$ or $\varepsilon$ beyond their empty results,
 since neither can consume a character.
 
-%
+Concatenation alone must branch on $n(r)$, so it is shown separately:
+\begin{equation}\label{eq:pderiv-tree-seq}
+\mathit{pderiv}(r \cdot s, x) =
+  \begin{cases}
+    \begin{aligned}[t]
+    \{\,&(r'\,s,\, \lambda(v_1, v_2).\, (\iota\,v_1,\, v_2))
+      \mid (r', \iota) \in \mathit{pderiv}(r, x)\,\} \\
+    \cup\ \{\,&(s',\, \lambda v.\, (\mathit{mkEps}_{r},\, \iota\,v))
+      \mid (s', \iota) \in \mathit{pderiv}(s, x)\,\}
+    \end{aligned}
+      & n(r)\quad(\mathsf{P}_{\mathrm{seq}}^{\,n}) \\[8pt]
+    \{\,(r'\,s,\, \lambda(v_1, v_2).\, (\iota\,v_1,\, v_2))
+      \mid (r', \iota) \in \mathit{pderiv}(r, x)\,\}
+      & \neg\, n(r)\quad(\mathsf{P}_{\mathrm{seq}})
+  \end{cases}
+\end{equation}
+After expansion, each rule's result is deduplicated by residual, keeping the
+first occurrence; this is $\mathit{nub}$, applied wherever a transition can
+produce two states with the same residual, namely $\mathsf{P}_{+}$,
+$\mathsf{P}_{\mathrm{seq}}^{\,n}$, and $\mathsf{P}_{*}$. $\mathsf{P}_{\mathrm{seq}}$
+has only one source of states and needs no deduplication of its own, since its
+single recursive call is already duplicate-free. This is the step that breaks
+apart the original expression: where the derivative of $r + s$ produces a
+single alternation, the partial derivative produces separate states for each
+branch, and the outer alternation disappears from the residual.
+
+Rule $(\mathsf{P}_{\mathrm{seq}})$ -- the only one present regardless of
+nullability -- passes the outer pair through unchanged, with the recursive
+injection applied to the first component only. When $r$ is nullable, rule
+$(\mathsf{P}_{\mathrm{seq}}^{\,n})$ additionally unions in the states that
+skip $r$ entirely, using $\mathit{mkEps}_{r}$ to synthesise its empty match
+for the first component. Rule $(\mathsf{P}_{+})$ wraps the recursive
+injection in a $\mathit{Left}$ or $\mathit{Right}$ node, reinserting the
+alternation choice. Rule~$(\mathsf{P}_{*})$ reconstructs the current
+iteration by applying the recursive injection and prepending it to the
+remaining iterations.
+
+Unlike $pd$, which applies the smart constructor $\mathit{smartC}$ in
+$\mathsf{P}_{\mathrm{seq}}$ and $\mathsf{P}_{*}$ to avoid building
+$\varepsilon \cdot s$ (Equation~\ref{eq:smartc}), $\mathit{pderiv}$ never
+simplifies: $r' \cdot s$ above is built with the plain pairing constructor,
+even when $r' = \varepsilon$. A simplified residual would collapse exactly
+the pair-shaped node that the injection above pattern-matches on, so
+$\mathit{pderiv}$ trades the smaller residuals $pd$ produces for residuals
+whose shape the injection can always follow. This is the same tradeoff the
+standard derivative parser makes by never simplifying
+(Section~\ref{sec:core-algorithm}), for the same reason: $\mathit{inj}$ there
+pattern-matches on the derivative's structure just as $\iota$ does
+here.
 
 \paragraph{In Rust.}
 \label{sec:pderiv-tree-impl}
 
-The recursive definition~\eqref{eq:pderiv-tree} is implemented directly in Rust.
+The recursive definition in Equations~\ref{eq:pderiv-tree-base}
+and~\ref{eq:pderiv-tree-seq} is implemented directly in Rust.
 The type $\mathit{Inj}$ is a reference-counted closure, which allows a single
 parent injection to be shared when a transition fans out into several states.
 
@@ -345,21 +389,33 @@ list of (residual, injection) states.}
 \label{fig:pderiv-tree-rust}
 \end{figure}
 
-The \texttt{Alt} arm is where the partial derivative visibly breaks apart the
-expression: each branch produces its own states, tagged by $\mathit{Left}$ or
-$\mathit{Right}$ in the injection. The \texttt{Seq} arm's nullable case is the
-richest: the first factor is consumed by \texttt{deriv}-style recursion, and
-the first factor's empty match is computed once with \texttt{mk\_eps} and
-captured by each state from the second factor.
+The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} arms implement
+$\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$, and
+$\mathsf{P}_{\mathrm{lit}}$ directly, matching the same arms of
+\texttt{pderiv} in Figure~\ref{fig:pderiv-rust}, except that each returns a
+closure alongside its residual instead of nothing. The \texttt{Alt} arm
+implements $\mathsf{P}_{+}$ and is where the partial derivative visibly
+breaks apart the expression: each branch produces its own states, tagged by
+$\mathit{Left}$ or $\mathit{Right}$ in the injection, then deduplicated by
+\texttt{nub\_tree}.
 
-The \texttt{Star} arm follows the same pattern, with the injection inserting
-the reconstructed iteration at the front of the star's list. Note that the
-residual is built with the plain \texttt{Regex::seq} constructor rather than a
-smart constructor. Keeping the unsimplified shape matters because the
-injection pattern-matches on the tree's structure; a simplified residual would
-lose the outer sequence node the injection expects.
+The \texttt{Seq} arm's \texttt{if nullable(r1)} matches the case split
+between $\mathsf{P}_{\mathrm{seq}}^{\,n}$ and $\mathsf{P}_{\mathrm{seq}}$.
+Both branches build the same continue-strand, mapping \texttt{pderiv\_tree(r1,
+x)} with a closure that re-pairs the recursive injection's result with the
+untouched \texttt{r2}; the nullable branch additionally computes
+\texttt{r1}'s empty tree once with \texttt{mk\_eps} and captures a clone of
+it in every skip-strand closure, then deduplicates the combined list, while
+the non-nullable branch returns its single strand directly. Both residuals
+are built with the plain \texttt{Regex::seq} constructor rather than
+\texttt{smart\_seq} -- the Rust counterpart of
+$\mathit{smartC}$ used by \texttt{pderiv} in
+Figure~\ref{fig:pderiv-rust} -- for the reason given above: a simplified
+residual would lose the \texttt{Pair} node the closure matches on.
 
-%
+The \texttt{Star} arm implements $\mathsf{P}_{*}$, with the closure
+inserting the reconstructed iteration at the front of the star's list, again
+without a smart constructor.
 
 \subsection{State Sets and Selection}
 \label{sec:pderiv-state-set}
@@ -367,7 +423,9 @@ lose the outer sequence node the injection expects.
 The parser maintains a state set of $(\text{residual}, \text{injection})$
 configurations. For each input character, every configuration in the state set
 is transitioned with \texttt{pderiv\_tree}, and the resulting configurations
-are collected into a new state set. A configuration's parent injection is
+are collected into a new state set, replacing the old one -- unlike the
+standard derivative parser, nothing from earlier state sets is retained once
+the next one has been computed. A configuration's parent injection is
 composed with the transition injection, so that at the end the state set's
 injections map residuals all the way back to the original expression.
 
@@ -421,16 +479,31 @@ configuration in the state set.}
 Because the state set lists configurations in the order the rules generated
 them, and because \texttt{nub\_tree} keeps the first of each duplicate
 residual, selection favours the configuration that committed earliest to the
-leftmost alternative. This is the greedy leftmost policy.
-
-%
-
+leftmost alternative. This is the greedy leftmost policy. Unlike the standard
+derivative parser, there is no separate backward pass here: by the time
+\texttt{select} runs, every configuration's injection is already the full
+composition back to the original expression, so selection only has to apply
+it once.
 \subsection{Parser}
 \label{sec:pderiv-std-parser}
 
-The parser composes \texttt{step\_frontier} over the input and then calls
-\texttt{select}.
-
+The parser has a single pass: every input character advances the whole
+state set at once via $\mathit{step\_frontier}$, and the final state set
+is handed directly to $\mathit{select}$:
+\begin{equation}\label{eq:pderiv-std-driver}
+S_0 = \{(r, \mathit{id})\}, \qquad
+S_i = \mathit{step\_frontier}(S_{i-1}, x_i)\ \ (1 \leq i \leq n), \qquad
+\mathit{result} = \mathit{select}(S_n).
+\end{equation}
+Unlike the standard derivative parser's two-pass driver
+(Equation~\ref{eq:std-driver}), no backward pass is needed here: each
+configuration in $S_i$ already carries its injection composed all the way
+back to $r_0$ (Section~\ref{sec:pderiv-state-set}), so $\mathit{select}$
+only ever applies one injection, to the single accepting configuration it
+finds in $S_n$.
+%
+\paragraph{In Rust.}
+Figure~\ref{fig:pderiv-std-parser-rust} implements~\eqref{eq:pderiv-std-driver}.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -449,23 +522,22 @@ pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
 \caption{The standard partial-derivative parser.}
 \label{fig:pderiv-std-parser-rust}
 \end{figure}
+The loop computes $S_0, \ldots, S_n$ in place, overwriting
+\texttt{frontier} on every iteration rather than appending to a growing
+\texttt{Vec} the way \texttt{parse\_deriv\_std\_loop}
+(Figure~\ref{fig:deriv-std-drivers-rust}) does -- nothing from an earlier
+state set is retained once the next one exists. The early return on an
+empty frontier corresponds to $S_i = \{\}$: no configuration can consume
+the current character, so the input cannot be matched. The final
+\texttt{select} returns \texttt{None} if no configuration in $S_n$ is
+accepting, and otherwise the tree for the first one.
 
-The initial state set has a single configuration: the original expression with
-the identity injection. The early return on an empty state set corresponds to
-the case where no configuration can consume the current character, so the
-input cannot be matched. The final \texttt{select} returns \texttt{None} if no
-configuration is accepting, and otherwise returns the tree for the first
-accepting one.
 
-%
-
-\subsection{Worked Example: Ambiguous Expression}
+\subsection{Worked Example: Standard Partial-Derivative Parser}
 \label{sec:pderiv-std-worked}
 
 Recall the ambiguous example $r_0 = (a + ab)(b + \varepsilon)$ on input
 $\mathtt{ab}$.
-
-%
 
 \paragraph{Forward pass.}
 The initial state set holds a single configuration:
@@ -525,26 +597,26 @@ of the pair:
 \[
 \mathit{inj}_1(\mathit{Left}\,b) = (\mathit{Left}\,a,\, \mathit{Left}\,b).
 \]
-For the second configuration, the leading $\mathit{Seq}(\varepsilon, b)$ has a
-non-nullable $\mathit{Seq}$ structure and the derivative continues inside $b$:
+For the second configuration, the leading $\mathit{Seq}(\varepsilon, b)$ is
+not nullable ($\varepsilon$ is, but $b$ is not), so rule
+$(\mathsf{P}_{\mathrm{seq}})$ fires and the derivative continues inside $b$:
 \[
 \mathit{pderiv}(\mathit{Seq}(\varepsilon, b), \mathtt{b})
   = \bigl[(\varepsilon,\ \lambda\_.\, ((), b))\bigr],
 \]
-and the outer sequence rule rebuilds the pair, giving the second
-configuration's residual $b + \varepsilon$. The two resulting state-set
-entries are:
+and the outer sequence rule rebuilds the pair \emph{without} simplifying the
+leading $\varepsilon$ away, giving the second configuration's residual
+$\varepsilon \cdot (b + \varepsilon)$, not $b + \varepsilon$. The two
+resulting state-set entries are:
 \[
 \begin{aligned}
 S_2
   = \bigl[
     &(\varepsilon,\ \lambda\_.\, (\mathit{Left}\,a,\, \mathit{Left}\,b)), \\
-    &(b + \varepsilon,\ \lambda(\_, v_2).\,
+    &(\varepsilon \cdot (b + \varepsilon),\ \lambda(\_, v_2).\,
        (\mathit{Right}(a, b),\, v_2))\bigr].
 \end{aligned}
 \]
-
-%
 
 \paragraph{Selection.}
 The first configuration's residual is $\varepsilon$, which is nullable, and
@@ -558,6 +630,10 @@ Flattening confirms the result:
 \[
 \mathit{flatten}\bigl((\mathit{Left}\,a, \mathit{Left}\,b)\bigr) = \mathtt{ab}.
 \]
+The second configuration is never inspected: its residual
+$\varepsilon \cdot (b + \varepsilon)$ is also nullable, and would likewise
+decode to a valid tree, but generation order already placed the first
+configuration ahead of it, and $\mathit{select}$ stops at the first match.
 
 This is the greedy parse tree. The derivative-based parser from
 Chapter~\ref{sec:derivative-parser} returns $(\mathit{Right}(a,b),
@@ -565,6 +641,7 @@ Chapter~\ref{sec:derivative-parser} returns $(\mathit{Right}(a,b),
 which word they spell out, but differ on how the input is decomposed: the
 greedy tree commits to the shorter first alternative $a$ in the first factor,
 while the POSIX tree commits to the longer alternative $ab$.
+
 
 %
 %

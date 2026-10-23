@@ -7,20 +7,43 @@ TIMEOUT >2000ms  Suricata  pat="/(?:\\%3C){1000}/Ri"  in="%3C%3C%3c%3c%3c%3c%3C%
 TIMEOUT >2000ms  Suricata  pat="/^\\/[^\\r\\n]+\\.php\\?[a-f0-9]{32}(?:=(?:%3D|\\x3d)*[A-Za-z0-9%\\..."  in="/Z.PHp?3cca4eA3189dBe68FA7Ffd4ebAAf38a9=..."  [rec,loop]
 TIMEOUT >2000ms  Suricata  pat="/(\\x2a\\x3f){700}/U"  in="*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?..."  [rec,loop]
 TIMEOUT >2000ms  Suricata  pat="/(\\x2a\\x3f){700}/U"  in="*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?*?..."  [rec,loop]
+TIMEOUT >2000ms  RegexLib  pat="^(([a-zA-Z]:)|(\\\\{2}\\w+)\\$?)(\\\\(\\w[\\w ]*.*))+\\.((html|HTML)|..."  in="\\\\bktn\\F YlS\\CmXMa\\Hz_gjA`$\\t6kP9\\RHc6.h..."  [pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="^(((h|H)(t|T))(t|T)(p|P)((s|S)?)\\:\\/\\/)?((www|WWW)+\\.)+(([0-..."  in="WWWWWWWWWWWWwww.www.wwwwww.wwwWWW.wwwWWW..."  [rec,loop]
+TIMEOUT >2000ms  RegexLib  pat="^\\s*(((\\d*\\.?\\d*[0-9]+\\d*)|([0-9]+\\d*\\.\\d*) )\\s*[xX]\\s*){2}(..."  in="5265946405 X\r\t\r\t83128894728\n\t\tx  \t650709..."  [pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="^(([a-zA-Z]:)|(\\\\{2}\\w+)\\$?)(\\\\(\\w[\\w ]*.*))+\\.(txt|TXT)$"  in="k:\\yNqfG3iU\\uy5q8};\\jMKRDBkIQ\\rJJ\\knTBt-..."  [pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="^(?:(?:http|https|ftp|telnet|gopher|ms\\-help|file|notes)://)..."  in="w5%:@4.xrm.7nS537bs.v0n.027.250.252.04:3..."  [pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="^(?<scheme>(?:http|https|ftp|telnet|gopher|ms\\-help|file|not..."  in="ftp://b3HsI:@q0UCHrk3w.7qfwd.203.059.217..."  [pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="\\w+([-+.]\\w+)*@\\w+([-.]\\w+)*\\.\\w+([-.]\\w+)*([,;]\\s*\\w+([-+.]..."  in="h4Vv.7@pT3-0sy8m.VCp.QPMO.JXH_,\rphWHL@M...."  [rec,loop,pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="(?<pgnGame>\\s*(?:\\[\\s*(?<tagName>\\w+)\\s*\"(?<tagValue>[^\"]*)\"..."  in="\n  \r[\n   NeN\t\n\r\"&J\"\t\n]  \r [T\n\n\"VX\"\t\t]\n\r[..."  [rec,loop,pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="^(([0-2]*[0-9]+[0-9]+)\\.([0-2]*[0-9]+[0-9]+)\\.([0-2]*[0-9]+[..."  in="1022985993.1202830844.111183.218735558"  [pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="^[a-z]+([a-z0-9-]*[a-z0-9]+)?(\\.([a-z]+([a-z0-9-]*[a-z0-9]+)..."  in="g.vycgh18bq.hhlmz"  [pstd,pbc]
+TIMEOUT >2000ms  RegexLib  pat="^([A-Z]{1,}[a-z]{1,}[A-Z]{0,}[a-z]{0,}[A-Z]{0,}[a-z]{0,}[A-Z..."  in="WCHqOJDYctthRESdUZPrcynqWDeuvvUbaVTCRDCX..."  [pstd,pbc]
 
-Source         Entries  Timeouts  Crashes   Mem.bugs  POSIX-bugs  Greedy-bugs  Compared     Same   Diff%
----------------------------------------------------------------------------------------------------------
-Suricata          4160         9        0          0           0            0      2075     2075    0.0
-SpamAssassin       310         0        0          0           0            0       155      155    0.0
----------------------------------------------------------------------------------------------------------
-Total             4470         9        0          0           0            0      2230     2230    0.0
+Source         Entries  Timeouts  Crashes   Match%   Shape%   ShapeN   Ambig%   AmbigN
+------------------------------------------------------------------------------------------
+Suricata          4160         9        0   100.0%   100.0%     2075     0.0%     2075
+SpamAssassin       310         0        0   100.0%   100.0%      155     0.0%      155
+RegexLib          4288        14        0   100.0%   100.0%     2135     0.2%     2135
+S2ELab             876         0        0   100.0%   100.0%      438     0.2%      438
+Innovatorved      9590       166        0   100.0%   100.0%     4690     0.1%     4690
+------------------------------------------------------------------------------------------
+Total            19224       189        0   100.0%   100.0%     9493     0.1%     9493
 
-Compared = matching entries where both families were internally consistent.
-Same / Diff = their POSIX-vs-Greedy shape agreement.
-Diff is not a bug: the two policies may pick different trees for an ambiguous match.
+Match%  = agreement on MATCH RESULT: of entries where every parser ran to
+  completion (Entries minus Timeouts minus Crashes), the % where all five
+  agreed with the verified expected result. Covers non-matches too -- agreeing
+  something does NOT match is as real a check as agreeing that it does.
+Shape%  = agreement on SHAPE: restricted to ShapeN, the verified matches with
+  correct membership (a non-match has no tree, so it is excluded, not counted
+  as trivially agreeing). The % of ShapeN with no POSIX-internal or
+  Greedy-internal shape disagreement.
+Ambig%  = of AmbigN (ShapeN entries with no internal disagreement in either
+  family), the % where POSIX and Greedy picked different trees. Not a bug --
+  the two policies may legitimately disagree on an ambiguous match -- tracked
+  separately from Shape%, never folded into it.
 Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or
   ambiguous pattern can be infeasible in the configured budget.
 Crashes are counted, not dismissed (usually a stack overflow on a deep expression),
   but are not membership/shape disagreements -- nothing was produced to compare.
 
-No bugs across 4470 entries (9 timed out, 0 crashed).
+No bugs across 19224 entries (189 timed out, 0 crashed).

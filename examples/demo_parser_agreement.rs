@@ -85,7 +85,12 @@ fn selection() -> Selection {
                 })
                 .collect()
         })
-        .unwrap_or_default();
+        // Unlike most benches/examples (whose shared `load_prepared_cases`
+        // default is Suricata+SpamAssassin only), this one defaults to
+        // every source: agreement is a correctness check, not a
+        // performance sweep, and a membership or shape bug hiding in
+        // RegexLib/S2ELab/Innovatorved is exactly as real a bug.
+        .unwrap_or_else(|| SOURCES.to_vec());
     let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT").ok().map(|s| {
         s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
     });
@@ -275,7 +280,21 @@ struct Tally {
     /// At least one worker crashed -- not a membership/shape bug.
     /// But not dismissed the way a timeout is either.
     crashes: usize,
+    /// Checked on EVERY completed entry, match or non-match: did all
+    /// five parsers agree with `verified_match`? This is the "agreement
+    /// on match result" dimension -- it covers non-matches too, since
+    /// agreeing that something does NOT match is as real a check as
+    /// agreeing that it does.
     membership_bugs: usize,
+    /// Verified matches where membership was also correct, so a shape
+    /// comparison is meaningful at all -- a non-match has no tree to
+    /// compare. Denominator for the "agreement on shape" dimension;
+    /// deliberately excludes non-matches, unlike `membership_bugs`.
+    shape_eligible: usize,
+    /// A `shape_eligible` entry with a POSIX-internal and/or
+    /// Greedy-internal disagreement. Counted once per entry even if
+    /// both families disagreed, so this never exceeds `shape_eligible`.
+    shape_bugs: usize,
     posix_shape_bugs: usize,
     greedy_shape_bugs: usize,
     /// Entries where both families were internally consistent and matched.
@@ -283,6 +302,55 @@ struct Tally {
     cross_compared: usize,
     cross_same_shape: usize,
     cross_different_shape: usize,
+}
+
+impl Tally {
+    /// Entries where every parser actually ran to completion -- excludes
+    /// timeouts and crashes. Denominator for match-result agreement.
+    fn completed(&self) -> usize {
+        self.entries - self.timeouts - self.crashes
+    }
+
+    /// % of `completed()` where all five parsers agreed with
+    /// `verified_match`. Covers match AND non-match entries.
+    fn match_agree_pct(&self) -> f64 {
+        let n = self.completed();
+        if n == 0 { 0.0 } else { 100.0 * (n - self.membership_bugs) as f64 / n as f64 }
+    }
+
+    /// % of `shape_eligible` with no internal-family shape disagreement.
+    /// Restricted to genuine matches with correct membership -- a
+    /// non-match contributes nothing here, by construction.
+    fn shape_agree_pct(&self) -> f64 {
+        let n = self.shape_eligible;
+        if n == 0 { 0.0 } else { 100.0 * (n - self.shape_bugs) as f64 / n as f64 }
+    }
+
+    /// % of `cross_compared` where POSIX and Greedy picked different
+    /// trees. Not a bug -- the two policies may legitimately disagree
+    /// on an ambiguous pattern -- so tracked separately from
+    /// `shape_agree_pct`, never folded into it.
+    fn ambiguous_pct(&self) -> f64 {
+        if self.cross_compared == 0 {
+            0.0
+        } else {
+            100.0 * self.cross_different_shape as f64 / self.cross_compared as f64
+        }
+    }
+
+    fn accumulate(&mut self, t: &Tally) {
+        self.entries += t.entries;
+        self.timeouts += t.timeouts;
+        self.crashes += t.crashes;
+        self.membership_bugs += t.membership_bugs;
+        self.shape_eligible += t.shape_eligible;
+        self.shape_bugs += t.shape_bugs;
+        self.posix_shape_bugs += t.posix_shape_bugs;
+        self.greedy_shape_bugs += t.greedy_shape_bugs;
+        self.cross_compared += t.cross_compared;
+        self.cross_same_shape += t.cross_same_shape;
+        self.cross_different_shape += t.cross_different_shape;
+    }
 }
 
 /// Names of whichever parsers timed out, in call order; `None` if none did.
@@ -410,6 +478,8 @@ fn main() {
             continue;
         }
 
+        tally.shape_eligible += 1;
+
         let posix_shape_ok = rec == loop_ && loop_ == bc;
         if !posix_shape_ok {
             tally.posix_shape_bugs += 1;
@@ -438,6 +508,10 @@ fn main() {
             }
         }
 
+        if !posix_shape_ok || !greedy_shape_ok {
+            tally.shape_bugs += 1;
+        }
+
         if posix_shape_ok && greedy_shape_ok {
             tally.cross_compared += 1;
             let posix_tree: &Option<ParseTree> = &bc;
@@ -453,11 +527,10 @@ fn main() {
     writeln!(buf).unwrap();
     writeln!(
         buf,
-        "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>7}",
-        "Source", "Entries", "Timeouts", "Crashes", "Mem.bugs", "POSIX-bugs", "Greedy-bugs",
-        "Compared", "Same", "Diff%"
+        "{:<13} {:>8} {:>9} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
+        "Source", "Entries", "Timeouts", "Crashes", "Match%", "Shape%", "ShapeN", "Ambig%", "AmbigN"
     ).unwrap();
-    writeln!(buf, "{}", "-".repeat(105)).unwrap();
+    writeln!(buf, "{}", "-".repeat(90)).unwrap();
 
     let mut total = Tally::default();
     for &source in &SOURCES {
@@ -465,45 +538,36 @@ fn main() {
         if t.entries == 0 {
             continue;
         }
-        let diff_pct = if t.cross_compared > 0 {
-            100.0 * t.cross_different_shape as f64 / t.cross_compared as f64
-        } else {
-            0.0
-        };
         writeln!(
             buf,
-            "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>6.1}",
+            "{:<13} {:>8} {:>9} {:>8} {:>7.1}% {:>7.1}% {:>8} {:>7.1}% {:>8}",
             format!("{:?}", source), t.entries, t.timeouts, t.crashes,
-            t.membership_bugs, t.posix_shape_bugs, t.greedy_shape_bugs, t.cross_compared,
-            t.cross_same_shape, diff_pct
+            t.match_agree_pct(), t.shape_agree_pct(), t.shape_eligible,
+            t.ambiguous_pct(), t.cross_compared
         ).unwrap();
-        total.entries += t.entries;
-        total.timeouts += t.timeouts;
-        total.crashes += t.crashes;
-        total.membership_bugs += t.membership_bugs;
-        total.posix_shape_bugs += t.posix_shape_bugs;
-        total.greedy_shape_bugs += t.greedy_shape_bugs;
-        total.cross_compared += t.cross_compared;
-        total.cross_same_shape += t.cross_same_shape;
-        total.cross_different_shape += t.cross_different_shape;
+        total.accumulate(t);
     }
-    writeln!(buf, "{}", "-".repeat(105)).unwrap();
-    let total_diff_pct = if total.cross_compared > 0 {
-        100.0 * total.cross_different_shape as f64 / total.cross_compared as f64
-    } else {
-        0.0
-    };
+    writeln!(buf, "{}", "-".repeat(90)).unwrap();
     writeln!(
         buf,
-        "{:<13} {:>8} {:>9} {:>8} {:>10} {:>11} {:>12} {:>9} {:>8} {:>6.1}",
-        "Total", total.entries, total.timeouts, total.crashes, total.membership_bugs,
-        total.posix_shape_bugs, total.greedy_shape_bugs, total.cross_compared,
-        total.cross_same_shape, total_diff_pct
+        "{:<13} {:>8} {:>9} {:>8} {:>7.1}% {:>7.1}% {:>8} {:>7.1}% {:>8}",
+        "Total", total.entries, total.timeouts, total.crashes,
+        total.match_agree_pct(), total.shape_agree_pct(), total.shape_eligible,
+        total.ambiguous_pct(), total.cross_compared
     ).unwrap();
     writeln!(buf).unwrap();
-    writeln!(buf, "Compared = matching entries where both families were internally consistent.").unwrap();
-    writeln!(buf, "Same / Diff = their POSIX-vs-Greedy shape agreement.").unwrap();
-    writeln!(buf, "Diff is not a bug: the two policies may pick different trees for an ambiguous match.").unwrap();
+    writeln!(buf, "Match%  = agreement on MATCH RESULT: of entries where every parser ran to").unwrap();
+    writeln!(buf, "  completion (Entries minus Timeouts minus Crashes), the % where all five").unwrap();
+    writeln!(buf, "  agreed with the verified expected result. Covers non-matches too -- agreeing").unwrap();
+    writeln!(buf, "  something does NOT match is as real a check as agreeing that it does.").unwrap();
+    writeln!(buf, "Shape%  = agreement on SHAPE: restricted to ShapeN, the verified matches with").unwrap();
+    writeln!(buf, "  correct membership (a non-match has no tree, so it is excluded, not counted").unwrap();
+    writeln!(buf, "  as trivially agreeing). The % of ShapeN with no POSIX-internal or").unwrap();
+    writeln!(buf, "  Greedy-internal shape disagreement.").unwrap();
+    writeln!(buf, "Ambig%  = of AmbigN (ShapeN entries with no internal disagreement in either").unwrap();
+    writeln!(buf, "  family), the % where POSIX and Greedy picked different trees. Not a bug --").unwrap();
+    writeln!(buf, "  the two policies may legitimately disagree on an ambiguous match -- tracked").unwrap();
+    writeln!(buf, "  separately from Shape%, never folded into it.").unwrap();
     writeln!(buf, "Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or").unwrap();
     writeln!(buf, "  ambiguous pattern can be infeasible in the configured budget.").unwrap();
     writeln!(buf, "Crashes are counted, not dismissed (usually a stack overflow on a deep expression),").unwrap();

@@ -109,26 +109,15 @@ pub fn sample_negative_late(r: &Regex, rng: &mut StdRng, max_star_iters: u32) ->
     Some(s)
 }
 
-/// Fixed `Star` iteration count for every structural sample.
-/// Enough repetition to be realistic without adversarial growth.
-const SAMPLE_MAX_STAR_ITERS: u32 = 4;
-
-/// Draws attempted per distinct string still needed, before giving up.
-///
-/// A pattern can fall short of `count` distinct positives for two
-/// reasons, and only one is fixable by trying harder.
-/// The language can be large enough that collisions are just unlucky
-/// (`[a-z]+` has infinitely many positives).
-/// Or it can be too small to have `count` distinct members at all
-/// (`a{3}` has exactly one).
-/// This multiplier eliminates the first kind of shortfall; the second
-/// is irreducible.
+/// A pattern can fall short of `count` distinct positives:
+/// - language large enough that collisions are just unlucky (`[a-z]+` has infinitely many positives)
+/// - too small to have `count` distinct members at all (`a{3}` has exactly one)
 const RESAMPLE_ATTEMPTS_PER_TARGET: usize = 100;
 
-/// `count` distinct positives from `r`'s own structure.
-/// Returns fewer if the language does not have `count` distinct members.
-/// Split out of `generate_sample` so a caller that needs only one side
-/// does not have to generate the other and discard it.
+/// Fixed `Star` iteration count for every structural sample
+const SAMPLE_MAX_STAR_ITERS: u32 = 4;
+
+/// `count` distinct positives from `r`'s own structure
 pub fn generate_positives(r: &Regex, rng: &mut StdRng, count: usize) -> Vec<Candidate> {
     let mut positives: Vec<String> = Vec::new();
     for _ in 0..count * RESAMPLE_ATTEMPTS_PER_TARGET {

@@ -9,16 +9,7 @@ pub enum SourceKind {
     Suricata,
     SpamAssassin,
     RegexLib,
-    /// github.com/s2e-lab/RegexEval: each pattern ships with
-    /// author-labeled `matches`/`non_matches`, so generation here is
-    /// "use what's given", not structural sampling. Named for the org
-    /// rather than the repo, to match this project's own `data/raw`
-    /// layout. Opt-in only, like `RegexLib`.
     S2ELab,
-    /// github.com/innovatorved/regex_dataset: each pattern ships with
-    /// free-form, *unlabeled* test text (a mix of matches and
-    /// non-matches with no marker saying which). Opt-in only, like
-    /// `RegexLib`.
     Innovatorved,
 }
 
@@ -73,8 +64,6 @@ pub enum RuleContext {
         non_matches: Vec<String>,
     },
     Innovatorved {
-        /// Raw multi-line test text as given; `None` when the entry has
-        /// none (`generate` then produces zero candidates for it).
         test_text: Option<String>,
     },
 }
@@ -87,11 +76,8 @@ pub struct ExtractedRule {
     pub context: RuleContext,
 }
 
-/// How reliably a pattern's full-string-match reading reflects the
-/// original author's intent (about the *pattern*, not the *input*).
-///
 /// Only `data/prepare.rs::core_regex_tagged` strips anchors.
-/// Every other frontend entry point rejects `^`/`$` unconditionally.
+/// Every other entry point rejects `^`/`$` unconditionally.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MatchIntent {
     /// Top-level `^...$` wrap; redundant under full-string matching.
@@ -112,11 +98,8 @@ pub enum Provenance {
     /// Structural sample, claimed non-match (see `sample_negative_late`).
     StructuralNegative,
     /// S2ELab: one of the pattern author's own `matches`/`non_matches`.
-    /// `claimed_match` says which; both are given, not sampled.
     DatasetGiven,
     /// Innovatorved: one line of the pattern's free-form test text,
-    /// unlabeled in the source, classified against the real parser
-    /// before being handed to `verify_candidate` as any other claim.
     DatasetTextClassified,
 }
 
@@ -124,9 +107,6 @@ impl Provenance {
     /// Whether a *negative* (`claimed_match == false`) candidate of this
     /// provenance must additionally fail late (past
     /// `LATE_FAILURE_THRESHOLD`) to survive verification.
-    /// `RealCorpus` and `ContentDerived` never produce negatives, so they
-    /// are irrelevant here; listed explicitly rather than falling through
-    /// a wildcard so a future provenance must make this choice too.
     pub fn requires_late_failure(self) -> bool {
         match self {
             Provenance::StructuralNegative
@@ -136,19 +116,8 @@ impl Provenance {
         }
     }
 
-    /// Whether this candidate's *text* came from the source's own data,
-    /// rather than being generated to fill a gap.
-    /// `DatasetGiven` (S2ELab's own `matches`/`non_matches`) and
-    /// `DatasetTextClassified` (Innovatorved's own free-form test lines)
-    /// qualify; everything else -- including `RealCorpus`, which samples
-    /// real external text but not text the pattern's own author supplied
-    /// as a labeled example for it -- is generated.
-    /// `run_pipeline` orders real candidates before the structural top-up
-    /// so `verify_until` reaches them first.
-    /// `PipelineReport` uses it to measure how much of a source's final
-    /// corpus is real versus generated.
-    /// Listed explicitly, as above, so a future provenance must make this
-    /// choice too.
+    /// Whether this candidate's *text* came from the source's own data
+    /// or was being generated to fill a gap.
     pub fn is_from_dataset(self) -> bool {
         match self {
             Provenance::DatasetGiven | Provenance::DatasetTextClassified => true,

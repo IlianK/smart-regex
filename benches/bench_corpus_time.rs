@@ -269,15 +269,8 @@ enum Outcome {
     Crashed(String),
 }
 
-/// Runs one (parser, pattern, input) job in its own process, bounded
-/// by `cap`. On timeout, kills the child, which -- unlike the thread
-/// this used to be -- actually reclaims its memory. See the module
-/// doc for why that distinction is the entire point of this function.
-///
-/// Mirrors `demo_parser_agreement.rs`'s `run_parser_isolated` almost
-/// exactly; duplicated rather than shared, consistent with this
-/// codebase's existing convention of not sharing code between bench
-/// and example binaries.
+/// Runs one (parser, pattern, input) job in its own process
+/// On timeout, kills the child
 fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: &str, input: &str) -> Outcome {
     let mut child: Child = match Command::new(worker)
         .arg(parser_idx.to_string())
@@ -290,8 +283,6 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
         Err(e) => panic!("failed to spawn {worker:?}: {e}"),
     };
 
-    // Pattern/input travel over stdin, not argv: see bench_worker.rs's
-    // module doc for why (an embedded NUL byte in some real candidates).
     {
         let mut stdin = child.stdin.take().expect("piped stdin");
         let job = serde_json::json!({ "pattern": pattern, "input": input }).to_string();
@@ -300,9 +291,6 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
         }
     }
 
-    // Drained on a side thread while polling for exit, so a full pipe
-    // buffer can never deadlock against this loop; this thread's own
-    // lifetime is bounded by the child's.
     let mut stdout = child.stdout.take().expect("piped stdout");
     let mut stderr = child.stderr.take().expect("piped stderr");
     let (tx, rx) = mpsc::channel();
@@ -337,13 +325,6 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
             }
             Ok(None) => {
                 if Instant::now() >= deadline {
-                    // A failure here is rare (the process already
-                    // exited is the only common case, and wait()
-                    // below reaps it immediately either way) but not
-                    // impossible; if it ever happens for a real
-                    // reason, the following wait() could block
-                    // indefinitely on a process nothing told to die,
-                    // so it is worth a log line rather than silence.
                     if let Err(e) = child.kill() {
                         eprintln!("warning: failed to kill timed-out worker: {e}");
                     }

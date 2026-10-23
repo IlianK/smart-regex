@@ -80,6 +80,10 @@ pub(crate) fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
     }
 }
 
+/// A negative must fail at or past this fraction of the input.
+/// Earlier failures are discarded.
+const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
+
 /// Chars consumed before the match becomes impossible.
 /// Full length on a match.
 /// `None` when the check exceeds its node cap.
@@ -91,13 +95,10 @@ pub fn failed_after_chars(input: &str, r: &Regex) -> Option<usize> {
     }
 }
 
-/// A negative must fail at or past this fraction of the input.
-/// Earlier failures are discarded.
-const LATE_FAILURE_THRESHOLD: f64 = 2.0 / 3.0;
 
-/// Core regex for a PCRE-rule body, plus which `MatchIntent` applied.
-/// Duplicates `parse_pcre_rule`'s steps to add depth/node caps.
-/// Also strips a top-level `^...$` wrap before `translate` sees it.
+/// Core regex for PCRE-rule body + `MatchIntent` applied
+/// Duplicates `parse_pcre_rule`'s steps to add depth/node caps
+/// Strips a top-level `^...$` wrap before `translate` sees it
 pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), String> {
     let (body, flags) = strip_pcre_delimiters(raw_pattern);
     if let Some(reason) = flags.unsupported() {
@@ -107,9 +108,9 @@ pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), Stri
     let ep = if flags.case_insensitive { case_fold(&ep) } else { ep };
     let ep = if flags.dot_all { ep } else { strip_dot_newline(&ep) };
     let (ep, stripped) = strip_full_anchors(ep);
-    // `stripped` false means no top-level `^...$` wrap.
-    // The pattern may still have a lone `^`/`$` somewhere.
-    // `translate` then rejects it below, discarding this binding.
+
+    // `stripped` false means no top-level `^...$` wrap -> pattern has lone `^`/`$` somewhere
+    // `translate` rejects it below, discarding this binding
     let intent = if stripped {
         MatchIntent::ExplicitFullMatch
     } else {
@@ -126,8 +127,7 @@ pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), Stri
         ));
     }
 
-    // Any anchor not in the one shape `strip_full_anchors` recognizes
-    // reaches `translate` unchanged and is rejected there.
+    // Any anchor not strippable shape reaches `translate` unchanged and is rejected there
     let r = translate(&ep)?;
     let nodes = node_count(&r);
     if nodes > MAX_CORE_NODES {
@@ -144,8 +144,7 @@ pub fn core_regex(raw_pattern: &str) -> Result<Regex, String> {
 }
 
 /// Strips a top-level `^...$` wrap.
-/// The one shape whose anchors are provably redundant under full-string
-/// matching.
+/// The one shape whose anchors are provably redundant under full-string matching.
 /// Returns `(possibly-stripped ep, true)` if it stripped something.
 /// Returns `(ep unchanged, false)` otherwise.
 fn strip_full_anchors(ep: ExtPat) -> (ExtPat, bool) {
@@ -377,17 +376,6 @@ pub fn verify_all(
 /// Verify candidates in order, stopping as soon as `per_side` matches
 /// and `per_side` non-matches have been accepted.
 /// Remaining candidates are dropped without verification.
-///
-/// A candidate whose claimed side is already full is skipped before
-/// verification: it cannot contribute either way.
-///
-/// The batch is expected to be ordered so the source's own given or
-/// classified candidates come before any generated top-up; that ordering
-/// makes this "prefer real" for free.
-///
-/// Returns the accepted cases and the number of candidates that were
-/// examined by `verify_one` and rejected.
-/// On success, the returned vector has exactly `2 * per_side` cases.
 pub fn verify_until(
     source: SourceKind,
     raw_pattern: &str,
@@ -448,9 +436,8 @@ pub fn write_prepared_cases(
     Ok(())
 }
 
-/// Read every prepared case from a JSON-lines file written by
-/// `write_prepared_cases`.
-/// Blank lines are skipped.
+/// Read every prepared case from a JSON-lines file written by `write_prepared_cases`.
+/// Blank lines skipped.
 pub fn read_prepared_cases(path: &std::path::Path) -> std::io::Result<Vec<PreparedCase>> {
     let text = std::fs::read_to_string(path)?;
     text.lines()
