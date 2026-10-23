@@ -1,15 +1,89 @@
 # External Pattern to Internal Regex
 
-`src/frontend/` turns a pattern string into the crate's six-constructor
-core `Regex`.
+`src/frontend/` parses an external pattern string as `ExtPat` and then turns it into the crate's six-constructor core `Regex`.
 
 For the CLI's own `match`/`parse` behavior, see [CLI.md](CLI.md).
 
 
+## Two-stage design: `ExtPat` vs `Regex`
+
+`parse_ext_pattern` produces `ExtPat`, a **surface AST** that mirrors the
+constructs a real regex dialect (PCRE, POSIX) uses.
+
+The reason `ExtPat` is a separate AST from the internal `Regex` is that
+`ExtPat` can *represent* constructs the internal `Regex` cannot. The
+frontend deliberately splits recognition from lowering:
+
+- `parse_ext_pattern` produces `ExtPat` nodes. For constructs with no
+  `ExtPat` variant at all -- lookaround, backreferences, POSIX classes --
+  it cannot build a node, so it returns `Err` immediately: **rejected at
+  parse**.
+- For `^`, `$`, `\b`, `\B` there *is* an `ExtPat` variant (`Carat`,
+  `Dollar`, `WordBoundary`), so `parse_ext_pattern` succeeds and hands
+  the node to `translate`. `translate` has no `Regex` lowering for those
+  variants, so it returns `Err` with a message naming the construct:
+  **rejected at lower**.
+- `translate` lowers every remaining `ExtPat` arm to one of `Regex`'s
+  six constructors. This two-stage split exists so that anchors and word
+  boundaries get a *named* error ("anchor `^` is not supported") instead
+  of a generic parse failure -- the `ExtPat` variants exist for
+  diagnosis, not for use.
+
+This split is what makes errors useful ("`^` is not supported by this
+frontend") instead of generic ("unexpected character `^`"), and it
+keeps the parser honest about what PCRE actually allows while the
+lowering stage enforces what the matcher actually supports.
+
+### Rejected -- hard `Err` from `parse_ext_pattern` or `translate`
+
+| Construct | Rejected by | Reason |
+|---|---|---|
+| Lookahead `(?=` `(?!`, lookbehind `(?<=` `(?<!` | `parse_ext_pattern` | not regular; no `ExtPat` constructor exists |
+| Backreferences `\1`-`\9`, `(?P=name)` | `parse_ext_pattern` | not regular; no `ExtPat` constructor |
+| POSIX classes `[[:alpha:]]` | `parse_ext_pattern` | explicitly rejected to avoid silent misread as literal `[`, `:`, ... |
+| Anchors `^`, `$` | `translate` | recognised as `ExtPat::Carat`/`Dollar`; no `Regex` lowering exists |
+| Word boundary `\b`, `\B` | `translate` | recognised as `ExtPat::WordBoundary`; position-dependent, not regular-language |
+| Bounds > 1000 | `translate` (`MAX_BOUND`) | unrolling would be prohibitive |
+| Flags `m`, `x` | `parse_pcre_rule` (`PcreFlags::unsupported`) | `m` needs anchors; `x` changes whitespace significance |
+
+**Consequence for stress-test datasets:** every pattern fed through
+`parse_pattern` or `parse_pcre_rule` must avoid the "Rejected" column --
+otherwise the harness records a compile error, not a timing datum. In
+particular, do **not** wrap patterns in `^...$`; matching is
+full-string-only by construction, so anchors are unnecessary and cause
+a hard rejection.
+
+### Accepted -- lowered by `translate` to the six `Regex` constructors
+
+| Construct | Syntax | Notes |
+|---|---|---|
+| Literal character | `a`, `café` | matched as a full `char`; not restricted to the working alphabet |
+| Dot | `.` | matches one char from the 98-char alphabet (see "Working alphabet" below); includes `\n` under `parse_pattern`, excludes `\n` under `parse_pcre_rule` without `s` |
+| Control / hex / octal escape | `\n` `\t` `\r` `\xHH` `\0`-`\7` | octal clamped to 255 |
+| Shorthand class | `\d` `\D` `\w` `\W` `\s` `\S` | ASCII only; `\D`/`\W`/`\S` = alphabet minus the positive set |
+| Bracket class | `[...]`, `[^...]`, ranges `[a-z]`, literal `]` and `-`, octal inside | ASCII only; negation = alphabet minus listed set |
+| Group | `(...)`, `(?:...)`, `(?<name>...)`, `(?P<name>...)` | capture name parsed then dropped |
+| Alternation | `a\|b\|c` | -- |
+| Quantifier | `?` `+` `*` `{m,n}` `{m,}` `{m}` | `m,n ≤ 1000` (`MAX_BOUND`); lazy `?` accepted and discarded |
+| Explicit tokens | `ε` (Eps), `∅` (Phi) | -- |
+| Wrapper flags | `/.../i`, `/.../s` | only `parse_pcre_rule`; `i` case-folds, `s` makes `.` include `\n` |
+
+Two lowerings are worth noting for size:
+
+- A class (`.`, `\d`/`\w`/`\s` and their negations, `[...]`, `[^...]`)
+  becomes an `Alt` chain over the 98-character working alphabet
+  (see "Working alphabet" below).
+- A bound `{m,n}` unrolls into `m` copies plus `n - m` optional copies
+  (`repeat_exact` / `optional_extra`). Bounds are capped at
+  `MAX_BOUND = 1000`: a bound exceeding the cap is rejected, not
+  silently truncated.
+
+
 ## Entry points
 
-`src/frontend/mod.rs` exposes two, both full-string match only --
-neither pads, searches, or otherwise changes what the translated pattern
+`src/frontend/mod.rs` exposes two, both full-string match entrypoints.
+
+Neither pads, searches, or otherwise changes what the translated pattern
 is matched against.
 
 | Function | Wrapper stripped? | Flags applied | Used by |
@@ -25,8 +99,8 @@ applies to it.
 The dataset pipeline (`src/data/`) does **not** call either of these
 directly. It has its own `core_regex`/`core_regex_tagged`
 (`src/data/prepare.rs`), which repeats `parse_pcre_rule`'s steps plus two
-size caps and one additional, narrow anchor recovery — see
-[DATASET.md](DATASET.md)'s "Match-intent reliability tiers". That
+size caps and one additional, narrow anchor recovery (see
+[DATASET.md](DATASET.md)'s "Match-intent reliability"). That
 recovery is specific to dataset preparation and never changes what
 `translate`, `parse_pattern`, or `parse_pcre_rule` themselves do.
 
@@ -54,52 +128,64 @@ buffer selector.
 ## Pipeline
 
 ```
-pattern string
-  -> strip_pcre_delimiters   parse_pcre_rule only; splits /PATTERN/FLAGS
-  -> parse_ext_pattern       string -> ExtPat; rejects backreferences and lookaround
-  -> case_fold               parse_pcre_rule only, if the i flag was set
-  -> strip_dot_newline       parse_pcre_rule only, if the s flag was not set
-  -> translate               ExtPat -> Regex; rejects ^, $, \b, \B wherever they appear
+parse_pattern:                    parse_pcre_rule:
+  pattern string                    /PATTERN/FLAGS
+        │                                  │
+        │                                  ▼
+        │                         strip_pcre_delimiters
+        │                                  │
+        └──────────────┬───────────────────┘
+                       ▼
+              parse_ext_pattern          (rejects lookaround, backrefs, POSIX)
+                       │
+              ┌────────┴────────┐
+              ▼                 ▼
+    (parse_pattern)     (parse_pcre_rule)
+              │                 │
+              │          case_fold          (if /i)
+              │                 │
+              │          strip_dot_newline   (unless /s)
+              │                 │
+              └────────┬────────┘
+                       ▼
+                  translate              (rejects ^, $, \b, \B, bounds > 1000)
+                       │
+                       ▼
+                     Regex
 ```
 
-`ExtPat` is the surface AST: literals, `.`, classes, grouping,
-quantifiers, bounds, alternation, anchors, and `\b`/`\B`. `translate`
-lowers each to `Regex`'s six constructors; a class becomes an `Alt` chain
-over the 98-character alphabet, and a bound unrolls into that many
-copies. Anchors and word-boundary assertions have no lowering: `translate`
-returns `Err` the moment it visits one, regardless of where in the
-pattern it sits (see "Anchors are rejected" below).
+## Working alphabet (98 characters)
 
-Because of the `Alt`-chain lowering, `.`, the shorthand classes
-(`\d \D \w \W \s \S`), and any negated class `[^...]` can only ever match
-a character from that 98-character alphabet (printable ASCII plus
-tab/newline/CR, `alphabet.rs`) -- none of them matches a character
-outside it, even though real PCRE/POSIX semantics define a negated class
-as everything except the characters listed. A literal character written
-directly in the pattern is unaffected (`Regex::Lit` compares the full
-`char`, not just the working alphabet), so `café` still matches `"café"`;
-it is specifically `.`, a shorthand class, or negation that is bounded
-this way. Verified: `cargo run -- match "[^a]" "é"`, `match "\W" "é"`,
-and `match "." "é"` all print `false`.
+`alphabet()` in `alphabet.rs` is printable ASCII `0x20`-`0x7E` (95 chars)
+plus `\t`, `\n`, `\r` (3 more) = **98 characters**. Every class-shaped
+construct -- `.`, `\d \D \w \W \s \S`, and any bracket class `[...]` or
+`[^...]` -- lowers to an `Alt` chain over this alphabet. Consequence:
+
+- None of these constructs can match a character **outside** the
+  alphabet, even under negation. A `[^a]` class matches *every alphabet
+  character except `a`*; it does not match `é`, `€`, emoji, or any other
+  non-ASCII character, contrary to real PCRE/POSIX semantics where a
+  negated class means "everything except the listed characters".
+- A **literal** character written directly in the pattern is unaffected:
+  `Regex::Lit` compares the full `char`, so `café` still matches `"café"`.
+  Only `.`, shorthand classes, and negated classes are alphabet-bounded.
+
+Verified: `cargo run -- match "[^a]" "é"`, `match "\W" "é"`, and
+`match "." "é"` all print `false`.
 
 
-## Anchors are rejected
+## Anchors are rejected everywhere they appear
 
-`^`, `$`, `\b`, and `\B` all parse successfully -- into `ExtPat::Carat`,
-`ExtPat::Dollar`, and `ExtPat::WordBoundary` -- and are rejected one
-stage later, by `translate`, rather than being desugared into an
-equivalent `Regex`. Every entry point in `src/frontend/` performs
-full-string matching only: no padding is inserted, and no substring
-search is performed.
-
-Rejection is total, not positional: `translate` is structural recursion,
-and every compound `ExtPat` arm propagates a child's `Err` immediately
-(`?` in every case except `Group`/`GroupNonMarking`, which tail-call and
-so propagate it for free). An anchor buried behind an optional
-quantifier, inside one branch of an alternation, or under a `Star`/bound
-still reaches `translate` and still rejects the whole pattern, even
-though taking that branch is not required for the pattern to match at
-all.
+`^`, `$`, `\b`, and `\B` parse into `ExtPat::Carat`, `ExtPat::Dollar`,
+and `ExtPat::WordBoundary` -- but `translate` returns `Err` the moment it
+reaches one. The rejection is **total, not positional**: `translate` is
+structural recursion, and every compound `ExtPat` arm propagates a
+child's `Err` immediately (`?` in every case except `Group` /
+`GroupNonMarking`, which tail-call and so propagate it for free). An
+anchor buried behind an optional quantifier, inside one branch of an
+alternation, or under a `Star`/bound still rejects the whole pattern --
+even though taking that branch is not required for the pattern to match
+at all.
 
 Verified against the built CLI, each rejecting with the same message
 (`anchor '^'/'$' is not supported by this frontend -- unsupported`):
@@ -114,13 +200,7 @@ cargo run -- parse "(^a){0,1}b" "b"     # under an explicit bound
 
 `ε` and `∅` are unaffected: `translate(ExtPat::Eps) = Regex::Eps` and
 `translate(ExtPat::Never) = Regex::Phi` regardless of anchors elsewhere
-in the pattern, since neither ever contains one.
-
-
-## Rejected Patterns
-
-| Construct | Rejected by | Why there |
-|---|---|---|
-| Backreferences (`\1`-`\9`, `(?P=name)`), lookaround (`(?=`, `(?!`, `(?<=`, `(?<!`) | `parse_ext_pattern` | not regular; no `ExtPat` constructor exists for them, so there is nowhere to defer to |
-| `^`, `$` | `translate` | parse succeeds into `ExtPat::Carat`/`ExtPat::Dollar` so rejection can name the construct instead of silently mismatching it |
-| `\b`, `\B` | `translate` | parse succeeds into `ExtPat::WordBoundary`, same reason; both are position-dependent, not regular-language, constructs |
+in the pattern, since neither ever contains one. (The same is *not* true
+in reverse -- `translate` recurses into every child, so an anchor
+**anywhere** in a larger pattern still rejects the whole thing, even if
+the `ε` or `∅` branch is the one that would have matched.)
