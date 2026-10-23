@@ -80,7 +80,7 @@ path = "examples/demo_parser_agreement_worker.rs"
 name = "demo_translate_reject"
 path = "examples/demo_translate_reject.rs"
 
-# Worker for bench_corpus_time and bench_memory: 
+# Worker for bench_corpus_time and bench_memory:
 # isolated (parser, pattern, input) job per process
 [[example]]
 name = "bench_worker"
@@ -88,14 +88,6 @@ path = "examples/bench_worker.rs"
 
 
 # Benchmarks
-[[bench]]
-name = "bench_match"
-harness = false
-
-[[bench]]
-name = "bench_parse"
-harness = false
-
 [[bench]]
 name = "bench_memory"
 harness = false
@@ -127,7 +119,3 @@ rand        = "0.8"
 serde       = { version = "1", features = ["derive"] }
 serde_json  = { version = "1", features = ["unbounded_depth"] }
 serde_stacker = "0.1"
-
-[dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
-
