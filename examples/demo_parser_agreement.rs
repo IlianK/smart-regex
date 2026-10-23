@@ -7,7 +7,7 @@
 //! For each (pattern, input) entry, all five parsers run.
 //! Three checks:
 //!   - POSIX parsers agree among themselves;
-//!   - Greedy parsers agree among themselves;
+//!   - non-POSIX parsers agree among themselves;
 //!   - all five agree on membership.
 //!
 //! Each parser call runs in its own subprocess, not a thread.
@@ -24,19 +24,30 @@
 //! Build the worker first:
 //!   cargo build --release --example demo_parser_agreement_worker
 //!
-//! Also saves its output to reports/demos/parser_agreement.txt,
-//! replacing any previous run. This is the one demo in that family
-//! whose exit code matters (1 on a real bug) and whose "last known
-//! clean" state is worth a persisted record rather than only ever
-//! existing in scrollback.
+//! Saves two files, replacing any previous run:
+//!   - reports/demos/parser_agreement.csv -- the summary table (one row
+//!     per source plus a total): entries/matches/non-matches/timeouts/
+//!     crashes/agreement percentages.
+//!   - reports/demos/parser_agreement_samples.csv -- every individual
+//!     flagged entry (timeout, crash, membership bug, POSIX/non-POSIX
+//!     shape bug, ambiguous shape), capped at `MAX_PRINTED_PER_BUG_KIND`
+//!     per kind same as stdout. Kept separate from the summary table per
+//!     this project's "a listing of individual examples gets its own
+//!     file" convention.
+//! This is the one demo in that family whose exit code matters (1 on a
+//! real bug) and whose "last known clean" state is worth a persisted
+//! record rather than only ever existing in scrollback.
 
+use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use std::fmt::Write as _;
+#[path = "common/thesis_figures.rs"]
+mod common;
+use common::{csv_quote, save};
 
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
@@ -129,24 +140,6 @@ fn worker_path() -> PathBuf {
         );
     }
     path
-}
-
-/// Prints `body` and also saves it to `reports/demos/parser_agreement.txt`,
-/// replacing any previous run -- the same "latest run, not a log"
-/// convention the corpus benches use for their CSVs.
-fn save_report(body: &str) {
-    print!("{body}");
-    let dir = "reports/demos";
-    if let Err(e) = std::fs::create_dir_all(dir) {
-        eprintln!("could not create {dir}: {e}");
-        return;
-    }
-    let path = format!("{dir}/parser_agreement.txt");
-    if let Err(e) = std::fs::write(&path, body) {
-        eprintln!("could not write {path}: {e}");
-    } else {
-        eprintln!("wrote {path}");
-    }
 }
 
 /// One parser's outcome for one entry.
@@ -292,17 +285,17 @@ struct Tally {
     /// agreeing that it does.
     membership_bugs: usize,
     /// A verified match with correct membership and a POSIX-internal
-    /// and/or Greedy-internal shape disagreement. Internal-family
-    /// consistency (3-way POSIX, 2-way Greedy) is a given -- each is its
-    /// own correctness property, pinned by its own test -- so these are
-    /// tracked only for the detailed bug lines and the overall bug
+    /// and/or non-POSIX-internal shape disagreement. Internal-family
+    /// consistency (3-way POSIX, 2-way non-POSIX) is a given -- each is
+    /// its own correctness property, pinned by its own test -- so these
+    /// are tracked only for the detailed bug lines and the overall bug
     /// count below, not as their own summary-table column. The
-    /// comparison worth a column is the next one: POSIX vs. Greedy.
+    /// comparison worth a column is the next one: POSIX vs. non-POSIX.
     posix_shape_bugs: usize,
-    greedy_shape_bugs: usize,
+    non_posix_shape_bugs: usize,
     /// Entries where both families were internally consistent and
-    /// matched, so a single POSIX tree and a single Greedy tree both
-    /// exist to compare. Denominator for shape agreement/disagreement.
+    /// matched, so a single POSIX tree and a single non-POSIX tree
+    /// both exist to compare. Denominator for shape agreement/disagreement.
     cross_compared: usize,
     cross_same_shape: usize,
     cross_different_shape: usize,
@@ -322,7 +315,7 @@ impl Tally {
         if n == 0 { 0.0 } else { 100.0 * (n - self.membership_bugs) as f64 / n as f64 }
     }
 
-    /// % of `cross_compared` where POSIX and Greedy picked the SAME tree.
+    /// % of `cross_compared` where POSIX and non-POSIX picked the SAME tree.
     fn shape_agree_pct(&self) -> f64 {
         if self.cross_compared == 0 {
             0.0
@@ -331,7 +324,7 @@ impl Tally {
         }
     }
 
-    /// % of `cross_compared` where POSIX and Greedy picked DIFFERENT
+    /// % of `cross_compared` where POSIX and non-POSIX picked DIFFERENT
     /// trees. Not a bug -- the two policies may legitimately disagree
     /// on an ambiguous pattern. `shape_agree_pct + shape_disagree_pct`
     /// sums to 100% (of `cross_compared`).
@@ -351,7 +344,7 @@ impl Tally {
         self.crashes += t.crashes;
         self.membership_bugs += t.membership_bugs;
         self.posix_shape_bugs += t.posix_shape_bugs;
-        self.greedy_shape_bugs += t.greedy_shape_bugs;
+        self.non_posix_shape_bugs += t.non_posix_shape_bugs;
         self.cross_compared += t.cross_compared;
         self.cross_same_shape += t.cross_same_shape;
         self.cross_different_shape += t.cross_different_shape;
@@ -389,6 +382,50 @@ fn truncate(s: &str, n: usize) -> String {
     }
 }
 
+/// One flagged entry, going into the samples file (kept separate from
+/// the summary table -- see this file's own module doc).
+struct Sample {
+    kind: &'static str,
+    source: String,
+    pattern: String,
+    input: String,
+    detail: String,
+}
+
+fn push_sample(
+    samples: &mut Vec<Sample>,
+    kind: &'static str,
+    source: SourceKind,
+    pattern: &str,
+    input: &str,
+    detail: String,
+) {
+    samples.push(Sample {
+        kind,
+        source: format!("{source:?}"),
+        pattern: pattern.to_string(),
+        input: input.to_string(),
+        detail,
+    });
+}
+
+fn write_samples_csv(path: &str, samples: &[Sample]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "kind,source,pattern,input,detail")?;
+    for s in samples {
+        writeln!(
+            f,
+            "{},{},{},{},{}",
+            s.kind,
+            s.source,
+            csv_quote(&s.pattern),
+            csv_quote(&s.input),
+            csv_quote(&s.detail),
+        )?;
+    }
+    Ok(())
+}
+
 fn main() {
     let sel = selection();
     let worker = worker_path();
@@ -400,11 +437,11 @@ fn main() {
         );
     }
 
-    let mut buf = String::new();
     let mut tallies: [Tally; 5] = Default::default();
+    let mut samples: Vec<Sample> = Vec::new();
     let mut printed_membership = 0usize;
     let mut printed_posix = 0usize;
-    let mut printed_greedy = 0usize;
+    let mut printed_non_posix = 0usize;
     let mut printed_timeout = 0usize;
     let mut printed_crash = 0usize;
     let mut printed_ambiguous = 0usize;
@@ -433,12 +470,15 @@ fn main() {
         if let Some(names) = timed_out_names(&outcomes) {
             tally.timeouts += 1;
             if printed_timeout < MAX_PRINTED_PER_BUG_KIND {
-                writeln!(
-                    buf,
+                println!(
                     "TIMEOUT >{}ms  {:?}  pat={:?}  in={:?}  [{}]",
                     sel.timeout.as_millis(), case.source, truncate(&case.pattern, 60),
                     truncate(&case.input, 40), names.join(",")
-                ).unwrap();
+                );
+                push_sample(
+                    &mut samples, "timeout", case.source, &case.pattern, &case.input,
+                    format!("timed out after {}ms: [{}]", sel.timeout.as_millis(), names.join(",")),
+                );
                 printed_timeout += 1;
             }
             continue;
@@ -449,12 +489,12 @@ fn main() {
             tally.crashes += 1;
             if printed_crash < MAX_PRINTED_PER_BUG_KIND {
                 let detail: Vec<String> = crashed.iter().map(|(n, r)| format!("{n}: {r}")).collect();
-                writeln!(
-                    buf,
+                println!(
                     "CRASH  {:?}  pat={:?}  in={:?}  {}",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     detail.join(" | ")
-                ).unwrap();
+                );
+                push_sample(&mut samples, "crash", case.source, &case.pattern, &case.input, detail.join(" | "));
                 printed_crash += 1;
             }
             continue;
@@ -472,13 +512,20 @@ fn main() {
         if !membership_ok {
             tally.membership_bugs += 1;
             if printed_membership < MAX_PRINTED_PER_BUG_KIND {
-                writeln!(
-                    buf,
+                println!(
                     "MEMBERSHIP BUG  {:?}  pat={:?}  in={:?}  expected={}  got=[rec={} loop={} bc={} pstd={} pbc={}]",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     case.expected_match, all_matched[0], all_matched[1], all_matched[2],
                     all_matched[3], all_matched[4]
-                ).unwrap();
+                );
+                push_sample(
+                    &mut samples, "membership_bug", case.source, &case.pattern, &case.input,
+                    format!(
+                        "expected={} got=[rec={} loop={} bc={} pstd={} pbc={}]",
+                        case.expected_match, all_matched[0], all_matched[1], all_matched[2],
+                        all_matched[3], all_matched[4]
+                    ),
+                );
                 printed_membership += 1;
             }
             continue;
@@ -493,66 +540,82 @@ fn main() {
         if !posix_shape_ok {
             tally.posix_shape_bugs += 1;
             if printed_posix < MAX_PRINTED_PER_BUG_KIND {
-                writeln!(
-                    buf,
+                println!(
                     "POSIX SHAPE BUG  {:?}  pat={:?}  in={:?}  rec={:?} loop={:?} bc={:?}",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     rec, loop_, bc
-                ).unwrap();
+                );
+                push_sample(
+                    &mut samples, "posix_shape_bug", case.source, &case.pattern, &case.input,
+                    format!("rec={:?} loop={:?} bc={:?}", rec, loop_, bc),
+                );
                 printed_posix += 1;
             }
         }
 
-        let greedy_shape_ok = pstd == pbc;
-        if !greedy_shape_ok {
-            tally.greedy_shape_bugs += 1;
-            if printed_greedy < MAX_PRINTED_PER_BUG_KIND {
-                writeln!(
-                    buf,
-                    "GREEDY SHAPE BUG  {:?}  pat={:?}  in={:?}  pstd={:?} pbc={:?}",
+        let non_posix_shape_ok = pstd == pbc;
+        if !non_posix_shape_ok {
+            tally.non_posix_shape_bugs += 1;
+            if printed_non_posix < MAX_PRINTED_PER_BUG_KIND {
+                println!(
+                    "NON-POSIX SHAPE BUG  {:?}  pat={:?}  in={:?}  pstd={:?} pbc={:?}",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
                     pstd, pbc
-                ).unwrap();
-                printed_greedy += 1;
+                );
+                push_sample(
+                    &mut samples, "non_posix_shape_bug", case.source, &case.pattern, &case.input,
+                    format!("pstd={:?} pbc={:?}", pstd, pbc),
+                );
+                printed_non_posix += 1;
             }
         }
 
-        if posix_shape_ok && greedy_shape_ok {
+        if posix_shape_ok && non_posix_shape_ok {
             tally.cross_compared += 1;
             let posix_tree: &Option<ParseTree> = &bc;
-            let greedy_tree: &Option<ParseTree> = &pbc;
-            if posix_tree == greedy_tree {
+            let non_posix_tree: &Option<ParseTree> = &pbc;
+            if posix_tree == non_posix_tree {
                 tally.cross_same_shape += 1;
             } else {
                 tally.cross_different_shape += 1;
-                // Not a bug -- POSIX and Greedy may legitimately pick
+                // Not a bug -- POSIX and non-POSIX may legitimately pick
                 // different trees on an ambiguous pattern. One
                 // representative per family is enough: every POSIX
                 // parser already agrees with `bc` (posix_shape_ok,
-                // checked above), and every Greedy parser with `pbc`
-                // (greedy_shape_ok), so printing all five would just
+                // checked above), and every non-POSIX parser with `pbc`
+                // (non_posix_shape_ok), so printing all five would just
                 // repeat each tree two or three times over.
                 if printed_ambiguous < MAX_PRINTED_PER_BUG_KIND {
-                    writeln!(
-                        buf,
-                        "AMBIGUOUS SHAPE  {:?}  pat={:?}  in={:?}\n  posix (bc)   ={:?}\n  greedy (pbc) ={:?}",
+                    println!(
+                        "AMBIGUOUS SHAPE  {:?}  pat={:?}  in={:?}\n  posix (bc)     ={:?}\n  non-posix (pbc)={:?}",
                         case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                        posix_tree, greedy_tree
-                    ).unwrap();
+                        posix_tree, non_posix_tree
+                    );
+                    push_sample(
+                        &mut samples, "ambiguous_shape", case.source, &case.pattern, &case.input,
+                        format!("posix (bc)={:?} | non-posix (pbc)={:?}", posix_tree, non_posix_tree),
+                    );
                     printed_ambiguous += 1;
                 }
             }
         }
     }
 
-    writeln!(buf).unwrap();
-    writeln!(
-        buf,
+    println!();
+    println!(
         "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>10} {:>10} {:>10} {:>10} {:>10}",
         "Source", "Entries", "Matches", "NonMatch", "Timeouts", "Crashes",
         "MatchAgr%", "ShapeAgr%", "ShapeDis%", "ShapeNAgr", "ShapeNDis"
-    ).unwrap();
-    writeln!(buf, "{}", "-".repeat(118)).unwrap();
+    );
+    println!("{}", "-".repeat(118));
+
+    let mut summary_csv = String::new();
+    writeln!(
+        summary_csv,
+        "source,entries,matches,non_matches,timeouts,crashes,match_agree_pct,shape_agree_pct,\
+         shape_disagree_pct,shape_n_agree,shape_n_disagree"
+    )
+    .unwrap();
 
     let mut total = Tally::default();
     for &source in &SOURCES {
@@ -560,65 +623,78 @@ fn main() {
         if t.entries == 0 {
             continue;
         }
-        writeln!(
-            buf,
+        println!(
             "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>9.1}% {:>9.1}% {:>9.1}% {:>10} {:>10}",
             format!("{:?}", source), t.entries, t.matches, t.non_matches, t.timeouts, t.crashes,
             t.match_agree_pct(), t.shape_agree_pct(), t.shape_disagree_pct(),
             t.cross_same_shape, t.cross_different_shape
-        ).unwrap();
+        );
+        writeln!(
+            summary_csv,
+            "{:?},{},{},{},{},{},{:.1},{:.1},{:.1},{},{}",
+            source, t.entries, t.matches, t.non_matches, t.timeouts, t.crashes,
+            t.match_agree_pct(), t.shape_agree_pct(), t.shape_disagree_pct(),
+            t.cross_same_shape, t.cross_different_shape
+        )
+        .unwrap();
         total.accumulate(t);
     }
-    writeln!(buf, "{}", "-".repeat(118)).unwrap();
-    writeln!(
-        buf,
+    println!("{}", "-".repeat(118));
+    println!(
         "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>9.1}% {:>9.1}% {:>9.1}% {:>10} {:>10}",
         "Total", total.entries, total.matches, total.non_matches, total.timeouts, total.crashes,
         total.match_agree_pct(), total.shape_agree_pct(), total.shape_disagree_pct(),
         total.cross_same_shape, total.cross_different_shape
-    ).unwrap();
-    writeln!(buf).unwrap();
-    writeln!(buf, "Entries = Matches + NonMatch, per the dataset's own labeling, regardless of").unwrap();
-    writeln!(buf, "  what any parser actually did with them.").unwrap();
-    writeln!(buf, "MatchAgr%  = of entries where every parser ran to completion (Entries minus").unwrap();
-    writeln!(buf, "  Timeouts minus Crashes), the % where all five parsers agreed with the").unwrap();
-    writeln!(buf, "  verified expected result. Should be 100% for every parser on every source --").unwrap();
-    writeln!(buf, "  this is a real bug, not ambiguity, if it is ever not.").unwrap();
-    writeln!(buf, "ShapeAgr% / ShapeDis% = of ShapeNAgr + ShapeNDis (verified matches where both").unwrap();
-    writeln!(buf, "  the 3-way POSIX and 2-way Greedy families agreed with themselves, so one").unwrap();
-    writeln!(buf, "  POSIX tree and one Greedy tree both exist), the % where POSIX and Greedy").unwrap();
-    writeln!(buf, "  picked the SAME tree vs. a DIFFERENT one. Disagreement here is not a bug --").unwrap();
-    writeln!(buf, "  the two policies may legitimately pick different trees on an ambiguous").unwrap();
-    writeln!(buf, "  pattern. (Internal 3-way/2-way family agreement is checked separately, each").unwrap();
-    writeln!(buf, "  pinned by its own test; any failure there is printed below as its own bug").unwrap();
-    writeln!(buf, "  line and counted in the total bug count, not folded into this column.)").unwrap();
-    writeln!(buf, "Every ShapeDis% entry is printed above as \"AMBIGUOUS SHAPE\", with the pattern,").unwrap();
-    writeln!(buf, "  input, and one representative tree per family (bc for POSIX, pbc for Greedy --").unwrap();
-    writeln!(buf, "  every parser in a family already agrees with its own representative, so the").unwrap();
-    writeln!(buf, "  other two/one would just repeat it), capped at {MAX_PRINTED_PER_BUG_KIND} total like the bug lines.").unwrap();
-    writeln!(buf, "Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or").unwrap();
-    writeln!(buf, "  ambiguous pattern can be infeasible in the configured budget.").unwrap();
-    writeln!(buf, "Crashes are counted, not dismissed (usually a stack overflow on a deep expression),").unwrap();
-    writeln!(buf, "  but are not membership/shape disagreements -- nothing was produced to compare.").unwrap();
+    );
+    writeln!(
+        summary_csv,
+        "Total,{},{},{},{},{},{:.1},{:.1},{:.1},{},{}",
+        total.entries, total.matches, total.non_matches, total.timeouts, total.crashes,
+        total.match_agree_pct(), total.shape_agree_pct(), total.shape_disagree_pct(),
+        total.cross_same_shape, total.cross_different_shape
+    )
+    .unwrap();
 
-    let bugs = total.membership_bugs + total.posix_shape_bugs + total.greedy_shape_bugs;
+    println!();
+    println!("Entries = Matches + NonMatch, per the dataset's own labeling, regardless of");
+    println!("  what any parser actually did with them.");
+    println!("MatchAgr%  = of entries where every parser ran to completion (Entries minus");
+    println!("  Timeouts minus Crashes), the % where all five parsers agreed with the");
+    println!("  verified expected result. Should be 100% for every parser on every source --");
+    println!("  this is a real bug, not ambiguity, if it is ever not.");
+    println!("ShapeAgr% / ShapeDis% = of ShapeNAgr + ShapeNDis (verified matches where both");
+    println!("  the 3-way POSIX and 2-way non-POSIX families agreed with themselves, so one");
+    println!("  POSIX tree and one non-POSIX tree both exist), the % where POSIX and non-POSIX");
+    println!("  picked the SAME tree vs. a DIFFERENT one. Disagreement here is not a bug --");
+    println!("  the two policies may legitimately pick different trees on an ambiguous");
+    println!("  pattern. (Internal 3-way/2-way family agreement is checked separately, each");
+    println!("  pinned by its own test; any failure there is printed above as its own bug");
+    println!("  line and counted in the total bug count, not folded into this column.)");
+    println!("Every ShapeDis% entry is printed above as \"AMBIGUOUS SHAPE\" (and saved to the");
+    println!("  samples file as kind=ambiguous_shape), with the pattern, input, and one");
+    println!("  representative tree per family (bc for POSIX, pbc for non-POSIX -- every parser");
+    println!("  in a family already agrees with its own representative, so the other two/one");
+    println!("  would just repeat it), capped at {MAX_PRINTED_PER_BUG_KIND} total like the bug lines.");
+    println!("Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or");
+    println!("  ambiguous pattern can be infeasible in the configured budget.");
+    println!("Crashes are counted, not dismissed (usually a stack overflow on a deep expression),");
+    println!("  but are not membership/shape disagreements -- nothing was produced to compare.");
+
+    let bugs = total.membership_bugs + total.posix_shape_bugs + total.non_posix_shape_bugs;
+    println!();
     if bugs > 0 {
-        writeln!(buf).unwrap();
-        writeln!(
-            buf,
-            "{} BUG(S) across {} entries (printed details capped at {} per kind).",
-            bugs, total.entries, MAX_PRINTED_PER_BUG_KIND
-        ).unwrap();
+        println!("{} BUG(S) across {} entries (printed details capped at {} per kind).", bugs, total.entries, MAX_PRINTED_PER_BUG_KIND);
     } else {
-        writeln!(buf).unwrap();
-        writeln!(
-            buf,
-            "No bugs across {} entries ({} timed out, {} crashed).",
-            total.entries, total.timeouts, total.crashes
-        ).unwrap();
+        println!("No bugs across {} entries ({} timed out, {} crashed).", total.entries, total.timeouts, total.crashes);
     }
 
-    save_report(&buf);
+    save("parser_agreement", "csv", &summary_csv);
+    let samples_path = "reports/demos/parser_agreement_samples.csv";
+    if let Err(e) = write_samples_csv(samples_path, &samples) {
+        eprintln!("could not write {samples_path}: {e}");
+    } else {
+        eprintln!("wrote {samples_path}");
+    }
 
     if bugs > 0 {
         std::process::exit(1);

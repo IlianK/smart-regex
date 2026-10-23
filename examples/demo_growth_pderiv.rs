@@ -7,30 +7,31 @@
 //! per input character, for (a+(b+ab))* on (ab)^n.
 //! Deterministic; pinned by tests/test_thesis_figures.rs.
 //!
-//! Also saves its output to reports/demos/growth_pderiv.txt.
+//! Saves the table to reports/demos/growth_pderiv.csv (columns: char,
+//! strands, distinct), replacing any previous run.
 
 #[path = "common/thesis_figures.rs"]
 mod common;
 use common::*;
-use std::fmt::Write as _;
 
 fn main() {
-    let mut buf = String::new();
-    writeln!(buf, "Frontier size vs. distinct residual count.\n").unwrap();
+    println!("Frontier size vs. distinct residual count.\n");
 
     let rows = series_frontier(&expr_paper_r2(), &"ab".repeat(7));
-    writeln!(buf, "{:>5} {:>10} {:>10}", "char", "strands", "distinct").unwrap();
+    println!("{:>5} {:>10} {:>10}", "char", "strands", "distinct");
+    let mut csv = String::new();
+    csv.push_str("char,strands,distinct\n");
     for (i, (s, d)) in rows.iter().enumerate() {
-        writeln!(buf, "{:>5} {:>10} {:>10}", i, s, d).unwrap();
+        println!("{:>5} {:>10} {:>10}", i, s, d);
+        csv.push_str(&format!("{i},{s},{d}\n"));
     }
+    save("growth_pderiv", "csv", &csv);
 
     let strands: Vec<(usize, usize)> = rows.iter().enumerate().map(|(i, t)| (i, t.0)).collect();
     let distinct: Vec<(usize, usize)> = rows.iter().enumerate().map(|(i, t)| (i, t.1)).collect();
-    writeln!(buf, "\n-- pgfplots coordinates --").unwrap();
-    writeln!(buf, "% strands in the frontier").unwrap();
-    writeln!(buf, "\\addplot coordinates {{{}}};", coords(&strands)).unwrap();
-    writeln!(buf, "% distinct residuals among them").unwrap();
-    writeln!(buf, "\\addplot coordinates {{{}}};", coords(&distinct)).unwrap();
-
-    report("growth_pderiv", &buf);
+    println!("\n-- pgfplots coordinates --");
+    println!("% strands in the frontier");
+    println!("\\addplot coordinates {{{}}};", coords(&strands));
+    println!("% distinct residuals among them");
+    println!("\\addplot coordinates {{{}}};", coords(&distinct));
 }

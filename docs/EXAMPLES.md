@@ -56,9 +56,11 @@ file's own module doc.
 # translated and run against their own given match/non-match examples
 cargo run --release --example demo_translate -- data/raw/s2-elab/RegexEval.json --diag 1
 ```
-Every pattern this run translates successfully is also saved into
-`reports/demos/translate.txt`, showing the original raw pattern text
-next to its translated `Regex`.
+A compact run summary is saved into `reports/demos/translate.csv`.
+Every pattern this run translates successfully -- not just the few
+shown on stdout -- is a separate listing, showing the original raw
+pattern text next to its translated `Regex`, saved to
+`reports/demos/translate_patterns.csv`.
 
 
 ### Rejected Patterns
@@ -71,7 +73,7 @@ Each example is verified against the `parse_pcre_rule` error.
 POSIX classes and an over-`MAX_BOUND` bound get their own named
 cause here, since `translate.rs`/`parse.rs` already produce distinct
 messages for both rather than folding them into a catch-all. 
-Writes `reports/demos/translate_reject.txt`.
+Writes `reports/demos/translate_reject.csv`.
 
 
 ### Accepted Patterns
@@ -81,8 +83,11 @@ cargo run --release --example demo_translate_categories
 ```
 
 Every category is expected to pass, unlike `demo_translate` above which
-can only show what the given S2ELab file happens to contain. 
-Writes `reports/demos/translate_categories.txt`.
+can only show what the given S2ELab file happens to contain.
+Writes a compact per-category summary to
+`reports/demos/translate_categories.csv`, and the full listing (each
+category's translated `Regex` plus every check) separately to
+`reports/demos/translate_categories_patterns.json`.
 
 
 ### Translation Sizes
@@ -91,6 +96,7 @@ Writes `reports/demos/translate_categories.txt`.
 # wildcard_run() size, case-fold cost
 cargo run --release --example demo_translate_sizes
 ```
+Writes `reports/demos/translate_sizes.csv`.
 
 A pattern is either translated as-is (`Direct`), has its redundant
 top-level `^...$` stripped first (`Explicit full-match`), or rejected
@@ -102,22 +108,27 @@ outright. See [DATASET.md](DATASET.md) for what each tier means and how
 
 ## Thesis figure demos
 
-Each of these also saves its output to `reports/demos/<name>.txt`
-(e.g. `reports/demos/growth_deriv.txt`), replacing any previous run.
-All five are deterministic given the algorithms they measure, so a
-saved copy only goes stale when those algorithms themselves change.
+Each of these also saves its table(s) as CSV under `reports/demos/`
+(e.g. `reports/demos/growth_deriv.csv`, long format: one row per
+(series, step)), replacing any previous run. All four are
+deterministic given the algorithms they measure, so a saved copy only
+goes stale when those algorithms themselves change.
 
 ```bash
 # Branch counts, and why simp's r + r = r never fires on (a+(b+ab))*
+# -> reports/demos/simp_branches.csv
 cargo run --release --example demo_simp_branches
 
 # Brzozowski derivative: expression size per step
+# -> reports/demos/growth_deriv.csv
 cargo run --release --example demo_growth_deriv
 
 # Antimirov partial derivative: frontier size per input char
+# -> reports/demos/growth_pderiv.csv
 cargo run --release --example demo_growth_pderiv
 
 # All four growth families side by side
+# -> reports/demos/growth_eval_astar.csv, reports/demos/growth_eval_r2.csv
 cargo run --release --example demo_growth_eval
 ```
 
@@ -129,5 +140,8 @@ cargo build --release --example demo_parser_agreement_worker
 cargo run   --release --example demo_parser_agreement
 ```
 
-Also saves its output to `reports/demos/parser_agreement.txt`,
-replacing any previous run.
+Saves the summary table (one row per source plus a total) to
+`reports/demos/parser_agreement.csv`, replacing any previous run, and
+every individual flagged entry (timeout, crash, membership bug,
+POSIX/non-POSIX shape bug, ambiguous shape) separately to
+`reports/demos/parser_agreement_samples.csv`.

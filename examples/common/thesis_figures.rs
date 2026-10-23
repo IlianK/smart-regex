@@ -281,3 +281,33 @@ pub fn report(name: &str, body: &str) {
         eprintln!("wrote {path}");
     }
 }
+
+/// Saves `body` to `reports/demos/<name>.<ext>`, replacing any previous
+/// run -- the save half of `report()`, generalized to an arbitrary
+/// extension (`csv`/`json`) and decoupled from stdout: a CSV/JSON file
+/// is for other tools to read, not for a terminal, so callers print
+/// their own human-readable table with `println!` as before and call
+/// this only to persist the compact machine-readable copy.
+pub fn save(name: &str, ext: &str, body: &str) {
+    let dir = "reports/demos";
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        eprintln!("could not create {dir}: {e}");
+        return;
+    }
+    let path = format!("{dir}/{name}.{ext}");
+    if let Err(e) = std::fs::write(&path, body) {
+        eprintln!("could not write {path}: {e}");
+    } else {
+        eprintln!("wrote {path}");
+    }
+}
+
+/// CSV-quotes a field: wraps in `"..."`, doubling any embedded `"`.
+/// Same helper as `benches/bench_translate.rs`'s own `csv_quote`
+/// (duplicated there rather than shared, per this codebase's
+/// examples/benches split) -- needed here for the same reason: a real
+/// pattern or a `Debug`-rendered `Regex`/error message routinely
+/// contains a literal `,` (`a{2,5}`, `Seq(Lit('a'), Lit('b'))`, ...).
+pub fn csv_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}

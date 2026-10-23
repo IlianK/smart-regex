@@ -12,7 +12,7 @@
 //! of falling into a catch-all "other" -- `translate.rs`/`parse.rs`
 //! already produce distinct messages for both.
 //!
-//! Writes the full table to reports/demos/translate_reject.txt.
+//! Writes the full table to reports/demos/translate_reject.csv.
 
 #[path = "common/thesis_figures.rs"]
 mod common;
@@ -20,6 +20,8 @@ mod common;
 use std::fmt::Write as _;
 
 use regex_engine::frontend::parse_pcre_rule;
+
+use common::{csv_quote, save};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Cause {
@@ -90,42 +92,49 @@ const EXAMPLES: &[Example] = &[
 ];
 
 fn main() {
-    let mut buf = String::new();
-    writeln!(buf, "One hand-authored example per frontend rejection cause.\n").unwrap();
+    println!("One hand-authored example per frontend rejection cause.\n");
+
+    let mut csv = String::new();
+    writeln!(csv, "cause,pattern,pass,classified_as,error").unwrap();
 
     let mut passed = 0usize;
     for ex in EXAMPLES {
-        let ok = match parse_pcre_rule(ex.pattern) {
+        let (ok, classified, error) = match parse_pcre_rule(ex.pattern) {
             Ok(_) => {
-                writeln!(
-                    buf,
-                    "[{}] FAIL: pattern {:?} was accepted, not rejected",
-                    ex.cause.label(),
-                    ex.pattern
-                )
-                .unwrap();
-                false
+                println!("[{}] FAIL: pattern {:?} was accepted, not rejected", ex.cause.label(), ex.pattern);
+                (false, None, "pattern was accepted, not rejected".to_string())
             }
             Err(err) => {
                 let got = Cause::classify(&err);
                 let ok = got == Some(ex.cause);
-                writeln!(buf, "[{}] {}", ex.cause.label(), if ok { "pass" } else { "FAIL" }).unwrap();
-                writeln!(buf, "  pattern: {}", ex.pattern).unwrap();
-                writeln!(buf, "  error:   {}", err).unwrap();
+                println!("[{}] {}", ex.cause.label(), if ok { "pass" } else { "FAIL" });
+                println!("  pattern: {}", ex.pattern);
+                println!("  error:   {}", err);
                 if !ok {
-                    writeln!(buf, "  classified as {:?}, expected {:?}", got, ex.cause).unwrap();
+                    println!("  classified as {:?}, expected {:?}", got, ex.cause);
                 }
-                ok
+                (ok, got, err)
             }
         };
         if ok {
             passed += 1;
         }
-        writeln!(buf).unwrap();
+        println!();
+
+        writeln!(
+            csv,
+            "{},{},{},{},{}",
+            ex.cause.label(),
+            csv_quote(ex.pattern),
+            ok,
+            classified.map(|c| c.label().to_string()).unwrap_or_default(),
+            csv_quote(&error),
+        )
+        .unwrap();
     }
 
-    writeln!(buf, "{}/{} causes correctly demonstrated", passed, EXAMPLES.len()).unwrap();
-    common::report("translate_reject", &buf);
+    println!("{}/{} causes correctly demonstrated", passed, EXAMPLES.len());
+    save("translate_reject", "csv", &csv);
     if passed != EXAMPLES.len() {
         std::process::exit(1);
     }

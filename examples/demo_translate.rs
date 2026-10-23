@@ -3,18 +3,20 @@
 //! cargo run --release --example demo_translate -- <s2-elab-json-file...> [--diag 0|1|2|3]
 //!
 //! Translates real S2ELab patterns and runs a spread of them against
-//! their own real match/non-match examples. Every pattern this run
-//! translates successfully (not just the few shown on stdout) is dumped
-//! to reports/demos/translate.txt, raw text plus its translated `Regex`.
-//! Breadth-of-categories coverage lives in `demo_translate_categories`
-//! (synthetic examples) instead -- this file only ever shows what the
-//! given dataset happens to contain.
+//! their own real match/non-match examples. A compact run summary is
+//! saved to reports/demos/translate.csv; every pattern this run
+//! translates successfully (not just the few shown on stdout) -- raw
+//! text plus its translated `Regex` -- is a separate listing, saved to
+//! reports/demos/translate_patterns.csv. Breadth-of-categories coverage
+//! lives in `demo_translate_categories` (synthetic examples) instead --
+//! this file only ever shows what the given dataset happens to contain.
 
 #[path = "common/thesis_figures.rs"]
 mod common;
 
-use std::fmt::Write as _;
 use std::path::PathBuf;
+
+use common::{csv_quote, save};
 
 use regex_engine::data::extract::extract_s2_elab;
 use regex_engine::data::prepare::core_regex;
@@ -201,16 +203,21 @@ fn main() {
         println!();
     }
 
-    let mut buf = String::new();
-    writeln!(
-        buf,
-        "{} of {} given S2ELab patterns translated successfully this run.\n",
+    let mut summary_csv = String::new();
+    summary_csv.push_str("files,total_patterns,translated,translate_rate_pct\n");
+    summary_csv.push_str(&format!(
+        "{},{},{},{:.1}\n",
+        files.len(),
+        patterns.len(),
         translated.len(),
-        patterns.len()
-    )
-    .unwrap();
+        if patterns.is_empty() { 0.0 } else { 100.0 * translated.len() as f64 / patterns.len() as f64 },
+    ));
+    save("translate", "csv", &summary_csv);
+
+    let mut patterns_csv = String::new();
+    patterns_csv.push_str("raw_pattern,regex\n");
     for (pattern, core) in &translated {
-        writeln!(buf, "{}  =>  {:?}", pattern.raw_pattern, core).unwrap();
+        patterns_csv.push_str(&format!("{},{}\n", csv_quote(&pattern.raw_pattern), csv_quote(&format!("{:?}", core))));
     }
-    common::report("translate", &buf);
+    save("translate_patterns", "csv", &patterns_csv);
 }

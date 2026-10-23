@@ -8,16 +8,23 @@
 //! failure here is a bug in this file, not a dataset gap, so there is
 //! no "skipped" escape hatch.
 //!
-//! Writes the full table to reports/demos/translate_categories.txt.
+//! Writes a compact per-category summary to
+//! reports/demos/translate_categories.csv (name, pattern, checks
+//! passed/total, pass) and the full listing -- the translated `Regex`
+//! for each category plus every individual check -- separately, to
+//! reports/demos/translate_categories_patterns.json: several of these
+//! `Regex`es are very large (a `Debug`-rendered `.` alone is a couple
+//! hundred `Alt` nodes), exactly the kind of listing-of-patterns this
+//! project's report files keep out of their summary table.
 
 #[path = "common/thesis_figures.rs"]
 mod common;
 
-use std::fmt::Write as _;
-
 use regex_engine::frontend::{parse_pattern, parse_pcre_rule};
 use regex_engine::parsers::parse_deriv_std_rec;
 use regex_engine::types::Regex;
+
+use common::{csv_quote, save};
 
 /// `pattern` goes through `parse_pcre_rule` when it carries a
 /// `/PATTERN/FLAGS` wrapper, `parse_pattern` otherwise -- the same
@@ -129,60 +136,98 @@ fn categories() -> Vec<Category> {
     ]
 }
 
-fn run_category(cat: &Category) -> (bool, String) {
-    let mut out = String::new();
-    writeln!(out, "[{}]", cat.name).unwrap();
-    writeln!(out, "  pattern: {}", cat.pattern).unwrap();
+/// One category's outcome: whether every check passed, its translated
+/// `Regex` (absent on a translate error), and each check's own result.
+struct CategoryResult {
+    pass: bool,
+    checks_passed: usize,
+    regex: Result<Regex, String>,
+    check_results: Vec<(&'static str, bool, bool)>, // (input, expected, actual)
+}
+
+fn run_category(cat: &Category) -> CategoryResult {
+    println!("[{}]", cat.name);
+    println!("  pattern: {}", cat.pattern);
 
     let regex = match translate_for(cat.pattern) {
         Ok(r) => r,
         Err(e) => {
-            writeln!(out, "  FAIL: translate error: {e}").unwrap();
-            writeln!(out).unwrap();
-            return (false, out);
+            println!("  FAIL: translate error: {e}");
+            println!();
+            return CategoryResult { pass: false, checks_passed: 0, regex: Err(e), check_results: Vec::new() };
         }
     };
-    writeln!(out, "  regex:   {:?}", regex).unwrap();
+    println!("  regex:   {:?}", regex);
 
     let mut pass = true;
+    let mut checks_passed = 0usize;
+    let mut check_results = Vec::new();
     for &(input, expected) in cat.checks {
         let actual = parse_deriv_std_rec(input, &regex).is_some();
         let ok = actual == expected;
         pass &= ok;
-        writeln!(
-            out,
+        if ok {
+            checks_passed += 1;
+        }
+        println!(
             "  {}  input={:?}  expected_match={}  actual_match={}",
             if ok { "pass" } else { "FAIL" },
             input,
             expected,
             actual
-        )
-        .unwrap();
+        );
+        check_results.push((input, expected, actual));
     }
-    writeln!(out).unwrap();
-    (pass, out)
+    println!();
+    CategoryResult { pass, checks_passed, regex: Ok(regex), check_results }
 }
 
 fn main() {
+    println!("Frontend translation breadth: one hand-authored example per accepted construct.\n");
     let cats = categories();
-    let mut buf = String::new();
-    writeln!(
-        buf,
-        "Frontend translation breadth: one hand-authored example per accepted construct.\n"
-    )
-    .unwrap();
+
+    let mut summary_csv = String::new();
+    summary_csv.push_str("name,pattern,checks_passed,checks_total,pass\n");
+    let mut listing = Vec::new();
 
     let mut passed = 0usize;
     for cat in &cats {
-        let (ok, lines) = run_category(cat);
-        buf.push_str(&lines);
-        if ok {
+        let result = run_category(cat);
+        if result.pass {
             passed += 1;
         }
+        summary_csv.push_str(&format!(
+            "{},{},{},{},{}\n",
+            csv_quote(cat.name),
+            csv_quote(cat.pattern),
+            result.checks_passed,
+            cat.checks.len(),
+            result.pass,
+        ));
+        listing.push(serde_json::json!({
+            "name": cat.name,
+            "pattern": cat.pattern,
+            "regex": result.regex.as_ref().map(|r| format!("{:?}", r)).ok(),
+            "translate_error": result.regex.as_ref().err(),
+            "checks": result.check_results.iter().map(|&(input, expected, actual)| {
+                serde_json::json!({
+                    "input": input,
+                    "expected_match": expected,
+                    "actual_match": actual,
+                    "pass": expected == actual,
+                })
+            }).collect::<Vec<_>>(),
+            "pass": result.pass,
+        }));
     }
-    writeln!(buf, "{}/{} categories pass", passed, cats.len()).unwrap();
+    println!("{}/{} categories pass", passed, cats.len());
 
-    common::report("translate_categories", &buf);
+    save("translate_categories", "csv", &summary_csv);
+    save(
+        "translate_categories_patterns",
+        "json",
+        &serde_json::to_string_pretty(&listing).expect("serializing the listing"),
+    );
     if passed != cats.len() {
         std::process::exit(1);
     }

@@ -1,0 +1,9 @@
+cause,pattern,pass,classified_as,error
+backreference,"(a)\1",true,backreference,"backreference '\1' is not a regular-language construct -- unsupported"
+lookaround,"a(?=b)",true,lookaround,"lookahead '(?=...)' is not a regular-language construct -- unsupported"
+word-boundary,"a\bb",true,word-boundary,"word boundary '\b'/'\B' is position-dependent, not a regular-language construct -- unsupported"
+flag-m,"/abc/m",true,flag-m,"unsupported PCRE flag: multiline ('m'): '^' and '$' would match at newlines as well as at buffer boundaries, and this frontend does not support anchors at all"
+flag-x,"/a b/x",true,flag-x,"unsupported PCRE flag: extended ('x'): whitespace in the pattern is not significant, which this parser does not model"
+posix-class,"[[:alpha:]]",true,posix-class,"POSIX class '[:alpha:]' is not supported inside a character class (it would otherwise be silently misread as the literal characters '[', ':', and the class name); use an explicit range or a shorthand (\d, \w, \s and their negations) instead"
+bound-too-large,"a{1001}",true,bound-too-large,"bound {1001,1001} exceeds this frontend's cap of 1000 repetitions"
+anchor,"^abc",true,anchor,"anchor '^'/'$' is not supported by this frontend -- unsupported"
