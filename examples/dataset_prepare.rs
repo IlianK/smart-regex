@@ -3,8 +3,9 @@
 //! cargo run --release --example dataset_prepare -- <file> [file...]
 //!
 //! S2ELab only: extracts, translates, and writes every usable pattern's
-//! own given match/non-match examples -- no verification, no other
-//! source, no capped subset. A pattern needs at least one of each side
+//! own given match/non-match examples, each checked against the real
+//! translated `Regex`; a claim that disagrees is dropped and counted.
+//! A pattern needs at least one match and one non-match left after that
 //! to be usable; below that, it is counted, not dropped.
 //!
 //! Appends one row per run to `reports/data/dataset_prepare.csv`.
@@ -75,7 +76,7 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
             f,
             "files,patterns_extracted,patterns_duplicate,patterns_unusable,patterns_accepted,\
              patterns_explicit_full_match,patterns_unanchored_ambiguous,patterns_usable,\
-             inputs_usable,usable_explicit_full_match,usable_unanchored_ambiguous"
+             inputs_usable,inputs_label_mismatch"
         ) {
             eprintln!("could not write header to {path}: {e}");
             return;
@@ -84,7 +85,7 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
     let files_joined = files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(";");
     if let Err(e) = writeln!(
         f,
-        "\"{}\",{},{},{},{},{},{},{},{},{},{}",
+        "\"{}\",{},{},{},{},{},{},{},{},{}",
         files_joined,
         report.patterns_extracted,
         report.patterns_duplicate,
@@ -94,8 +95,7 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
         report.patterns_unanchored_ambiguous,
         report.patterns_usable,
         report.inputs_usable,
-        report.usable_explicit_full_match,
-        report.usable_unanchored_ambiguous,
+        report.inputs_label_mismatch,
     ) {
         eprintln!("could not append to {path}: {e}");
         return;
@@ -128,15 +128,17 @@ fn print_report(report: &regex_engine::data::PipelineReport) {
 
     println!();
     println!("Usable corpus");
+    if report.inputs_label_mismatch > 0 {
+        println!(
+            "  label mismatch   {:>7}   (claim disagreed with the real Regex; dropped)",
+            report.inputs_label_mismatch,
+        );
+    }
     println!(
         "  patterns usable  {:>7}   of {} accepted  (>= 1 match + >= 1 non-match each)",
         report.patterns_usable, report.patterns_accepted,
     );
     println!("  inputs written   {:>7}", report.inputs_usable);
-    println!(
-        "    [{} direct, {} full-match]",
-        report.usable_unanchored_ambiguous, report.usable_explicit_full_match,
-    );
 
     println!();
     println!("  wrote  data/processed/s2-elab/prepared.jsonl");

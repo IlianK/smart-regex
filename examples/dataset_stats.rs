@@ -176,6 +176,9 @@ struct SourceStats {
     /// Of the accepted patterns, how many have empty given input
     /// (see `has_no_given_input`); always 0 for sources without one.
     accepted_no_input: usize,
+    /// Sum of `matches.len() + non_matches.len()` across every
+    /// `RuleContext::S2ELab` entry extracted; 0 for every other source.
+    given_inputs: usize,
     rejected_by: BTreeMap<Cause, usize>,
     /// Where `^`/`$` sit structurally across every extracted pattern,
     /// independent of accept/reject; explains the anchor-related rows above.
@@ -240,13 +243,18 @@ impl SourceStats {
         self.accepted_ambiguous_seen.len()
     }
 
-    fn duplicate_accepted(&self) -> usize {
-        self.accepted().saturating_sub(self.distinct_accepted())
+    /// Distinct patterns `core_regex_tagged` rejected: the complement of
+    /// `distinct_accepted()` within `distinct_extracted()`.
+    fn distinct_rejected(&self) -> usize {
+        self.distinct_extracted().saturating_sub(self.distinct_accepted())
     }
 
     fn add_pattern(&mut self, pattern: &str, context: &RuleContext, verbose: bool) {
         self.extracted += 1;
         self.extracted_seen.insert(pattern.to_string());
+        if let RuleContext::S2ELab { matches, non_matches } = context {
+            self.given_inputs += matches.len() + non_matches.len();
+        }
 
         // Flags recorded for every extracted pattern, accepted or not.
         // The point is what the corpus contains, not what survives.
@@ -295,6 +303,7 @@ impl SourceStats {
         total.accepted_explicit += self.accepted_explicit;
         total.accepted_ambiguous += self.accepted_ambiguous;
         total.accepted_no_input += self.accepted_no_input;
+        total.given_inputs += self.given_inputs;
         for (cause, n) in &self.rejected_by {
             *total.rejected_by.entry(*cause).or_default() += n;
         }
@@ -413,40 +422,37 @@ fn header(title: &str) {
 fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
     header("Dataset coverage");
     println!(
-        "{:<13} {:>6} {:>9} {:>9} {:>7} {:>9} {:>7}",
-        "Source", "Files", "Extracted", "Accepted", "%", "Rejected", "%",
+        "{:<13} {:>6} {:>9} {:>16} {:>6} {:>9} {:>6} {:>9} {:>6}",
+        "Source", "Files", "Extracted", "Inputs Provided", "Dup", "Accepted", "Acc%", "Rejected", "Rej%",
     );
-    println!("{}", "-".repeat(60));
+    println!("{}", "-".repeat(88));
+
+    let pct = |n: usize, of: usize| if of == 0 { 0.0 } else { 100.0 * n as f64 / of as f64 };
 
     let print_row = |s: &SourceStats| {
-        let pct = |n: usize| {
-            if s.extracted == 0 {
-                0.0
-            } else {
-                100.0 * n as f64 / s.extracted as f64
-            }
-        };
         println!(
-            "{:<13} {:>6} {:>9} {:>9} {:>7.1} {:>9} {:>7.1}",
+            "{:<13} {:>6} {:>9} {:>16} {:>6} {:>9} {:>6.1} {:>9} {:>6.1}",
             s.name(),
             s.files_read,
             s.extracted,
-            s.accepted(),
-            pct(s.accepted()),
-            s.rejected_total(),
-            pct(s.rejected_total()),
+            s.given_inputs,
+            s.duplicate_extracted(),
+            s.distinct_accepted(),
+            pct(s.distinct_accepted(), s.accepted()),
+            s.distinct_rejected(),
+            pct(s.distinct_rejected(), s.rejected_total()),
         );
     };
 
     for s in stats {
         print_row(s);
     }
-    println!("{}", "-".repeat(60));
+    println!("{}", "-".repeat(88));
     print_row(total);
     println!();
-    println!("Accepted = core_regex_tagged produced a Regex.");
-    println!("Rejected = no Regex produced: unsupported construct.");
-    println!("Accepted + Rejected sum to Extracted; each % is against that.");
+    println!("Already deduplicated: Accepted/Rejected count DISTINCT raw pattern text,");
+    println!("not rule instances; Dup is how many extracted instances that dedup removed.");
+    println!("Inputs Provided = S2ELab's own given matches+non_matches; 0 elsewhere.");
 
     if stats.iter().any(|s| s.accepted_no_input > 0) {
         println!();
@@ -465,45 +471,6 @@ fn coverage_table(stats: &[SourceStats], total: &SourceStats) {
         println!("Note: only S2ELab's given `matches`/`non_matches` reach a benchmark;");
         println!("a row with no given input here, from S2ELab or any other source, yields none.");
     }
-}
-
-fn duplication_table(stats: &[SourceStats], total: &SourceStats) {
-    header("Pattern duplication (byte-identical raw pattern text)");
-    println!(
-        "{:<13} {:>9} {:>8} {:>6} {:>6} {:>6} {:>9} {:>8} {:>6} {:>6} {:>6}",
-        "Source", "Extract.", "Distinct", "Dist%", "Dup", "Dup%", "Accept.", "Distinct", "Dist%", "Dup", "Dup%",
-    );
-    println!("{}", "-".repeat(93));
-
-    let pct = |n: usize, of: usize| if of == 0 { 0.0 } else { 100.0 * n as f64 / of as f64 };
-
-    let print_row = |s: &SourceStats| {
-        println!(
-            "{:<13} {:>9} {:>8} {:>6.1} {:>6} {:>6.1} {:>9} {:>8} {:>6.1} {:>6} {:>6.1}",
-            s.name(),
-            s.extracted,
-            s.distinct_extracted(),
-            pct(s.distinct_extracted(), s.extracted),
-            s.duplicate_extracted(),
-            pct(s.duplicate_extracted(), s.extracted),
-            s.accepted(),
-            s.distinct_accepted(),
-            pct(s.distinct_accepted(), s.accepted()),
-            s.duplicate_accepted(),
-            pct(s.duplicate_accepted(), s.accepted()),
-        );
-    };
-
-    for s in stats {
-        print_row(s);
-    }
-    println!("{}", "-".repeat(93));
-    print_row(total);
-    println!();
-    println!("Extract = every extracted pattern regardless of translatability");
-    println!("Distinct = count of unique raw pattern text");
-    println!("Dup = Duplicates");
-
 }
 
 fn match_intent_table(stats: &[SourceStats], total: &SourceStats) {
@@ -792,7 +759,6 @@ fn main() {
     }
 
     coverage_table(&per_source, &total);
-    duplication_table(&per_source, &total);
     match_intent_table(&per_source, &total);
     rejection_table(&per_source, &total);
     anchor_shape_table(&per_source, &total);

@@ -13,7 +13,54 @@ use crate::data::types::{MatchIntent, PreparedCase};
 use crate::frontend::{
     case_fold, parse_ext_pattern, strip_dot_newline, strip_pcre_delimiters, translate, ExtPat,
 };
-use crate::types::Regex;
+use crate::parsers::deriv_bc::deriv::deriv_bc;
+use crate::parsers::deriv_bc::internalize::internalize;
+use crate::parsers::deriv_bc::nullable::{is_phi, nullable_bc};
+use crate::parsers::deriv_bc::simplify::simp;
+use crate::types::{ARegex, Regex};
+
+/// Cap on the bit-coded annotated expression's node count, so a single
+/// pathological (pattern, input) pair can't make `matches_bounded` hang.
+const MAX_AREGEX_NODES: usize = 100_000;
+
+fn aregex_node_count(r: &ARegex) -> usize {
+    let mut stack = vec![r];
+    let mut count = 0usize;
+    while let Some(node) = stack.pop() {
+        count += 1;
+        if count > MAX_AREGEX_NODES {
+            return count;
+        }
+        match node {
+            ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => {}
+            ARegex::Alt(_, a, b) | ARegex::Seq(_, a, b) => {
+                stack.push(a);
+                stack.push(b);
+            }
+            ARegex::Star(_, a) => stack.push(a),
+        }
+    }
+    count
+}
+
+/// Whether `input` matches `r`, via the bit-coded engine; `None` past the
+/// node cap rather than risking the blowup an unbounded check could hit.
+pub fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
+    let mut ri = internalize(r);
+    if aregex_node_count(&ri) > MAX_AREGEX_NODES {
+        return None;
+    }
+    for c in input.chars() {
+        ri = simp(deriv_bc(ri, c));
+        if aregex_node_count(&ri) > MAX_AREGEX_NODES {
+            return None;
+        }
+        if is_phi(&ri) {
+            return Some(false);
+        }
+    }
+    Some(nullable_bc(&ri))
+}
 
 /// Core regex for a PCRE-rule body with `MatchIntent`, plus depth/node caps.
 /// Strips a top-level `^...$` wrap before `translate` sees it.
@@ -264,6 +311,18 @@ mod tests {
     fn core(pattern: &str) -> Regex {
         let ep = crate::frontend::parse_ext_pattern(pattern).expect("should parse");
         translate(&ep).expect("should translate")
+    }
+
+    #[test]
+    fn matches_bounded_confirms_a_real_match() {
+        let r = core(r"[a-c]+\d{2}");
+        assert_eq!(matches_bounded("ab12", &r), Some(true));
+    }
+
+    #[test]
+    fn matches_bounded_confirms_a_real_non_match() {
+        let r = core(r"[a-c]+\d{2}");
+        assert_eq!(matches_bounded("zzz", &r), Some(false));
     }
 
     #[test]

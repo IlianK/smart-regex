@@ -1,11 +1,14 @@
 //! src/data/mod.rs
 //!
 //! Pipeline entry points. `run_pipeline` is S2ELab-only: it extracts,
-//! translates, and writes every usable pattern's own given examples --
-//! no verification, no other source. `dataset_stats` separately still
-//! uses the other four extractors for raw-corpus diagnostics unrelated
-//! to this pipeline, which is why they still exist in `extract.rs`.
-//! `load_prepared_cases` reads the result back for benchmarks.
+//! translates, and writes every usable pattern's own given examples,
+//! each checked with one direct `prepare::matches_bounded` call against
+//! its claimed label -- not the deleted generated-candidate verification
+//! machinery, just a boolean agree/disagree check. `dataset_stats`
+//! separately still uses the other four extractors for raw-corpus
+//! diagnostics unrelated to this pipeline, which is why they still
+//! exist in `extract.rs`. `load_prepared_cases` reads the result back
+//! for benchmarks.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -32,14 +35,15 @@ pub struct PipelineReport {
     /// Of `patterns_accepted`, patterns with no anchor at all.
     pub patterns_unanchored_ambiguous: usize,
     /// Of `patterns_accepted`, how many have at least one given match and
-    /// one given non-match -- what a benchmark actually sees.
+    /// one given non-match left after the label check below -- what a
+    /// benchmark actually sees.
     pub patterns_usable: usize,
     /// Total (pattern, input) rows written to `prepared.jsonl`.
     pub inputs_usable: usize,
-    /// Of `patterns_usable`, top-level `^...$` wraps.
-    pub usable_explicit_full_match: usize,
-    /// Of `patterns_usable`, patterns with no anchor at all.
-    pub usable_unanchored_ambiguous: usize,
+    /// Given examples dropped because the real translated `Regex`
+    /// disagreed with the dataset's own claimed label (or the check
+    /// couldn't be confirmed within its safety bound).
+    pub inputs_label_mismatch: usize,
 }
 
 /// `(text, is_match)` for every given example, unchanged and uncapped.
@@ -62,8 +66,7 @@ fn given_examples(matches: &[String], non_matches: &[String]) -> Vec<(String, bo
 }
 
 /// Extracts S2ELab, translates each distinct pattern, and writes every
-/// usable one's own given examples as `PreparedCase`s -- no verification.
-/// Writes to `<data_root>/s2-elab/prepared.jsonl`, replacing any existing file.
+/// usable one's own given examples, label-checked, to `<data_root>/s2-elab/prepared.jsonl`.
 pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<PipelineReport> {
     let mut report = PipelineReport::default();
 
@@ -101,7 +104,7 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
             report.patterns_duplicate += 1;
             continue;
         }
-        let Ok((_core, match_intent)) = prepare::core_regex_tagged(&rule.raw_pattern) else {
+        let Ok((core, match_intent)) = prepare::core_regex_tagged(&rule.raw_pattern) else {
             report.patterns_unusable += 1;
             continue;
         };
@@ -117,7 +120,20 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
             RuleContext::S2ELab { matches, non_matches } => (matches.as_slice(), non_matches.as_slice()),
             _ => (&[][..], &[][..]),
         };
-        let examples = given_examples(matches, non_matches);
+
+        // Drop any given example the real `Regex` disagrees with --
+        // a direct boolean check, not generated-candidate verification.
+        let examples: Vec<(String, bool)> = given_examples(matches, non_matches)
+            .into_iter()
+            .filter(|(text, claimed_match)| {
+                let agrees = prepare::matches_bounded(text, &core) == Some(*claimed_match);
+                if !agrees {
+                    report.inputs_label_mismatch += 1;
+                }
+                agrees
+            })
+            .collect();
+
         let has_match = examples.iter().any(|(_, is_match)| *is_match);
         let has_non_match = examples.iter().any(|(_, is_match)| !*is_match);
         if !has_match || !has_non_match {
@@ -137,10 +153,6 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
 
         report.patterns_usable += 1;
         report.inputs_usable += prepared.len();
-        match match_intent {
-            MatchIntent::ExplicitFullMatch => report.usable_explicit_full_match += 1,
-            MatchIntent::UnanchoredAmbiguous => report.usable_unanchored_ambiguous += 1,
-        }
         prepare::write_prepared_cases(&out_path, &prepared)?;
     }
 
@@ -267,6 +279,56 @@ mod tests {
 
         assert_eq!(report.patterns_accepted, 1);
         assert_eq!(report.patterns_usable, 0, "no non-match side -- not benchmarkable");
+        assert!(!out_root.join("s2-elab").join("prepared.jsonl").exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_mislabeled_given_example_is_dropped_and_counted_not_written() {
+        let dir = std::env::temp_dir().join(format!("data-pipeline-mismatch-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let rules_path = dir.join("mismatch.json");
+        // "xyz" is claimed as a match for "abc" but plainly isn't one;
+        // "abX" is a genuine non-match.
+        std::fs::write(
+            &rules_path,
+            r#"[{"expression": "abc", "matches": ["abc", "xyz"], "non_matches": ["abX"]}]"#,
+        )
+        .unwrap();
+
+        let out_root = dir.join("processed");
+        let report = run_pipeline(&[rules_path], &out_root).unwrap();
+
+        assert_eq!(report.inputs_label_mismatch, 1, "the mislabeled \"xyz\" claim should be dropped");
+        assert_eq!(report.patterns_usable, 1, "the real match and non-match still make this usable");
+        assert_eq!(report.inputs_usable, 2);
+
+        let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
+        assert!(!cases.iter().any(|c| c.input == "xyz"), "the mislabeled example should never be written");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_pattern_that_loses_every_match_to_the_label_check_is_unusable() {
+        let dir = std::env::temp_dir().join(format!("data-pipeline-allmismatch-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let rules_path = dir.join("allmismatch.json");
+        // Every claimed match is actually wrong; accepted by the frontend
+        // but left with no verified match side after the label check.
+        std::fs::write(
+            &rules_path,
+            r#"[{"expression": "abc", "matches": ["xyz", "qqq"], "non_matches": ["abX"]}]"#,
+        )
+        .unwrap();
+
+        let out_root = dir.join("processed");
+        let report = run_pipeline(&[rules_path], &out_root).unwrap();
+
+        assert_eq!(report.patterns_accepted, 1);
+        assert_eq!(report.inputs_label_mismatch, 2);
+        assert_eq!(report.patterns_usable, 0, "no verified match side -- not benchmarkable");
         assert!(!out_root.join("s2-elab").join("prepared.jsonl").exists());
 
         let _ = std::fs::remove_dir_all(&dir);
