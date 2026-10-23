@@ -62,11 +62,21 @@
 //! growing file. `run_label` and `pattern_limit` columns record each
 //! row's own invocation, since the filename no longer can.
 //!
+//! Also writes `reports/benches/bench_pathological_translate{label}_patterns.csv`
+//! (one row per distinct row/`p` entry that translated successfully:
+//! id, category, p, pattern, nodes, micros, bytes, and the `Regex` via
+//! its `Debug`, when nodes <= `BENCH_TRANSLATE_RENDER_MAX_NODES`,
+//! default 150) -- a catalogue for hand-picking thesis examples, same
+//! role and naming (label baked into the filename, not a column) as
+//! `bench_corpus_translate.rs`'s own `*_patterns.csv`. Overwritten each
+//! run, not appended.
+//!
 //! Reads `PATHO_JSON_PATH`, `PATHO_SECTION`, `PATHO_CATEGORY`,
 //! `PATHO_P`, `BENCH_PATTERN_LIMIT` (caps selected *rows*, before the
 //! `p` sweep, same as the other two `bench_pathological_*` targets),
-//! and `BENCH_RUN_LABEL`. Does not read `PATHO_N` (see above) or
-//! `BENCH_ENTRY_TIMEOUT_MS` (no process isolation to bound).
+//! `BENCH_RUN_LABEL`, and `BENCH_TRANSLATE_RENDER_MAX_NODES`. Does not
+//! read `PATHO_N` (see above) or `BENCH_ENTRY_TIMEOUT_MS` (no process
+//! isolation to bound).
 //!
 //! cargo bench --bench bench_pathological_translate
 
@@ -84,9 +94,23 @@ use regex_engine::types::Regex;
 const DEFAULT_JSON_PATH: &str = "data/pathological/pathological_patterns.json";
 const PATTERN_LIMIT: usize = usize::MAX;
 const REPORTS_DIR: &str = "reports/benches";
+/// Same variable and default as `bench_corpus_translate.rs`'s own
+/// render cap -- one convention across the whole translate-bench family.
+const DEFAULT_RENDER_MAX_NODES: usize = 150;
 
 fn fmt_limit(n: usize) -> String {
     if n == usize::MAX { "unlimited".to_string() } else { n.to_string() }
+}
+
+fn render_max_nodes() -> usize {
+    std::env::var("BENCH_TRANSLATE_RENDER_MAX_NODES")
+        .ok()
+        .map(|s| {
+            s.parse().unwrap_or_else(|_| {
+                panic!("BENCH_TRANSLATE_RENDER_MAX_NODES must be a positive integer, got {s:?}")
+            })
+        })
+        .unwrap_or(DEFAULT_RENDER_MAX_NODES)
 }
 
 // -------------------------------
@@ -285,6 +309,22 @@ struct Measurement {
     micros: u64,
     total_bytes: usize,
     peak_bytes: usize,
+    rendered: Option<String>,
+}
+
+/// One successfully-translated entry, kept for the per-pattern
+/// catalogue -- the pathological-dataset counterpart to
+/// `bench_corpus_translate.rs`'s `SourcePatternStat`.
+struct PatternStat {
+    row_id: String,
+    category: String,
+    p: u32,
+    pattern: String,
+    nodes: usize,
+    micros: u64,
+    total_bytes: usize,
+    peak_bytes: usize,
+    rendered: Option<String>,
 }
 
 enum MeasureOutcome {
@@ -293,7 +333,7 @@ enum MeasureOutcome {
     Crashed,
 }
 
-fn measure_one(pattern: &str) -> MeasureOutcome {
+fn measure_one(pattern: &str, render_cap: usize) -> MeasureOutcome {
     let result = std::panic::catch_unwind(|| {
         let baseline = CURRENT.load(Ordering::SeqCst);
         PEAK.store(baseline, Ordering::SeqCst);
@@ -317,7 +357,8 @@ fn measure_one(pattern: &str) -> MeasureOutcome {
         Err(e) => MeasureOutcome::Rejected(e),
         Ok(r) => {
             let nodes = node_count(&r);
-            MeasureOutcome::Done(Measurement { nodes, micros, total_bytes, peak_bytes })
+            let rendered = if nodes <= render_cap { Some(format!("{r:?}")) } else { None };
+            MeasureOutcome::Done(Measurement { nodes, micros, total_bytes, peak_bytes, rendered })
         }
     }
 }
@@ -368,9 +409,14 @@ fn fmt_opt(v: Option<f64>) -> String {
     v.map(|x| format!("{x:.3}")).unwrap_or_default()
 }
 
-fn report(category: &str, category_name: &str, entries: &[PatternEntry]) -> Option<SummaryRow> {
+fn report(
+    category: &str,
+    category_name: &str,
+    entries: &[PatternEntry],
+    render_cap: usize,
+) -> (Option<SummaryRow>, Vec<PatternStat>) {
     if entries.is_empty() {
-        return None;
+        return (None, Vec::new());
     }
 
     let mut ms: Vec<f64> = Vec::with_capacity(entries.len());
@@ -379,14 +425,26 @@ fn report(category: &str, category_name: &str, entries: &[PatternEntry]) -> Opti
     let mut nodes_f: Vec<f64> = Vec::with_capacity(entries.len());
     let mut rejected = 0usize;
     let mut crashed = 0usize;
+    let mut per_pattern: Vec<PatternStat> = Vec::with_capacity(entries.len());
 
     for entry in entries {
-        match measure_one(&entry.pattern) {
+        match measure_one(&entry.pattern, render_cap) {
             MeasureOutcome::Done(m) => {
                 ms.push(us_to_ms(m.micros));
                 total_bytes.push(m.total_bytes as f64);
                 peak_bytes.push(m.peak_bytes as f64);
                 nodes_f.push(m.nodes as f64);
+                per_pattern.push(PatternStat {
+                    row_id: entry.row_id.clone(),
+                    category: category.to_string(),
+                    p: entry.p,
+                    pattern: entry.pattern.clone(),
+                    nodes: m.nodes,
+                    micros: m.micros,
+                    total_bytes: m.total_bytes,
+                    peak_bytes: m.peak_bytes,
+                    rendered: m.rendered,
+                });
             }
             MeasureOutcome::Rejected(e) => {
                 rejected += 1;
@@ -407,7 +465,7 @@ fn report(category: &str, category_name: &str, entries: &[PatternEntry]) -> Opti
 
     if ms.is_empty() {
         println!("\n{category} ({category_name}, {} rows, 0 translated, {rejected} rejected, {crashed} crashed)", entries.len());
-        return Some(SummaryRow {
+        return (Some(SummaryRow {
             category: category.to_string(),
             category_name: category_name.to_string(),
             rows: entries.len(),
@@ -418,7 +476,7 @@ fn report(category: &str, category_name: &str, entries: &[PatternEntry]) -> Opti
             mean_total_bytes: None, median_total_bytes: None, p99_total_bytes: None, max_total_bytes: None,
             mean_peak_bytes: None, median_peak_bytes: None, p99_peak_bytes: None, max_peak_bytes: None,
             mean_nodes: None, median_nodes: None, p99_nodes: None, max_nodes: None,
-        });
+        }), per_pattern);
     }
 
     let mut ms_sorted = ms.clone();
@@ -441,7 +499,7 @@ fn report(category: &str, category_name: &str, entries: &[PatternEntry]) -> Opti
     println!("  peak bytes  mean {pb_mean:.0}  median {pb_median:.0}  p99 {pb_p99:.0}  max {pb_max:.0}");
     println!("  nodes       mean {nd_mean:.1}  median {nd_median:.1}  p99 {nd_p99:.1}  max {nd_max:.0}");
 
-    Some(SummaryRow {
+    (Some(SummaryRow {
         category: category.to_string(),
         category_name: category_name.to_string(),
         rows: entries.len(),
@@ -452,7 +510,7 @@ fn report(category: &str, category_name: &str, entries: &[PatternEntry]) -> Opti
         mean_total_bytes: Some(tb_mean), median_total_bytes: Some(tb_median), p99_total_bytes: Some(tb_p99), max_total_bytes: Some(tb_max as usize),
         mean_peak_bytes: Some(pb_mean), median_peak_bytes: Some(pb_median), p99_peak_bytes: Some(pb_p99), max_peak_bytes: Some(pb_max as usize),
         mean_nodes: Some(nd_mean), median_nodes: Some(nd_median), p99_nodes: Some(nd_p99), max_nodes: Some(nd_max as usize),
-    })
+    }), per_pattern)
 }
 
 // -------------------------------
@@ -463,6 +521,35 @@ fn report(category: &str, category_name: &str, entries: &[PatternEntry]) -> Opti
 
 fn csv_quote(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
+}
+
+/// Per-pattern catalogue, mirrors `bench_corpus_translate.rs`'s
+/// `write_patterns_csv` exactly in spirit: a starting point for
+/// hand-picking thesis examples, not a measurement in itself.
+fn write_patterns_csv(path: &str, rows: &[PatternStat]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "id,category,p,pattern,nodes,micros,total_bytes,peak_bytes,translated")?;
+    for r in rows {
+        let translated = r
+            .rendered
+            .as_deref()
+            .map(csv_quote)
+            .unwrap_or_else(|| format!("<{} nodes, not rendered>", r.nodes));
+        writeln!(
+            f,
+            "{},{},{},{},{},{},{},{},{}",
+            r.row_id,
+            r.category,
+            r.p,
+            csv_quote(&r.pattern),
+            r.nodes,
+            r.micros,
+            r.total_bytes,
+            r.peak_bytes,
+            translated,
+        )?;
+    }
+    Ok(())
 }
 
 fn append_summary_row(path: &str, run_label: &str, pattern_limit: &str, r: &SummaryRow) -> std::io::Result<()> {
@@ -515,6 +602,7 @@ fn main() {
     let p_override = parse_u32_list("PATHO_P");
     let limit = pattern_limit();
     let path = json_path();
+    let render_cap = render_max_nodes();
 
     let doc = pathological::load(&path).unwrap_or_else(|e| panic!("cannot read {path:?}: {e}"));
     let mut rows = select_rows(&doc, section, &categories);
@@ -536,15 +624,28 @@ fn main() {
     }
     let summary_path = format!("{REPORTS_DIR}/bench_pathological_translate.csv");
     let run_label = run_label_suffix();
+    let label_suffix = if run_label.is_empty() { String::new() } else { format!("_{run_label}") };
+    let patterns_path = format!("{REPORTS_DIR}/bench_pathological_translate{label_suffix}_patterns.csv");
     let pattern_limit_str = fmt_limit(limit);
+
+    let mut all_patterns: Vec<PatternStat> = Vec::new();
 
     for (category, cat_entries) in group_by_category(entries) {
         let category_name = doc.categories.get(&category).map(|c| c.name.as_str()).unwrap_or("?");
-        if let Some(summary) = report(&category, category_name, &cat_entries) {
+        let (summary, per_pattern) = report(&category, category_name, &cat_entries, render_cap);
+        if let Some(summary) = summary {
             if let Err(e) = append_summary_row(&summary_path, &run_label, &pattern_limit_str, &summary) {
                 eprintln!("could not append to {summary_path}: {e}");
             }
         }
+        all_patterns.extend(per_pattern);
+
+        // Re-written after every category, not just once at the end --
+        // same reasoning as bench_corpus_translate.rs's main().
+        if let Err(e) = write_patterns_csv(&patterns_path, &all_patterns) {
+            eprintln!("could not write {patterns_path}: {e}");
+        }
     }
     eprintln!("appended to {summary_path}");
+    eprintln!("wrote {patterns_path}");
 }
