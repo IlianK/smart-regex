@@ -61,7 +61,7 @@ CLI arguments.
 
 | Variable | Applies to | Values | Default |
 |---|---|---|---|
-| `BENCH_SOURCE` | corpus | comma-separated `suricata`/`snort`, `spamassassin`, `regexlib`, `s2-elab`, `innovatorved` | S2ELab |
+| `BENCH_SOURCE` | `bench_translate` only | comma-separated `suricata`/`snort`, `spamassassin`, `regexlib`, `s2-elab`, `innovatorved` | S2ELab |
 | `BENCH_PATTERN_LIMIT` | corpus | positive integer | unset (no cap) |
 | `BENCH_MATCH_INTENT` | corpus | `direct`, `explicit`, `both` | `explicit` |
 | `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` | `1`/`0`, `true`/`false`, `yes`/`no` | `0` |
@@ -74,11 +74,14 @@ CLI arguments.
 
 
 **Variables Explanation**:
-- **`BENCH_SOURCE`** — Unset means S2ELab only, not all five. Suricata,
-  SpamAssassin, RegexLib, and Innovatorved are opt-in, though none of
-  them has a given-input extraction wired in yet, so running a bench
-  against one today accepts patterns and then finds every single one
-  unusable for lack of example input (see `docs/DATASET.md`).
+- **`BENCH_SOURCE`** — `bench_translate` only; `bench_corpus_time` and
+  `bench_memory` hardcode S2ELab, the only source with real prepared
+  data today, and have no source selection at all. Unset means S2ELab
+  only, not all five. Suricata, SpamAssassin, RegexLib, and
+  Innovatorved are opt-in, though none of them has a given-input
+  extraction wired in yet, so running `bench_translate` against one
+  today accepts patterns and then finds every single one unusable for
+  lack of example input (see `docs/DATASET.md`).
 
 - **`BENCH_PATTERN_LIMIT=N`** — Admits the first N distinct patterns per
   source. Each brings all its given inputs, so row count is at most
@@ -137,8 +140,8 @@ CLI arguments.
   rendered, to `reports/demos/translation_examples.txt`. `0` skips
   that file entirely.
 
-If filtering loads nothing, the corpus and translation targets panic
-with a per-source diagnosis and the active filters.
+If filtering loads nothing, these targets panic with a diagnosis of
+the active filters (per-source, for `bench_translate`).
 
 
 ## `bench_match.rs`
@@ -193,14 +196,13 @@ Build `bench_worker` first (see above), then:
 ```
 cargo bench --bench bench_corpus_time
 BENCH_PATTERN_LIMIT=5     cargo bench --bench bench_corpus_time
-BENCH_SOURCE=snort,regexlib cargo bench --bench bench_corpus_time
 BENCH_SPLIT_OUTCOME=1     cargo bench --bench bench_corpus_time
 ```
 
-One pass per source, every admitted entry timed individually in its
-own `bench_worker` process, bounded by `BENCH_ENTRY_TIMEOUT_MS`.
-Writes its latest run to `reports/benches/bench_corpus_time.csv` (see
-below). Reports, per parser:
+S2ELab only, no source selection. One pass, every admitted entry timed
+individually in its own `bench_worker` process, bounded by
+`BENCH_ENTRY_TIMEOUT_MS`. Writes its latest run to
+`reports/benches/bench_corpus_time.csv` (see below). Reports, per parser:
 
 - **measured**: entries that neither timed out nor crashed -- the
   count the distribution columns are actually computed over. Not the
@@ -235,10 +237,10 @@ With `BENCH_SPLIT_OUTCOME` set, a second table splits each parser's
 time by match vs. non-match, so an asymmetry in the corpus shows up as
 a per-side column rather than being buried in the mean.
 
-Reads the four corpus variables shared with `bench_memory`
-(`BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`,
-`BENCH_ENTRY_TIMEOUT_MS`) plus its own `BENCH_SPLIT_OUTCOME`. Not a
-Criterion target: one pass, no sampling, no CI.
+Reads the corpus variables shared with `bench_memory`
+(`BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`, `BENCH_ENTRY_TIMEOUT_MS`)
+plus its own `BENCH_SPLIT_OUTCOME`. Not a Criterion target: one pass,
+no sampling, no CI.
 
 Also writes `reports/benches/bench_corpus_time.csv` (and
 `bench_corpus_time_by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`),
@@ -259,8 +261,9 @@ Build `bench_worker` first (see above), then:
 cargo bench --bench bench_memory
 ```
 
-The heap-allocation counterpart to `bench_corpus_time`: reports bytes
-allocated per parser per source. "Heap" specifically, not memory in
+S2ELab only, no source selection, the same as `bench_corpus_time`. The
+heap-allocation counterpart to `bench_corpus_time`: reports bytes
+allocated per parser. "Heap" specifically, not memory in
 general -- the counting allocator sees `GlobalAlloc` traffic only, so
 a cost dominated by stack depth rather than allocation would not show
 up here. Not a Criterion target -- allocation counts are deterministic
@@ -382,37 +385,24 @@ has no process-spawn overhead, unlike `wall (s)` in
 
 ## Quick reference
 
-**Smoke test** — 5 patterns per source, under a minute on both corpus
-targets:
+**Smoke test** — 5 patterns, under a minute on both corpus targets:
 
 ```bash
 BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_corpus_time
 BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_memory
 ```
 
-**Whole-corpus timing** (`bench_corpus_time`):
+**Whole-corpus timing** (`bench_corpus_time`, S2ELab only, no source
+selection):
 
 ```bash
-# Default sources (suricata, spamassassin), every pattern.
+# Every pattern.
 cargo bench --bench bench_corpus_time
 
-# Capped at 50 patterns per source.
+# Capped at 50 patterns.
 BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_corpus_time
 
-# One source, no cap.
-BENCH_SOURCE=s2-elab cargo bench --bench bench_corpus_time
-
-# All five sources, every pattern.
-BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
-  cargo bench --bench bench_corpus_time
-
-# Two sources, capped at 50 patterns each.
-BENCH_SOURCE=s2-elab,innovatorved \
-BENCH_PATTERN_LIMIT=50 \
-  cargo bench --bench bench_corpus_time
-
 # Match vs. non-match split.
-BENCH_SPLIT_OUTCOME=1 BENCH_SOURCE=s2-elab   cargo bench --bench bench_corpus_time
 BENCH_SPLIT_OUTCOME=1 BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_corpus_time
 
 # Only the patterns that carry a recoverable ^...$ wrap.
@@ -422,41 +412,29 @@ BENCH_MATCH_INTENT=explicit cargo bench --bench bench_corpus_time
 BENCH_MATCH_INTENT=direct cargo bench --bench bench_corpus_time
 ```
 
-**Whole-corpus memory** (`bench_memory`, same source and pattern-limit
-variables):
+**Whole-corpus memory** (`bench_memory`, same pattern-limit variable,
+also S2ELab only):
 
 ```bash
-# Default sources, every pattern.
+# Every pattern.
 cargo bench --bench bench_memory
 
-# Capped at 50 patterns per source.
+# Capped at 50 patterns.
 BENCH_PATTERN_LIMIT=50 cargo bench --bench bench_memory
-
-# One source, no cap.
-BENCH_SOURCE=s2-elab cargo bench --bench bench_memory
-
-# Two sources, 30 patterns each.
-BENCH_SOURCE=s2-elab,innovatorved \
-BENCH_PATTERN_LIMIT=30 \
-  cargo bench --bench bench_memory
-
-# All five sources, every pattern.
-BENCH_SOURCE=snort,spamassassin,regexlib,s2-elab,innovatorved \
-  cargo bench --bench bench_memory
 
 # Only unanchored patterns.
 BENCH_MATCH_INTENT=direct cargo bench --bench bench_memory
 ```
 
-**Translation cost** (`bench_translate`, no worker to build, same
-source/pattern-limit variables):
+**Translation cost** (`bench_translate`, no worker to build, its own
+source/pattern-limit variables -- the only one of these targets that
+still selects a source):
 
-One source per invocation, same as `bench_corpus_time`/`bench_memory`
-above -- each one's own label keeps its `_patterns.csv` genuinely
-separate per source, which is the point of that file. Each run still
-appends its row to the single, shared `bench_translate.csv` overview
-regardless of label, so that file ends up covering every source
-without needing a combined run.
+One source per invocation; each one's own label keeps its
+`_patterns.csv` genuinely separate per source, which is the point of
+that file. Each run still appends its row to the single, shared
+`bench_translate.csv` overview regardless of label, so that file ends
+up covering every source without needing a combined run.
 
 ```bash
 # Default sources, every distinct pattern.

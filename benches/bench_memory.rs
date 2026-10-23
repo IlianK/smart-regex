@@ -1,6 +1,8 @@
 //! benches/bench_memory.rs
 //!
 //! Heap allocation of the five parsers against real corpus patterns.
+//! S2ELab only -- the only source with real prepared data today (see
+//! `docs/DATASET.md`); no source selection.
 //! "Heap", specifically: the counting allocator hooks `GlobalAlloc`,
 //! which sees heap traffic only. Each worker's 256 MB call-thread
 //! stack (see `bench_worker.rs`) is invisible to it, so a pattern
@@ -81,29 +83,11 @@ fn fmt_limit(n: usize) -> String {
 }
 
 struct BenchSelection {
-    sources: Vec<SourceKind>,
     pattern_limit: usize,
     match_intent: Option<MatchIntent>,
 }
 
 fn bench_selection() -> BenchSelection {
-    let sources = std::env::var("BENCH_SOURCE")
-        .ok()
-        .map(|s| {
-            s.split(',')
-                .map(|part| match part.trim().to_lowercase().as_str() {
-                    "suricata" | "snort" => SourceKind::Suricata,
-                    "spamassassin" => SourceKind::SpamAssassin,
-                    "regexlib" => SourceKind::RegexLib,
-                    "s2-elab" | "s2elab" => SourceKind::S2ELab,
-                    "innovatorved" => SourceKind::Innovatorved,
-                    other => panic!(
-                        "BENCH_SOURCE entries must be suricata, spamassassin, regexlib, s2-elab, or innovatorved, got {other:?}"
-                    ),
-                })
-                .collect()
-        })
-        .unwrap_or_default();
     let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT")
         .ok()
         .map(|s| {
@@ -119,7 +103,7 @@ fn bench_selection() -> BenchSelection {
             other => panic!("BENCH_MATCH_INTENT must be direct, explicit, or both, got {other:?}"),
         },
     };
-    BenchSelection { sources, pattern_limit, match_intent }
+    BenchSelection { pattern_limit, match_intent }
 }
 
 /// Per-entry cap. See the module doc.
@@ -144,25 +128,14 @@ struct Entry {
     input: String,
 }
 
-/// One `Vec<Entry>` per source, each capped at `pattern_limit` distinct
-/// patterns, optionally filtered to one `MatchIntent` tier first.
-/// Source is the dimension examples group by.
-type Corpora = (Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>, Vec<Entry>);
-
-fn load_corpus(sel: &BenchSelection) -> Corpora {
-    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources)
+/// Capped at `pattern_limit` distinct patterns, optionally filtered to
+/// one `MatchIntent` tier first.
+fn load_corpus(sel: &BenchSelection) -> Vec<Entry> {
+    let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &[SourceKind::S2ELab])
         .unwrap_or_else(|e| panic!("cannot read {DATA_ROOT}: {e} -- run dataset_prepare first"));
 
-    let mut suricata = Vec::new();
-    let mut spamassassin = Vec::new();
-    let mut regexlib = Vec::new();
-    let mut s2_elab = Vec::new();
-    let mut innovatorved = Vec::new();
-    let mut suricata_patterns = std::collections::HashSet::new();
-    let mut spamassassin_patterns = std::collections::HashSet::new();
-    let mut regexlib_patterns = std::collections::HashSet::new();
-    let mut s2_elab_patterns = std::collections::HashSet::new();
-    let mut innovatorved_patterns = std::collections::HashSet::new();
+    let mut entries = Vec::new();
+    let mut patterns = std::collections::HashSet::new();
 
     for case in cases {
         if let Some(wanted) = sel.match_intent {
@@ -170,13 +143,6 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
                 continue;
             }
         }
-        let (bucket, patterns) = match case.source {
-            SourceKind::Suricata => (&mut suricata, &mut suricata_patterns),
-            SourceKind::SpamAssassin => (&mut spamassassin, &mut spamassassin_patterns),
-            SourceKind::RegexLib => (&mut regexlib, &mut regexlib_patterns),
-            SourceKind::S2ELab => (&mut s2_elab, &mut s2_elab_patterns),
-            SourceKind::Innovatorved => (&mut innovatorved, &mut innovatorved_patterns),
-        };
         let already_admitted = patterns.contains(&case.pattern);
         if !already_admitted && patterns.len() >= sel.pattern_limit {
             continue;
@@ -193,21 +159,15 @@ fn load_corpus(sel: &BenchSelection) -> Corpora {
             continue;
         }
         patterns.insert(case.pattern.clone());
-        bucket.push(Entry { pattern: case.pattern, input: case.input });
+        entries.push(Entry { pattern: case.pattern, input: case.input });
     }
-    if suricata.is_empty()
-        && spamassassin.is_empty()
-        && regexlib.is_empty()
-        && s2_elab.is_empty()
-        && innovatorved.is_empty()
-    {
+    if entries.is_empty() {
         panic!(
-            "no entries loaded from {DATA_ROOT} (sources={:?}, limit={}, match_intent={:?}) -- \
-             run dataset_prepare first",
-            sel.sources, fmt_limit(sel.pattern_limit), sel.match_intent
+            "no entries loaded from {DATA_ROOT} (limit={}, match_intent={:?}) -- run dataset_prepare first",
+            fmt_limit(sel.pattern_limit), sel.match_intent
         );
     }
-    (suricata, spamassassin, regexlib, s2_elab, innovatorved)
+    entries
 }
 
 // -------------------------------
@@ -428,17 +388,11 @@ fn main() {
     let sel = bench_selection();
     let cap = entry_timeout();
     let worker = worker_path();
-    let (suricata, spamassassin, regexlib, s2_elab, innovatorved) = load_corpus(&sel);
+    let corpus = load_corpus(&sel);
     eprintln!(
-        "bench_memory: {} suricata, {} spamassassin, {} regexlib, {} s2-elab, {} innovatorved \
-         (limit {} each, sources={:?}, match_intent={:?}, entry_timeout={:?})",
-        suricata.len(),
-        spamassassin.len(),
-        regexlib.len(),
-        s2_elab.len(),
-        innovatorved.len(),
+        "bench_memory: {} s2-elab entries (limit {}, match_intent={:?}, entry_timeout={:?})",
+        corpus.len(),
         fmt_limit(sel.pattern_limit),
-        sel.sources,
         sel.match_intent,
         cap,
     );
@@ -449,20 +403,9 @@ fn main() {
     }
     let path = format!("{REPORTS_DIR}/bench_memory{}.csv", run_label_suffix());
 
-    // Written again after every source, not just once at the end: see
-    // the identical comment in bench_corpus_time.rs's main().
-    let mut all_rows = Vec::new();
-    for (label, corpus) in [
-        ("dataset_suricata", &suricata),
-        ("dataset_spamassassin", &spamassassin),
-        ("dataset_regexlib", &regexlib),
-        ("dataset_s2_elab", &s2_elab),
-        ("dataset_innovatorved", &innovatorved),
-    ] {
-        all_rows.extend(report(label, corpus, &worker, cap));
-        if let Err(e) = write_summary_csv(&path, &all_rows) {
-            eprintln!("could not write {path}: {e}");
-        }
+    let rows = report("dataset_s2_elab", &corpus, &worker, cap);
+    if let Err(e) = write_summary_csv(&path, &rows) {
+        eprintln!("could not write {path}: {e}");
     }
     eprintln!("wrote {path}");
 }

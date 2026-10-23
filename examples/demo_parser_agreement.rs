@@ -86,7 +86,7 @@ fn selection() -> Selection {
                 .collect()
         })
         // Unlike most benches/examples (whose shared `load_prepared_cases`
-        // default is Suricata+SpamAssassin only), this one defaults to
+        // default is S2ELab alone), this one defaults to
         // every source: agreement is a correctness check, not a
         // performance sweep, and a membership or shape bug hiding in
         // RegexLib/S2ELab/Innovatorved is exactly as real a bug.
