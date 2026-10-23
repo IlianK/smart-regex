@@ -1,0 +1,35 @@
+One hand-authored example per frontend rejection cause.
+
+[backreference] pass
+  pattern: (a)\1
+  error:   backreference '\1' is not a regular-language construct -- unsupported
+
+[lookaround] pass
+  pattern: a(?=b)
+  error:   lookahead '(?=...)' is not a regular-language construct -- unsupported
+
+[word-boundary] pass
+  pattern: a\bb
+  error:   word boundary '\b'/'\B' is position-dependent, not a regular-language construct -- unsupported
+
+[flag-m] pass
+  pattern: /abc/m
+  error:   unsupported PCRE flag: multiline ('m'): '^' and '$' would match at newlines as well as at buffer boundaries, and this frontend does not support anchors at all
+
+[flag-x] pass
+  pattern: /a b/x
+  error:   unsupported PCRE flag: extended ('x'): whitespace in the pattern is not significant, which this parser does not model
+
+[posix-class] pass
+  pattern: [[:alpha:]]
+  error:   POSIX class '[:alpha:]' is not supported inside a character class (it would otherwise be silently misread as the literal characters '[', ':', and the class name); use an explicit range or a shorthand (\d, \w, \s and their negations) instead
+
+[bound-too-large] pass
+  pattern: a{1001}
+  error:   bound {1001,1001} exceeds this frontend's cap of 1000 repetitions
+
+[anchor] pass
+  pattern: ^abc
+  error:   anchor '^'/'$' is not supported by this frontend -- unsupported
+
+8/8 causes correctly demonstrated

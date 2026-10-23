@@ -1,168 +1,132 @@
-//! examples/demo_canonical_reject.rs
+//! examples/demo_translate_reject.rs
 //!
-//! cargo run --release --example demo_canonical_reject [-- <file...>]
+//! cargo run --release --example demo_translate_reject
 //!
-//! One example per rejection cause `dataset_stats.rs` counts.
-//! Causes: backreference, lookaround, word-boundary, 
-//! anchor, m flag, x flag, other.
+//! One hand-authored pattern per frontend rejection cause, each verified
+//! against the real `parse_pcre_rule` error rather than assumed.
+//! Causes: backreference, lookaround, word-boundary, flag-m, flag-x,
+//! POSIX class, bound-too-large, anchor.
 //!
-//! Replaces `demo_canonical_approx_reject.rs`.
-//! The Approx half (R flag, nested anchor) no longer applies.
-//! This frontend has no accepted-but-approximate case left.
-//! Only accepted or rejected.
+//! Replaces `demo_canonical_reject.rs`: no more real-corpus scan, and
+//! POSIX class / bound-too-large now get their own named cause instead
+//! of falling into a catch-all "other" -- `translate.rs`/`parse.rs`
+//! already produce distinct messages for both.
+//!
+//! Writes the full table to reports/demos/translate_reject.txt.
 
-use std::path::PathBuf;
+#[path = "common/thesis_figures.rs"]
+mod common;
 
-use regex_engine::data::extract::{
-    extract_innovatorved, extract_regexlib, extract_s2_elab, extract_spamassassin,
-    extract_suricata,
-};
-use regex_engine::data::types::SourceKind;
+use std::fmt::Write as _;
+
 use regex_engine::frontend::parse_pcre_rule;
 
-// ---------------------------------------------------------------------
-// Corpus loading -- same default layout as dataset_stats.rs
-// ---------------------------------------------------------------------
-
-fn default_dir(source: SourceKind) -> &'static str {
-    match source {
-        SourceKind::Suricata => "data/raw/snort",
-        SourceKind::SpamAssassin => "data/raw/spamAssassin",
-        SourceKind::RegexLib => "data/raw/regexLib",
-        SourceKind::S2ELab => "data/raw/s2-elab",
-        SourceKind::Innovatorved => "data/raw/innovatorved",
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cause {
+    Backreference,
+    Lookaround,
+    WordBoundary,
+    FlagMultiline,
+    FlagExtended,
+    PosixClass,
+    BoundTooLarge,
+    Anchor,
 }
 
-fn files_in(dir: &str) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let Ok(entries) = std::fs::read_dir(dir) else { return out };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            out.push(path);
+impl Cause {
+    fn label(&self) -> &'static str {
+        match self {
+            Cause::Backreference => "backreference",
+            Cause::Lookaround => "lookaround",
+            Cause::WordBoundary => "word-boundary",
+            Cause::FlagMultiline => "flag-m",
+            Cause::FlagExtended => "flag-x",
+            Cause::PosixClass => "posix-class",
+            Cause::BoundTooLarge => "bound-too-large",
+            Cause::Anchor => "anchor",
         }
     }
-    out.sort();
-    out
-}
 
-fn classify_file(path: &PathBuf) -> SourceKind {
-    match path.extension().and_then(|e| e.to_str()) {
-        Some("rules") => SourceKind::Suricata,
-        Some("cf") => SourceKind::SpamAssassin,
-        _ => SourceKind::RegexLib,
-    }
-}
-
-/// `(pattern, source name)` for every extracted pattern in `files`.
-fn load_patterns(files: &[(PathBuf, SourceKind)]) -> Vec<(String, &'static str)> {
-    let mut out = Vec::new();
-    for (path, source) in files {
-        let text = match std::fs::read(path) {
-            Ok(bytes) => String::from_utf8(bytes.clone())
-                .unwrap_or_else(|_| String::from_utf8_lossy(&bytes).into_owned()),
-            Err(e) => {
-                eprintln!("skipping {}: {e}", path.display());
-                continue;
-            }
-        };
-        let extracted = match source {
-            SourceKind::Suricata => extract_suricata(&text),
-            SourceKind::SpamAssassin => extract_spamassassin(&text),
-            SourceKind::RegexLib => extract_regexlib(&text),
-            SourceKind::S2ELab => extract_s2_elab(&text),
-            SourceKind::Innovatorved => extract_innovatorved(&text),
-        };
-        for rule in extracted {
-            out.push((rule.raw_pattern, source.dir_name()));
+    /// `multiline`'s own message names "anchor" too, so it (and every
+    /// other needle) is checked before the generic `Anchor` catch-all.
+    fn classify(err: &str) -> Option<Cause> {
+        let e = err.to_lowercase();
+        if e.contains("backreference") {
+            Some(Cause::Backreference)
+        } else if e.contains("lookahead") || e.contains("lookbehind") {
+            Some(Cause::Lookaround)
+        } else if e.contains("word boundary") {
+            Some(Cause::WordBoundary)
+        } else if e.contains("multiline") {
+            Some(Cause::FlagMultiline)
+        } else if e.contains("extended") {
+            Some(Cause::FlagExtended)
+        } else if e.contains("posix class") {
+            Some(Cause::PosixClass)
+        } else if e.contains("exceeds this frontend's cap") {
+            Some(Cause::BoundTooLarge)
+        } else if e.contains("anchor") {
+            Some(Cause::Anchor)
+        } else {
+            None
         }
     }
-    out
 }
 
-/// Shortest pattern for which `detect` holds; `None` if none does.
-/// Deterministic: does not depend on extraction order.
-fn shortest_matching<'a>(
-    patterns: &'a [(String, &'static str)],
-    detect: impl Fn(&str) -> bool,
-) -> Option<&'a (String, &'static str)> {
-    patterns.iter().filter(|(p, _)| detect(p)).min_by_key(|(p, _)| p.len())
+struct Example {
+    cause: Cause,
+    pattern: &'static str,
 }
 
-fn rejected_because(p: &str, needle: &str) -> bool {
-    matches!(parse_pcre_rule(p), Err(e) if e.to_lowercase().contains(needle))
-}
-
-// ---------------------------------------------------------------------
-// Reject: one section per Cause, mirroring dataset_stats.rs's Cause enum
-// ---------------------------------------------------------------------
-
-struct RejectCause {
-    label: &'static str,
-    detect: fn(&str) -> bool,
-}
-
-const REJECT_CAUSES: &[RejectCause] = &[
-    RejectCause { label: "backreference", detect: |p| rejected_because(p, "backreference") },
-    RejectCause { label: "lookaround", detect: |p| rejected_because(p, "lookahead") || rejected_because(p, "lookbehind") },
-    RejectCause { label: "word-boundary", detect: |p| rejected_because(p, "word boundary") },
-    RejectCause { label: "anchor ('^' or '$')", detect: |p| rejected_because(p, "anchor") },
-    RejectCause { label: "flag-m (multiline)", detect: |p| rejected_because(p, "multiline") },
-    RejectCause { label: "flag-x (extended)", detect: |p| rejected_because(p, "extended") },
-    RejectCause {
-        label: "other",
-        detect: |p| {
-            matches!(parse_pcre_rule(p), Err(e) if {
-                let e = e.to_lowercase();
-                !e.contains("backreference") && !e.contains("lookahead") && !e.contains("lookbehind")
-                    && !e.contains("word boundary") && !e.contains("anchor")
-                    && !e.contains("multiline") && !e.contains("extended")
-            })
-        },
-    },
+const EXAMPLES: &[Example] = &[
+    Example { cause: Cause::Backreference, pattern: r"(a)\1" },
+    Example { cause: Cause::Lookaround, pattern: r"a(?=b)" },
+    Example { cause: Cause::WordBoundary, pattern: r"a\bb" },
+    Example { cause: Cause::FlagMultiline, pattern: "/abc/m" },
+    Example { cause: Cause::FlagExtended, pattern: "/a b/x" },
+    Example { cause: Cause::PosixClass, pattern: "[[:alpha:]]" },
+    Example { cause: Cause::BoundTooLarge, pattern: "a{1001}" },
+    Example { cause: Cause::Anchor, pattern: "^abc" },
 ];
 
-fn show_reject(patterns: &[(String, &'static str)]) {
-    println!("REJECT: no Regex produced at all");
-    println!("{}", "-".repeat(74));
-    println!("dataset_stats.rs's seven Reject causes.");
-
-    for cause in REJECT_CAUSES {
-        println!();
-        println!("[{}]", cause.label);
-        match shortest_matching(patterns, cause.detect) {
-            None => println!("  (no example in this corpus)"),
-            Some((pattern, source)) => {
-                let err = parse_pcre_rule(pattern).expect_err("detector already required rejection");
-                println!("  source:  {source}");
-                println!("  pattern: {pattern}");
-                println!("  err:     {err}");
-            }
-        }
-    }
-}
-
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut buf = String::new();
+    writeln!(buf, "One hand-authored example per frontend rejection cause.\n").unwrap();
 
-    let files: Vec<(PathBuf, SourceKind)> = if args.is_empty() {
-        [SourceKind::Suricata, SourceKind::SpamAssassin, SourceKind::RegexLib]
-            .into_iter()
-            .flat_map(|s| files_in(default_dir(s)).into_iter().map(move |p| (p, s)))
-            .collect()
-    } else {
-        args.iter().map(PathBuf::from).map(|p| { let s = classify_file(&p); (p, s) }).collect()
-    };
-
-    if files.is_empty() {
-        eprintln!("no corpus files found (looked under data/raw/{{snort,spamAssassin,regexLib}})");
-        std::process::exit(2);
+    let mut passed = 0usize;
+    for ex in EXAMPLES {
+        let ok = match parse_pcre_rule(ex.pattern) {
+            Ok(_) => {
+                writeln!(
+                    buf,
+                    "[{}] FAIL: pattern {:?} was accepted, not rejected",
+                    ex.cause.label(),
+                    ex.pattern
+                )
+                .unwrap();
+                false
+            }
+            Err(err) => {
+                let got = Cause::classify(&err);
+                let ok = got == Some(ex.cause);
+                writeln!(buf, "[{}] {}", ex.cause.label(), if ok { "pass" } else { "FAIL" }).unwrap();
+                writeln!(buf, "  pattern: {}", ex.pattern).unwrap();
+                writeln!(buf, "  error:   {}", err).unwrap();
+                if !ok {
+                    writeln!(buf, "  classified as {:?}, expected {:?}", got, ex.cause).unwrap();
+                }
+                ok
+            }
+        };
+        if ok {
+            passed += 1;
+        }
+        writeln!(buf).unwrap();
     }
 
-    let patterns = load_patterns(&files);
-    println!("{} patterns extracted from {} file(s)", patterns.len(), files.len());
-    println!();
-
-    show_reject(&patterns);
+    writeln!(buf, "{}/{} causes correctly demonstrated", passed, EXAMPLES.len()).unwrap();
+    common::report("translate_reject", &buf);
+    if passed != EXAMPLES.len() {
+        std::process::exit(1);
+    }
 }
