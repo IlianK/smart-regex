@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use regex_engine::data::prepare::core_regex;
-use regex_engine::parsers::ALL;
+use regex_engine::parsers::{ALL, BcTiming, parse_bitcoded_recursive_timed, parse_pderiv_bc_timed};
 
 // Safe here because this process measures exactly one job then exits.
 struct CountingAllocator;
@@ -77,6 +77,12 @@ struct JobResult {
     micros: u64,
     total_bytes: usize,
     peak_bytes: usize,
+    // Breakdown of `micros` for the bit-coded parsers (deriv_bc,
+    // pderiv_bc) only; for the other three, encode_micros and
+    // decode_micros are 0 and derive_micros equals the full `micros`.
+    encode_micros: u64,
+    derive_micros: u64,
+    decode_micros: u64,
 }
 
 // Deep recursion on deriv_std_rec needs more than the default stack.
@@ -92,11 +98,10 @@ fn main() {
         eprintln!("parser_idx must be 0..=4, got {:?}", args[1]);
         std::process::exit(2);
     });
-    let Some(parser_type) = ALL.get(parser_idx) else {
+    if ALL.get(parser_idx).is_none() {
         eprintln!("parser_idx must be 0..=4, got {parser_idx}");
         std::process::exit(2);
-    };
-    let parser = parser_type.parser();
+    }
 
     let mut stdin_bytes = Vec::new();
     if let Err(e) = std::io::stdin().read_to_end(&mut stdin_bytes) {
@@ -129,14 +134,26 @@ fn main() {
         .stack_size(WORKER_STACK_BYTES)
         .spawn(move || {
             let start = Instant::now();
-            let _ = parser(&input, &regex);
+            let timing = match parser_idx {
+                2 => parse_bitcoded_recursive_timed(&input, &regex).1,
+                3 => parse_pderiv_bc_timed(&input, &regex).1,
+                _ => {
+                    let parser = ALL[parser_idx].parser();
+                    let _ = parser(&input, &regex);
+                    BcTiming { encode_us: 0, derive_us: 0, decode_us: 0 }
+                }
+            };
             // u64 clamp in principle, no-op in practice.
-            u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX)
+            let total = u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX);
+            match parser_idx {
+                2 | 3 => (total, timing),
+                _ => (total, BcTiming { encode_us: 0, derive_us: total, decode_us: 0 }),
+            }
         })
         .expect("spawning the worker's parser-call thread");
 
-    let micros = match handle.join() {
-        Ok(micros) => micros,
+    let (micros, timing) = match handle.join() {
+        Ok(result) => result,
         Err(_) => {
             eprintln!("worker: parser call panicked");
             std::process::exit(3);
@@ -145,7 +162,14 @@ fn main() {
 
     let total_bytes = TOTAL.load(Ordering::SeqCst);
     let peak_bytes = PEAK.load(Ordering::SeqCst).saturating_sub(baseline);
-    let result = JobResult { micros, total_bytes, peak_bytes };
+    let result = JobResult {
+        micros,
+        total_bytes,
+        peak_bytes,
+        encode_micros: timing.encode_us,
+        derive_micros: timing.derive_us,
+        decode_micros: timing.decode_us,
+    };
     println!("{}", serde_json::to_string(&result).expect("serializing the result"));
     // Explicit flush: println! is buffered.
     std::io::stdout().flush().expect("flushing worker stdout");

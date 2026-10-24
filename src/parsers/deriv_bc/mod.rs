@@ -12,5 +12,5 @@ pub mod traced;
 
 pub use internalize::{internalize, fuse};
 pub use mk_eps_bc::mk_eps_bc;
-pub use parse::{parse_deriv_bc, parse_bitcoded_recursive, parse_bitcoded_loop};
+pub use parse::{parse_deriv_bc, parse_bitcoded_recursive, parse_bitcoded_recursive_timed, parse_bitcoded_loop};
 pub use traced::parse_bitcoded_traced;

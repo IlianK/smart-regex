@@ -2,9 +2,11 @@
 //! 
 //! Bit-coded partial-derivative parser (pDerivBC / parsePDerivBC), GREEDY; traced variant in traced.rs.
 
+use std::time::Instant;
 use crate::types::{Regex, ParseTree, AppendBits};
 use crate::regex::nullable::nullable;
 use crate::parsers::pderiv_bc::pderiv::{pderiv_bc, mk_eps_bits, nub2};
+use crate::parsers::BcTiming;
 use crate::regex::decode::decode;
 
 /// One step of `parsePDerivBC2`: replace the frontier with union of
@@ -42,15 +44,33 @@ pub(super) fn select_bits(frontier: &[(Regex, AppendBits)]) -> Option<Vec<bool>>
 }
 
 pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
+    parse_pderiv_bc_timed(input, r).0
+}
+
+/// Same parse, plus how long derive (the per-character frontier
+/// stepping) and decode (bits -> ParseTree) each took. pderiv_bc has no
+/// encode step (it works on plain `Regex` directly, no ARegex
+/// conversion), so `encode_us` is always 0.
+pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, BcTiming) {
+    let t0 = Instant::now();
     let mut frontier = vec![(r.clone(), AppendBits::empty())];
     for c in input.chars() {
         frontier = step_frontier(&frontier, c);
         if frontier.is_empty() {
-            return None;
+            let derive_us = t0.elapsed().as_micros() as u64;
+            return (None, BcTiming { encode_us: 0, derive_us, decode_us: 0 });
         }
     }
-    let bits = select_bits(&frontier)?;
-    Some(decode(r, &bits))
+    let derive_us = t0.elapsed().as_micros() as u64;
+
+    let t1 = Instant::now();
+    let Some(bits) = select_bits(&frontier) else {
+        return (None, BcTiming { encode_us: 0, derive_us, decode_us: 0 });
+    };
+    let tree = decode(r, &bits);
+    let decode_us = t1.elapsed().as_micros() as u64;
+
+    (Some(tree), BcTiming { encode_us: 0, derive_us, decode_us })
 }
 
 
@@ -76,6 +96,22 @@ mod tests {
     #[test]
     fn no_match_is_none() {
         assert_eq!(parse_pderiv_bc("b", &Regex::lit('a')), None);
+    }
+
+    #[test]
+    fn timed_matches_untimed_and_has_no_encode_step() {
+        let r = Regex::star(Regex::lit('a'));
+        let plain = parse_pderiv_bc("aaa", &r);
+        let (timed, timing) = parse_pderiv_bc_timed("aaa", &r);
+        assert_eq!(plain, timed);
+        assert_eq!(timing.encode_us, 0, "pderiv_bc has no ARegex encode step");
+    }
+
+    #[test]
+    fn timed_reports_zero_decode_on_no_match() {
+        let (tree, timing) = parse_pderiv_bc_timed("b", &Regex::lit('a'));
+        assert_eq!(tree, None);
+        assert_eq!(timing.decode_us, 0);
     }
 
     #[test]

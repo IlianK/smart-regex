@@ -260,10 +260,23 @@ struct JobResult {
     total_bytes: usize,
     #[allow(dead_code)]
     peak_bytes: usize,
+    encode_micros: u64,
+    derive_micros: u64,
+    decode_micros: u64,
+}
+
+/// `total` is `micros` as before; `encode`/`derive`/`decode` are only
+/// meaningful for deriv_bc/pderiv_bc (0/total/0 for the other three).
+#[derive(Clone, Copy)]
+struct Timing {
+    total: Duration,
+    encode: Duration,
+    derive: Duration,
+    decode: Duration,
 }
 
 enum Outcome {
-    Done(Duration),
+    Done(Timing),
     TimedOut,
     Crashed(String),
 }
@@ -312,7 +325,12 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
                     return Outcome::Crashed(format!("{reason}; stderr={}", err.trim()));
                 }
                 return match serde_json::from_str::<JobResult>(out.trim()) {
-                    Ok(r) => Outcome::Done(Duration::from_micros(r.micros)),
+                    Ok(r) => Outcome::Done(Timing {
+                        total: Duration::from_micros(r.micros),
+                        encode: Duration::from_micros(r.encode_micros),
+                        derive: Duration::from_micros(r.derive_micros),
+                        decode: Duration::from_micros(r.decode_micros),
+                    }),
                     Err(e) => Outcome::Crashed(format!(
                         "worker exited 0 but its output did not parse: {e}; stdout={:?} stderr={:?}",
                         out.trim(),
@@ -352,6 +370,11 @@ struct SummaryRow {
     median_ms: Option<f64>,
     p99_ms: Option<f64>,
     max_ms: Option<f64>,
+    // Breakdown of mean_ms for deriv_bc/pderiv_bc (encode is 0 for the
+    // other three parsers, decode is 0 for them too, derive is mean_ms).
+    mean_encode_ms: Option<f64>,
+    mean_derive_ms: Option<f64>,
+    mean_decode_ms: Option<f64>,
 }
 
 /// One (row, n, p, parser, side) measurement -- the raw material for a
@@ -366,6 +389,9 @@ struct EntryResult {
     side: &'static str,
     outcome: &'static str,
     micros: Option<u64>,
+    encode_micros: Option<u64>,
+    derive_micros: Option<u64>,
+    decode_micros: Option<u64>,
 }
 
 fn ms(d: Duration) -> f64 {
@@ -394,40 +420,48 @@ fn report(
     let mut entry_rows = Vec::new();
     println!("\n{category} ({category_name}, {} entries)", corpus.len());
     println!(
-        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12}",
-        "parser", "measured", "timed_out", "crashed", "wall (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)"
+        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12}",
+        "parser", "measured", "timed_out", "crashed", "wall (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)",
+        "encode (ms)", "derive (ms)", "decode (ms)"
     );
-    println!("{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12}", "", "", "", "", "", "", "", "", "");
+    println!("{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12}", "", "", "", "", "", "", "", "", "", "", "", "");
 
     for (parser_idx, parser_type) in ALL.iter().enumerate() {
-        let mut all: Vec<Duration> = Vec::with_capacity(corpus.len());
+        let mut all: Vec<Timing> = Vec::with_capacity(corpus.len());
         let mut timed_out = 0usize;
         let mut crashed = 0usize;
         let start = Instant::now();
         for entry in corpus {
-            let (outcome, micros) = match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                Outcome::Done(dt) => {
-                    all.push(dt);
-                    ("measured", Some(dt.as_micros() as u64))
-                }
-                Outcome::TimedOut => {
-                    timed_out += 1;
-                    ("timed_out", None)
-                }
-                Outcome::Crashed(reason) => {
-                    crashed += 1;
-                    eprintln!(
-                        "  crash: {category}/{} row={} n={} p={} pat={:?} in={:?} -- {reason}",
-                        parser_type.name(),
-                        entry.row_id,
-                        entry.n,
-                        entry.p,
-                        entry.pattern,
-                        entry.input,
-                    );
-                    ("crashed", None)
-                }
-            };
+            let (outcome, micros, encode_micros, derive_micros, decode_micros) =
+                match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
+                    Outcome::Done(t) => {
+                        all.push(t);
+                        (
+                            "measured",
+                            Some(t.total.as_micros() as u64),
+                            Some(t.encode.as_micros() as u64),
+                            Some(t.derive.as_micros() as u64),
+                            Some(t.decode.as_micros() as u64),
+                        )
+                    }
+                    Outcome::TimedOut => {
+                        timed_out += 1;
+                        ("timed_out", None, None, None, None)
+                    }
+                    Outcome::Crashed(reason) => {
+                        crashed += 1;
+                        eprintln!(
+                            "  crash: {category}/{} row={} n={} p={} pat={:?} in={:?} -- {reason}",
+                            parser_type.name(),
+                            entry.row_id,
+                            entry.n,
+                            entry.p,
+                            entry.pattern,
+                            entry.input,
+                        );
+                        ("crashed", None, None, None, None)
+                    }
+                };
             entry_rows.push(EntryResult {
                 row_id: entry.row_id.clone(),
                 category: entry.category.clone(),
@@ -437,26 +471,33 @@ fn report(
                 side: entry.side,
                 outcome,
                 micros,
+                encode_micros,
+                derive_micros,
+                decode_micros,
             });
         }
         let total = start.elapsed();
 
-        let (mean, median, p99, max) = if all.is_empty() {
-            (None, None, None, None)
+        let (mean, median, p99, max, mean_encode, mean_derive, mean_decode) = if all.is_empty() {
+            (None, None, None, None, None, None, None)
         } else {
-            let mut sorted = all.clone();
+            let mut sorted: Vec<Duration> = all.iter().map(|t| t.total).collect();
             sorted.sort();
             let n = sorted.len();
+            let mean_of = |pick: fn(&Timing) -> Duration| ms(all.iter().map(pick).sum::<Duration>() / n as u32);
             (
                 Some(ms(sorted.iter().sum::<Duration>() / n as u32)),
                 Some(ms(sorted[n / 2])),
                 Some(ms(sorted[(n * 99) / 100])),
                 Some(ms(*sorted.last().expect("non-empty"))),
+                Some(mean_of(|t| t.encode)),
+                Some(mean_of(|t| t.derive)),
+                Some(mean_of(|t| t.decode)),
             )
         };
 
         println!(
-            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12}",
+            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12}",
             parser_type.name(),
             all.len(),
             timed_out,
@@ -466,6 +507,9 @@ fn report(
             fmt_opt_ms(median),
             fmt_opt_ms(p99),
             fmt_opt_ms(max),
+            fmt_opt_ms(mean_encode),
+            fmt_opt_ms(mean_derive),
+            fmt_opt_ms(mean_decode),
         );
 
         rows.push(SummaryRow {
@@ -481,6 +525,9 @@ fn report(
             median_ms: median,
             p99_ms: p99,
             max_ms: max,
+            mean_encode_ms: mean_encode,
+            mean_derive_ms: mean_derive,
+            mean_decode_ms: mean_decode,
         });
     }
     (rows, entry_rows)
@@ -488,11 +535,11 @@ fn report(
 
 fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "row_id,category,parser,n,p,side,outcome,micros")?;
+    writeln!(f, "row_id,category,parser,n,p,side,outcome,micros,encode_micros,derive_micros,decode_micros")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{}",
             r.row_id,
             r.category,
             r.parser,
@@ -501,6 +548,9 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
             r.side,
             r.outcome,
             r.micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.encode_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.derive_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.decode_micros.map(|v| v.to_string()).unwrap_or_default(),
         )?;
     }
     Ok(())
@@ -508,11 +558,11 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "category,category_name,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms")?;
+    writeln!(f, "category,category_name,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_encode_ms,mean_derive_ms,mean_decode_ms")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{:.6},{},{},{},{}",
+            "{},{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{}",
             r.category,
             r.category_name,
             r.parser,
@@ -525,6 +575,9 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
             r.median_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.p99_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.max_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.mean_encode_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.mean_derive_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.mean_decode_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
         )?;
     }
     Ok(())

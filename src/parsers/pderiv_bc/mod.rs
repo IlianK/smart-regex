@@ -7,5 +7,5 @@ pub mod parse;
 pub mod traced;
 
 pub use pderiv::{pderiv_bc, mk_eps_bits};
-pub use parse::parse_pderiv_bc;
+pub use parse::{parse_pderiv_bc, parse_pderiv_bc_timed};
 pub use traced::parse_pderiv_bc_traced;
