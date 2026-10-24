@@ -16,6 +16,17 @@
 //!   a signal means it crashed, e.g. a stack overflow.
 //!   The caller distinguishes all of these from a timeout, which it
 //!   detects by killing the process before it exits.
+//!
+//! Optional per-job memory cap: when the job carries `mem_cap_bytes`,
+//! this process limits its own virtual address space with
+//! `setrlimit(RLIMIT_AS, ..)` (Unix only -- this file's own crash
+//! detection already assumes Unix signal semantics, so this adds no
+//! new platform constraint) before the parser call. Exceeding it makes
+//! Rust's allocator-failure handler abort the process by signal, which
+//! looks exactly like any other crash to the caller -- no special case
+//! needed. Omitted (the default -- every existing caller), this process
+//! behaves exactly as before: unbounded. See `bench_deriv_std_blowup_worker.rs`,
+//! where this originated, for the fuller rationale.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::{Read, Write};
@@ -70,6 +81,24 @@ static GLOBAL: CountingAllocator = CountingAllocator;
 struct Job {
     pattern: String,
     input: String,
+    #[serde(default)]
+    mem_cap_bytes: Option<u64>,
+}
+
+#[cfg(unix)]
+fn apply_mem_cap(bytes: u64) {
+    let limit = libc::rlimit { rlim_cur: bytes, rlim_max: bytes };
+    // SAFETY: a plain libc call with a stack-local struct, no aliasing.
+    let rc = unsafe { libc::setrlimit(libc::RLIMIT_AS, &limit) };
+    if rc != 0 {
+        eprintln!("worker: setrlimit(RLIMIT_AS, {bytes}) failed: {}", std::io::Error::last_os_error());
+        std::process::exit(2);
+    }
+}
+
+#[cfg(not(unix))]
+fn apply_mem_cap(_bytes: u64) {
+    eprintln!("worker: RLIMIT_AS is Unix-only; running with no memory cap on this platform");
 }
 
 #[derive(serde::Serialize)]
@@ -123,6 +152,16 @@ fn main() {
             std::process::exit(2);
         }
     };
+
+    // Cap applied after translation (not counted against the budget the
+    // parser call itself gets) but before the baseline snapshot below,
+    // so the 256 MiB stack thread spawned further down is itself inside
+    // the cap -- a cap smaller than that plus a little headroom fails
+    // immediately, which is the correct, honest result for a cap set
+    // too low to even start, not a special case to hide.
+    if let Some(bytes) = job.mem_cap_bytes {
+        apply_mem_cap(bytes);
+    }
 
     // Baseline after parsing and translation, so neither counts as cost.
     let baseline = CURRENT.load(Ordering::SeqCst);

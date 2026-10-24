@@ -62,6 +62,7 @@ no CLI arguments.
 | `BENCH_MATCH_INTENT` | `bench_corpus_*` only | `direct`, `explicit`, `both` | `explicit` | `explicit` = `ExplicitFullMatch` (`^...$`) only; `direct` = `UnanchoredAmbiguous` only; see [DATASET.md](DATASET.md) |
 | `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` only | `1`/`0` etc. | `0` | Adds a second table splitting time by match/non-match |
 | `BENCH_ENTRY_TIMEOUT_MS` | `bench_corpus_time`/`memory`, `bench_pathological_time`/`memory` | positive integer (ms) | `2000` | Per-entry cap; exceeding it kills the worker process (`timed_out`) rather than blocking the run |
+| `BENCH_MEM_CAP_MB` | `bench_corpus_time`/`memory`, `bench_pathological_time`/`memory` | positive integer (MiB) | unset (unbounded) | Per-entry virtual-memory ceiling on the worker (`setrlimit(RLIMIT_AS, ..)`, Unix only); exceeding it is a contained `crashed`, never a system-wide OOM -- see below |
 | `BENCH_RUN_LABEL` | all except `*_translate`'s aggregate CSV and `bench_stack_depth` | filename-safe string | unset (bare filename) | Suffixes the output filename, so different configs don't overwrite each other |
 | `BENCH_TRANSLATE_RENDER_MAX_NODES` | `bench_corpus_translate` only | positive integer | `150` | Patterns above this node count get a placeholder instead of a rendered tree in `_patterns.csv` |
 | `BENCH_TRANSLATE_EXAMPLES` | `bench_corpus_translate` only | non-negative integer | `5` | How many smallest distinct patterns per source to fully render to `translation_examples.txt` |
@@ -83,6 +84,18 @@ A few variables need more than a one-liner:
   thread-based version OOM-killed a whole run; see
   `bench_corpus_time.rs`'s module doc for the full account). Cost: wall
   clock pays roughly `N_timed_out x cap`, since killing itself blocks.
+- **`BENCH_MEM_CAP_MB`** -- unset (the default) is unbounded, same
+  behaviour as before this existed: a single entry with no ceiling of
+  its own can in principle exhaust the whole machine's memory, which
+  is exactly what the OS's OOM killer can then resolve by picking *any*
+  process as its victim, not just the offending worker. Setting this
+  caps the worker's own virtual address space before the parser call;
+  exceeding it aborts that one process by signal (Rust's own
+  allocator-failure handler), indistinguishable from any other
+  `crashed` entry to the caller -- no new outcome category. A cap set
+  below what even translation plus the worker's own 256 MiB stack
+  thread need fails immediately, which is the correct, honest result
+  for too low a cap, not a bug.
 - **`BENCH_RUN_LABEL`** -- works as a filename suffix everywhere except
   `bench_corpus_translate.csv`/`bench_pathological_translate.csv`,
   whose aggregate CSVs are always exactly that name, **appended** to

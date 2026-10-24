@@ -131,6 +131,16 @@ fn entry_timeout() -> Duration {
     Duration::from_millis(ms)
 }
 
+/// Per-worker virtual-memory ceiling (`setrlimit(RLIMIT_AS, ..)`,
+/// Unix only -- see `bench_worker.rs`'s own module doc). Unset (the
+/// default) means unbounded, exactly as before this existed.
+fn mem_cap_bytes() -> Option<u64> {
+    std::env::var("BENCH_MEM_CAP_MB").ok().map(|s| {
+        let mb: u64 = s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_CAP_MB must be a positive integer, got {s:?}"));
+        mb * 1024 * 1024
+    })
+}
+
 /// Optional filename suffix (e.g. `_T3`) so a sweep of differently
 /// -configured runs lands in separate files instead of each one
 /// overwriting the last. Unset keeps today's bare filename, so a
@@ -258,7 +268,7 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
 
     {
         let mut stdin = child.stdin.take().expect("piped stdin");
-        let job = serde_json::json!({ "pattern": pattern, "input": input }).to_string();
+        let job = serde_json::json!({ "pattern": pattern, "input": input, "mem_cap_bytes": mem_cap_bytes() }).to_string();
         if let Err(e) = stdin.write_all(job.as_bytes()) {
             panic!("failed to write job to {worker:?}'s stdin: {e}");
         }

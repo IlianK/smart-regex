@@ -117,6 +117,15 @@ fn entry_timeout() -> Duration {
     Duration::from_millis(ms)
 }
 
+/// Per-worker virtual-memory ceiling. See the identical function in
+/// `bench_corpus_time.rs` for why.
+fn mem_cap_bytes() -> Option<u64> {
+    std::env::var("BENCH_MEM_CAP_MB").ok().map(|s| {
+        let mb: u64 = s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_CAP_MB must be a positive integer, got {s:?}"));
+        mb * 1024 * 1024
+    })
+}
+
 /// Optional filename suffix (e.g. `_M3`). See the identical function
 /// in `bench_corpus_time.rs` for why.
 fn run_label_suffix() -> String {
@@ -226,7 +235,7 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
 
     {
         let mut stdin = child.stdin.take().expect("piped stdin");
-        let job = serde_json::json!({ "pattern": pattern, "input": input }).to_string();
+        let job = serde_json::json!({ "pattern": pattern, "input": input, "mem_cap_bytes": mem_cap_bytes() }).to_string();
         if let Err(e) = stdin.write_all(job.as_bytes()) {
             panic!("failed to write job to {worker:?}'s stdin: {e}");
         }
