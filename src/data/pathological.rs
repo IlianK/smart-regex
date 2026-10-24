@@ -183,6 +183,15 @@ pub struct PathologicalRow {
     pub stress_axis: String,
     #[serde(default)]
     pub notes: Option<String>,
+    /// Overrides the row's category-wide `suggested_n`/`suggested_p`
+    /// (see `CategoryInfo`) when a row needs a sweep its category's
+    /// other rows don't -- e.g. a literal reproduction of a published
+    /// benchmark at its own paper-specified scale, left out of every
+    /// other row in the same category's routine (small, fast) default.
+    #[serde(default)]
+    pub suggested_n: Option<Vec<u32>>,
+    #[serde(default)]
+    pub suggested_p: Option<Vec<u32>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -245,6 +254,27 @@ mod tests {
         let (_, m, nm) = expand(&r, 10, 0);
         assert_eq!(m, Some("a".repeat(10)));
         assert_eq!(nm, Some(format!("{}b", "a".repeat(10))));
+    }
+
+    #[test]
+    fn row_suggested_n_defaults_to_none_and_parses_when_present() {
+        let r = row(
+            r#"{
+            "id": "P01", "category": "A", "regex": "a",
+            "stress_axis": "x"
+        }"#,
+        );
+        assert_eq!(r.suggested_n, None);
+        assert_eq!(r.suggested_p, None);
+
+        let r2 = row(
+            r#"{
+            "id": "P60", "category": "E", "regex": "(a|b|ab)*",
+            "stress_axis": "x",
+            "suggested_n": [1000000, 5000000]
+        }"#,
+        );
+        assert_eq!(r2.suggested_n, Some(vec![1_000_000, 5_000_000]));
     }
 
     #[test]
@@ -352,7 +382,7 @@ mod tests {
     #[test]
     fn the_real_dataset_file_loads_with_the_expected_section_sizes() {
         let doc = load(Path::new("data/pathological/pathological_patterns.json")).expect("should load");
-        assert_eq!(doc.pathological_patterns.len(), 59);
+        assert_eq!(doc.pathological_patterns.len(), 61);
         assert_eq!(doc.baseline_and_edge_patterns.len(), 43);
         assert_eq!(doc.generated_patterns.len(), 9);
         assert!(doc.categories.contains_key("A"));

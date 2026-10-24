@@ -135,12 +135,14 @@ fn build_entries(
         let cat = doc.categories.get(&row.category);
         let n_list = n_override
             .clone()
+            .or_else(|| row.suggested_n.clone())
             .or_else(|| cat.and_then(|c| c.suggested_n.clone()))
             .unwrap_or_else(|| vec![pathological::DEFAULT_N]);
         let needs_p = row.generator.is_some();
         let p_list = if needs_p {
             p_override
                 .clone()
+                .or_else(|| row.suggested_p.clone())
                 .or_else(|| cat.and_then(|c| c.suggested_p.clone()))
                 .unwrap_or_else(|| vec![pathological::DEFAULT_P])
         } else {

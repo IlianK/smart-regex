@@ -254,6 +254,7 @@ fn build_entries(doc: &PathologicalDoc, rows: &[&PathologicalRow], p_override: &
         let p_list = if needs_p {
             p_override
                 .clone()
+                .or_else(|| row.suggested_p.clone())
                 .or_else(|| cat.and_then(|c| c.suggested_p.clone()))
                 .unwrap_or_else(|| vec![pathological::DEFAULT_P])
         } else {

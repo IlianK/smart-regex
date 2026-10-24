@@ -452,6 +452,38 @@
       "stress_axis": "derivative-state explosion"
     },
     {
+      "id": "P60",
+      "category": "E",
+      "regex": "(a|b|ab)*",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "literal reproduction of FLOPS14 Fig. 7(a) (paper notation (a+b+ab)*, union-+, = (a|b|ab)* here) -- the paper sweeps 1-10 million 'a's; this row's own default sweep stays small like its category siblings so routine/unscoped runs aren't slowed by it, so for the real comparison override explicitly, e.g.: PATHO_ROW_ID=P60 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A cargo bench --bench bench_pathological_time"
+    },
+    {
+      "id": "P61",
+      "category": "E",
+      "regex": "(a|b|ab)*",
+      "match_input": {
+        "repeat": "ab",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "ab",
+        "count": "{N}",
+        "suffix": "c"
+      },
+      "stress_axis": "derivative-state explosion",
+      "notes": "literal reproduction of FLOPS14 Fig. 7(b) -- P20 is the same pattern family but with + (one-or-more) and no dedicated large-N sweep; this row uses * (Kleene star, matching the paper's own notation exactly) and exists specifically for paper-scale comparison. The paper sweeps 0.5-5 million 'ab's; override explicitly for the real comparison, e.g.: PATHO_ROW_ID=P61 PATHO_N=500000,2500000,5000000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B cargo bench --bench bench_pathological_time"
+    },
+    {
       "id": "P22",
       "category": "C",
       "regex": "(.*a){1,10}",

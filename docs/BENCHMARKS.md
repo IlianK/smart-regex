@@ -421,7 +421,35 @@ PATHO_SECTION=generated PATHO_P=1000 cargo bench --bench bench_pathological_time
 # One pattern's own scaling curve (a Fig.-7-style line-chart source),
 # instead of a whole category's mixed-row/mixed-n aggregate:
 PATHO_ROW_ID=P01 PATHO_N=20,50,100,200,500,1000 cargo bench --bench bench_pathological_time
+
+# The literal FLOPS'14 Fig. 7 reproduction (see rows P60/P61 below):
+PATHO_ROW_ID=P60 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 \
+  BENCH_RUN_LABEL=FIG7A cargo bench --bench bench_pathological_time
+PATHO_ROW_ID=P61 PATHO_N=500000,2500000,5000000 BENCH_ENTRY_TIMEOUT_MS=120000 \
+  BENCH_RUN_LABEL=FIG7B cargo bench --bench bench_pathological_time
 ```
+
+**Rows `P60`/`P61`, the literal Fig. 7 reproduction.** `(a|b|ab)*`
+(paper notation `(a+b+ab)*`, union-`+`) at the paper's own scale: `P60`
+sweeps `'a'`-repeated input (Fig. 7a, paper range 1-10 million), `P61`
+sweeps `'ab'`-repeated input (Fig. 7b, paper range 0.5-5 million). Both
+carry their own `suggested_n` (see `PathologicalRow::suggested_n` in
+`src/data/pathological.rs` -- a row-level override that wins over its
+category's, which in turn wins over the `PATHO_N`-unset default) but
+it's left small on purpose, matching category E's other rows, so a
+routine/unscoped run (no `PATHO_ROW_ID`) stays fast; always pass
+`PATHO_N` explicitly for the real comparison, as in the commands above.
+`BENCH_ENTRY_TIMEOUT_MS` also needs raising well past its 2000ms
+default at this scale -- 120000 (2 minutes) above is a reasonable
+starting point; `deriv_std_rec`/`deriv_std_loop`/`deriv_bc` are
+expected to time out or run very slowly at the high end of this sweep
+(a real, inherent cost of full-parse-tree reconstruction on an
+ambiguous pattern, not a bug -- see the session notes on FLOPS14 Fig. 7
+for why), while `pderiv_bc`/`pderiv_std` should complete the whole
+sweep comfortably. P20 (`(a|b|ab)+`, same category) is a *different*
+row -- `+` not `*`, `'ab'`-repeated only, no dedicated large-`N`
+sweep -- kept for its original, smaller-scale stress-testing role; it
+is not the Fig. 7 reproduction.
 
 Wall-clock cost per parser over the hand-curated stress-pattern
 dataset (`data/pathological/pathological_patterns.json`), not the real

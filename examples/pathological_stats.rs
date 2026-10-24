@@ -63,10 +63,10 @@ fn all_rows(doc: &PathologicalDoc) -> Vec<(&PathologicalRow, &'static str)> {
 /// pattern, mirroring `bench_pathological_time.rs::build_entries` exactly.
 fn test_case_count(doc: &PathologicalDoc, row: &PathologicalRow) -> usize {
     let cat = doc.categories.get(&row.category);
-    let n_list = cat.and_then(|c| c.suggested_n.clone()).unwrap_or_else(|| vec![pathological::DEFAULT_N]);
+    let n_list = row.suggested_n.clone().or_else(|| cat.and_then(|c| c.suggested_n.clone())).unwrap_or_else(|| vec![pathological::DEFAULT_N]);
     let is_variable_size = row.generator.is_some();
     let p_list = if is_variable_size {
-        cat.and_then(|c| c.suggested_p.clone()).unwrap_or_else(|| vec![pathological::DEFAULT_P])
+        row.suggested_p.clone().or_else(|| cat.and_then(|c| c.suggested_p.clone())).unwrap_or_else(|| vec![pathological::DEFAULT_P])
     } else {
         vec![pathological::DEFAULT_P]
     };
