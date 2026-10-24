@@ -224,7 +224,7 @@ cargo run --release --example pathological_stats
 Saves `reports/data/pathological_stats.csv` (per category: patterns,
 variable-size patterns, input sizes, pattern sizes, test cases under
 the default sweep) and `reports/data/pathological_rows.csv` (per
-pattern). As of this writing: 111 patterns, 747 test cases under the
+pattern). As of this writing: 113 patterns, 811 test cases under the
 default sweep -- category `L` alone (33 baseline/edge patterns)
 accounts for 195 of them.
 
@@ -240,10 +240,10 @@ Every row belongs to one of 11 categories (`A`-`L`, skipping `G`):
 | D | Anchored-failure style | Must fully consume input; near-miss tail forces full enumeration | compile blow-up + derivative-state explosion | 40, 60, 100 | -- |
 | E | Prefix-overlap alternation | One alternative is a strict prefix of another | derivative-state explosion | 20, 50, 100, 200 | -- |
 | F | Alternation-star + literal | `(alt)*`/`(alt)+` then a literal that fails late | polynomial or derivative-state explosion | 100, 500, 1000 | -- |
-| H | Many adjacent stars/groups | Product of `.+`, `.*`, `\w+` etc. in sequence | polynomial O(N^k), k = star count | 100, 500, 1000, 5000 | -- |
+| H | Many adjacent stars/groups | Product of `.+`, `.*`, `\w+` etc. in sequence | polynomial O(N^k), k = star count | 10, 20, 50, 100, 500, 1500 | -- |
 | I | Trivial pattern, large input | Simple pattern, very long input | linear throughput | 100000, 1000000, 10000000 | -- |
 | J | Large pattern, trivial input | Thousands of literals/groups, short input | compile blow-up (pattern size) | -- | 100, 1000, 10000, 100000 |
-| K | Large pattern, large input | Both axes at once | compile + match blow-up | 1000 | 1000 |
+| K | Large pattern, large input | Both axes at once | compile + match blow-up | 500, 1000, 5000, 10000, 50000 | 1000 |
 | L | Trivial pattern, trivial input | Baseline/sanity check | linear throughput | 10, 100, 1000 | -- |
 
 `I`/`J`/`K`/`L` form a 2x2 matrix of (pattern size: trivial/large) x
@@ -251,6 +251,25 @@ Every row belongs to one of 11 categories (`A`-`L`, skipping `G`):
 `suggested_n`/`suggested_p` are each category's recommended sweep
 points; a row with no `suggested_p` has a fixed pattern size, a row
 with no `suggested_n` (only `J`) has a fixed input size.
+
+Two exceptions worth knowing before sweeping a specific row:
+
+- **D's rows don't currently scale with `PATHO_N` at all.** `P43`/
+  `P44`/`P45`/`P57` each use a fixed-integer `match_input`/
+  `nomatch_input` length (e.g. exactly 40 characters), not a `{N}`
+  template -- they test a specific near-miss boundary, not a sweepable
+  curve. `suggested_n` is listed for completeness but has no effect on
+  any row in this category today; there's no `(N, time)` curve to get
+  out of D as it stands.
+- **K's upper range can genuinely crash `deriv_std_rec`/`deriv_std_loop`
+  uncontained**, confirmed directly: at `n=50000` on the large-pattern
+  generator rows (`E41`/`E52`, whose *pattern* is already ~1000 words),
+  both std parsers can exhaust memory for real -- not a timeout, an
+  actual OS-level crash, exactly the failure mode `BENCH_MEM_CAP_MB`
+  (see [BENCHMARKS.md](BENCHMARKS.md)) exists to contain. Always set it
+  when sweeping K at its full range; this category combines both stress
+  axes on purpose, so reaching a real crash point is the intended
+  result, not a bug -- it just needs to happen inside a cap.
 
 To load and sweep this dataset, see `PATHO_JSON_PATH`, `PATHO_SECTION`,
 `PATHO_CATEGORY`, `PATHO_N`, `PATHO_P` in [BENCHMARKS.md](BENCHMARKS.md).

@@ -25,6 +25,14 @@
 //!   a signal (no exit code, e.g. SIGSEGV/SIGABRT) means it crashed.
 //!   `demo_parser_agreement` distinguishes all of these from a timeout.
 //!   It detects a timeout itself by killing the process before it exits.
+//!
+//! Optional per-job memory cap: when the job carries `mem_cap_bytes`,
+//! this process limits its own virtual address space with
+//! `setrlimit(RLIMIT_AS, ..)` (Unix only) before the parser call --
+//! see `bench_worker.rs`'s module doc for the fuller rationale.
+//! Exceeding it aborts the process by signal, indistinguishable from
+//! any other crash above. Omitted (the default), this process is
+//! unbounded, exactly as before this existed.
 
 use std::io::{Read, Write};
 
@@ -39,6 +47,24 @@ use regex_engine::types::Regex;
 struct Job {
     pattern: String,
     input: String,
+    #[serde(default)]
+    mem_cap_bytes: Option<u64>,
+}
+
+#[cfg(unix)]
+fn apply_mem_cap(bytes: u64) {
+    let limit = libc::rlimit { rlim_cur: bytes, rlim_max: bytes };
+    // SAFETY: a plain libc call with a stack-local struct, no aliasing.
+    let rc = unsafe { libc::setrlimit(libc::RLIMIT_AS, &limit) };
+    if rc != 0 {
+        eprintln!("worker: setrlimit(RLIMIT_AS, {bytes}) failed: {}", std::io::Error::last_os_error());
+        std::process::exit(2);
+    }
+}
+
+#[cfg(not(unix))]
+fn apply_mem_cap(_bytes: u64) {
+    eprintln!("worker: RLIMIT_AS is Unix-only; running with no memory cap on this platform");
 }
 
 type ParserFn = fn(&str, &Regex) -> Option<ParseTree>;
@@ -89,6 +115,12 @@ fn main() {
             std::process::exit(2);
         }
     };
+
+    // Applied after translation, before the stack thread below, so
+    // that thread's own 256 MiB allocation is itself inside the cap.
+    if let Some(bytes) = job.mem_cap_bytes {
+        apply_mem_cap(bytes);
+    }
 
     // Serialization recurses natively as much as building does.
     // Serde's derived `Serialize` walks the tree the same way.

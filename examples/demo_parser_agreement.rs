@@ -129,6 +129,16 @@ fn deserialize_tree(json: &str) -> serde_json::Result<Option<ParseTree>> {
 }
 
 /// Path of the worker binary next to this executable.
+/// Per-worker virtual-memory ceiling (`setrlimit(RLIMIT_AS, ..)`, Unix
+/// only -- see `bench_worker.rs`'s module doc for the fuller
+/// rationale: unset means unbounded, same as before this existed).
+fn mem_cap_bytes() -> Option<u64> {
+    std::env::var("BENCH_MEM_CAP_MB").ok().map(|s| {
+        let mb: u64 = s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_CAP_MB must be a positive integer, got {s:?}"));
+        mb * 1024 * 1024
+    })
+}
+
 fn worker_path() -> PathBuf {
     let exe = std::env::current_exe().expect("reading this process's own exe path");
     let dir = exe.parent().expect("exe has a parent directory");
@@ -180,7 +190,7 @@ fn run_parser_isolated(
     // So this write cannot block on a pipe nothing is draining yet.
     {
         let mut stdin = child.stdin.take().expect("piped stdin");
-        let job = serde_json::json!({ "pattern": pattern, "input": input }).to_string();
+        let job = serde_json::json!({ "pattern": pattern, "input": input, "mem_cap_bytes": mem_cap_bytes() }).to_string();
         if let Err(e) = stdin.write_all(job.as_bytes()) {
             panic!("failed to write job to {worker:?}'s stdin: {e}");
         }
