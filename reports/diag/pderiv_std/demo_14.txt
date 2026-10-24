@@ -1,0 +1,76 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 17:49:59
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                a·a·a·a
+Input:                "aaa"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.022ms
+Steps:                3
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Seq(Lit('a'), Seq(Lit('a'), Seq(Lit('a'), Lit('a'))))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Lit('a'), Seq(Lit('a'), Seq(Lit('a'), Lit('a'))))
+  pderiv_tree('a', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1·r2)  [nullable(r1)=false]
+           = [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+      -> Seq(Lit('a'), Seq(Lit('a'), Lit('a')))  (+ injection closure, not printable)
+  frontier after (1 residual(s)):
+    [0] Seq(Lit('a'), Seq(Lit('a'), Lit('a')))
+  no nullable residual in this frontier  ✗
+
+Step 2 (char: 'a', position 2)
+  frontier before (1 residual(s)):
+    [0] Seq(Lit('a'), Seq(Lit('a'), Lit('a')))
+  pderiv_tree('a', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1·r2)  [nullable(r1)=false]
+           = [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+      -> Seq(Lit('a'), Lit('a'))  (+ injection closure, not printable)
+  frontier after (1 residual(s)):
+    [0] Seq(Lit('a'), Lit('a'))
+  no nullable residual in this frontier  ✗
+
+Step 3 (char: 'a', position 3)
+  frontier before (1 residual(s)):
+    [0] Seq(Lit('a'), Lit('a'))
+  pderiv_tree('a', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1·r2)  [nullable(r1)=false]
+           = [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+      -> Lit('a')  (+ injection closure, not printable)
+  frontier after (1 residual(s)):
+    [0] Lit('a')
+  no nullable residual in this frontier  ✗
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  4 (1-indexed)
+Found:                end of input
+Expected:             'a'
+  aaa
+     ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

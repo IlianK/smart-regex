@@ -1,0 +1,54 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 17:49:59
+Mode:                 POSIX Bitcoded
+Regex:                (a+a)
+Input:                "a"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.009ms
+Derivative steps:     1
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize((a+a))
+  rule: internalize(r1 + r2)
+       = []@(fuse [0] (internalize r1) ⊕ fuse [1] (internalize r2))
+  left:  fuse [0] (internalize Lit('a')) → [false]@...
+  right: fuse [1] (internalize Lit('a')) → [true]@...
+ri0 = []@([false]@'a' ⊕ [true]@'a')
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  ri0 = []@([false]@'a' ⊕ [true]@'a')
+  deriv_bc(ri0, 'a'):
+    rule: (bs@(ri1 ⊕ ri2)) \ 'a' = bs@(ri1\a ⊕ ri2\a)
+  simp → [false]@ε
+  ri1 = [false]@ε
+  nullable_bc(ri1) = true  ✓  bits accumulating
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri1) = true → proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+mkEpsBC(ri1) = [0]
+
+decode((a+a), [0]):
+  = Left a
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [0]
+Parse tree:           Left a
+Flattened:            "a"
+-------------------------------====
+END OF REPORT
+-------------------------------====

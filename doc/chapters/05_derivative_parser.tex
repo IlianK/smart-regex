@@ -174,8 +174,11 @@ cannot simplify. The second injection recovers $\mathit{Right}(a,b)$
 only because the forward pass preserved the branch that consumed $a$.
 Simplified at each step, the derivation collapses to:
 \[
-r \xrightarrow{\ a\ } (\varepsilon + b)(b + \varepsilon)
-  \xrightarrow{\ b\ } \varepsilon,
+r
+  \xrightarrow{\ a\ } (\varepsilon + \varepsilon b)(b + \varepsilon)
+  \xrightarrow{\ \mathrm{simp}\ } (\varepsilon + b)(b + \varepsilon) \\[2pt]
+  \xrightarrow{\ b\ } (\emptyset + \varepsilon)(b+\varepsilon) + (\varepsilon + \emptyset)
+  \xrightarrow{\ \mathrm{simp}\ } (b + \varepsilon) + \varepsilon,
 \]
 This still witnesses \(w \in L(r)\) but keeps no record of which alternative
 consumed \(a\) or \(b\): the matcher accepts, but a parser cannot

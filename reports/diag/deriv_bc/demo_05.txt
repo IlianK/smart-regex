@@ -1,0 +1,44 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 17:49:59
+Mode:                 POSIX Bitcoded
+Regex:                ε*
+Input:                ""
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.002ms
+Derivative steps:     0
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize(ε*)
+  rule: internalize(r*) = []@(internalize r)*
+  inner: internalize(Eps) → []@...
+ri0 = []@([]@ε)*
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri0) = true → proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+mkEpsBC(ri0) = [1]
+
+decode(ε*, [1]):
+  = []
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [1]
+Parse tree:           []
+Flattened:            ""
+-------------------------------====
+END OF REPORT
+-------------------------------====

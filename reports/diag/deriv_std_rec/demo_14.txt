@@ -1,0 +1,57 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 17:49:58
+Mode:                 POSIX Standard (recursive parser)
+Regex:                a·a·a·a
+Input:                "aaa"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.008ms
+Expressions stored:   4 (r0 → r1 → r2 → r3)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Seq(Lit('a'), Seq(Lit('a'), Seq(Lit('a'), Lit('a'))))
+
+Step 1: ∂(r0, 'a')
+  rule: ∂(r1·r2, 'a')  [nullable(r1)=false]
+       = ∂(r1, 'a')·r2
+r1 = Seq(Eps, Seq(Lit('a'), Seq(Lit('a'), Lit('a'))))
+  nullable(r1) = false  ✗ position 1
+
+Step 2: ∂(r1, 'a')
+  rule: ∂(r1·r2, 'a')  [nullable(r1)=true]
+       = ∂(r1, 'a')·r2  +  ∂(r2, 'a')
+r2 = Alt(Seq(Phi, Seq(Lit('a'), Seq(Lit('a'), Lit('a')))), Seq(Eps, Seq(Lit('a'), Lit('a'))))
+  nullable(r2) = false  ✗ position 2
+
+Step 3: ∂(r2, 'a')
+  rule: ∂(r1 + r2, 'a') = ∂(r1, 'a') + ∂(r2, 'a')
+  ∂(Seq(Phi, Seq(Lit('a'), Seq(Lit('a'), Lit('a')))), 'a') - see left branch
+  ∂(Seq(Eps, Seq(Lit('a'), Lit('a'))), 'a') - see right branch
+r3 = Alt(Seq(Phi, Seq(Lit('a'), Seq(Lit('a'), Lit('a')))), Alt(Seq(Phi, Seq(Lit('a'), Lit('a'))), Seq(Eps, Lit('a'))))
+  nullable(r3) = false  ✗ position 3
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r3) = false → no parse tree exists for full input
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  4 (1-indexed)
+Found:                end of input
+Expected:             'a'
+  aaa
+     ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

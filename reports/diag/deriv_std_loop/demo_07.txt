@@ -1,0 +1,73 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 17:49:58
+Mode:                 POSIX Standard (loop parser)
+Regex:                a*
+Input:                "aaa"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.009ms
+Expressions stored:   4 (r0 → r1 → r2 → r3)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Star(Lit('a'))
+
+Step 1: ∂(r0, 'a')
+  rule: ∂(r*, 'a') = ∂(r, 'a') · r*
+  ∂(Lit('a'), 'a'):
+  rule: ∂('a', 'a') = ε  [literal match]
+r1 = Seq(Eps, Star(Lit('a')))
+  nullable(r1) = true  ✓ position 1 matched
+
+Step 2: ∂(r1, 'a')
+  rule: ∂(r1·r2, 'a')  [nullable(r1)=true]
+       = ∂(r1, 'a')·r2  +  ∂(r2, 'a')
+r2 = Alt(Seq(Phi, Star(Lit('a'))), Seq(Eps, Star(Lit('a'))))
+  nullable(r2) = true  ✓ position 2 matched
+
+Step 3: ∂(r2, 'a')
+  rule: ∂(r1 + r2, 'a') = ∂(r1, 'a') + ∂(r2, 'a')
+  ∂(Seq(Phi, Star(Lit('a'))), 'a') - see left branch
+  ∂(Seq(Eps, Star(Lit('a'))), 'a') - see right branch
+r3 = Alt(Seq(Phi, Star(Lit('a'))), Alt(Seq(Phi, Star(Lit('a'))), Seq(Eps, Star(Lit('a')))))
+  nullable(r3) = true  ✓ position 3 matched
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r3) = true → proceed to backward pass
+-------------------------------====
+BACKWARD PASS (mkEps + inject)
+-------------------------------====
+mkEps(r3):
+  mkEps(r1 + r2): nullable(r1)=false → Right(mkEps(r2))
+v3 = Right Right ((), [])
+
+inject(r2, 'a', v3):
+  inject(Alt(Seq(Phi, Star(Lit('a'))), Seq(Eps, Star(Lit('a')))), 'a', Right Right ((), []))
+  → Right ((), [a])
+v2 = Right ((), [a])
+
+inject(r1, 'a', v2):
+  inject(Seq(Eps, Star(Lit('a'))), 'a', Right ((), [a]))
+  → ((), [a, a])
+v1 = ((), [a, a])
+
+inject(r0, 'a', v1):
+  inject(Star(Lit('a')), 'a', ((), [a, a]))
+  → [a, a, a]
+v0 = [a, a, a]
+
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           [a, a, a]
+Flattened:            "aaa"
+-------------------------------====
+END OF REPORT
+-------------------------------====

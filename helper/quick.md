@@ -7,6 +7,8 @@ cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 cargo run --release --example pathological_stats
 
 
+
+
 # EXAMPLES
 cargo run --example demo_match
 
@@ -19,6 +21,8 @@ cargo run --example demo_parse -- --diag 3 --parser pderiv_bc
 cargo run --example demo_parse -- --parser all
 
 
+
+
 # TRANSLATE
 cargo run --release --example demo_translate -- data/raw/s2-elab/RegexEval.json --diag 1
 
@@ -27,6 +31,8 @@ cargo run --release --example demo_translate_reject
 cargo run --release --example demo_translate_categories
 
 cargo run --release --example demo_translate_sizes
+
+
 
 
 # GROWTH DEMOS
@@ -38,14 +44,6 @@ cargo run --release --example demo_growth_pderiv
 
 cargo run --release --example demo_growth_eval
 
-
-
-# PARSER AGREEMENT
-cargo build --release --example demo_parser_agreement_worker
-cargo run   --release --example demo_parser_agreement
-
-cargo build --release --example demo_parser_agreement_worker
-cargo run   --release --example demo_parser_agreement_pathological
 
 
 
@@ -73,6 +71,7 @@ BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
 
 
 
+
 # BENCHES PATHO
 
 # Time
@@ -92,4 +91,16 @@ PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=PX0 \
   cargo bench --bench bench_pathological_translate
 
 BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
+
+
+
+
+# PARSER AGREEMENT
+cargo build --release --example demo_parser_agreement_worker
+cargo run   --release --example demo_parser_agreement
+
+cargo build --release --example demo_parser_agreement_worker
+cargo run   --release --example demo_parser_agreement_pathological
+
+
 ```

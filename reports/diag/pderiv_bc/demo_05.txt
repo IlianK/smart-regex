@@ -1,0 +1,42 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 17:49:59
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                ε*
+Input:                ""
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.007ms
+Steps:                0
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Star(Eps)
+nullable(r0) = true  -- empty input would already match
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+selected residual's accumulated bits ++ mkEpsBC(residual) = [1]
+
+decode(ε*, [1]):
+  = []
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [1]
+Parse tree:           []
+Flattened:            ""
+-------------------------------====
+END OF REPORT
+-------------------------------====
