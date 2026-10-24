@@ -1,0 +1,62 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 22:22:29
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                a·b
+Input:                "ac"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.010ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Seq(Lit('a'), Lit('b'))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Lit('a'), Lit('b'))
+  pderiv_tree('a', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1·r2)  [nullable(r1)=false]
+           = [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
+      -> Lit('b')  (+ injection closure, not printable)
+  frontier after (1 residual(s)):
+    [0] Lit('b')
+  no nullable residual in this frontier  ✗
+
+Step 2 (char: 'c', position 2)
+  frontier before (1 residual(s)):
+    [0] Lit('b')
+  pderiv_tree('c', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('b', 'c') = []  [mismatch]
+      -> []
+  frontier after (0 residual(s)):
+  no nullable residual in this frontier  ✗
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  2 (1-indexed)
+Found:                'c'
+Expected:             'b'
+  ac
+   ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

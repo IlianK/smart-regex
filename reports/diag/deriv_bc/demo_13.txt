@@ -1,0 +1,98 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 22:22:29
+Mode:                 POSIX Bitcoded
+Regex:                (ca+a+b)*
+Input:                "aabcba"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.038ms
+Derivative steps:     6
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize((ca+a+b)*)
+  rule: internalize(r*) = []@(internalize r)*
+  inner: internalize(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))) → []@...
+ri0 = []@([]@([false]@([]@'c' · []@'a') ⊕ [true]@([false]@'a' ⊕ [true]@'b')))*
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  ri0 = []@([]@([false]@([]@'c' · []@'a') ⊕ [true]@([false]@'a' ⊕ [true]@'b')))*
+  deriv_bc(ri0, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false, true, false]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  ri1 = [false, true, false]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  nullable_bc(ri1) = true  ✓  bits accumulating
+
+Step 2 (char: 'a', position 2)
+  ri1 = [false, true, false]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  deriv_bc(ri1, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false, true, false, false, true, false]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  ri2 = [false, true, false, false, true, false]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  nullable_bc(ri2) = true  ✓  bits accumulating
+
+Step 3 (char: 'b', position 3)
+  ri2 = [false, true, false, false, true, false]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  deriv_bc(ri2, 'b'):
+    rule: (bs@ri*) \ 'b' = bs@(fuse [0] (ri\'b') · ([]@ri*))
+  simp → [false, true, false, false, true, false, false, true, true]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  ri3 = [false, true, false, false, true, false, false, true, true]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  nullable_bc(ri3) = true  ✓  bits accumulating
+
+Step 4 (char: 'c', position 4)
+  ri3 = [false, true, false, false, true, false, false, true, true]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*
+  deriv_bc(ri3, 'c'):
+    rule: (bs@ri*) \ 'c' = bs@(fuse [0] (ri\'c') · ([]@ri*))
+  simp → [false, true, false, false, true, false, false, true, true]@([false, false]@'a' · []@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*)
+  ri4 = [false, true, false, false, true, false, false, true, true]@([false, false]@'a' · []@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*)
+  nullable_bc(ri4) = false  ✗
+
+Step 5 (char: 'b', position 5)
+  ri4 = [false, true, false, false, true, false, false, true, true]@([false, false]@'a' · []@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*)
+  deriv_bc(ri4, 'b'):
+    rule: (bs@ri1·ri2) \ 'b'  [nullable_bc(ri1)=false]
+         = bs@(ri1\'b'·ri2)
+  simp → φ
+  ri5 = φ
+  nullable_bc(ri5) = false  ✗
+
+Step 6 (char: 'a', position 6)
+  ri5 = φ
+  deriv_bc(ri5, 'a'):
+    rule: Phi \ c = Phi
+  simp → φ
+  ri6 = φ
+  nullable_bc(ri6) = false  ✗
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri6) = false → no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+Last nullable expression: ri3 = [false, true, false, false, true, false, false, true, true]@([]@([false]@([]@'c' · []@'a') ⊕ []@([true, false]@'a' ⊕ [true, true]@'b')))*  (after position 3)
+Accumulated bits: [0100100111]
+
+mkEpsBC(ri3) would give: [0100100111]
+Decoding not possible: final expression is not nullable.
+
+Partial match:        "aab"  (positions 1–3)
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  5 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  aabcba
+      ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

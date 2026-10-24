@@ -1,0 +1,44 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 22:22:29
+Mode:                 Standard Partial-Derivative (pderiv_std)
+Regex:                (a+a)
+Input:                "a"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.011ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[r0]  where r0 = Alt(Lit('a'), Lit('a'))
+-------------------------------====
+FORWARD PASS (pderiv_tree per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Alt(Lit('a'), Lit('a'))
+  pderiv_tree('a', ·) applied to each:
+    from [0]:
+      rule: pderiv_tree('a', r1+r2) = tag(Left, pderiv_tree('a',r1)) ++ tag(Right, pderiv_tree('a',r2)), nub_tree
+      -> Eps  (+ injection closure, not printable)
+  frontier after (1 residual(s)):
+    [0] Eps
+  a residual in this frontier is nullable  ✓  parse tree available
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to injection (already applied by select)
+-------------------------------====
+RESULT
+-------------------------------====
+Parse tree:           Left a
+Flattened:            "a"
+-------------------------------====
+END OF REPORT
+-------------------------------====

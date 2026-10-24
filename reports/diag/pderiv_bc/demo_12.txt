@@ -1,0 +1,54 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 22:22:29
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (ε+a)*
+Input:                "b"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.007ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Star(Alt(Eps, Lit('a')))
+nullable(r0) = true  -- empty input would already match
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'b', position 1)
+  frontier before (1 residual(s)):
+    [0] Star(Alt(Eps, Lit('a')))   bits-so-far = []
+  pDerivBC('b', ·) applied to each:
+    from [0]:
+      rule: pDerivBC('b', r*) = nub2 $ [(smartC(r',r*), 0:bs) | (r',bs) <- pDerivBC('b',r)]
+      -> []
+  frontier after (0 residual(s)):
+  no nullable residual in this frontier  ✗
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+Last nullable frontier: after position 0
+Accumulated bits: [1]
+
+Partial match:        ""  (positions 1–0)
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a' or end of input
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

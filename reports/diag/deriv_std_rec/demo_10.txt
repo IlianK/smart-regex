@@ -1,0 +1,50 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-24 22:22:29
+Mode:                 POSIX Standard (recursive parser)
+Regex:                a·b
+Input:                "ac"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.005ms
+Expressions stored:   3 (r0 → r1 → r2)
+-------------------------------====
+FORWARD PASS (Derivatives)
+-------------------------------====
+r0 = Seq(Lit('a'), Lit('b'))
+
+Step 1: ∂(r0, 'a')
+  rule: ∂(r1·r2, 'a')  [nullable(r1)=false]
+       = ∂(r1, 'a')·r2
+r1 = Seq(Eps, Lit('b'))
+  nullable(r1) = false  ✗ position 1
+
+Step 2: ∂(r1, 'c')
+  rule: ∂(r1·r2, 'c')  [nullable(r1)=true]
+       = ∂(r1, 'c')·r2  +  ∂(r2, 'c')
+r2 = Alt(Seq(Phi, Lit('b')), Phi)
+  nullable(r2) = false  ✗ position 2
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable(r2) = false → no parse tree exists for full input
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  2 (1-indexed)
+Found:                'c'
+Expected:             'b'
+  ac
+   ^
+-------------------------------====
+END OF REPORT
+-------------------------------====
