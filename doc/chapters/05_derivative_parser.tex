@@ -169,10 +169,9 @@ contributes \(\mathit{Right}()\) via $(\mathsf{E}_{+}^{R})$, giving:
 \mathit{Left}(\mathit{RightRight}(),\mathit{Right}()).
 \]
 
-Because disambiguation is deferred to $\mathit{mkEps}$, the forward pass
-cannot simplify. The second injection recovers $\mathit{Right}(a,b)$
-only because the forward pass preserved the branch that consumed $a$.
-Simplified at each step, the derivation collapses to:
+Since $\mathit{mkEps}$ handles disambiguation, the forward pass cannot
+simplify. It must keep the branch that consumed $a$, or injection cannot
+recover $\mathit{Right}(a,b)$. Simplifying gives:
 \[
 r
   \xrightarrow{\ a\ } (\varepsilon + \varepsilon b)(b + \varepsilon)
@@ -180,9 +179,14 @@ r
   \xrightarrow{\ b\ } (\emptyset + \varepsilon)(b+\varepsilon) + (\varepsilon + \emptyset)
   \xrightarrow{\ \mathrm{simp}\ } (b + \varepsilon) + \varepsilon,
 \]
-This still witnesses \(w \in L(r)\) but keeps no record of which alternative
-consumed \(a\) or \(b\): the matcher accepts, but a parser cannot
-recover $\mathit{Right}(a,b)$ from $\varepsilon$.
+This still witnesses $w \in L(r)$, but
+$(\emptyset + \varepsilon) \to \varepsilon$ and
+$(\varepsilon + \emptyset) \to \varepsilon$ erase the pair structure
+holding both characters. $\mathit{mkEps}$ on
+$(b+\varepsilon)+\varepsilon$ gives
+$\mathit{Left}(\mathit{Right}(()))$ and injecting $b$ fills that one
+empty leaf, leaving none for $a$, so $\mathit{Right}(a,b)$ is
+unrecoverable.
 
 %
 
