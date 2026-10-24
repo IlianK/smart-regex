@@ -1,0 +1,52 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 01:44:43
+Mode:                 POSIX Bitcoded
+Regex:                (ε+a)*
+Input:                "a"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.016ms
+Derivative steps:     1
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize((ε+a)*)
+  rule: internalize(r*) = []@(internalize r)*
+  inner: internalize(Alt(Eps, Lit('a'))) → []@...
+ri0 = []@([]@([false]@ε ⊕ [true]@'a'))*
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  ri0 = []@([]@([false]@ε ⊕ [true]@'a'))*
+  deriv_bc(ri0, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → [false, true]@([]@([false]@ε ⊕ [true]@'a'))*
+  ri1 = [false, true]@([]@([false]@ε ⊕ [true]@'a'))*
+  nullable_bc(ri1) = true  ✓  bits accumulating
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri1) = true → proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+mkEpsBC(ri1) = [011]
+
+decode((ε+a)*, [011]):
+  = [Right a]
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [011]
+Parse tree:           [Right a]
+Flattened:            "a"
+-------------------------------====
+END OF REPORT
+-------------------------------====

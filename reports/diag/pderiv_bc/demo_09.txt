@@ -1,0 +1,52 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 01:44:43
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                a·b
+Input:                "a"
+Result:               NO MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.008ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Seq(Lit('a'), Lit('b'))
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Lit('a'), Lit('b'))   bits-so-far = []
+  pDerivBC('a', ·) applied to each:
+    from [0]:
+      rule: pDerivBC('a', r1·r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Lit('b'), [])
+  frontier after (1 residual(s)):
+    [0] Lit('b')   bits = []
+  no nullable residual in this frontier  ✗
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = false -> no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  2 (1-indexed)
+Found:                end of input
+Expected:             'b'
+  a
+   ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

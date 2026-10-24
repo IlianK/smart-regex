@@ -1,0 +1,50 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 01:44:43
+Mode:                 POSIX Bitcoded
+Regex:                a
+Input:                "b"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.002ms
+Derivative steps:     1
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize(a)
+  rule: internalize('a') = []@'a'
+ri0 = []@'a'
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'b', position 1)
+  ri0 = []@'a'
+  deriv_bc(ri0, 'b'):
+    rule: (bs@'a') \ 'b' = Phi  [literal mismatch]
+  simp → φ
+  ri1 = φ
+  nullable_bc(ri1) = false  ✗
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri1) = false → no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  1 (1-indexed)
+Found:                'b'
+Expected:             'a'
+  b
+  ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

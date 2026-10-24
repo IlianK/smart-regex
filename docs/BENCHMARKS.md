@@ -367,30 +367,50 @@ are wanted.
 
 ```bash
 # Corpus time: CT0 smoke, CT1 full sweep with match/non-match split.
-BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CT0 cargo bench --bench bench_corpus_time
+BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CT0 \
+cargo bench --bench bench_corpus_time
+
 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 cargo bench --bench bench_corpus_time
 
+
 # Corpus memory: CM0 smoke, CM1 full sweep.
-BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CM0 cargo bench --bench bench_corpus_memory
+BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CM0 \
+cargo bench --bench bench_corpus_memory
+
 BENCH_RUN_LABEL=CM1 cargo bench --bench bench_corpus_memory
 
+
 # Corpus translate: CX0 smoke, CX1 full sweep (S2ELab; repeat per other source with its own label).
-BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=CX0 cargo bench --bench bench_corpus_translate
+BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=CX0 \
+cargo bench --bench bench_corpus_translate
+
 BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
 
+
+
 # Pathological time: PT0 smoke, PT1 full sweep (every row/category, each row's own suggested n/p).
-PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PT0 cargo bench --bench bench_pathological_time
+PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PT0 \
+cargo bench --bench bench_pathological_time
+
 BENCH_RUN_LABEL=PT1 cargo bench --bench bench_pathological_time
 
+
+
 # Pathological memory: PM0 smoke, PM1 full sweep.
-PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PM0 cargo bench --bench bench_pathological_memory
+PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PM0 \
+cargo bench --bench bench_pathological_memory
+
 BENCH_RUN_LABEL=PM1 cargo bench --bench bench_pathological_memory
 
+
 # Pathological translate: PX0 smoke, PX1 full sweep.
-PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=PX0 cargo bench --bench bench_pathological_translate
+PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=PX0 \
+cargo bench --bench bench_pathological_translate
+
 BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 
-# Stack depth: SD0 smoke (tiny cap, just row E51), SD1 full (default P01/P30/E51, real cap).
-STACKDEPTH_ROW_IDS=E51 STACKDEPTH_N_CAP=1000 STACKDEPTH_TIMEOUT_MS=2000 cargo bench --bench bench_stack_depth
+
+# Stack depth: SD0 smoke (tiny cap, just row E51), SD1 full 
+STACKDEPTH_ROW_IDS=E51 STACKDEPTH_N_CAP=1000 STACKDEPTH_TIMEOUT_MS=2000 \
 cargo bench --bench bench_stack_depth
 ```

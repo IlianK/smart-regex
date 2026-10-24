@@ -1,0 +1,53 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 01:44:43
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (ε+a)*
+Input:                "a"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.021ms
+Steps:                1
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Star(Alt(Eps, Lit('a')))
+nullable(r0) = true  -- empty input would already match
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Star(Alt(Eps, Lit('a')))   bits-so-far = []
+  pDerivBC('a', ·) applied to each:
+    from [0]:
+      rule: pDerivBC('a', r*) = nub2 $ [(smartC(r',r*), 0:bs) | (r',bs) <- pDerivBC('a',r)]
+      -> (Star(Alt(Eps, Lit('a'))), [01])
+  frontier after (1 residual(s)):
+    [0] Star(Alt(Eps, Lit('a')))   bits = [01]
+  a residual in this frontier is nullable  ✓  bits accumulating
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+selected residual's accumulated bits ++ mkEpsBC(residual) = [011]
+
+decode((ε+a)*, [011]):
+  = [Right a]
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [011]
+Parse tree:           [Right a]
+Flattened:            "a"
+-------------------------------====
+END OF REPORT
+-------------------------------====

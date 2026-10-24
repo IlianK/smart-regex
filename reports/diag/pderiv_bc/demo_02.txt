@@ -1,0 +1,71 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 01:44:43
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (a+b+ab)*
+Input:                "ab"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.058ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b')))))
+nullable(r0) = true  -- empty input would already match
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b')))))   bits-so-far = []
+  pDerivBC('a', ·) applied to each:
+    from [0]:
+      rule: pDerivBC('a', r*) = nub2 $ [(smartC(r',r*), 0:bs) | (r',bs) <- pDerivBC('a',r)]
+      -> (Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b'))))), [00])
+      -> (Seq(Lit('b'), Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b')))))), [011])
+  frontier after (2 residual(s)):
+    [0] Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b')))))   bits = [00]
+    [1] Seq(Lit('b'), Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b'))))))   bits = [011]
+  a residual in this frontier is nullable  ✓  bits accumulating
+
+Step 2 (char: 'b', position 2)
+  frontier before (2 residual(s)):
+    [0] Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b')))))   bits-so-far = [00]
+    [1] Seq(Lit('b'), Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b'))))))   bits-so-far = [011]
+  pDerivBC('b', ·) applied to each:
+    from [0]:
+      rule: pDerivBC('b', r*) = nub2 $ [(smartC(r',r*), 0:bs) | (r',bs) <- pDerivBC('b',r)]
+      -> (Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b'))))), [010])
+    from [1]:
+      rule: pDerivBC('b', r1·r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b'))))), [])
+  frontier after (1 residual(s)):
+    [0] Star(Alt(Lit('a'), Alt(Lit('b'), Seq(Lit('a'), Lit('b')))))   bits = [00010]
+  a residual in this frontier is nullable  ✓  bits accumulating
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+selected residual's accumulated bits ++ mkEpsBC(residual) = [000101]
+
+decode((a+b+ab)*, [000101]):
+  = [Left a, Right Left b]
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [000101]
+Parse tree:           [Left a, Right Left b]
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====

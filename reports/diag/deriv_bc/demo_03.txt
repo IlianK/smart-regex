@@ -1,0 +1,61 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 01:44:43
+Mode:                 POSIX Bitcoded
+Regex:                (a+aa)*
+Input:                "aa"
+Result:               MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.026ms
+Derivative steps:     2
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize((a+aa)*)
+  rule: internalize(r*) = []@(internalize r)*
+  inner: internalize(Alt(Lit('a'), Seq(Lit('a'), Lit('a')))) → []@...
+ri0 = []@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))*
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  ri0 = []@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))*
+  deriv_bc(ri0, 'a'):
+    rule: (bs@ri*) \ 'a' = bs@(fuse [0] (ri\'a') · ([]@ri*))
+  simp → []@([false]@([false]@ε ⊕ [true]@'a') · []@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))*)
+  ri1 = []@([false]@([false]@ε ⊕ [true]@'a') · []@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))*)
+  nullable_bc(ri1) = true  ✓  bits accumulating
+
+Step 2 (char: 'a', position 2)
+  ri1 = []@([false]@([false]@ε ⊕ [true]@'a') · []@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))*)
+  deriv_bc(ri1, 'a'):
+    rule: (bs@ri1·ri2) \ 'a'  [nullable_bc(ri1)=true]
+         = bs@((ri1\'a'·ri2) ⊕ (fuse (mkEpsBC ri1) (ri2\'a')))
+  simp → []@([false, true]@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))* ⊕ [false, false]@([false]@([false]@ε ⊕ [true]@'a') · []@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))*))
+  ri2 = []@([false, true]@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))* ⊕ [false, false]@([false]@([false]@ε ⊕ [true]@'a') · []@([]@([false]@'a' ⊕ [true]@([]@'a' · []@'a')))*))
+  nullable_bc(ri2) = true  ✓  bits accumulating
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri2) = true → proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+mkEpsBC(ri2) = [011]
+
+decode((a+aa)*, [011]):
+  = [Right (a, a)]
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [011]
+Parse tree:           [Right (a, a)]
+Flattened:            "aa"
+-------------------------------====
+END OF REPORT
+-------------------------------====
