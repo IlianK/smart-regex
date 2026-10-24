@@ -574,14 +574,20 @@ non-match cost is not split out separately in the summary.
 Writes `reports/benches/bench_pathological_time.csv` (the
 category/parser summary described above) and
 `reports/benches/bench_pathological_time_entries.csv` (one row per
-individual `row_id,category,parser,n,p,side,outcome,micros`
-measurement -- the summary's raw material, before it gets collapsed
-into one mean/median/p99/max per category). The entries file is what a
-single pattern's own scaling curve comes from: filter to one `row_id`
-and `parser`, sort by `n`, and `micros` vs. `n` is directly the kind of
-(input size, time) line FLOPS'14 Fig. 7 plots -- see the `PATHO_ROW_ID`
-example above. Both replace any existing file, same "latest run, not a
-log" convention as `bench_corpus_time`.
+individual `row_id,category,parser,n,p,side,pattern,input,outcome,micros,
+encode_micros,derive_micros,decode_micros` measurement -- the summary's
+raw material, before it gets collapsed into one mean/median/p99/max per
+category). `pattern`/`input` are the actual regex and input text that
+ran, not just the row id -- no need to cross-reference the dataset JSON
+for the common case; each is truncated past 200 characters (at the
+Fig.-7 end of a sweep `input` can run into the millions of characters,
+where embedding it in full would make the file unusable -- `row_id`/`n`/
+`p` still identify the exact untruncated spec if needed). The entries
+file is what a single pattern's own scaling curve comes from: filter to
+one `row_id` and `parser`, sort by `n`, and `micros` vs. `n` is directly
+the kind of (input size, time) line FLOPS'14 Fig. 7 plots -- see the
+`PATHO_ROW_ID` example above. Both replace any existing file, same
+"latest run, not a log" convention as `bench_corpus_time`.
 
 ## `bench_pathological_memory.rs`
 

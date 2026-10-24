@@ -44,10 +44,13 @@
 //! category -- a category can mix several rows and several `n`, so
 //! this number does not describe any one pattern's own growth curve)
 //! and `reports/benches/bench_pathological_time_entries.csv` (one row
-//! per individual (row, n, p, parser, match/non-match side) measurement
-//! -- group this by `row_id` and `parser`, sort by `n`, and it is
-//! exactly the (input size, time) series a Fig.-7-style plot needs for
-//! one pattern). Both replace any existing file, same "latest run, not
+//! per individual (row, n, p, parser, match/non-match side) measurement,
+//! including the actual pattern and input text used (truncated past 200
+//! characters -- `row_id`/`n`/`p` identify the full spec exactly if the
+//! swept size runs larger than that) -- group this by `row_id` and
+//! `parser`, sort by `n`, and it is exactly the (input size, time)
+//! series a Fig.-7-style plot needs for one pattern). Both replace any
+//! existing file, same "latest run, not
 //! a log" convention as `bench_corpus_time.rs`.
 //!
 //! Build the worker first, then run:
@@ -389,11 +392,27 @@ struct EntryResult {
     n: u32,
     p: u32,
     side: &'static str,
+    pattern: String,
+    input: String,
     outcome: &'static str,
     micros: Option<u64>,
     encode_micros: Option<u64>,
     derive_micros: Option<u64>,
     decode_micros: Option<u64>,
+}
+
+fn csv_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
+/// Caps how much of `pattern`/`input` lands in the entries CSV: at the
+/// Fig.-7 end of the `n`/`p` sweep either can run into the millions of
+/// characters, and a CSV row that long defeats the point of a quick
+/// per-pattern lookup table. `row_id`/`n`/`p` already identify the full
+/// spec exactly (cross-reference `data/pathological/pathological_patterns.json`
+/// for the untruncated text).
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() <= n { s.to_string() } else { s.chars().take(n).collect::<String>() + "..." }
 }
 
 fn ms(d: Duration) -> f64 {
@@ -471,6 +490,8 @@ fn report(
                 n: entry.n,
                 p: entry.p,
                 side: entry.side,
+                pattern: entry.pattern.clone(),
+                input: entry.input.clone(),
                 outcome,
                 micros,
                 encode_micros,
@@ -537,17 +558,19 @@ fn report(
 
 fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "row_id,category,parser,n,p,side,outcome,micros,encode_micros,derive_micros,decode_micros")?;
+    writeln!(f, "row_id,category,parser,n,p,side,pattern,input,outcome,micros,encode_micros,derive_micros,decode_micros")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{}",
             r.row_id,
             r.category,
             r.parser,
             r.n,
             r.p,
             r.side,
+            csv_quote(&truncate(&r.pattern, 200)),
+            csv_quote(&truncate(&r.input, 200)),
             r.outcome,
             r.micros.map(|v| v.to_string()).unwrap_or_default(),
             r.encode_micros.map(|v| v.to_string()).unwrap_or_default(),
