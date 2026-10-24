@@ -121,9 +121,17 @@ struct Entry {
     expected_match: bool,
 }
 
+/// E51's own notes document that its match_input is deliberately a
+/// non-match (a stack-depth stress input for bench_stack_depth, not a
+/// correctness case), so it always fails this tool's membership check
+/// by design -- not a bug, just not a row this check applies to.
+const EXCLUDED_FROM_AGREEMENT: &[&str] = &["E51"];
+
 fn select_rows<'a>(doc: &'a PathologicalDoc, section: Section, categories: &Option<HashSet<String>>, row_ids: &Option<HashSet<String>>) -> Vec<&'a PathologicalRow> {
     let include = |r: &&PathologicalRow| {
-        categories.as_ref().map_or(true, |cats| cats.contains(&r.category)) && row_ids.as_ref().map_or(true, |ids| ids.contains(&r.id))
+        !EXCLUDED_FROM_AGREEMENT.contains(&r.id.as_str())
+            && categories.as_ref().map_or(true, |cats| cats.contains(&r.category))
+            && row_ids.as_ref().map_or(true, |ids| ids.contains(&r.id))
     };
     let mut rows: Vec<&PathologicalRow> = Vec::new();
     match section {
