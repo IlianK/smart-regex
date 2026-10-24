@@ -1,7 +1,7 @@
 -------------------------------====
 REGEX ENGINE DEBUG REPORT
 -------------------------------====
-Timestamp:            2026-10-23 21:17:05
+Timestamp:            2026-10-24 10:37:37
 Mode:                 Bitcoded Partial-Derivative (pDerivBC)
 Regex:                (a+aa)*
 Input:                "aa"
@@ -10,7 +10,7 @@ Policy:               GREEDY
 -------------------------------====
 TIMING
 -------------------------------====
-Parse time:           0.022ms
+Parse time:           0.034ms
 Steps:                2
 -------------------------------====
 INITIAL FRONTIER
@@ -46,10 +46,9 @@ Step 2 (char: 'a', position 2)
       rule: pDerivBC('a', r1·r2)  [nullable(r1)=false]
            = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
       -> (Star(Alt(Lit('a'), Seq(Lit('a'), Lit('a')))), [])
-  frontier after (3 residual(s)):
+  frontier after (2 residual(s)):
     [0] Star(Alt(Lit('a'), Seq(Lit('a'), Lit('a'))))   bits = [0000]
     [1] Seq(Lit('a'), Star(Alt(Lit('a'), Seq(Lit('a'), Lit('a')))))   bits = [0001]
-    [2] Star(Alt(Lit('a'), Seq(Lit('a'), Lit('a'))))   bits = [01]
   a residual in this frontier is nullable  ✓  bits accumulating
 
 -------------------------------====

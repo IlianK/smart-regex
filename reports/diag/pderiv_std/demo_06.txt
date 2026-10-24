@@ -1,7 +1,7 @@
 -------------------------------====
 REGEX ENGINE DEBUG REPORT
 -------------------------------====
-Timestamp:            2026-10-23 21:17:04
+Timestamp:            2026-10-24 10:37:37
 Mode:                 Standard Partial-Derivative (pderiv_std)
 Regex:                (ε+a)*
 Input:                "a"
@@ -10,7 +10,7 @@ Policy:               GREEDY
 -------------------------------====
 TIMING
 -------------------------------====
-Parse time:           0.015ms
+Parse time:           0.011ms
 Steps:                1
 -------------------------------====
 INITIAL FRONTIER
@@ -26,9 +26,9 @@ Step 1 (char: 'a', position 1)
   pderiv_tree('a', ·) applied to each:
     from [0]:
       rule: pderiv_tree('a', r*) = nub_tree $ [(r'·r*, inj: unroll one more iteration) | (r',_) <- pderiv_tree('a',r)]
-      -> Seq(Eps, Star(Alt(Eps, Lit('a'))))  (+ injection closure, not printable)
+      -> Star(Alt(Eps, Lit('a')))  (+ injection closure, not printable)
   frontier after (1 residual(s)):
-    [0] Seq(Eps, Star(Alt(Eps, Lit('a'))))
+    [0] Star(Alt(Eps, Lit('a')))
   a residual in this frontier is nullable  ✓  parse tree available
 
 -------------------------------====

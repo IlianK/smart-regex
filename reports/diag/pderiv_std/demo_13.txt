@@ -1,7 +1,7 @@
 -------------------------------====
 REGEX ENGINE DEBUG REPORT
 -------------------------------====
-Timestamp:            2026-10-23 21:17:04
+Timestamp:            2026-10-24 10:37:37
 Mode:                 Standard Partial-Derivative (pderiv_std)
 Regex:                (ca+a+b)*
 Input:                "aabcba"
@@ -10,7 +10,7 @@ Policy:               GREEDY
 -------------------------------====
 TIMING
 -------------------------------====
-Parse time:           0.055ms
+Parse time:           0.039ms
 Steps:                6
 -------------------------------====
 INITIAL FRONTIER
@@ -26,53 +26,47 @@ Step 1 (char: 'a', position 1)
   pderiv_tree('a', ·) applied to each:
     from [0]:
       rule: pderiv_tree('a', r*) = nub_tree $ [(r'·r*, inj: unroll one more iteration) | (r',_) <- pderiv_tree('a',r)]
-      -> Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))  (+ injection closure, not printable)
+      -> Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))  (+ injection closure, not printable)
   frontier after (1 residual(s)):
-    [0] Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))
   a residual in this frontier is nullable  ✓  parse tree available
 
 Step 2 (char: 'a', position 2)
   frontier before (1 residual(s)):
-    [0] Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))
   pderiv_tree('a', ·) applied to each:
     from [0]:
-      rule: pderiv_tree('a', r1·r2)  [nullable(r1)=true]
-           = nub_tree $ [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
-                       ++ [(r2', inj: mk_eps(r1) paired with r2's result) | (r2',_) <- pderiv_tree(c,r2)]
-      -> Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))  (+ injection closure, not printable)
+      rule: pderiv_tree('a', r*) = nub_tree $ [(r'·r*, inj: unroll one more iteration) | (r',_) <- pderiv_tree('a',r)]
+      -> Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))  (+ injection closure, not printable)
   frontier after (1 residual(s)):
-    [0] Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))
   a residual in this frontier is nullable  ✓  parse tree available
 
 Step 3 (char: 'b', position 3)
   frontier before (1 residual(s)):
-    [0] Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))
   pderiv_tree('b', ·) applied to each:
     from [0]:
-      rule: pderiv_tree('b', r1·r2)  [nullable(r1)=true]
-           = nub_tree $ [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
-                       ++ [(r2', inj: mk_eps(r1) paired with r2's result) | (r2',_) <- pderiv_tree(c,r2)]
-      -> Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))  (+ injection closure, not printable)
+      rule: pderiv_tree('b', r*) = nub_tree $ [(r'·r*, inj: unroll one more iteration) | (r',_) <- pderiv_tree('b',r)]
+      -> Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))  (+ injection closure, not printable)
   frontier after (1 residual(s)):
-    [0] Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))
   a residual in this frontier is nullable  ✓  parse tree available
 
 Step 4 (char: 'c', position 4)
   frontier before (1 residual(s)):
-    [0] Seq(Eps, Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))
   pderiv_tree('c', ·) applied to each:
     from [0]:
-      rule: pderiv_tree('c', r1·r2)  [nullable(r1)=true]
-           = nub_tree $ [(r1'·r2, inj: continue r1) | (r1',_) <- pderiv_tree(c,r1)]
-                       ++ [(r2', inj: mk_eps(r1) paired with r2's result) | (r2',_) <- pderiv_tree(c,r2)]
-      -> Seq(Seq(Eps, Lit('a')), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))  (+ injection closure, not printable)
+      rule: pderiv_tree('c', r*) = nub_tree $ [(r'·r*, inj: unroll one more iteration) | (r',_) <- pderiv_tree('c',r)]
+      -> Seq(Lit('a'), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))  (+ injection closure, not printable)
   frontier after (1 residual(s)):
-    [0] Seq(Seq(Eps, Lit('a')), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Seq(Lit('a'), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
   no nullable residual in this frontier  ✗
 
 Step 5 (char: 'b', position 5)
   frontier before (1 residual(s)):
-    [0] Seq(Seq(Eps, Lit('a')), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
+    [0] Seq(Lit('a'), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))
   pderiv_tree('b', ·) applied to each:
     from [0]:
       rule: pderiv_tree('b', r1·r2)  [nullable(r1)=false]

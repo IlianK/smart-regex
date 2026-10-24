@@ -1,7 +1,7 @@
 -------------------------------====
 REGEX ENGINE DEBUG REPORT
 -------------------------------====
-Timestamp:            2026-10-23 21:17:04
+Timestamp:            2026-10-24 10:37:37
 Mode:                 POSIX Bitcoded
 Regex:                (a+ab)(b+ε)
 Input:                "ab"
@@ -10,7 +10,7 @@ Policy:               POSIX
 -------------------------------====
 TIMING
 -------------------------------====
-Parse time:           0.049ms
+Parse time:           0.043ms
 Derivative steps:     2
 -------------------------------====
 INTERNALIZE
@@ -35,8 +35,8 @@ Step 2 (char: 'b', position 2)
   deriv_bc(ri1, 'b'):
     rule: (bs@ri1·ri2) \ 'b'  [nullable_bc(ri1)=true]
          = bs@((ri1\'b'·ri2) ⊕ (fuse (mkEpsBC ri1) (ri2\'b')))
-  simp → []@([true]@([false]@'b' ⊕ [true]@ε) ⊕ [false, false]@ε)
-  ri2 = []@([true]@([false]@'b' ⊕ [true]@ε) ⊕ [false, false]@ε)
+  simp → []@([true, false]@'b' ⊕ [true, true]@ε)
+  ri2 = []@([true, false]@'b' ⊕ [true, true]@ε)
   nullable_bc(ri2) = true  ✓  bits accumulating
 
 -------------------------------====
