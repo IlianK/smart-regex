@@ -352,9 +352,9 @@ mod tests {
     #[test]
     fn the_real_dataset_file_loads_with_the_expected_section_sizes() {
         let doc = load(Path::new("data/pathological/pathological_patterns.json")).expect("should load");
-        assert_eq!(doc.pathological_patterns.len(), 56);
+        assert_eq!(doc.pathological_patterns.len(), 59);
         assert_eq!(doc.baseline_and_edge_patterns.len(), 43);
-        assert_eq!(doc.generated_patterns.len(), 8);
+        assert_eq!(doc.generated_patterns.len(), 9);
         assert!(doc.categories.contains_key("A"));
         assert!(doc.categories.contains_key("L"));
     }

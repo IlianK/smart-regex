@@ -87,7 +87,7 @@
       ]
     },
     "I": {
-      "name": "Huge input, trivial pattern",
+      "name": "Trivial pattern, large input",
       "mechanism": "Simple pattern on a very long input",
       "stress_axis": "linear throughput / constant-factor",
       "suggested_n": [
@@ -108,7 +108,7 @@
       ]
     },
     "K": {
-      "name": "Large pattern + large input",
+      "name": "Large pattern, large input",
       "mechanism": "Both axes simultaneously",
       "stress_axis": "compile + match blow-up",
       "suggested_p": [
@@ -119,8 +119,8 @@
       ]
     },
     "L": {
-      "name": "Baseline / easy",
-      "mechanism": "Simple pattern, simple input",
+      "name": "Trivial pattern, trivial input",
+      "mechanism": "Baseline/sanity-check -- completes the I/J/K/L pattern-size x input-size matrix",
       "stress_axis": "linear throughput -- sanity/warmup",
       "suggested_n": [
         10,
@@ -992,6 +992,53 @@
       },
       "stress_axis": "polynomial (simple alt) or derivative-state explosion (nested)",
       "notes": "intentional duplicate of P25, used as a cross-run control"
+    },
+    {
+      "id": "P57",
+      "category": "D",
+      "regex": "a{1,20}a{1,20}a{1,20}",
+      "match_input": {
+        "repeat": "a",
+        "count": 60
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": 61
+      },
+      "stress_axis": "derivative-state explosion (sequential same-char bound ambiguity)",
+      "notes": "three same-char bounded segments concatenated, not nested -- compile size stays modest (245 nodes, far below D's unrolling-driven siblings), but matching a run of 'a's genuinely stresses the matcher: confirmed empirically ~4x slower than the identical bound structure with distinct chars (a{1,20}b{1,20}c{1,20}) at the same total length, since every length has many ways to split across the three segments"
+    },
+    {
+      "id": "P58",
+      "category": "A",
+      "regex": "/(a+)+/i",
+      "match_input": {
+        "repeat": "a",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "a",
+        "count": "{N}",
+        "suffix": "b"
+      },
+      "stress_axis": "derivative-state explosion (case-folding doubles the alphabet, compounding nested-quantifier blowup)",
+      "notes": "same base pattern as P01 (a+)+, wrapped in /i case-folding; confirmed strictly worse than P01 at matched N, not independent of it -- e.g. n=18: 1.52s case-folded vs 0.24s plain (~6x)"
+    },
+    {
+      "id": "P59",
+      "category": "B",
+      "regex": "(abcdefghij|abcdefghijk|abcdefghijkl)+",
+      "match_input": {
+        "repeat": "abcdefghij",
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat": "abcdefghij",
+        "count": "{N}",
+        "suffix": "x"
+      },
+      "stress_axis": "derivative-state explosion (long shared prefix needs far more total length than a short one to show the same blowup)",
+      "notes": "contrasts with B's short 1-2 char overlaps (e.g. P16 (ab|a)+): confirmed this row stays fast up to n=25 (len 250, 0.034s) and only blows up past n=60 (len 600, 0.72s) -- a 10-12 char shared prefix has far fewer decision points per unit length, not immune to blowup, just needing much more length to accumulate it"
     }
   ],
   "baseline_and_edge_patterns": [
@@ -1766,6 +1813,27 @@
       },
       "stress_axis": "large pattern + large input",
       "notes": "disjoint alternatives, so this is actually safe at both axes -- useful as a K-category control alongside E36/E41"
+    },
+    {
+      "id": "E52",
+      "category": "K",
+      "pattern_template": "(?:{WORDS}){2,5}",
+      "generator": {
+        "kind": "word_alternation",
+        "word_fn": "w%06d",
+        "p_values": [100, 200, 300]
+      },
+      "match_input": {
+        "repeat_word": 1,
+        "count": "{N}"
+      },
+      "nomatch_input": {
+        "repeat_word": 1,
+        "count": "{N}",
+        "suffix": "!"
+      },
+      "stress_axis": "compile blow-up (bounded repetition multiplies the alternation tree, not just concatenates it)",
+      "notes": "same word_alternation generator as E36/E41, but {2,5} bounded instead of unbounded +; bound-unrolling clones the whole P-sized alternation tree up to 5x -- confirmed P=100 bound{2,5}=7009 nodes vs unbounded+=2800 nodes at the same P, and this row already rejects (exceeds MAX_CORE_NODES) at P=300 while the unbounded E41/E36 survive to P=500"
     }
   ]
 }

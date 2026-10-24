@@ -274,11 +274,12 @@ real breakdown:
 cargo run --release --example pathological_stats
 ```
 
-Saves `reports/data/pathological_stats.csv` (per category: rows,
-generator rows, `suggested_n`/`suggested_p`, swept entries under the
-default sweep) and `reports/data/pathological_rows.csv` (per row). As
-of this writing: 107 rows, 723 entries under the default sweep --
-category `L` alone (33 baseline/edge rows) accounts for 195 of them.
+Saves `reports/data/pathological_stats.csv` (per category: patterns,
+variable-size patterns, input sizes (N), pattern sizes (P), test cases
+under the default sweep) and `reports/data/pathological_rows.csv` (per
+pattern). As of this writing: 111 patterns, 747 test cases under the
+default sweep -- category `L` alone (33 baseline/edge patterns)
+accounts for 195 of them.
 
 ### Categories
 
@@ -294,10 +295,13 @@ straight out of the JSON's own `categories` object:
 | E | Prefix-overlap alternation | One alternative is a strict prefix of another | derivative-state explosion | 20, 50, 100, 200 | — |
 | F | Alternation-star + literal | `(alt)*` or `(alt)+` then a literal that fails late | polynomial (simple alt) or derivative-state explosion (nested) | 100, 500, 1000 | — |
 | H | Many adjacent stars/groups | Product of `.+`, `.*`, `\w+` etc. in sequence | polynomial O(N^k), k = number of stars | 100, 500, 1000, 5000 | — |
-| I | Huge input, trivial pattern | Simple pattern on a very long input | linear throughput / constant-factor | 100000, 1000000, 10000000 | — |
+| I | Trivial pattern, large input | Simple pattern on a very long input | linear throughput / constant-factor | 100000, 1000000, 10000000 | — |
 | J | Large pattern, trivial input | Thousands of literals/groups; short input | compile blow-up (pattern size) | — | 100, 1000, 10000, 100000 |
-| K | Large pattern + large input | Both axes simultaneously | compile + match blow-up | 1000 | 1000 |
-| L | Baseline / easy | Simple pattern, simple input | linear throughput — sanity/warmup | 10, 100, 1000 | — |
+| K | Large pattern, large input | Both axes simultaneously | compile + match blow-up | 1000 | 1000 |
+| L | Trivial pattern, trivial input | Baseline/sanity-check -- completes the I/J/K/L pattern-size x input-size matrix | linear throughput — sanity/warmup | 10, 100, 1000 | — |
+
+`I`/`J`/`K`/`L` form a 2x2 matrix of (pattern size: trivial/large) x
+(input size: trivial/large), with `L` as the all-trivial baseline.
 
 `suggested_n`/`suggested_p` are each category's recommended sweep points
 (input length / pattern size). A row with no `suggested_p` has a fixed
