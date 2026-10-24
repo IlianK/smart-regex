@@ -10,6 +10,7 @@ use std::rc::Rc;
 use crate::types::{ParseTree, Regex};
 use crate::regex::nullable::nullable;
 use crate::regex::mk_eps::mk_eps;
+use crate::regex::simplify::smart_seq;
 use super::inject::{Inj, nub_tree};
 
 pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
@@ -71,14 +72,35 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                     .into_iter()
                     .map(|(r1_, inj1)| {
                         let r2c = (**r2).clone();
-                        let f: Inj = Rc::new(move |v: ParseTree| match v {
-                            ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(inj1(*v1)), v2),
-                            other => panic!(
-                                "pderiv_tree: Seq(non-nullable) strand expected Pair, got {:?}",
-                                other
-                            ),
-                        });
-                        (Regex::seq(r1_, r2c), f)
+                        // smart_seq, not raw Seq, matching the reference's
+                        // `smartC r' s` here (the nullable branch above
+                        // deliberately keeps raw Seq, matching its own
+                        // `Seq r' s` -- the asymmetry is the reference's,
+                        // not a bug). Without it, residuals can carry a
+                        // spurious `Eps . r` wrapper that defeats
+                        // nub_tree's structural-equality dedup.
+                        //
+                        // smart_seq(Eps, r2c) collapses to r2c alone, so
+                        // the downstream injected value is r2's own value
+                        // directly, not wrapped in a Pair -- the closure
+                        // must match that shape, injecting r1 with the
+                        // canonical empty value instead of destructuring
+                        // one out of a Pair that no longer exists.
+                        if r1_ == Regex::Eps {
+                            let f: Inj = Rc::new(move |v2: ParseTree| {
+                                ParseTree::Pair(Box::new(inj1(ParseTree::Empty)), Box::new(v2))
+                            });
+                            (r2c, f)
+                        } else {
+                            let f: Inj = Rc::new(move |v: ParseTree| match v {
+                                ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(inj1(*v1)), v2),
+                                other => panic!(
+                                    "pderiv_tree: Seq(non-nullable) strand expected Pair, got {:?}",
+                                    other
+                                ),
+                            });
+                            (Regex::seq(r1_, r2c), f)
+                        }
                     })
                     .collect()
             }
@@ -89,23 +111,43 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                 .into_iter()
                 .map(|(r1_, inj1)| {
                     let r1c = (**r1).clone();
-                    let f: Inj = Rc::new(move |v: ParseTree| match v {
-                        ParseTree::Pair(v1, vs) => match *vs {
+                    // smart_seq here too, matching the reference's
+                    // `smartC r' (Star r)`. Same collapse-aware closure
+                    // split as the Seq case above: when r1_ is Eps,
+                    // smart_seq drops the Seq wrapper entirely, so the
+                    // downstream value is a bare Star(items), not
+                    // Pair(v1, Star(items)).
+                    if r1_ == Regex::Eps {
+                        let f: Inj = Rc::new(move |vs: ParseTree| match vs {
                             ParseTree::Star(mut items) => {
-                                items.insert(0, inj1(*v1));
+                                items.insert(0, inj1(ParseTree::Empty));
                                 ParseTree::Star(items)
                             }
                             other => panic!(
                                 "pderiv_tree: Star strand expected Star tail, got {:?}",
                                 other
                             ),
-                        },
-                        other => panic!(
-                            "pderiv_tree: Star strand expected Pair, got {:?}",
-                            other
-                        ),
-                    });
-                    (Regex::seq(r1_, Regex::star(r1c)), f)
+                        });
+                        (Regex::star(r1c), f)
+                    } else {
+                        let f: Inj = Rc::new(move |v: ParseTree| match v {
+                            ParseTree::Pair(v1, vs) => match *vs {
+                                ParseTree::Star(mut items) => {
+                                    items.insert(0, inj1(*v1));
+                                    ParseTree::Star(items)
+                                }
+                                other => panic!(
+                                    "pderiv_tree: Star strand expected Star tail, got {:?}",
+                                    other
+                                ),
+                            },
+                            other => panic!(
+                                "pderiv_tree: Star strand expected Pair, got {:?}",
+                                other
+                            ),
+                        });
+                        (smart_seq(r1_, &Regex::star(r1c)), f)
+                    }
                 })
                 .collect();
             nub_tree(out)

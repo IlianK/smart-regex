@@ -19,7 +19,7 @@ use regex_engine::parsers::deriv_bc::{
 };
 use regex_engine::parsers::pderiv_bc::pderiv::pderiv_bc;
 use regex_engine::regex::deriv::deriv;
-use regex_engine::types::{ARegex, Regex};
+use regex_engine::types::{ARegex, Bits, Regex};
 
 // -------------------------------
 // Helpers, duplicated from examples/thesis_figures.rs: cargo does not link
@@ -120,8 +120,12 @@ fn fig_5_3_paper_r2_with_simp() {
     let got = bitcoded_simplified(&paper_r2(), &"ab".repeat(8));
     assert_eq!(
         got,
-        vec![8, 12, 17, 25, 35, 51, 71, 103, 143, 207, 287, 415, 575, 831, 1151, 1663, 2303],
-        "Figure 5.3, series 1: simp does not bound (a+(b+ab))*"
+        vec![8, 12, 8, 12, 8, 12, 8, 12, 8, 12, 8, 12, 8, 12, 8, 12, 8],
+        "Figure 5.3, series 1: simp bounds (a+(b+ab))* once dedup ignores bit history \
+         (dedup_first previously compared ARegex's derived PartialEq, which includes \
+         each branch's own bs: Vec<bool>, so same-shape-different-history branches \
+         never matched; fixed to compare shape only, matching the reference \
+         `nub2 = nubBy (\\(r,_) (s,_) -> r == s)`)"
     );
 }
 
@@ -151,25 +155,20 @@ fn fig_5_3_astar_unsimplified_grows_by_five() {
     );
 }
 
-/// Section 5.5: each two characters take the size s to 2s+1, so the growth
-/// is Theta(2^(n/2)) and reaches 36863 at 24 characters. `deriv_bc`, `simp`,
-/// and `size_aregex` all walk that expression recursively, which is deeper
-/// than libtest's default test-thread stack; the measurement therefore runs
-/// on an explicit large-stack thread.
+/// Section 5.5: with dedup correctly ignoring bit-code history, growth is
+/// bounded -- size oscillates between 8 and 12 forever instead of doubling
+/// every two characters. Previously this test asserted the unbounded
+/// growth (2303 at step 16, 36863 at step 24, each step 2*prev+1): that
+/// was `dedup_first` failing to recognize same-shape-different-history
+/// branches as duplicates, not an inherent property of `(a+(b+ab))*`.
 #[test]
-fn section_5_5_growth_is_exponential() {
+fn section_5_5_growth_is_bounded() {
     with_deep_stack(|| {
         let s = bitcoded_simplified(&paper_r2(), &"ab".repeat(12));
-        assert_eq!(s[16], 2303, "Section 5.5 quotes 2303 at step 16");
-        assert_eq!(s[24], 36863, "Section 5.5 quotes 36863 at step 24");
-        for k in (4..=24).step_by(2) {
-            assert_eq!(
-                s[k],
-                2 * s[k - 2] + 1,
-                "step {} should be 2*step {} + 1",
-                k,
-                k - 2
-            );
+        assert_eq!(s[16], 8, "size oscillates to 8 at even steps");
+        assert_eq!(s[24], 8, "size oscillates to 8 at even steps");
+        for k in 2..=24 {
+            assert_eq!(s[k], if k % 2 == 0 { 8 } else { 12 }, "step {k} should be in the bounded 8/12 oscillation");
         }
     });
 }
@@ -189,10 +188,15 @@ fn section_5_5_simp_is_already_a_fixpoint() {
     }
 }
 
-/// Section 5.5 table: every alternation branch is identical modulo its bits,
-/// which is why `r + r = r` never fires.
+/// Section 5.5 table: once dedup compares branches modulo their bits (not
+/// including them), `r + r = r` fires correctly -- every step collapses
+/// back to a single top-level branch, not a pile of same-shape duplicates.
+/// Previously (`branches`/`distinct` both doubling every step while
+/// `distinct_ignoring_bits` stayed at 1) this table was the evidence that
+/// `dedup_first`'s bit-sensitive comparison was the bug, not a property of
+/// the bit-coded representation.
 #[test]
-fn section_5_5_branches_are_identical_modulo_bits() {
+fn section_5_5_branches_collapse_to_one() {
     fn branches(ri: &ARegex, out: &mut Vec<ARegex>) {
         match ri {
             ARegex::Alt(bs, a, b) if bs.is_empty() => {
@@ -205,11 +209,11 @@ fn section_5_5_branches_are_identical_modulo_bits() {
     fn strip(ri: &ARegex) -> ARegex {
         match ri {
             ARegex::Phi => ARegex::Phi,
-            ARegex::Eps(_) => ARegex::Eps(vec![]),
-            ARegex::Lit(_, c) => ARegex::Lit(vec![], *c),
-            ARegex::Alt(_, a, b) => ARegex::Alt(vec![], Box::new(strip(a)), Box::new(strip(b))),
-            ARegex::Seq(_, a, b) => ARegex::Seq(vec![], Box::new(strip(a)), Box::new(strip(b))),
-            ARegex::Star(_, a) => ARegex::Star(vec![], Box::new(strip(a))),
+            ARegex::Eps(_) => ARegex::Eps(Bits::empty()),
+            ARegex::Lit(_, c) => ARegex::Lit(Bits::empty(), *c),
+            ARegex::Alt(_, a, b) => ARegex::Alt(Bits::empty(), Box::new(strip(a)), Box::new(strip(b))),
+            ARegex::Seq(_, a, b) => ARegex::Seq(Bits::empty(), Box::new(strip(a)), Box::new(strip(b))),
+            ARegex::Star(_, a) => ARegex::Star(Bits::empty(), Box::new(strip(a))),
         }
     }
     fn distinct(items: &[ARegex]) -> usize {
@@ -235,12 +239,12 @@ fn section_5_5_branches_are_identical_modulo_bits() {
     let picked: Vec<_> = [2usize, 4, 6, 8, 10, 12].iter().map(|&k| rows[k - 1]).collect();
     assert_eq!(
         picked.iter().map(|t| t.0).collect::<Vec<_>>(),
-        vec![2, 4, 8, 16, 32, 64],
-        "Section 5.5 table, row 'Branches'"
+        vec![1, 1, 1, 1, 1, 1],
+        "Section 5.5 table, row 'Branches': simp now collapses every step to one branch"
     );
     assert_eq!(
         picked.iter().map(|t| t.1).collect::<Vec<_>>(),
-        vec![2, 4, 8, 16, 32, 64],
+        vec![1, 1, 1, 1, 1, 1],
         "Section 5.5 table, row 'Distinct branches'"
     );
     assert_eq!(
@@ -267,13 +271,19 @@ fn section_5_5_growth_independent_of_alternation_grouping() {
 // Figure 6.3: frontier growth
 // -------------------------------
 
+/// `frontier_sizes` reimplements the step loop *without* a final
+/// cross-strand dedup -- i.e. the bug `pderiv_bc::step_frontier` had
+/// before it was fixed to apply `nub2` over the whole combined
+/// frontier each step. Kept to document what that looked like; it no
+/// longer describes the real parser (see
+/// `fig_6_3_real_parser_frontier_stays_bounded` below for that).
 #[test]
 fn fig_6_3_frontier_doubles_while_distinct_stays_bounded() {
     let rows = frontier_sizes(&paper_r2(), &"ab".repeat(7));
     assert_eq!(
         rows.iter().map(|t| t.0).collect::<Vec<_>>(),
         vec![1, 2, 2, 4, 4, 8, 8, 16, 16, 32, 32, 64, 64, 128, 128],
-        "Figure 6.3, series 1: strands in the frontier"
+        "Figure 6.3, series 1: strands in the frontier, without the final cross-strand dedup"
     );
     assert_eq!(
         rows.iter().map(|t| t.1).collect::<Vec<_>>(),
@@ -284,6 +294,38 @@ fn fig_6_3_frontier_doubles_while_distinct_stays_bounded() {
         rows.iter().all(|t| t.1 <= 2),
         "Section 6.5 claims the distinct count never exceeds two"
     );
+}
+
+/// The real `pderiv_bc::step_frontier`, now fixed to dedup across the
+/// whole combined frontier each step (Sulzmann & Lu 2012, Def. 8),
+/// stays bounded instead of doubling: the frontier size should track
+/// `distinct` above, not `strands`.
+#[test]
+fn fig_6_3_real_parser_frontier_stays_bounded() {
+    use regex_engine::parsers::pderiv_bc::pderiv::pderiv_bc;
+
+    let mut frontier: Vec<(Regex, Vec<bool>)> = vec![(paper_r2(), Vec::new())];
+    let mut sizes = vec![frontier.len()];
+    for c in "ab".repeat(7).chars() {
+        let mut out = Vec::new();
+        for (r, bits) in &frontier {
+            for (r_next, extra) in pderiv_bc(r, c) {
+                let mut combined = bits.clone();
+                combined.extend(extra);
+                out.push((r_next, combined));
+            }
+        }
+        // Mirrors the real step_frontier's own final nub2 call.
+        let mut deduped: Vec<(Regex, Vec<bool>)> = Vec::new();
+        for (r, bits) in out {
+            if !deduped.iter().any(|(seen, _)| seen == &r) {
+                deduped.push((r, bits));
+            }
+        }
+        frontier = deduped;
+        sizes.push(frontier.len());
+    }
+    assert!(sizes.iter().all(|&n| n <= 2), "real frontier should never exceed the distinct-residual bound: {sizes:?}");
 }
 
 // -------------------------------

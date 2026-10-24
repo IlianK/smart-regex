@@ -39,8 +39,14 @@ pub fn mk_eps_bits(r: &Regex) -> Vec<bool> {
     }
 }
 
-/// Stable dedup on the residual, keeping the first (highest-priority)
-fn nub2(pairs: Vec<(Regex, Vec<bool>)>) -> Vec<(Regex, Vec<bool>)> {
+/// Stable dedup on the residual, keeping the first (highest-priority).
+/// Matches the reference `nub2 = nubBy (\(r,_) (s,_) -> r == s)`: the
+/// bit list is intentionally excluded from the comparison. Generic over
+/// the bits type: `pderiv_bc`'s own call carries small per-step deltas
+/// (`Vec<bool>`), `step_frontier`'s call carries the accumulated
+/// per-strand history (`AppendBits`) -- dedup-by-residual doesn't care
+/// which.
+pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
     let mut seen: HashSet<Regex> = HashSet::with_capacity(pairs.len());
     let mut out = Vec::with_capacity(pairs.len());
     for (r, bs) in pairs {

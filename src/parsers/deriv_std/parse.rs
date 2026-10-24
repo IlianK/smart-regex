@@ -11,23 +11,25 @@ use crate::parsers::deriv_std::inject::inject;
 
 // RECURSIVE PARSER
 
-fn parse_recursive_helper(r: &Regex, input: &str) -> Option<ParseTree> {
-    let mut chars = input.chars();
-    match chars.next() {
+/// Indexes into `chars` instead of collecting the remaining input into a
+/// fresh `String` on every call: the old version allocated and copied an
+/// O(n), O(n-1), O(n-2)... suffix at each step, O(n^2) total.
+fn parse_recursive_helper(r: &Regex, chars: &[char], pos: usize) -> Option<ParseTree> {
+    match chars.get(pos) {
         None => {
             if nullable(r) { Some(mk_eps(r)) } else { None }
         }
-        Some(l) => {
-            let rest: String = chars.collect();
+        Some(&l) => {
             let r_deriv = deriv(r, l);
-            let subtree = parse_recursive_helper(&r_deriv, &rest)?;
+            let subtree = parse_recursive_helper(&r_deriv, chars, pos + 1)?;
             Some(inject(r, l, subtree))
         }
     }
 }
 
 pub fn parse_deriv_std_rec(input: &str, r: &Regex) -> Option<ParseTree> {
-    parse_recursive_helper(r, input)
+    let chars: Vec<char> = input.chars().collect();
+    parse_recursive_helper(r, &chars, 0)
 }
 
 

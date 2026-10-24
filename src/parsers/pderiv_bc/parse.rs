@@ -2,38 +2,47 @@
 //! 
 //! Bit-coded partial-derivative parser (pDerivBC / parsePDerivBC), GREEDY; traced variant in traced.rs.
 
-use crate::types::{Regex, ParseTree};
+use crate::types::{Regex, ParseTree, AppendBits};
 use crate::regex::nullable::nullable;
-use crate::parsers::pderiv_bc::pderiv::{pderiv_bc, mk_eps_bits};
+use crate::parsers::pderiv_bc::pderiv::{pderiv_bc, mk_eps_bits, nub2};
 use crate::regex::decode::decode;
 
-/// One step of `parsePDerivBC2`: replace the frontier with union of `pderiv_bc(x, ·)`
-pub(super) fn step_frontier(frontier: &[(Regex, Vec<bool>)], x: char) -> Vec<(Regex, Vec<bool>)> {
+/// One step of `parsePDerivBC2`: replace the frontier with union of
+/// `pderiv_bc(x, ·)`, then dedup across the whole combined frontier
+/// (not just within one parent's own expansion). The reference slide's
+/// `parsePDerivBC2` omits this, but its own `runBC_NFA`/`go` applies
+/// `nub2` at exactly this point, matching Sulzmann & Lu 2012's Def. 8
+/// ("duplicate states are removed, only the left-most state is kept")
+/// and this project's own `demo_growth_pderiv` finding: without it, the
+/// frontier doubles every character on `(a|b|ab)*` even though the
+/// number of distinct residuals stays bounded.
+///
+/// Each strand's bits accumulate across the whole input so far; a plain
+/// `Vec<bool>` clone-then-extend here is O(current length) per step,
+/// O(n^2) over n characters -- `AppendBits::append` is O(extra.len())
+/// regardless (see src/types/bits.rs).
+pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) -> Vec<(Regex, AppendBits)> {
     let mut out = Vec::new();
     for (r, bits) in frontier {
         for (r_next, extra) in pderiv_bc(r, x) {
-            let mut combined = bits.clone();
-            combined.extend(extra);
-            out.push((r_next, combined));
+            out.push((r_next, bits.append(&extra)));
         }
     }
-    out
+    nub2(out)
 }
 
 /// `filter (\(r,_) -> nullable r) rs`, take head, and append `mkEpsBC`.
-pub(super) fn select_bits(frontier: &[(Regex, Vec<bool>)]) -> Option<Vec<bool>> {
+pub(super) fn select_bits(frontier: &[(Regex, AppendBits)]) -> Option<Vec<bool>> {
     for (r, bits) in frontier {
         if nullable(r) {
-            let mut result = bits.clone();
-            result.extend(mk_eps_bits(r));
-            return Some(result);
+            return Some(bits.append(&mk_eps_bits(r)).to_vec());
         }
     }
     None
 }
 
 pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
-    let mut frontier = vec![(r.clone(), Vec::new())];
+    let mut frontier = vec![(r.clone(), AppendBits::empty())];
     for c in input.chars() {
         frontier = step_frontier(&frontier, c);
         if frontier.is_empty() {

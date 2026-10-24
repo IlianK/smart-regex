@@ -3,7 +3,7 @@
 //! Brzozowski derivative 
 //! ARegex: threads parse-tree bits through the forward pass
 
-use crate::types::ARegex;
+use crate::types::{ARegex, Bits};
 use crate::parsers::deriv_bc::nullable::nullable_bc;
 use crate::parsers::deriv_bc::internalize::fuse;
 use crate::parsers::deriv_bc::mk_eps_bc::mk_eps_bc;
@@ -30,7 +30,7 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
                 let eps_bits = mk_eps_bc(&r1);
                 let d1 = deriv_bc(*r1, l);
                 let d2 = deriv_bc(*r2.clone(), l);
-                let left_branch = ARegex::Seq(vec![], Box::new(d1), r2);
+                let left_branch = ARegex::Seq(Bits::empty(), Box::new(d1), r2);
                 let right_branch = fuse(&eps_bits, d2);
                 ARegex::Alt(bs, Box::new(left_branch), Box::new(right_branch))
             } else {
@@ -42,7 +42,7 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
         ARegex::Star(bs, r) => {
             let d = deriv_bc(*r.clone(), l);     // ri\'a' = Lit([],'a')\'a' = Eps([])
             let fused = fuse(&[false], d);   // fuse [0] Eps([]) = Eps([false])
-            let new_star = ARegex::Star(vec![], r); // []@ri* = []@([]@'a')*
+            let new_star = ARegex::Star(Bits::empty(), r); // []@ri* = []@([]@'a')*
             ARegex::Seq(bs, Box::new(fused), Box::new(new_star))
             // = []@(Eps([false]) · []@([]@'a')*)
         }
@@ -66,21 +66,21 @@ mod tests {
     // deriv_bc(Eps(bs), _) = Phi  (Eps has no derivative)
     #[test]
     fn deriv_bc_eps_is_phi() {
-        assert_eq!(deriv_bc(ARegex::Eps(vec![]), 'a'), ARegex::Phi);
+        assert_eq!(deriv_bc(ARegex::Eps(vec![].into()), 'a'), ARegex::Phi);
     }
 
     // deriv_bc(Lit(bs, c), c) = Eps(bs) - bits are preserved
     #[test]
     fn deriv_bc_lit_match_preserves_bits() {
-        let ri = ARegex::Lit(vec![false, true], 'a');
+        let ri = ARegex::Lit(vec![false, true].into(), 'a');
         let d = deriv_bc(ri, 'a');
-        assert_eq!(d, ARegex::Eps(vec![false, true]));
+        assert_eq!(d, ARegex::Eps(vec![false, true].into()));
     }
 
     // deriv_bc(Lit(bs, c), d≠c) = Phi
     #[test]
     fn deriv_bc_lit_no_match_is_phi() {
-        let ri = ARegex::Lit(vec![false], 'a');
+        let ri = ARegex::Lit(vec![false].into(), 'a');
         let d = deriv_bc(ri, 'b');
         assert_eq!(d, ARegex::Phi);
     }
@@ -89,14 +89,14 @@ mod tests {
     #[test]
     fn deriv_bc_alt_preserves_outer_bits() {
         let ri = ARegex::Alt(
-            vec![true],
-            Box::new(ARegex::Lit(vec![false], 'a')),
-            Box::new(ARegex::Lit(vec![true], 'b')),
+            vec![true].into(),
+            Box::new(ARegex::Lit(vec![false].into(), 'a')),
+            Box::new(ARegex::Lit(vec![true].into(), 'b')),
         );
         let d = deriv_bc(ri, 'a');
         // Outer bits [true] should be preserved on the Alt wrapper
         match d {
-            ARegex::Alt(ref bs, _, _) => assert_eq!(bs, &[true]),
+            ARegex::Alt(ref bs, _, _) => assert_eq!(bs.to_vec(), vec![true]),
             other => panic!("expected Alt, got {:?}", other),
         }
     }
@@ -104,7 +104,7 @@ mod tests {
     // deriv_bc(Star(bs, r), c) = Seq(bs, fuse([false], deriv_bc(r,c)), Star([],r))
     #[test]
     fn deriv_bc_star_gives_seq() {
-        let ri = ARegex::Star(vec![], Box::new(ARegex::Lit(vec![], 'a')));
+        let ri = ARegex::Star(vec![].into(), Box::new(ARegex::Lit(vec![].into(), 'a')));
         let d = deriv_bc(ri, 'a');
         assert!(matches!(d, ARegex::Seq(_, _, _)),
             "Star derivative should produce Seq, got {:?}", d);
@@ -113,11 +113,11 @@ mod tests {
     // Bit carry-through: fused [false] appears in the left branch of the Star derivative
     #[test]
     fn deriv_bc_star_left_branch_has_false_bit() {
-        let ri = ARegex::Star(vec![], Box::new(ARegex::Lit(vec![], 'a')));
+        let ri = ARegex::Star(vec![].into(), Box::new(ARegex::Lit(vec![].into(), 'a')));
         let d = deriv_bc(ri, 'a');
         if let ARegex::Seq(_, left, _) = d {
             // fuse([false], Eps([])) = Eps([false])
-            assert_eq!(*left, ARegex::Eps(vec![false]));
+            assert_eq!(*left, ARegex::Eps(vec![false].into()));
         } else {
             panic!("expected Seq");
         }

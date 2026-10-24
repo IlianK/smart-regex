@@ -14,23 +14,28 @@ use crate::regex::decode::decode;
 
 // RECURSIVE BITCODED PARSER
 
-fn parse_bitcoded_recursive_helper(ri: ARegex, input: &str) -> Option<ARegex> {
-    let mut chars = input.chars();
-    match chars.next() {
+/// Indexes into `chars` instead of collecting the remaining input into a
+/// fresh `String` on every call: the old version allocated and copied an
+/// O(n), O(n-1), O(n-2)... suffix at each step -- O(n^2) total, and since
+/// this recursion isn't tail-call-eliminated, every one of those Strings
+/// stays alive simultaneously down the call stack, O(n^2) bytes at once
+/// (confirmed empirically: ~4.7GB peak at 100K characters).
+fn parse_bitcoded_recursive_helper(ri: ARegex, chars: &[char], pos: usize) -> Option<ARegex> {
+    match chars.get(pos) {
         None => Some(ri),
-        Some(l) => {
-            let rest: String = chars.collect();
+        Some(&l) => {
             let ri_deriv = deriv_bc(ri, l);
             // simp absorbs the recorded iteration bit into the Star prefix
             let ri_simp = simp(ri_deriv);
-            parse_bitcoded_recursive_helper(ri_simp, &rest)
+            parse_bitcoded_recursive_helper(ri_simp, chars, pos + 1)
         }
     }
 }
 
 pub fn parse_bitcoded_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
     let ri = internalize(r);
-    let final_ri = parse_bitcoded_recursive_helper(ri, input)?;
+    let chars: Vec<char> = input.chars().collect();
+    let final_ri = parse_bitcoded_recursive_helper(ri, &chars, 0)?;
     if !nullable_bc(&final_ri) {
         return None;
     }

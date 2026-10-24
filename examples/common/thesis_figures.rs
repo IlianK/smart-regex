@@ -10,7 +10,7 @@ use regex_engine::parsers::deriv_bc::{deriv::deriv_bc, internalize::internalize,
 use regex_engine::parsers::pderiv_bc::pderiv::pderiv_bc;
 use regex_engine::parsers::pderiv_std::pderiv_tree_residuals;
 use regex_engine::regex::deriv::deriv;
-use regex_engine::types::{ARegex, Regex};
+use regex_engine::types::{ARegex, Bits, Regex};
 
 // -------------------------------
 // Size measures
@@ -103,11 +103,11 @@ pub fn alt_branches(ri: &ARegex, out: &mut Vec<ARegex>) {
 pub fn strip_bits(ri: &ARegex) -> ARegex {
     match ri {
         ARegex::Phi => ARegex::Phi,
-        ARegex::Eps(_) => ARegex::Eps(vec![]),
-        ARegex::Lit(_, c) => ARegex::Lit(vec![], *c),
-        ARegex::Alt(_, a, b) => ARegex::Alt(vec![], Box::new(strip_bits(a)), Box::new(strip_bits(b))),
-        ARegex::Seq(_, a, b) => ARegex::Seq(vec![], Box::new(strip_bits(a)), Box::new(strip_bits(b))),
-        ARegex::Star(_, a) => ARegex::Star(vec![], Box::new(strip_bits(a))),
+        ARegex::Eps(_) => ARegex::Eps(Bits::empty()),
+        ARegex::Lit(_, c) => ARegex::Lit(Bits::empty(), *c),
+        ARegex::Alt(_, a, b) => ARegex::Alt(Bits::empty(), Box::new(strip_bits(a)), Box::new(strip_bits(b))),
+        ARegex::Seq(_, a, b) => ARegex::Seq(Bits::empty(), Box::new(strip_bits(a)), Box::new(strip_bits(b))),
+        ARegex::Star(_, a) => ARegex::Star(Bits::empty(), Box::new(strip_bits(a))),
     }
 }
 

@@ -7,9 +7,19 @@ use std::rc::Rc;
 use crate::types::{ParseTree, Regex};
 use crate::regex::nullable::nullable;
 use crate::regex::mk_eps::mk_eps;
-use super::inject::{Inj, identity_inj};
+use super::inject::{Inj, identity_inj, nub_tree};
 use super::pderiv_tree::pderiv_tree;
 
+/// One transition of the whole state set. `pderiv_tree` already dedups
+/// the children of a single parent; a final `nub_tree` here dedups
+/// *across* parents too, which is required for the frontier to stay
+/// bounded (Sulzmann & Lu 2012, Def. 8: "duplicate states are removed,
+/// only the left-most state is kept" -- applied to the combined
+/// configuration, not per-origin). Without it, two strands that
+/// independently derive to the same residual both survive, and the
+/// frontier can double every character on an ambiguous pattern like
+/// `(a|b|ab)*` even though the number of distinct residuals stays
+/// bounded by the pattern's own size (Antimirov's finiteness result).
 pub(super) fn step_frontier(frontier: Vec<(Regex, Inj)>, x: char) -> Vec<(Regex, Inj)> {
     let mut out = Vec::new();
     for (r, inj_parent) in frontier {
@@ -19,7 +29,7 @@ pub(super) fn step_frontier(frontier: Vec<(Regex, Inj)>, x: char) -> Vec<(Regex,
             out.push((r_next, combined));
         }
     }
-    out
+    nub_tree(out)
 }
 
 pub(super) fn select(frontier: &[(Regex, Inj)]) -> Option<ParseTree> {

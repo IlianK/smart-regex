@@ -3,16 +3,25 @@
 //! Traced pderiv_bc parser (REGEX_DIAG=2/3): 
 //! wraps parse.rs's step_frontier/select_bits, recording a PDerivBitTrace.
 
-use crate::types::{Regex, ParseTree};
+use crate::types::{Regex, ParseTree, AppendBits};
 use crate::trace::{PDerivBitStep, PDerivBitTrace};
 use super::parse::{step_frontier, select_bits};
 use crate::regex::decode::decode;
 
+/// Snapshots a frontier for the trace record. Only `REGEX_DIAG=2/3`
+/// diagnostic printing reads these snapshots, so materializing each
+/// strand's `AppendBits` here (one-off, display-only) doesn't reintroduce
+/// the per-step cost `AppendBits` exists to avoid on the actual hot path.
+fn snapshot(frontier: &[(Regex, AppendBits)]) -> Vec<(Regex, Vec<bool>)> {
+    frontier.iter().map(|(r, b)| (r.clone(), b.to_vec())).collect()
+}
+
 pub fn parse_pderiv_bc_traced(input: &str, r: &Regex) -> (Option<ParseTree>, PDerivBitTrace) {
     let chars: Vec<char> = input.chars().collect();
-    let initial = vec![(r.clone(), Vec::new())];
+    let initial_frontier = vec![(r.clone(), AppendBits::empty())];
+    let initial = snapshot(&initial_frontier);
 
-    let mut frontier = initial.clone();
+    let mut frontier = initial_frontier;
     let mut steps: Vec<PDerivBitStep> = Vec::with_capacity(chars.len());
     let mut last_nullable_idx: Option<usize> = None;
     let mut bits_at_last_nullable: Option<Vec<bool>> = None;
@@ -23,7 +32,7 @@ pub fn parse_pderiv_bc_traced(input: &str, r: &Regex) -> (Option<ParseTree>, PDe
     }
 
     for (idx, &c) in chars.iter().enumerate() {
-        let before = frontier.clone();
+        let before = snapshot(&frontier);
         frontier = step_frontier(&frontier, c);
         let bits_here = select_bits(&frontier);
 
@@ -31,7 +40,7 @@ pub fn parse_pderiv_bc_traced(input: &str, r: &Regex) -> (Option<ParseTree>, PDe
             position: idx + 1,
             character: c,
             before,
-            after: frontier.clone(),
+            after: snapshot(&frontier),
             nullable: bits_here.is_some(),
         });
 

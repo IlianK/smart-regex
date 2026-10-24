@@ -1,35 +1,37 @@
 //! src/types/aregex.rs
-//! 
+//!
 //! Annotated regular expressions (bit-code annotated)
 //! Bit convention: false = 0 (Left / start-of-star), true = 1 (Right / end-of-star)
 
+use super::Bits;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ARegex {
-    /// Empty language 
+    /// Empty language
     Phi,
     /// bs @ ε
-    Eps(Vec<bool>),
+    Eps(Bits),
     /// bs @ l
-    Lit(Vec<bool>, char),
+    Lit(Bits, char),
     /// bs @ (ri₁ ⊕ ri₂)
-    Alt(Vec<bool>, Box<ARegex>, Box<ARegex>),
+    Alt(Bits, Box<ARegex>, Box<ARegex>),
     /// bs @ (ri₁ ri₂)
-    Seq(Vec<bool>, Box<ARegex>, Box<ARegex>),
+    Seq(Bits, Box<ARegex>, Box<ARegex>),
     /// bs @ ri*
-    Star(Vec<bool>, Box<ARegex>),
+    Star(Bits, Box<ARegex>),
 }
 
 impl ARegex {
-    pub fn eps() -> Self { ARegex::Eps(vec![]) }
-    pub fn lit(c: char) -> Self { ARegex::Lit(vec![], c) }
+    pub fn eps() -> Self { ARegex::Eps(Bits::empty()) }
+    pub fn lit(c: char) -> Self { ARegex::Lit(Bits::empty(), c) }
     pub fn alt(r1: ARegex, r2: ARegex) -> Self {
-        ARegex::Alt(vec![], Box::new(r1), Box::new(r2))
+        ARegex::Alt(Bits::empty(), Box::new(r1), Box::new(r2))
     }
     pub fn seq(r1: ARegex, r2: ARegex) -> Self {
-        ARegex::Seq(vec![], Box::new(r1), Box::new(r2))
+        ARegex::Seq(Bits::empty(), Box::new(r1), Box::new(r2))
     }
     pub fn star(r: ARegex) -> Self {
-        ARegex::Star(vec![], Box::new(r))
+        ARegex::Star(Bits::empty(), Box::new(r))
     }
 }
 
@@ -55,12 +57,12 @@ mod tests {
 
     #[test]
     fn eps_has_empty_bits() {
-        assert_eq!(ARegex::eps(), ARegex::Eps(vec![]));
+        assert_eq!(ARegex::eps(), ARegex::Eps(Bits::empty()));
     }
 
     #[test]
     fn lit_has_empty_bits() {
-        assert_eq!(ARegex::lit('x'), ARegex::Lit(vec![], 'x'));
+        assert_eq!(ARegex::lit('x'), ARegex::Lit(Bits::empty(), 'x'));
     }
 
     #[test]
@@ -88,12 +90,12 @@ mod tests {
 
     #[test]
     fn display_eps() {
-        assert_eq!(format!("{}", ARegex::Eps(vec![])), "[]@ε");
+        assert_eq!(format!("{}", ARegex::Eps(Bits::empty())), "[]@ε");
     }
 
     #[test]
     fn display_lit() {
-        assert_eq!(format!("{}", ARegex::Lit(vec![], 'a')), "[]@'a'");
+        assert_eq!(format!("{}", ARegex::Lit(Bits::empty(), 'a')), "[]@'a'");
     }
 
     #[test]
