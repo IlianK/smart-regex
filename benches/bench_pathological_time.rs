@@ -26,18 +26,29 @@
 //!   - `PATHO_JSON_PATH` (default `data/pathological/pathological_patterns.json`)
 //!   - `PATHO_SECTION` (`pathological`/`baseline`/`generated`/`all`, default `all`)
 //!   - `PATHO_CATEGORY` (comma-separated `A`-`L`, default every category present)
+//!   - `PATHO_ROW_ID` (comma-separated row ids, e.g. `P01,E36`; default
+//!     every row the section/category filters admit) -- narrow to one
+//!     row to get a single pattern's own scaling curve instead of a
+//!     whole category's.
 //!   - `PATHO_N` / `PATHO_P` (comma-separated sweep overrides; default
 //!     each row's own category `suggested_n`/`suggested_p`, falling
 //!     back to `pathological::DEFAULT_N`/`DEFAULT_P` if absent)
 //! `BENCH_PATTERN_LIMIT`, `BENCH_ENTRY_TIMEOUT_MS`, and `BENCH_RUN_LABEL`
 //! keep their existing names and meaning -- here, `BENCH_PATTERN_LIMIT`
-//! caps the number of *rows* admitted, after section/category
+//! caps the number of *rows* admitted, after section/category/row-id
 //! filtering and before the `n`/`p` sweep. No `BENCH_MATCH_INTENT`:
 //! these patterns have no anchor/match-intent concept.
 //!
-//! Writes `reports/benches/bench_pathological_time.csv`, replacing any
-//! existing file -- the same "latest run, not a log" convention as
-//! `bench_corpus_time.rs`.
+//! Writes `reports/benches/bench_pathological_time.csv` (one row per
+//! category x parser, mean/median/p99/max over every entry in that
+//! category -- a category can mix several rows and several `n`, so
+//! this number does not describe any one pattern's own growth curve)
+//! and `reports/benches/bench_pathological_time_entries.csv` (one row
+//! per individual (row, n, p, parser, match/non-match side) measurement
+//! -- group this by `row_id` and `parser`, sort by `n`, and it is
+//! exactly the (input size, time) series a Fig.-7-style plot needs for
+//! one pattern). Both replace any existing file, same "latest run, not
+//! a log" convention as `bench_corpus_time.rs`.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_worker
@@ -85,6 +96,10 @@ fn parse_categories() -> Option<HashSet<String>> {
     std::env::var("PATHO_CATEGORY").ok().map(|s| s.split(',').map(|c| c.trim().to_uppercase()).collect())
 }
 
+fn parse_row_ids() -> Option<HashSet<String>> {
+    std::env::var("PATHO_ROW_ID").ok().map(|s| s.split(',').map(|id| id.trim().to_string()).collect())
+}
+
 fn parse_u32_list(var: &str) -> Option<Vec<u32>> {
     std::env::var(var).ok().map(|s| {
         s.split(',')
@@ -124,17 +139,23 @@ struct Entry {
     category: String,
     n: u32,
     p: u32,
+    side: &'static str,
     pattern: String,
     input: String,
 }
 
-/// Rows from the selected section(s), filtered by category if set.
+/// Rows from the selected section(s), filtered by category and row id
+/// if set.
 fn select_rows<'a>(
     doc: &'a PathologicalDoc,
     section: Section,
     categories: &Option<HashSet<String>>,
+    row_ids: &Option<HashSet<String>>,
 ) -> Vec<&'a PathologicalRow> {
-    let include = |r: &&PathologicalRow| categories.as_ref().map_or(true, |cats| cats.contains(&r.category));
+    let include = |r: &&PathologicalRow| {
+        categories.as_ref().map_or(true, |cats| cats.contains(&r.category))
+            && row_ids.as_ref().map_or(true, |ids| ids.contains(&r.id))
+    };
     let mut rows: Vec<&PathologicalRow> = Vec::new();
     match section {
         Section::Pathological => rows.extend(doc.pathological_patterns.iter().filter(include)),
@@ -183,6 +204,7 @@ fn build_entries(
                         category: row.category.clone(),
                         n,
                         p,
+                        side: "match",
                         pattern: pattern.clone(),
                         input,
                     });
@@ -193,6 +215,7 @@ fn build_entries(
                         category: row.category.clone(),
                         n,
                         p,
+                        side: "nomatch",
                         pattern: pattern.clone(),
                         input,
                     });
@@ -331,6 +354,20 @@ struct SummaryRow {
     max_ms: Option<f64>,
 }
 
+/// One (row, n, p, parser, side) measurement -- the raw material for a
+/// Fig.-7-style scaling plot, where the summary CSV only has the
+/// category-wide aggregate.
+struct EntryResult {
+    row_id: String,
+    category: String,
+    parser: &'static str,
+    n: u32,
+    p: u32,
+    side: &'static str,
+    outcome: &'static str,
+    micros: Option<u64>,
+}
+
 fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1_000.0
 }
@@ -342,12 +379,19 @@ fn fmt_opt_ms(v: Option<f64>) -> String {
     }
 }
 
-fn report(category: &str, category_name: &str, corpus: &[Entry], worker: &Path, cap: Duration) -> Vec<SummaryRow> {
+fn report(
+    category: &str,
+    category_name: &str,
+    corpus: &[Entry],
+    worker: &Path,
+    cap: Duration,
+) -> (Vec<SummaryRow>, Vec<EntryResult>) {
     if corpus.is_empty() {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
 
     let mut rows = Vec::new();
+    let mut entry_rows = Vec::new();
     println!("\n{category} ({category_name}, {} entries)", corpus.len());
     println!(
         "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12}",
@@ -361,9 +405,15 @@ fn report(category: &str, category_name: &str, corpus: &[Entry], worker: &Path, 
         let mut crashed = 0usize;
         let start = Instant::now();
         for entry in corpus {
-            match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                Outcome::Done(dt) => all.push(dt),
-                Outcome::TimedOut => timed_out += 1,
+            let (outcome, micros) = match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
+                Outcome::Done(dt) => {
+                    all.push(dt);
+                    ("measured", Some(dt.as_micros() as u64))
+                }
+                Outcome::TimedOut => {
+                    timed_out += 1;
+                    ("timed_out", None)
+                }
                 Outcome::Crashed(reason) => {
                     crashed += 1;
                     eprintln!(
@@ -375,8 +425,19 @@ fn report(category: &str, category_name: &str, corpus: &[Entry], worker: &Path, 
                         entry.pattern,
                         entry.input,
                     );
+                    ("crashed", None)
                 }
-            }
+            };
+            entry_rows.push(EntryResult {
+                row_id: entry.row_id.clone(),
+                category: entry.category.clone(),
+                parser: parser_type.name(),
+                n: entry.n,
+                p: entry.p,
+                side: entry.side,
+                outcome,
+                micros,
+            });
         }
         let total = start.elapsed();
 
@@ -422,7 +483,27 @@ fn report(category: &str, category_name: &str, corpus: &[Entry], worker: &Path, 
             max_ms: max,
         });
     }
-    rows
+    (rows, entry_rows)
+}
+
+fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "row_id,category,parser,n,p,side,outcome,micros")?;
+    for r in rows {
+        writeln!(
+            f,
+            "{},{},{},{},{},{},{},{}",
+            r.row_id,
+            r.category,
+            r.parser,
+            r.n,
+            r.p,
+            r.side,
+            r.outcome,
+            r.micros.map(|v| v.to_string()).unwrap_or_default(),
+        )?;
+    }
+    Ok(())
 }
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
@@ -452,6 +533,7 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
 fn main() {
     let section = parse_section();
     let categories = parse_categories();
+    let row_ids = parse_row_ids();
     let n_override = parse_u32_list("PATHO_N");
     let p_override = parse_u32_list("PATHO_P");
     let limit = pattern_limit();
@@ -460,7 +542,7 @@ fn main() {
     let path = json_path();
 
     let doc = pathological::load(&path).unwrap_or_else(|e| panic!("cannot read {path:?}: {e}"));
-    let mut rows = select_rows(&doc, section, &categories);
+    let mut rows = select_rows(&doc, section, &categories, &row_ids);
     rows.truncate(limit);
     if rows.is_empty() {
         panic!("no rows selected from {path:?} (section/category filters too narrow?)");
@@ -483,16 +565,24 @@ fn main() {
     }
     let label = run_label_suffix();
     let summary_path = format!("{REPORTS_DIR}/bench_pathological_time{label}.csv");
+    let entries_path = format!("{REPORTS_DIR}/bench_pathological_time{label}_entries.csv");
 
     // Written again after every category, not just once at the end --
     // same crash-safety reasoning as bench_corpus_time.rs's main().
     let mut all_summary = Vec::new();
+    let mut all_entries = Vec::new();
     for (category, corpus) in group_by_category(entries) {
         let category_name = doc.categories.get(&category).map(|c| c.name.as_str()).unwrap_or("?");
-        all_summary.extend(report(&category, category_name, &corpus, &worker, cap));
+        let (summary, entry_rows) = report(&category, category_name, &corpus, &worker, cap);
+        all_summary.extend(summary);
+        all_entries.extend(entry_rows);
         if let Err(e) = write_summary_csv(&summary_path, &all_summary) {
             eprintln!("could not write {summary_path}: {e}");
         }
+        if let Err(e) = write_entries_csv(&entries_path, &all_entries) {
+            eprintln!("could not write {entries_path}: {e}");
+        }
     }
     eprintln!("wrote {summary_path}");
+    eprintln!("wrote {entries_path}");
 }

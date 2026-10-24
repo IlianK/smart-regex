@@ -104,6 +104,7 @@ CLI arguments.
 | `PATHO_JSON_PATH` | all three `bench_pathological_*` targets | file path | `data/pathological/pathological_patterns.json` |
 | `PATHO_SECTION` | all three `bench_pathological_*` targets | `pathological`, `baseline`, `generated`, `all` | `all` |
 | `PATHO_CATEGORY` | all three `bench_pathological_*` targets | comma-separated `A`-`L` | unset (every category present) |
+| `PATHO_ROW_ID` | `bench_pathological_time` only | comma-separated row ids (e.g. `P01,E36`) | unset (every row the other filters admit) |
 | `PATHO_N` | `bench_pathological_time`, `bench_pathological_memory` only -- **not** `bench_pathological_translate`, see its own section | comma-separated positive integers | unset (each row's own `suggested_n`) |
 | `PATHO_P` | all three `bench_pathological_*` targets | comma-separated positive integers | unset (each row's own `suggested_p`) |
 
@@ -201,6 +202,12 @@ CLI arguments.
 - **`PATHO_CATEGORY`** — All three `bench_pathological_*` targets.
   Restricts rows to the given category letters. Unset keeps every
   category present in the selected section(s).
+
+- **`PATHO_ROW_ID`** — `bench_pathological_time` only. Restricts rows
+  to the given row ids, on top of any section/category filter. Narrow
+  to one row and sweep a wide `PATHO_N` to get that one pattern's own
+  (input size, time) scaling curve instead of a whole category's
+  mixed-row aggregate -- see `_entries.csv` below.
 
 - **`PATHO_N`** — `bench_pathological_time`/`bench_pathological_memory`
   only. Overrides the swept input-length (`n`) values for every
@@ -410,6 +417,10 @@ Build `bench_worker` first (see above), then:
 cargo bench --bench bench_pathological_time
 PATHO_CATEGORY=A,B               cargo bench --bench bench_pathological_time
 PATHO_SECTION=generated PATHO_P=1000 cargo bench --bench bench_pathological_time
+
+# One pattern's own scaling curve (a Fig.-7-style line-chart source),
+# instead of a whole category's mixed-row/mixed-n aggregate:
+PATHO_ROW_ID=P01 PATHO_N=20,50,100,200,500,1000 cargo bench --bench bench_pathological_time
 ```
 
 Wall-clock cost per parser over the hand-curated stress-pattern
@@ -438,14 +449,22 @@ as an occasional `crashed` row here.)
 
 Reads `BENCH_PATTERN_LIMIT` (caps selected *rows*, before the `n`/`p`
 sweep), `BENCH_ENTRY_TIMEOUT_MS`, `BENCH_RUN_LABEL`, and its own
-`PATHO_JSON_PATH`/`PATHO_SECTION`/`PATHO_CATEGORY`/`PATHO_N`/`PATHO_P`.
-No `BENCH_MATCH_INTENT` or `BENCH_SPLIT_OUTCOME`: these patterns carry
-no anchor/match-intent concept, and match vs. non-match cost is not
-split out separately here.
+`PATHO_JSON_PATH`/`PATHO_SECTION`/`PATHO_CATEGORY`/`PATHO_ROW_ID`/
+`PATHO_N`/`PATHO_P`. No `BENCH_MATCH_INTENT` or `BENCH_SPLIT_OUTCOME`:
+these patterns carry no anchor/match-intent concept, and match vs.
+non-match cost is not split out separately in the summary.
 
-Writes `reports/benches/bench_pathological_time.csv`, replacing any
-existing file, same "latest run, not a log" convention as
-`bench_corpus_time`.
+Writes `reports/benches/bench_pathological_time.csv` (the
+category/parser summary described above) and
+`reports/benches/bench_pathological_time_entries.csv` (one row per
+individual `row_id,category,parser,n,p,side,outcome,micros`
+measurement -- the summary's raw material, before it gets collapsed
+into one mean/median/p99/max per category). The entries file is what a
+single pattern's own scaling curve comes from: filter to one `row_id`
+and `parser`, sort by `n`, and `micros` vs. `n` is directly the kind of
+(input size, time) line FLOPS'14 Fig. 7 plots -- see the `PATHO_ROW_ID`
+example above. Both replace any existing file, same "latest run, not a
+log" convention as `bench_corpus_time`.
 
 ## `bench_pathological_memory.rs`
 
