@@ -657,18 +657,15 @@ $P=[0]@a\oplus[1]@(a\,b)$ and
 $Q=[0]@b\oplus[1]@\varepsilon$, where $0$ selects the left branch and
 $1$ the right.
 
-Deriving by $\mathtt{a}$ consumes $P$'s leading $a$, giving $P'$, while $Q$ remains
-untouched. Deriving by $\mathtt{b}$ consumes the rest. Since $P'$'s
-$\varepsilon$ branch is nullable, both decompositions survive. 
-In the first, the derivative continues
-inside $P'$, which finishes and folds its bit $1$ onto $Q$. In the
-second, $Q$ matches $\mathtt{b}$ instead, and $P'$'s completion bit fuses
-with $Q$'s match into $[0,0]@\varepsilon$. This yields
-$\mathit{ri}_2=[\,]@([1]@Q \oplus [0,0]@\varepsilon)$. 
-The helper $\mathit{fuse}$ performs this folding and fusing of bits onto surviving
-nodes, prepending a bit-sequence to a node's annotation without
-descending into its children. Both $\mathit{deriv}_{\mathit{bc}}$ and
-$\mathit{simp}$ rely on it. 
+Deriving by $\mathtt{a}$ extracts $P$'s leading $a$, giving $P'$ while
+$Q$ is untouched; deriving by $\mathtt{b}$ consumes the rest. Since
+$P'$'s $\varepsilon$ branch is nullable, both decompositions survive:
+in the first, the derivative continues inside $P'$, which finishes and
+folds its bit $1$ onto $Q$; in the second, $Q$ matches $\mathtt{b}$
+instead, and $P'$'s completion bit fuses with $Q$'s match into
+$[0,0]@\varepsilon$. This yields
+$\mathit{ri}_2=[\,]@([1]@Q \oplus [0,0]@\varepsilon)$.
+
 
 Unlike the standard construction, the bit-coded construction requires
 simplification to prevent unbounded growth of annotated expressions.
@@ -714,21 +711,19 @@ choices made during the forward pass.
 
 \paragraph{In Rust.}
 \label{sec:aregex-type}
-Figure~\ref{fig:aregex-enum} defines \texttt{ARegex} as the annotated
-counterpart of \texttt{Regex}. Every variant except \texttt{Phi} carries a
-leading \texttt{Bits} corresponding to ~\eqref{eq:aregex-grammar}, one
-bit-sequence per node. \texttt{Bits} is not a plain \texttt{Vec<bool>}:
-it is a persistent, \texttt{Rc}-based cons-list that supports prepending
-a prefix in time proportional to the prefix alone, never to the length
-already stored (Section~\ref{sec:fuse-impl} explains why this matters).
-\texttt{Phi} has no annotation, since it cannot contribute to a
-successful parse.
-
+Figure~\ref{fig:aregex-enum} defines \texttt{ARegex}, the annotated
+counterpart of \texttt{Regex}. Every variant except \texttt{Phi} carries
+a leading \texttt{Bits} field (cf.\ \eqref{eq:aregex-grammar}).
+\texttt{Bits} is a persistent, \texttt{Rc}-backed cons list, not a
+\texttt{Vec<bool>}: prepending a prefix costs only the prefix,
+independent of the accumulated history. A \texttt{Vec<bool>} would copy
+the entire prefix on every derivative step, making an $n$-character run
+cost $O(n^2)$. the persistent representation keeps it $O(n)$.
 \begin{figure}[H]
 \small
 \begin{verbatim}
 pub enum ARegex {
-    Phi,                     // no annotation slot
+    Phi,                   
     Eps(Bits), Lit(Bits, char),
     Alt(Bits, Box<ARegex>, Box<ARegex>),
     Seq(Bits, Box<ARegex>, Box<ARegex>),
