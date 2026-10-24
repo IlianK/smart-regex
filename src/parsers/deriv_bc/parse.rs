@@ -15,23 +15,24 @@ use crate::regex::decode::decode;
 
 
 // RECURSIVE BITCODED PARSER
-
-/// Indexes into `chars` instead of collecting the remaining input into a
-/// fresh `String` on every call: the old version allocated and copied an
-/// O(n), O(n-1), O(n-2)... suffix at each step -- O(n^2) total, and since
-/// this recursion isn't tail-call-eliminated, every one of those Strings
-/// stays alive simultaneously down the call stack, O(n^2) bytes at once
-/// (confirmed empirically: ~4.7GB peak at 100K characters).
-fn parse_bitcoded_recursive_helper(ri: ARegex, chars: &[char], pos: usize) -> Option<ARegex> {
-    match chars.get(pos) {
-        None => Some(ri),
-        Some(&l) => {
-            let ri_deriv = deriv_bc(ri, l);
-            // simp absorbs the recorded iteration bit into the Star prefix
-            let ri_simp = simp(ri_deriv);
-            parse_bitcoded_recursive_helper(ri_simp, chars, pos + 1)
-        }
+//
+// ("Recursive" is this parser's long-standing name in ALL/the CLI/the
+// benches, kept for compatibility -- the per-character stepping below
+// is a loop, not recursion over position. An earlier version called
+// itself once per input character; that put one stack frame per
+// character on the call stack, a latent stack-overflow risk that the
+// O(n^2) bits-materialization bug above it masked by failing on
+// memory/time first, long before reaching the millions-of-characters
+// depth where this would actually bite -- confirmed empirically: fixing
+// that bug let deriv_bc reach ~1M characters, where recursing hit a real
+// stack overflow at 5M that a plain loop does not.)
+fn derive_and_simplify(ri: ARegex, chars: &[char]) -> ARegex {
+    let mut cur = ri;
+    for &l in chars {
+        // simp absorbs the recorded iteration bit into the Star prefix
+        cur = simp(deriv_bc(cur, l));
     }
+    cur
 }
 
 pub fn parse_bitcoded_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
@@ -47,12 +48,9 @@ pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTr
 
     let t1 = Instant::now();
     let chars: Vec<char> = input.chars().collect();
-    let final_ri = parse_bitcoded_recursive_helper(ri, &chars, 0);
+    let final_ri = derive_and_simplify(ri, &chars);
     let derive_us = t1.elapsed().as_micros() as u64;
 
-    let Some(final_ri) = final_ri else {
-        return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
-    };
     if !nullable_bc(&final_ri) {
         return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
     }
@@ -69,14 +67,13 @@ pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTr
 // LOOP BITCODED PARSER
 
 pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
-    let mut ri = internalize(r);
-    for l in input.chars() {
-        ri = simp(deriv_bc(ri, l));
-    }
-    if !nullable_bc(&ri) {
+    let ri = internalize(r);
+    let chars: Vec<char> = input.chars().collect();
+    let final_ri = derive_and_simplify(ri, &chars);
+    if !nullable_bc(&final_ri) {
         return None;
     }
-    let bits = mk_eps_bc(&ri);
+    let bits = mk_eps_bc(&final_ri);
     Some(decode(r, &bits))
 }
 

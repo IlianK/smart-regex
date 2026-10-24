@@ -18,37 +18,44 @@ use std::rc::Rc;
 enum Node {
     Nil,
     Prepend(Rc<[bool]>, Rc<Node>),
+    /// `left` followed by `right`, both already-lazy chains grafted
+    /// together in O(1): see `Bits::prepend_bits`.
+    Chain(Rc<Node>, Rc<Node>),
 }
 
-/// Rust's derived drop glue for this enum would recurse through `rest`
-/// one stack frame per chained node -- fine at hundreds of thousands of
-/// characters (confirmed empirically), but a genuine stack-overflow risk
-/// at the millions-of-characters scale this type exists to support.
-/// Unwinds the exclusively-owned tail iteratively instead; a tail still
-/// shared with another live `Bits` is left alone, since something else
-/// still owns it and will drop it in its own time.
+/// Rust's derived drop glue for this enum would recurse through a
+/// chained node's children one stack frame per node -- fine at hundreds
+/// of thousands of characters (confirmed empirically), but a genuine
+/// stack-overflow risk at the millions-of-characters scale this type
+/// exists to support. Unwinds exclusively-owned descendants iteratively
+/// via an explicit work-list instead (a plain single `next` pointer
+/// isn't enough once `Chain` gives a node two children, not one); a
+/// node still shared with another live `Bits` is left alone, since
+/// something else still owns it and will drop it in its own time.
 impl Drop for Node {
     fn drop(&mut self) {
-        // Detach `self`'s own tail first (via the field, not a move of
-        // `self` itself -- `Node` has a `Drop` impl, so it can't be
-        // pattern-moved out of). From here on `self` holds a fresh Nil
-        // tail, so its own implicit drop glue (once this fn returns)
-        // is trivial, not recursive.
-        let mut next = match self {
+        let mut stack: Vec<Rc<Node>> = Vec::new();
+        match self {
             Node::Nil => return,
-            Node::Prepend(_, rest) => std::mem::replace(rest, Rc::new(Node::Nil)),
-        };
-        loop {
-            match Rc::try_unwrap(next) {
-                Ok(mut owned) => {
-                    next = match &mut owned {
-                        Node::Nil => return,
-                        Node::Prepend(_, rest) => std::mem::replace(rest, Rc::new(Node::Nil)),
-                    };
-                    // `owned` drops here, trivially -- its tail is now a fresh Nil.
-                }
-                Err(_) => return,
+            Node::Prepend(_, rest) => stack.push(std::mem::replace(rest, Rc::new(Node::Nil))),
+            Node::Chain(l, r) => {
+                stack.push(std::mem::replace(l, Rc::new(Node::Nil)));
+                stack.push(std::mem::replace(r, Rc::new(Node::Nil)));
             }
+        }
+        while let Some(rc) = stack.pop() {
+            if let Ok(mut owned) = Rc::try_unwrap(rc) {
+                match &mut owned {
+                    Node::Nil => {}
+                    Node::Prepend(_, rest) => stack.push(std::mem::replace(rest, Rc::new(Node::Nil))),
+                    Node::Chain(l, r) => {
+                        stack.push(std::mem::replace(l, Rc::new(Node::Nil)));
+                        stack.push(std::mem::replace(r, Rc::new(Node::Nil)));
+                    }
+                }
+                // `owned` drops here, trivially -- its children are now fresh Nils.
+            }
+            // else: still shared elsewhere; leave it for its other owner.
         }
     }
 }
@@ -82,18 +89,43 @@ impl Bits {
         Bits(Rc::new(Node::Prepend(Rc::from(prefix), self.0.clone())))
     }
 
+    /// `prefix ++ self`, O(1) regardless of how long `prefix` or `self`
+    /// already are -- grafts the two existing chains together instead
+    /// of flattening either one. Use this (not `prefix.to_vec()` fed
+    /// into `prepend`) whenever `prefix` is itself another `Bits`
+    /// that may already carry a parse's whole accumulated history:
+    /// `to_vec()`-ing it first to call `prepend` would materialize
+    /// all of it on every call, reintroducing the O(n) per-step cost
+    /// this type exists to avoid.
+    pub fn prepend_bits(&self, prefix: &Bits) -> Bits {
+        if prefix.is_empty() {
+            return self.clone();
+        }
+        if self.is_empty() {
+            return prefix.clone();
+        }
+        Bits(Rc::new(Node::Chain(prefix.0.clone(), self.0.clone())))
+    }
+
     /// Materializes the full bit sequence. O(total length); call once,
     /// at the point the bits are actually needed (mk_eps_bc/decode),
-    /// not on every intermediate derivative step.
+    /// not on every intermediate derivative step. Iterative (an explicit
+    /// work-list, not recursion) for the same reason `Drop` is: a chain
+    /// built from millions of `prepend`/`prepend_bits` calls must not
+    /// walk the call stack one frame per node.
     pub fn to_vec(&self) -> Vec<bool> {
         let mut out = Vec::new();
-        let mut cur = &self.0;
-        loop {
-            match &**cur {
-                Node::Nil => break,
+        let mut stack: Vec<Rc<Node>> = vec![self.0.clone()];
+        while let Some(node) = stack.pop() {
+            match &*node {
+                Node::Nil => {}
                 Node::Prepend(seg, rest) => {
                     out.extend_from_slice(seg);
-                    cur = rest;
+                    stack.push(rest.clone());
+                }
+                Node::Chain(l, r) => {
+                    stack.push(r.clone());
+                    stack.push(l.clone());
                 }
             }
         }
@@ -229,6 +261,48 @@ mod tests {
         let v = b.to_vec();
         assert_eq!(v.len(), 5000);
         assert_eq!(v[0], false); // last prepended bit (i=4999, odd) ends up at the front... see below
+    }
+
+    #[test]
+    fn prepend_bits_builds_in_order() {
+        let tail: Bits = vec![true, false].into();
+        let prefix: Bits = vec![false, true].into();
+        assert_eq!(tail.prepend_bits(&prefix).to_vec(), vec![false, true, true, false]);
+    }
+
+    #[test]
+    fn prepend_bits_empty_prefix_is_identity() {
+        let tail: Bits = vec![true].into();
+        assert_eq!(tail.prepend_bits(&Bits::empty()).to_vec(), vec![true]);
+    }
+
+    #[test]
+    fn prepend_bits_empty_self_is_prefix() {
+        let prefix: Bits = vec![true, false].into();
+        assert_eq!(Bits::empty().prepend_bits(&prefix).to_vec(), vec![true, false]);
+    }
+
+    #[test]
+    fn prepend_bits_does_not_mutate_either_input() {
+        let tail: Bits = vec![true].into();
+        let prefix: Bits = vec![false].into();
+        let combined = tail.prepend_bits(&prefix);
+        assert_eq!(tail.to_vec(), vec![true]);
+        assert_eq!(prefix.to_vec(), vec![false]);
+        assert_eq!(combined.to_vec(), vec![false, true]);
+    }
+
+    #[test]
+    fn many_chained_prepend_bits_drop_without_stack_overflow() {
+        // Right-leaning chain of Chain nodes, mimicking repeated
+        // fuse_bits(&big_accumulated_history, small_piece) calls.
+        let mut b = Bits::empty();
+        for _ in 0..1_000_000 {
+            let small: Bits = vec![true].into();
+            b = b.prepend_bits(&small);
+        }
+        assert_eq!(b.to_vec().len(), 1_000_000);
+        drop(b);
     }
 
     #[test]

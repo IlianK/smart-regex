@@ -19,6 +19,24 @@ pub fn fuse(bs: &[bool], ri: ARegex) -> ARegex {
     }
 }
 
+/// Same as `fuse`, but for prepending a `Bits` value that may itself
+/// already carry a parse's whole accumulated history (e.g. a Star's
+/// completed-iteration bits), not just a short literal prefix like
+/// `&[false]`. O(1) via `Bits::prepend_bits`, regardless of how much
+/// either `bits` or `ri` already carries -- unlike `fuse(&bits.to_vec(), ri)`,
+/// which would materialize all of `bits` first.
+pub fn fuse_bits(bits: &Bits, ri: ARegex) -> ARegex {
+    if bits.is_empty() { return ri; }
+    match ri {
+        ARegex::Phi => ARegex::Phi,
+        ARegex::Eps(p) => ARegex::Eps(p.prepend_bits(bits)),
+        ARegex::Lit(p, c) => ARegex::Lit(p.prepend_bits(bits), c),
+        ARegex::Alt(p, r1, r2) => ARegex::Alt(p.prepend_bits(bits), r1, r2),
+        ARegex::Seq(p, r1, r2) => ARegex::Seq(p.prepend_bits(bits), r1, r2),
+        ARegex::Star(p, r) => ARegex::Star(p.prepend_bits(bits), r),
+    }
+}
+
 // a* = Star(Lit('a'))
 pub fn internalize(r: &Regex) -> ARegex {
     match r {
@@ -129,6 +147,37 @@ mod tests {
     #[test]
     fn fuse_on_phi_stays_phi() {
         let result = fuse(&[false], ARegex::Phi);
+        assert_eq!(result, ARegex::Phi);
+    }
+
+    #[test]
+    fn fuse_bits_empty_prefix_is_identity() {
+        let ri = ARegex::Eps(vec![true].into());
+        let result = fuse_bits(&Bits::empty(), ri.clone());
+        assert_eq!(result, ri);
+    }
+
+    #[test]
+    fn fuse_bits_matches_fuse_on_a_literal_prefix() {
+        let ri = ARegex::Lit(Bits::empty(), 'a');
+        let via_fuse = fuse(&[false, true], ri.clone());
+        let via_fuse_bits = fuse_bits(&vec![false, true].into(), ri);
+        assert_eq!(via_fuse, via_fuse_bits);
+    }
+
+    #[test]
+    fn fuse_bits_prepends_a_large_accumulated_prefix() {
+        let big: Bits = vec![true; 10_000].into();
+        let ri = ARegex::Eps(vec![false].into());
+        let result = fuse_bits(&big, ri);
+        let mut expected = vec![true; 10_000];
+        expected.push(false);
+        assert!(matches!(result, ARegex::Eps(ref b) if b.to_vec() == expected));
+    }
+
+    #[test]
+    fn fuse_bits_on_phi_stays_phi() {
+        let result = fuse_bits(&vec![false].into(), ARegex::Phi);
         assert_eq!(result, ARegex::Phi);
     }
 

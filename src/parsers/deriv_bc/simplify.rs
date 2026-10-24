@@ -5,7 +5,7 @@
 
 use crate::types::{ARegex, Bits};
 use crate::parsers::deriv_bc::nullable::is_phi;
-use crate::parsers::deriv_bc::internalize::fuse;
+use crate::parsers::deriv_bc::internalize::fuse_bits;
 
 /// Simplify an annotated expression to a fixpoint, re-applying `simp_once`
 /// until it stops changing anything (mirrors the reference `simp r = let
@@ -50,8 +50,12 @@ fn simp_once(ri: ARegex) -> ARegex {
 
             if let ARegex::Eps(bs2) = r1s {
                 // bs ++ bs2, prepended onto r2s in that order: fuse bs2
-                // on first (innermost), then bs (outermost).
-                return fuse(&bs.to_vec(), fuse(&bs2.to_vec(), r2s));
+                // on first (innermost), then bs (outermost). Via
+                // fuse_bits, not fuse(&x.to_vec(), ..): bs can already
+                // be a Star's whole accumulated iteration history by
+                // this point, and to_vec()-ing it on every character
+                // is exactly the O(n^2) cost `Bits` exists to avoid.
+                return fuse_bits(&bs, fuse_bits(&bs2, r2s));
             }
 
             // Symmetric case: `Seq(x, Eps)` collapses to `x`, matching the
@@ -63,7 +67,7 @@ fn simp_once(ri: ARegex) -> ARegex {
             // after -- wrong order whenever r2's bits are non-empty.
             if let ARegex::Eps(bs2) = &r2s {
                 if bs2.is_empty() {
-                    return fuse(&bs.to_vec(), r1s);
+                    return fuse_bits(&bs, r1s);
                 }
             }
 
@@ -86,10 +90,10 @@ fn simp_once(ri: ARegex) -> ARegex {
 
             match branches.len() {
                 0 => ARegex::Phi,
-                1 => fuse(&bs.to_vec(), branches.remove(0)),
+                1 => fuse_bits(&bs, branches.remove(0)),
                 _ => {
                     let folded = fold_alt(branches);
-                    fuse(&bs.to_vec(), folded)
+                    fuse_bits(&bs, folded)
                 }
             }
         }
@@ -114,9 +118,8 @@ fn push_branches(ri: ARegex, out: &mut Vec<ARegex>) {
                 push_branches(*r1, out);
                 push_branches(*r2, out);
             } else {
-                let bs_vec = bs.to_vec();
-                let r1f = fuse(&bs_vec, *r1);
-                let r2f = fuse(&bs_vec, *r2);
+                let r1f = fuse_bits(&bs, *r1);
+                let r2f = fuse_bits(&bs, *r2);
                 push_branches(r1f, out);
                 push_branches(r2f, out);
             }

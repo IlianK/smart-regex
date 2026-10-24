@@ -441,15 +441,104 @@ routine/unscoped run (no `PATHO_ROW_ID`) stays fast; always pass
 `PATHO_N` explicitly for the real comparison, as in the commands above.
 `BENCH_ENTRY_TIMEOUT_MS` also needs raising well past its 2000ms
 default at this scale -- 120000 (2 minutes) above is a reasonable
-starting point; `deriv_std_rec`/`deriv_std_loop`/`deriv_bc` are
-expected to time out or run very slowly at the high end of this sweep
-(a real, inherent cost of full-parse-tree reconstruction on an
-ambiguous pattern, not a bug -- see the session notes on FLOPS14 Fig. 7
-for why), while `pderiv_bc`/`pderiv_std` should complete the whole
-sweep comfortably. P20 (`(a|b|ab)+`, same category) is a *different*
-row -- `+` not `*`, `'ab'`-repeated only, no dedicated large-`N`
-sweep -- kept for its original, smaller-scale stress-testing role; it
-is not the Fig. 7 reproduction.
+starting point.
+
+Measured at this scale (`PATHO_ROW_ID=P60`, `'a'`-repeated, isolated
+per-parser runs so one crash can't take the others down):
+
+| parser | 1M | 5M | 10M |
+|---|---|---|---|
+| `deriv_std_rec` | crashes (stack overflow) | crashes | crashes |
+| `deriv_std_loop` | OOM-killed (~110s in) | not tested (already fails at 1M) | -- |
+| `deriv_bc` | 7.2s, 249 MB peak | 40.7s, 1.32 GB peak | 82.9s, 2.64 GB peak |
+| `pderiv_bc` | 6.0s, 141 MB peak | 26.7s, 778 MB peak | 53.4s, 1.56 GB peak |
+| `pderiv_std` | 5.3s, 233 MB peak | 26.4s, 1.24 GB peak | 63.8s, 2.48 GB peak |
+
+All three of `deriv_bc`/`pderiv_bc`/`pderiv_std` now scale linearly in
+both time and memory and reach the paper's full 10M-character range
+cleanly. `deriv_bc` did not always: see "Why `deriv_bc` used to fail at
+this scale" below for what was actually wrong and how it was fixed.
+`deriv_std_rec`/`deriv_std_loop` still fail outright -- expected and
+not a bug: they implement the paper's Fig. 3 algorithm, which the paper
+itself defines with no simplification step at all (see "parseBC vs.
+DERIV" below), so every Star iteration's dead alternatives accumulate
+without bound.
+
+P20 (`(a|b|ab)+`, same category) is a *different* row -- `+` not `*`,
+`'ab'`-repeated only, no dedicated large-`N` sweep -- kept for its
+original, smaller-scale stress-testing role; it is not the Fig. 7
+reproduction.
+
+### `parseBC` vs. `DERIV`: what Fig. 7 actually measures
+
+FLOPS'14 benchmarks two *different* Haskell implementations, not one:
+
+- **`parseBC`** (the paper's Fig. 5/6): the general bit-coded algorithm
+  that builds the *full* ambiguous parse tree -- every Star iteration
+  kept. This is what `deriv_bc` and `pderiv_bc` implement. The paper
+  only describes this one in prose (Section 4, no graph): "competitive
+  up to ~10Mb, then 10-50x slower, memory-bound, ongoing work."
+- **`DERIV`** (the one actually plotted in Fig. 7): a separate,
+  narrower implementation for standard POSIX submatching, where a
+  repeated subexpression keeps only its *last* iteration's match
+  ("overwriting earlier with later matches," in the paper's words --
+  the same semantics `grep`/RE2/TDFA capture groups already use). It
+  is also DFA-compiled: an explicit table maps `(state, char)` to the
+  next state plus a parse-tree transformer, so matching is O(1) table
+  lookups per character, not a from-scratch derivative/simplify pass.
+
+Neither of those two properties -- submatch-only output, DFA-compiled
+stepping -- is true of `deriv_bc`/`pderiv_bc`/`pderiv_std`: all three
+build the full parse tree and recompute the derivative+simplify step
+from scratch on every character. So Fig. 7's curve is not a
+same-task comparison for any of our parsers; it is a different,
+strictly smaller problem (last-match-only submatching with a
+precompiled automaton) solved by a different implementation the paper
+never open-sourced. The table above is the closest same-task analogue
+available: `pderiv_bc`/`pderiv_std` reaching the same *scale* (10M
+characters) without crashing is the real headline, not raw throughput
+parity with a DFA-compiled submatcher solving an easier problem.
+
+### Why `deriv_bc` used to fail at this scale
+
+`deriv_bc` used to crash or get OOM-killed well before 1M characters on
+this pattern -- far short of what the table above now shows. Two
+separate bugs were stacked on top of each other, and fixing the first
+one exposed the second:
+
+1. **`simp_once` materialized a Star's whole accumulated history on
+   every character.** Each Star node's own bit-code (`ARegex::Star`'s
+   `bs` field) accumulates one marker per completed iteration, so by
+   character *k* it is *O(k)* bits long. `simp_once`'s `Seq`/`Alt`
+   collapse cases (`src/parsers/deriv_bc/simplify.rs`) called
+   `fuse(&bs.to_vec(), ...)` to re-prepend that field onto the
+   simplified result -- and `.to_vec()` walks the *entire* accumulated
+   chain to flatten it into a `Vec<bool>`, every single character. That
+   is an O(k) step repeated for *k* = 1..n, i.e. O(n^2) total, which is
+   exactly the memory/time blowup that made `deriv_bc` fail at modest
+   N. The `Bits` type (`src/types/bits.rs`) already made *building*
+   that history O(1) amortized; this was a remaining call site that
+   still forced it to be *read* back out early. Fixed by adding
+   `Bits::prepend_bits`/`fuse_bits`, an O(1) splice of two already-lazy
+   chains (a new `Node::Chain` variant), and switching `simplify.rs`'s
+   five `fuse(&x.to_vec(), ..)` call sites to it -- the big history
+   stays an unmaterialized chain until the one point it is genuinely
+   needed (the final `mk_eps_bc`/`decode` at the end of the parse).
+2. **The per-character driver recursed once per input character.**
+   With bug 1 fixed, `deriv_bc` could suddenly survive long enough
+   (in time and memory) to reach the point where this second,
+   previously-unreachable bug took over: `parse_bitcoded_recursive`'s
+   internal helper called itself once per character with no tail-call
+   elimination, so parsing N characters put N stack frames on the call
+   stack -- a stack overflow at N in the low millions. Fixed by
+   replacing that recursion with a plain loop (`derive_and_simplify` in
+   `src/parsers/deriv_bc/parse.rs`), matching what the pre-existing but
+   unused `parse_bitcoded_loop` already did correctly.
+
+`pderiv_bc` never had either bug: its own hot path (`step_frontier` in
+`src/parsers/pderiv_bc/parse.rs`) only materializes its `AppendBits`
+history once, at the very end, and it already loops rather than
+recurses over the input.
 
 Wall-clock cost per parser over the hand-curated stress-pattern
 dataset (`data/pathological/pathological_patterns.json`), not the real
