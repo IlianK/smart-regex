@@ -716,23 +716,27 @@ choices made during the forward pass.
 \label{sec:aregex-type}
 Figure~\ref{fig:aregex-enum} defines \texttt{ARegex} as the annotated
 counterpart of \texttt{Regex}. Every variant except \texttt{Phi} carries a
-leading \texttt{Vec<bool>} corresponding to ~\eqref{eq:aregex-grammar},
-with one \texttt{bool} per bit. \texttt{Phi}
-has no annotation, since it cannot contribute to a successful parse.
+leading \texttt{Bits} corresponding to ~\eqref{eq:aregex-grammar}, one
+bit-sequence per node. \texttt{Bits} is not a plain \texttt{Vec<bool>}:
+it is a persistent, \texttt{Rc}-based cons-list that supports prepending
+a prefix in time proportional to the prefix alone, never to the length
+already stored (Section~\ref{sec:fuse-impl} explains why this matters).
+\texttt{Phi} has no annotation, since it cannot contribute to a
+successful parse.
 
 \begin{figure}[H]
 \small
 \begin{verbatim}
 pub enum ARegex {
     Phi,                     // no annotation slot
-    Eps(Vec<bool>), Lit(Vec<bool>, char),
-    Alt(Vec<bool>, Box<ARegex>, Box<ARegex>),
-    Seq(Vec<bool>, Box<ARegex>, Box<ARegex>),
-    Star(Vec<bool>, Box<ARegex>),
+    Eps(Bits), Lit(Bits, char),
+    Alt(Bits, Box<ARegex>, Box<ARegex>),
+    Seq(Bits, Box<ARegex>, Box<ARegex>),
+    Star(Bits, Box<ARegex>),
 }
 \end{verbatim}
 \caption{The annotated-expression type extends \texttt{Regex} with a leading
-bit-list.}
+bit-sequence, \texttt{Bits}.}
 \label{fig:aregex-enum}
 \end{figure}
 
@@ -772,8 +776,9 @@ those already recorded in the subtree.
 \label{sec:fuse-impl}
 
 Figure~\ref{fig:fuse-rust} implements the six rules of~\eqref{eq:fuse},
-one per variant. The helper \texttt{combine} corresponds to the
-concatenation $\mathbin{+\!\!+}$ and places \texttt{bs} before \texttt{p}:
+one per variant. The helper \texttt{Bits::prepend} corresponds to the
+concatenation $\mathbin{+\!\!+}$ and places \texttt{bs} before the node's
+existing bits:
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -781,18 +786,21 @@ pub fn fuse(bs: &[bool], ri: ARegex) -> ARegex {
     if bs.is_empty() { return ri; }
     match ri {
         ARegex::Phi => ARegex::Phi,
-        ARegex::Eps(p) => ARegex::Eps(combine(bs, p)),
-        ARegex::Lit(p, c) => ARegex::Lit(combine(bs, p), c),
-        ARegex::Alt(p, r1, r2) => ARegex::Alt(combine(bs, p), r1, r2),
-        ARegex::Seq(p, r1, r2) => ARegex::Seq(combine(bs, p), r1, r2),
-        ARegex::Star(p, r) => ARegex::Star(combine(bs, p), r),
+        ARegex::Eps(p) => ARegex::Eps(p.prepend(bs)),
+        ARegex::Lit(p, c) => ARegex::Lit(p.prepend(bs), c),
+        ARegex::Alt(p, r1, r2) => ARegex::Alt(p.prepend(bs), r1, r2),
+        ARegex::Seq(p, r1, r2) => ARegex::Seq(p.prepend(bs), r1, r2),
+        ARegex::Star(p, r) => ARegex::Star(p.prepend(bs), r),
     }
 }
 
-fn combine(bs: &[bool], p: Vec<bool>) -> Vec<bool> {
-    let mut new = bs.to_vec();
-    new.extend(p);
-    new
+impl Bits {
+    // prefix ++ self, O(prefix.len()) regardless of how long self
+    // already is -- the existing chain is shared, not copied.
+    pub fn prepend(&self, prefix: &[bool]) -> Bits {
+        if prefix.is_empty() { return self.clone(); }
+        Bits(Rc::new(Node::Prepend(Rc::from(prefix), self.0.clone())))
+    }
 }
 \end{verbatim}
 \caption{\texttt{fuse}: prepend a bit-list to the annotation of the
@@ -801,25 +809,29 @@ top node.}
 \end{figure}
 
 The \texttt{Phi} arm is the only case that returns without calling
-\texttt{combine}, because \texttt{Phi} represents the empty language and
+\texttt{prepend}, because \texttt{Phi} represents the empty language and
 carries no annotation slot, so there is no bit-list for \texttt{fuse} to
 prepend to. Every other arm rebuilds the top node with a combined
 annotation and moves its two children, or single child in the star case,
 unchanged. Since \texttt{fuse} prepends \texttt{bs} only to the top node's
 annotation, the bits carried by its children are not touched, and the
 operation rewrites exactly one node regardless of how large the subtree
-below it is. 
+below it is.
 
 The function is therefore non-recursive, and no subtree needs to be
 copied. The implementation realizes this directly, since \texttt{ri} is
 consumed by value and its untouched children move into the rebuilt node
-without a clone. The helper \texttt{combine} allocates a fresh
-\texttt{Vec}, at a cost proportional to the combined length of the two
-bit-lists rather than to the size of the subtree below. This allocation
-happens on every call with a non-empty \texttt{bs}. An empty \texttt{bs}
-is the one case that skips it, since combining an empty prefix with
-\texttt{p} gives \texttt{p} and the rebuilt node would be identical to
-the input.
+without a clone. \texttt{Bits::prepend} wraps the node's existing chain
+in a new \texttt{Rc}, sharing rather than copying it: the allocation is
+proportional only to \texttt{bs}'s length, independent of how many bits
+the node already carries. This is why \texttt{Bits} replaces a plain
+\texttt{Vec<bool>} here: with a \texttt{Vec}, \texttt{prepend} would have
+to copy the existing content on every call, a cost proportional to the
+combined length of the two bit-lists -- the node's own history can grow
+with every character consumed so far, which would make a single
+\texttt{fuse} call as expensive as the whole parse up to that point. An
+empty \texttt{bs} is the one case that still skips any work, since
+prepending an empty prefix returns the node's existing chain unchanged.
 
 %
 %
@@ -871,16 +883,17 @@ the annotated representation.
 pub fn internalize(r: &Regex) -> ARegex {
     match r {
         Regex::Phi => ARegex::Phi,
-        Regex::Eps => ARegex::Eps(vec![]),
-        Regex::Lit(c) => ARegex::Lit(vec![], *c),
+        Regex::Eps => ARegex::Eps(Bits::empty()),
+        Regex::Lit(c) => ARegex::Lit(Bits::empty(), *c),
         Regex::Alt(r1, r2) => {
             let ri1 = fuse(&[false], internalize(r1));
             let ri2 = fuse(&[true], internalize(r2));
-            ARegex::Alt(vec![], Box::new(ri1), Box::new(ri2))
+            ARegex::Alt(Bits::empty(), Box::new(ri1), Box::new(ri2))
         }
-        Regex::Seq(r1, r2) => ARegex::Seq(vec![],
+        Regex::Seq(r1, r2) => ARegex::Seq(Bits::empty(),
             Box::new(internalize(r1)), Box::new(internalize(r2))),
-        Regex::Star(r1) => ARegex::Star(vec![], Box::new(internalize(r1))),
+        Regex::Star(r1) => ARegex::Star(Bits::empty(),
+            Box::new(internalize(r1))),
     }
 }
 \end{verbatim}
@@ -939,8 +952,13 @@ handled as preconditions.
 Figure~\ref{fig:mkepsbc-rust} implements \texttt{mk\_eps\_bc} alongside
 \texttt{mk\_eps} (Figure~\ref{fig:mkeps-rust}), with one difference. Where
 \texttt{mk\_eps} builds a \texttt{ParseTree}, \texttt{mk\_eps\_bc}
-concatenates bit-lists. The \texttt{Star} arm also does not recurse, since
-a star matching the empty word uses zero iterations, so it only appends
+concatenates bit-lists, calling \texttt{bs.to\_vec()} where \texttt{mk\_eps}
+would borrow or clone: this is the point where a node's \texttt{Bits}
+chain (Section~\ref{sec:aregex-type}) is finally walked and materialized
+into a concrete \texttt{Vec<bool>}, something \texttt{fuse} deliberately
+avoids doing on every derivative step. The \texttt{Star} arm also does
+not recurse, since a star matching the empty word uses zero iterations,
+so it only appends
 the closing \texttt{true} and never examines the child expression:
 \begin{figure}[H]
 \small
@@ -949,9 +967,9 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
     match ri {
         ARegex::Phi => panic!("mk_eps_bc called on Phi"),
         ARegex::Lit(_, c) => panic!("mk_eps_bc called on Lit('{}')", c),
-        ARegex::Eps(bs) => bs.clone(),
+        ARegex::Eps(bs) => bs.to_vec(),
         ARegex::Alt(bs, r1, r2) => {
-            let mut result = bs.clone();
+            let mut result = bs.to_vec();
             if nullable_bc(r1) {
                 result.extend(mk_eps_bc(r1));
             } else {
@@ -960,15 +978,15 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
             result
         }
         ARegex::Seq(bs, r1, r2) => {
-            let mut result = bs.clone();
+            let mut result = bs.to_vec();
             result.extend(mk_eps_bc(r1));
             result.extend(mk_eps_bc(r2));
             result
         }
         ARegex::Star(bs, _) => {
-            let mut result = bs.clone();
-            result.push(true);                     
-            result                                
+            let mut result = bs.to_vec();
+            result.push(true);
+            result
         }
     }
 }
@@ -1095,7 +1113,7 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
                 let eps_bits = mk_eps_bc(&r1);
                 let d1 = deriv_bc(*r1, l);
                 let d2 = deriv_bc(*r2.clone(), l);
-                let left_branch = ARegex::Seq(vec![], Box::new(d1), r2);
+                let left_branch = ARegex::Seq(Bits::empty(), Box::new(d1), r2);
                 let right_branch = fuse(&eps_bits, d2);
                 ARegex::Alt(bs, Box::new(left_branch), Box::new(right_branch))
             } else {
@@ -1106,7 +1124,7 @@ pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
         ARegex::Star(bs, r) => {
             let d = deriv_bc(*r.clone(), l);
             let fused = fuse(&[false], d);
-            let new_star = ARegex::Star(vec![], r);
+            let new_star = ARegex::Star(Bits::empty(), r);
             ARegex::Seq(bs, Box::new(fused), Box::new(new_star))
         }
     }

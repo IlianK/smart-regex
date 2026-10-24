@@ -281,38 +281,64 @@ here.
 \label{sec:pderiv-tree-impl}
 
 The recursive definition in Equations~\ref{eq:pderiv-tree-base}
-and~\ref{eq:pderiv-tree-seq} is implemented directly in Rust.
-The type $\mathit{Inj}$ is a reference-counted closure, which allows a single
-parent injection to be shared when a transition fans out into several states.
+and~\ref{eq:pderiv-tree-seq} is implemented directly in Rust, with two
+departures from a literal reading of the equations, both for
+performance rather than semantics.
+
+First, \texttt{pderiv\_tree} itself builds only \emph{one} transition's
+closure, type \texttt{InjStep}, a reference-counted closure exactly as
+before. The accumulated injection a state carries across many
+characters -- what the equations call $\iota$ once composition has
+happened several times -- is a separate type, \texttt{Inj}, described in
+Section~\ref{sec:pderiv-state-set}: a persistent list of \texttt{InjStep}s
+rather than a nested closure, so that applying or dropping a
+long-lived \texttt{Inj} does not recurse one native stack frame per
+character.
+
+Second, the \texttt{Seq} and \texttt{Star} arms use \texttt{smart\_seq}
+-- the Rust counterpart of $\mathit{smartC}$ used by \texttt{pderiv} in
+Figure~\ref{fig:pderiv-rust} -- wherever the equations build
+$\varepsilon \cdot s$, except in \texttt{Seq}'s nullable branch, which
+still pairs its continue-strand with the plain \texttt{Regex::seq}
+constructor. Collapsing $\varepsilon \cdot s$ to $s$ changes the shape
+the next transition's closure must match against, so each arm that uses
+\texttt{smart\_seq} branches on whether the residual collapsed
+(\texttt{r1\_ == Regex::Eps}) and builds the closure for that shape
+specifically, rather than assuming a \texttt{Pair} is always present.
+Without this, two strands that independently derive to the same
+residual but reached it through different wrapper shapes would not
+dedup against each other, and the frontier can grow unboundedly on an
+ambiguous pattern even though the number of distinct residuals stays
+bounded.
 
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub(crate) type Inj = Rc<dyn Fn(ParseTree) -> ParseTree>;
+pub(crate) type InjStep = Rc<dyn Fn(ParseTree) -> ParseTree>;
 
-pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
+pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
         Regex::Eps | Regex::Phi => vec![],
 
         Regex::Lit(c) => {
             if *c == x {
                 vec![(Regex::Eps,
-                      Rc::new(move |_| ParseTree::Char(x))) as Inj]
+                      Rc::new(move |_| ParseTree::Char(x))) as InjStep]
             } else { vec![] }
         }
 
         Regex::Alt(r1, r2) => {
-            let mut out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+            let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
                 .into_iter()
                 .map(|(r1_, inj1)| {
-                    let f: Inj = Rc::new(move |v| {
+                    let f: InjStep = Rc::new(move |v| {
                         ParseTree::Left(Box::new(inj1(v)))
                     });
                     (r1_, f)
                 })
                 .collect();
             out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
-                let f: Inj = Rc::new(move |v| {
+                let f: InjStep = Rc::new(move |v| {
                     ParseTree::Right(Box::new(inj2(v)))
                 });
                 (r2_, f)
@@ -322,11 +348,14 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
 
         Regex::Seq(r1, r2) => {
             if nullable(r1) {
-                let mut out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+                // Continue-strand: not smart-constructed, matching
+                // the reference literally -- the skip-strand below
+                // needs r1's own closure untouched to inject into.
+                let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
                     .into_iter()
                     .map(|(r1_, inj1)| {
                         let r2c = (**r2).clone();
-                        let f: Inj = Rc::new(move |v| match v {
+                        let f: InjStep = Rc::new(move |v| match v {
                             ParseTree::Pair(v1, v2) =>
                                 ParseTree::Pair(Box::new(inj1(*v1)), v2),
                             _ => panic!("pderiv_tree/Seq: want Pair"),
@@ -338,7 +367,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                 let v1_eps = mk_eps(r1);
                 out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
                     let v1c = v1_eps.clone();
-                    let f: Inj = Rc::new(move |v2| {
+                    let f: InjStep = Rc::new(move |v2| {
                         ParseTree::Pair(Box::new(v1c.clone()),
                                         Box::new(inj2(v2)))
                     });
@@ -350,33 +379,61 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                     .into_iter()
                     .map(|(r1_, inj1)| {
                         let r2c = (**r2).clone();
-                        let f: Inj = Rc::new(move |v| match v {
-                            ParseTree::Pair(v1, v2) =>
-                                ParseTree::Pair(Box::new(inj1(*v1)), v2),
-                            _ => panic!("pderiv_tree/Seq: want Pair"),
-                        });
-                        (Regex::seq(r1_, r2c), f)
+                        // smart_seq collapses Eps.r2c to r2c alone, so
+                        // the closure must inject directly instead of
+                        // destructuring a Pair that no longer exists.
+                        if r1_ == Regex::Eps {
+                            let f: InjStep = Rc::new(move |v2| {
+                                let v1 = inj1(ParseTree::Empty);
+                                ParseTree::Pair(Box::new(v1), Box::new(v2))
+                            });
+                            (r2c, f)
+                        } else {
+                            let f: InjStep = Rc::new(move |v| match v {
+                                ParseTree::Pair(v1, v2) =>
+                                    ParseTree::Pair(Box::new(inj1(*v1)), v2),
+                                _ => panic!("pderiv_tree/Seq: want Pair"),
+                            });
+                            (Regex::seq(r1_, r2c), f)
+                        }
                     })
                     .collect()
             }
         }
 
         Regex::Star(r1) => {
-            let out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+            let out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
                 .into_iter()
                 .map(|(r1_, inj1)| {
                     let r1c = (**r1).clone();
-                    let f: Inj = Rc::new(move |v| match v {
-                        ParseTree::Pair(v1, vs) => match *vs {
+                    // items.push, not insert(0, ..): injection unwinds
+                    // in reverse temporal order, so building the Star
+                    // left-to-right needs each new iteration prepended
+                    // to what inj applies first. push is O(1) amortized;
+                    // select reverses every Star's items once at the
+                    // end instead of paying insert(0, ..)'s O(n) per call.
+                    if r1_ == Regex::Eps {
+                        let f: InjStep = Rc::new(move |vs| match vs {
                             ParseTree::Star(mut items) => {
-                                items.insert(0, inj1(*v1));
+                                items.push(inj1(ParseTree::Empty));
                                 ParseTree::Star(items)
                             }
                             _ => panic!("pderiv_tree/Star: want Star"),
-                        },
-                        _ => panic!("pderiv_tree/Star: want Pair"),
-                    });
-                    (Regex::seq(r1_, Regex::star(r1c)), f)
+                        });
+                        (Regex::star(r1c), f)
+                    } else {
+                        let f: InjStep = Rc::new(move |v| match v {
+                            ParseTree::Pair(v1, vs) => match *vs {
+                                ParseTree::Star(mut items) => {
+                                    items.push(inj1(*v1));
+                                    ParseTree::Star(items)
+                                }
+                                _ => panic!("pderiv_tree/Star: want Star"),
+                            },
+                            _ => panic!("pderiv_tree/Star: want Pair"),
+                        });
+                        (smart_seq(r1_, &Regex::star(r1c)), f)
+                    }
                 })
                 .collect();
             nub_tree(out)
@@ -385,7 +442,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
 }
 \end{verbatim}
 \caption{\texttt{pderiv\_tree}: one partial-derivative transition, producing a
-list of (residual, injection) states.}
+list of (residual, injection-step) states.}
 \label{fig:pderiv-tree-rust}
 \end{figure}
 
@@ -401,21 +458,21 @@ $\mathit{Left}$ or $\mathit{Right}$ in the injection, then deduplicated by
 
 The \texttt{Seq} arm's \texttt{if nullable(r1)} matches the case split
 between $\mathsf{P}_{\mathrm{seq}}^{\,n}$ and $\mathsf{P}_{\mathrm{seq}}$.
-Both branches build the same continue-strand, mapping \texttt{pderiv\_tree(r1,
-x)} with a closure that re-pairs the recursive injection's result with the
-untouched \texttt{r2}; the nullable branch additionally computes
-\texttt{r1}'s empty tree once with \texttt{mk\_eps} and captures a clone of
-it in every skip-strand closure, then deduplicates the combined list, while
-the non-nullable branch returns its single strand directly. Both residuals
-are built with the plain \texttt{Regex::seq} constructor rather than
-\texttt{smart\_seq} -- the Rust counterpart of
-$\mathit{smartC}$ used by \texttt{pderiv} in
-Figure~\ref{fig:pderiv-rust} -- for the reason given above: a simplified
-residual would lose the \texttt{Pair} node the closure matches on.
+The nullable branch's continue-strand is built exactly as the equations
+describe, with the plain pairing constructor, since the skip-strand
+alongside it needs \texttt{r1}'s own closure to still expect a
+\texttt{Pair}; the nullable branch additionally computes \texttt{r1}'s
+empty tree once with \texttt{mk\_eps} and captures a clone of it in
+every skip-strand closure, then deduplicates the combined list. The
+non-nullable branch, by contrast, does use \texttt{smart\_seq}, with the
+closure split on whether the residual collapsed to \texttt{Eps}, as
+explained above.
 
 The \texttt{Star} arm implements $\mathsf{P}_{*}$, with the closure
-inserting the reconstructed iteration at the front of the star's list, again
-without a smart constructor.
+appending the reconstructed iteration to the star's list (left-to-right
+order, reversed once at the end by \texttt{select} rather than paying
+\texttt{insert(0, ..)}'s cost on every iteration), again split on
+whether \texttt{smart\_seq} collapsed the residual.
 
 \subsection{State Sets and Selection}
 \label{sec:pderiv-state-set}
@@ -429,10 +486,43 @@ the next one has been computed. A configuration's parent injection is
 composed with the transition injection, so that at the end the state set's
 injections map residuals all the way back to the original expression.
 
-The composition is direct. When a parent configuration
+Conceptually the composition is direct: when a parent configuration
 $(r, \mathit{inj}_p)$ transitions to $(r', \mathit{inj}_s)$, the new
 configuration's injection is
-$\lambda v.\, \mathit{inj}_p(\mathit{inj}_s(v))$.
+$\lambda v.\, \mathit{inj}_p(\mathit{inj}_s(v))$. Composing this way as
+nested closures, however, makes both calling the result and dropping it
+recurse one native stack frame per character -- fine at tens of
+thousands of characters, a real stack-overflow risk beyond that. The
+\texttt{Inj} type instead stores a configuration's accumulated steps as
+a persistent cons-list and applies them in an explicit loop:
+\begin{verbatim}
+enum InjNode { Identity, Step(InjStep, Rc<InjNode>) }
+pub(crate) struct Inj(Rc<InjNode>);
+
+impl Inj {
+    pub(crate) fn then(&self, step: InjStep) -> Self {
+        Inj(Rc::new(InjNode::Step(step, self.0.clone())))
+    }
+    pub(crate) fn apply(&self, v: ParseTree) -> ParseTree {
+        let mut v = v;
+        let mut cur = &self.0;
+        loop {
+            match &**cur {
+                InjNode::Identity => return v,
+                InjNode::Step(step, rest) => { v = step(v); cur = rest; }
+            }
+        }
+    }
+}
+\end{verbatim}
+\texttt{then} adds one more character's step in O(1), just wrapping the
+existing chain in a new node, the same way \texttt{Bits::prepend}
+(Section~\ref{sec:fuse-impl}) wraps an existing bit chain; \texttt{apply}
+walks the whole chain in one iterative pass, applying each step in the
+order it was added, with no recursive call regardless of how long the
+chain is. \texttt{Inj} also has its own iterative \texttt{Drop}, for the
+same reason \texttt{Bits}'s does: the derived recursive drop glue would
+walk the chain one stack frame per character too.
 
 \begin{figure}[H]
 \small
@@ -443,17 +533,21 @@ pub(super) fn step_frontier(
     let mut out = Vec::new();
     for (r, inj_parent) in frontier {
         for (r_next, inj_step) in pderiv_tree(&r, x) {
-            let parent = inj_parent.clone();
-            let combined: Inj = Rc::new(move |v| parent(inj_step(v)));
-            out.push((r_next, combined));
+            out.push((r_next, inj_parent.then(inj_step)));
         }
     }
-    out
+    nub_tree(out)
 }
 \end{verbatim}
 \caption{\texttt{step\_frontier}: one transition of the NFA state set on a
 single character. The function name retains the older ``frontier''
-terminology; it computes the successor state set $\delta(S, x)$.}
+terminology; it computes the successor state set $\delta(S, x)$. The
+final \texttt{nub\_tree} deduplicates \emph{across} parent configurations,
+not just within one parent's own expansion (which \texttt{pderiv\_tree}
+already does on its own output) -- without it, two strands that
+independently derive to the same residual both survive, and the state
+set can double every character on an ambiguous pattern even though the
+number of distinct residuals stays bounded by the pattern's own size.}
 \label{fig:step-frontier-rust}
 \end{figure}
 
@@ -465,14 +559,16 @@ and returns the tree for the first accepting configuration:
 pub(super) fn select(frontier: &[(Regex, Inj)]) -> Option<ParseTree> {
     for (r, inj) in frontier {
         if nullable(r) {
-            return Some(inj(mk_eps(r)));
+            return Some(reverse_stars(inj.apply(mk_eps(r))));
         }
     }
     None
 }
 \end{verbatim}
 \caption{\texttt{select}: return the tree for the first accepting
-configuration in the state set.}
+configuration in the state set. \texttt{reverse\_stars} undoes, in one
+O(total output size) pass, the left-to-right-via-push construction order
+\texttt{pderiv\_tree}'s \texttt{Star} arm uses (Figure~\ref{fig:pderiv-tree-rust}).}
 \label{fig:select-rust}
 \end{figure}
 
@@ -509,7 +605,7 @@ Figure~\ref{fig:pderiv-std-parser-rust} implements~\eqref{eq:pderiv-std-driver}.
 \begin{verbatim}
 pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
     let mut frontier: Vec<(Regex, Inj)> =
-        vec![(r.clone(), identity_inj())];
+        vec![(r.clone(), Inj::identity())];
     for c in input.chars() {
         frontier = step_frontier(frontier, c);
         if frontier.is_empty() {
@@ -944,24 +1040,36 @@ language nor a literal can match the empty word.
 \label{sec:pderiv-bc-state-set}
 
 State-set transition for the bit-coded parser mirrors the standard version,
-with bit-list concatenation replacing closure composition:
+with bit-list concatenation replacing closure composition. Each
+configuration's bits accumulate across the whole input so far, so a
+plain \texttt{Vec<bool>} clone-then-extend on every transition is
+O(current length) per step, $O(n^2)$ over n characters --
+the same cost \texttt{Bits}/\texttt{Inj} avoid elsewhere in this and the
+previous chapter. \texttt{AppendBits} is the append-optimized mirror of
+\texttt{Bits} (Section~\ref{sec:aregex-type}): it stores the reverse of
+the real sequence internally, so appending a suffix becomes prepending
+its reverse, reusing \texttt{Bits::prepend}'s O(suffix length) guarantee,
+and materializes the sequence back into a plain \texttt{Vec<bool>} only
+once, when the bits are actually consumed:
 \begin{figure}[H]
 \small
 \begin{verbatim}
 pub(super) fn step_frontier(
-    frontier: &[(Regex, Vec<bool>)], x: char
-) -> Vec<(Regex, Vec<bool>)> {
+    frontier: &[(Regex, AppendBits)], x: char
+) -> Vec<(Regex, AppendBits)> {
     let mut out = Vec::new();
     for (r, bits) in frontier {
         for (r_next, extra) in pderiv_bc(r, x) {
-            let mut combined = bits.clone();
-            combined.extend(extra);
-            out.push((r_next, combined));
+            out.push((r_next, bits.append(&extra)));
         }
     }
-    out
+    nub2(out)
 }
 \end{verbatim}
+\caption{\texttt{step\_frontier} (bit-coded): as with the standard
+parser's version, \texttt{nub2} deduplicates across the whole combined
+state set, not just within one configuration's own expansion (which
+\texttt{pderiv\_bc} already does via its own \texttt{nub2} call).}
 \end{figure}
 
 Selection walks the state set in priority order and returns the bits of the
@@ -971,13 +1079,11 @@ residual:
 \small
 \begin{verbatim}
 pub(super) fn select_bits(
-    frontier: &[(Regex, Vec<bool>)]
+    frontier: &[(Regex, AppendBits)]
 ) -> Option<Vec<bool>> {
     for (r, bits) in frontier {
         if nullable(r) {
-            let mut result = bits.clone();
-            result.extend(mk_eps_bits(r));
-            return Some(result);
+            return Some(bits.append(&mk_eps_bits(r)).to_vec());
         }
     }
     None
@@ -1003,7 +1109,7 @@ state set is non-empty, and calls \texttt{select\_bits} followed by
 \small
 \begin{verbatim}
 pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
-    let mut frontier = vec![(r.clone(), Vec::new())];
+    let mut frontier = vec![(r.clone(), AppendBits::empty())];
     for c in input.chars() {
         frontier = step_frontier(&frontier, c);
         if frontier.is_empty() {
