@@ -11,7 +11,7 @@ Runnable programs under `examples/`, invoked with `cargo run --example <name>`.
 | **Translation — rejection causes** | `demo_translate_reject` | One example per rejected cause |
 | **Translation — sizes** | `demo_translate_sizes` | Node count of the `Regex` each pattern translates to |
 | **Dataset pipeline** | `dataset_prepare`, `dataset_stats` | Extract, verify, and report on the raw corpus |
-| **Parser agreement** | `demo_parser_agreement`, `demo_parser_agreement_worker` | Cross-parser agreement on parse tree shape over the prepared dataset |
+| **Parser agreement** | `demo_parser_agreement`, `demo_parser_agreement_pathological`, `demo_parser_agreement_worker` | Cross-parser agreement on parse tree shape, over the prepared S2ELab dataset and the pathological dataset respectively |
 | **Thesis figures** | `demo_simp_branches`, `demo_growth_deriv`, `demo_growth_pderiv`, `demo_growth_eval` | Node growth figures |
 
 
@@ -145,3 +145,31 @@ Saves the summary table (one row per source plus a total) to
 every individual flagged entry (timeout, crash, membership bug,
 POSIX/non-POSIX shape bug, ambiguous shape) separately to
 `reports/demos/parser_agreement_samples.csv`.
+
+`demo_parser_agreement`'s counterpart for the pathological dataset
+(`data/pathological/pathological_patterns.json`) instead of the real
+S2ELab corpus. Same worker (already generic, no S2ELab dependency),
+same three checks (membership, POSIX-internal shape, non-POSIX-internal
+shape) and the same POSIX-vs-greedy shape-agreement column, grouped by
+category (A-L) instead of source:
+
+```bash
+cargo build --release --example demo_parser_agreement_worker
+cargo run   --release --example demo_parser_agreement_pathological
+
+# Narrow to one category/row, same PATHO_* env vars as bench_pathological_time;
+# a large-n sweep needs a correspondingly larger AGREEMENT_TIMEOUT_MS (default 2000ms).
+PATHO_CATEGORY=L cargo run --release --example demo_parser_agreement_pathological
+PATHO_ROW_ID=P01 PATHO_N=20,50,100 AGREEMENT_TIMEOUT_MS=5000 \
+  cargo run --release --example demo_parser_agreement_pathological
+```
+
+Saves `reports/demos/parser_agreement_pathological.csv` (summary) and
+`reports/demos/parser_agreement_pathological_samples.csv` (flagged
+entries), same shape as the S2ELab pair. Timeouts here are expected,
+not bugs -- the pathological dataset exists specifically to find each
+parser's real limit; a membership/shape bug is still a real bug. One
+known false positive: row `E51` (category L) intentionally uses a
+non-matching `match_input` by design (see its own `notes` field, and
+`bench_stack_depth`, the tool it's actually for) and will always show
+as a membership bug here -- that is expected, not a defect.

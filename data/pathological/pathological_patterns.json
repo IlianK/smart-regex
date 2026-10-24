@@ -826,7 +826,7 @@
       "category": "A",
       "regex": "((a){20})+",
       "match_input": {
-        "repeat": "a",
+        "repeat": "aaaaaaaaaaaaaaaaaaaa",
         "count": "{N}"
       },
       "nomatch_input": {
@@ -834,7 +834,8 @@
         "count": "{N}",
         "suffix": "b"
       },
-      "stress_axis": "derivative-state explosion"
+      "stress_axis": "derivative-state explosion",
+      "notes": "match_input repeats a 20-a block N times (always a multiple of 20) -- plain N a's was only a real match when N happened to be divisible by 20, failing at N=50 in category A's own default sweep"
     },
     {
       "id": "P47",
@@ -1108,11 +1109,10 @@
         "count": "{N}"
       },
       "nomatch_input": {
-        "repeat": "b",
-        "count": "{N}"
+        "literal": "\u0001"
       },
       "stress_axis": "linear throughput -- sanity/warmup",
-      "notes": "dot-star, no newline in the swept alphabet"
+      "notes": "dot-star: the swept alphabet (src/frontend/alphabet.rs) includes \\t\\n\\r, so a repeated printable/whitespace char is never a real non-match -- \\u0001 is outside it, same fix as E28's category-I sibling"
     },
     {
       "id": "E06",
@@ -1205,7 +1205,7 @@
         "literal": "a"
       },
       "nomatch_input": {
-        "literal": ""
+        "literal": "b"
       },
       "stress_axis": "constant"
     },
