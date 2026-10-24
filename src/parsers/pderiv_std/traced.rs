@@ -5,12 +5,12 @@
 
 use crate::types::{ParseTree, Regex};
 use crate::trace::{PDerivStdStep, PDerivStdTrace};
-use super::inject::{Inj, identity_inj};
+use super::inject::Inj;
 use super::parse::{step_frontier, select};
 
 pub fn parse_pderiv_std_traced(input: &str, r: &Regex) -> (Option<ParseTree>, PDerivStdTrace) {
     let chars: Vec<char> = input.chars().collect();
-    let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), identity_inj())];
+    let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), Inj::identity())];
     let initial: Vec<Regex> = frontier.iter().map(|(r, _)| r.clone()).collect();
 
     let mut steps: Vec<PDerivStdStep> = Vec::with_capacity(chars.len());

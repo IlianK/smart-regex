@@ -3,11 +3,10 @@
 //! Plain-Regex partial-derivative parser (pderiv_std); 
 //! traced variant in traced.rs reuses step_frontier/select.
 
-use std::rc::Rc;
 use crate::types::{ParseTree, Regex};
 use crate::regex::nullable::nullable;
 use crate::regex::mk_eps::mk_eps;
-use super::inject::{Inj, identity_inj, nub_tree};
+use super::inject::{Inj, nub_tree};
 use super::pderiv_tree::pderiv_tree;
 
 /// One transition of the whole state set. `pderiv_tree` already dedups
@@ -24,25 +23,41 @@ pub(super) fn step_frontier(frontier: Vec<(Regex, Inj)>, x: char) -> Vec<(Regex,
     let mut out = Vec::new();
     for (r, inj_parent) in frontier {
         for (r_next, inj_step) in pderiv_tree(&r, x) {
-            let parent = inj_parent.clone();
-            let combined: Inj = Rc::new(move |v| parent(inj_step(v)));
-            out.push((r_next, combined));
+            out.push((r_next, inj_parent.then(inj_step)));
         }
     }
     nub_tree(out)
 }
 
+/// Reverses every `Star`'s items exactly once. `pderiv_tree`'s Star-case
+/// closures (see that file) `push` a new iteration instead of
+/// `insert(0, ..)`, O(1) amortized instead of O(current length) --
+/// which leaves every Star's items in reverse order until this single
+/// O(total output size) correction pass.
+fn reverse_stars(v: ParseTree) -> ParseTree {
+    match v {
+        ParseTree::Empty | ParseTree::Char(_) => v,
+        ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(reverse_stars(*v1)), Box::new(reverse_stars(*v2))),
+        ParseTree::Left(v1) => ParseTree::Left(Box::new(reverse_stars(*v1))),
+        ParseTree::Right(v1) => ParseTree::Right(Box::new(reverse_stars(*v1))),
+        ParseTree::Star(mut items) => {
+            items.reverse();
+            ParseTree::Star(items.into_iter().map(reverse_stars).collect())
+        }
+    }
+}
+
 pub(super) fn select(frontier: &[(Regex, Inj)]) -> Option<ParseTree> {
     for (r, inj) in frontier {
         if nullable(r) {
-            return Some(inj(mk_eps(r)));
+            return Some(reverse_stars(inj.apply(mk_eps(r))));
         }
     }
     None
 }
 
 pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
-    let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), identity_inj())];
+    let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), Inj::identity())];
     for c in input.chars() {
         frontier = step_frontier(frontier, c);
         if frontier.is_empty() {
@@ -129,6 +144,36 @@ mod tests {
                 ParseTree::Right(Box::new(ParseTree::Left(Box::new(ParseTree::Char('b'))))),
             ]))
         );
+    }
+
+    #[test]
+    fn star_iterations_are_in_left_to_right_order() {
+        // (a|b)* on "abab": a bug in the push/reverse rewrite would
+        // reverse this to [b,a,b,a] instead of the correct [a,b,a,b].
+        let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
+        let tree = parse_pderiv_std("abab", &r).unwrap();
+        assert_eq!(flatten(&tree), "abab");
+        assert_eq!(
+            tree,
+            ParseTree::Star(vec![
+                ParseTree::Left(Box::new(ParseTree::Char('a'))),
+                ParseTree::Right(Box::new(ParseTree::Char('b'))),
+                ParseTree::Left(Box::new(ParseTree::Char('a'))),
+                ParseTree::Right(Box::new(ParseTree::Char('b'))),
+            ])
+        );
+        assert_eq!(tree, parse_pderiv_bc("abab", &r).unwrap());
+    }
+
+    #[test]
+    fn nested_star_iterations_match_bc_order() {
+        // (a*)* on "aaaaa": a bug in the push/reverse rewrite at either
+        // nesting level would still agree with pderiv_bc on *membership*
+        // but disagree on the exact tree shape.
+        let r = Regex::star(Regex::star(Regex::lit('a')));
+        let tree_std = parse_pderiv_std("aaaaa", &r);
+        let tree_bc = parse_pderiv_bc("aaaaa", &r);
+        assert_eq!(tree_std, tree_bc);
     }
 
     #[test]

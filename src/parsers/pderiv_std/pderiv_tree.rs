@@ -3,38 +3,38 @@
 //! Standard Partial-Derivative-Based Parser
 //! Antimirov Partial Derivative 
 //! 
-//! One step of the tree-based partial derivative: 
-//! `pderiv_bc`'s analogue, `(residual, Inj)` pairs instead of bits.
+//! One step of the tree-based partial derivative:
+//! `pderiv_bc`'s analogue, `(residual, InjStep)` pairs instead of bits.
 
 use std::rc::Rc;
 use crate::types::{ParseTree, Regex};
 use crate::regex::nullable::nullable;
 use crate::regex::mk_eps::mk_eps;
 use crate::regex::simplify::smart_seq;
-use super::inject::{Inj, nub_tree};
+use super::inject::{InjStep, nub_tree};
 
-pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
+pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
         Regex::Eps | Regex::Phi => vec![],
 
         Regex::Lit(c) => {
             if *c == x {
-                vec![(Regex::Eps, Rc::new(move |_: ParseTree| ParseTree::Char(x)) as Inj)]
+                vec![(Regex::Eps, Rc::new(move |_: ParseTree| ParseTree::Char(x)) as InjStep)]
             } else {
                 vec![]
             }
         }
 
         Regex::Alt(r1, r2) => {
-            let mut out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+            let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
                 .into_iter()
                 .map(|(r1_, inj1)| {
-                    let f: Inj = Rc::new(move |v| ParseTree::Left(Box::new(inj1(v))));
+                    let f: InjStep = Rc::new(move |v| ParseTree::Left(Box::new(inj1(v))));
                     (r1_, f)
                 })
                 .collect();
             out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
-                let f: Inj = Rc::new(move |v| ParseTree::Right(Box::new(inj2(v))));
+                let f: InjStep = Rc::new(move |v| ParseTree::Right(Box::new(inj2(v))));
                 (r2_, f)
             }));
             nub_tree(out)
@@ -42,11 +42,11 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
 
         Regex::Seq(r1, r2) => {
             if nullable(r1) {
-                let mut out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+                let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
                     .into_iter()
                     .map(|(r1_, inj1)| {
                         let r2c = (**r2).clone();
-                        let f: Inj = Rc::new(move |v: ParseTree| match v {
+                        let f: InjStep = Rc::new(move |v: ParseTree| match v {
                             ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(inj1(*v1)), v2),
                             other => panic!(
                                 "pderiv_tree: Seq-continue strand expected Pair, got {:?}",
@@ -60,7 +60,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                 let v1_eps = mk_eps(r1);
                 out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
                     let v1c = v1_eps.clone();
-                    let f: Inj = Rc::new(move |v2: ParseTree| {
+                    let f: InjStep = Rc::new(move |v2: ParseTree| {
                         ParseTree::Pair(Box::new(v1c.clone()), Box::new(inj2(v2)))
                     });
                     (r2_, f)
@@ -87,12 +87,12 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                         // canonical empty value instead of destructuring
                         // one out of a Pair that no longer exists.
                         if r1_ == Regex::Eps {
-                            let f: Inj = Rc::new(move |v2: ParseTree| {
+                            let f: InjStep = Rc::new(move |v2: ParseTree| {
                                 ParseTree::Pair(Box::new(inj1(ParseTree::Empty)), Box::new(v2))
                             });
                             (r2c, f)
                         } else {
-                            let f: Inj = Rc::new(move |v: ParseTree| match v {
+                            let f: InjStep = Rc::new(move |v: ParseTree| match v {
                                 ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(inj1(*v1)), v2),
                                 other => panic!(
                                     "pderiv_tree: Seq(non-nullable) strand expected Pair, got {:?}",
@@ -107,7 +107,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
         }
 
         Regex::Star(r1) => {
-            let out: Vec<(Regex, Inj)> = pderiv_tree(r1, x)
+            let out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
                 .into_iter()
                 .map(|(r1_, inj1)| {
                     let r1c = (**r1).clone();
@@ -117,10 +117,19 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                     // smart_seq drops the Seq wrapper entirely, so the
                     // downstream value is a bare Star(items), not
                     // Pair(v1, Star(items)).
+                    // `items.push` here, not `insert(0, ..)`: injection
+                    // unwinds in reverse temporal order (Inj::apply runs
+                    // the most-recently-added step first), so building
+                    // left-to-right needs each new iteration prepended.
+                    // `insert(0, ..)` is O(current length) per call, so
+                    // reconstructing an n-iteration Star costs O(n^2)
+                    // total. `push` is O(1) amortized; `select` reverses
+                    // every Star's items exactly once at the very end
+                    // instead (see `reverse_stars`), O(n) total.
                     if r1_ == Regex::Eps {
-                        let f: Inj = Rc::new(move |vs: ParseTree| match vs {
+                        let f: InjStep = Rc::new(move |vs: ParseTree| match vs {
                             ParseTree::Star(mut items) => {
-                                items.insert(0, inj1(ParseTree::Empty));
+                                items.push(inj1(ParseTree::Empty));
                                 ParseTree::Star(items)
                             }
                             other => panic!(
@@ -130,10 +139,10 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
                         });
                         (Regex::star(r1c), f)
                     } else {
-                        let f: Inj = Rc::new(move |v: ParseTree| match v {
+                        let f: InjStep = Rc::new(move |v: ParseTree| match v {
                             ParseTree::Pair(v1, vs) => match *vs {
                                 ParseTree::Star(mut items) => {
-                                    items.insert(0, inj1(*v1));
+                                    items.push(inj1(*v1));
                                     ParseTree::Star(items)
                                 }
                                 other => panic!(
@@ -159,7 +168,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, Inj)> {
 /// closures: for measurement code that only needs the frontier's shape
 /// (size, strand count), not parse-tree reconstruction. `pderiv_bc`'s
 /// one-step primitive is `pub` for the same reason; `pderiv_tree` itself
-/// stays `pub(crate)` since `Inj` is not exported.
+/// stays `pub(crate)` since `InjStep` is not exported.
 pub fn pderiv_tree_residuals(r: &Regex, x: char) -> Vec<Regex> {
     pderiv_tree(r, x).into_iter().map(|(r, _)| r).collect()
 }
