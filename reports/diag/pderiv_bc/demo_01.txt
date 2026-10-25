@@ -1,0 +1,72 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 18:42:42
+Mode:                 Bitcoded Partial-Derivative (pDerivBC)
+Regex:                (a+ab)(b+ε)
+Input:                "ab"
+Result:               MATCH
+Policy:               GREEDY
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.046ms
+Steps:                2
+-------------------------------====
+INITIAL FRONTIER
+-------------------------------====
+[(r0, [])]  where r0 = Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))
+-------------------------------====
+FORWARD PASS (pDerivBC per residual, frontier flattened)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  frontier before (1 residual(s)):
+    [0] Seq(Alt(Lit('a'), Seq(Lit('a'), Lit('b'))), Alt(Lit('b'), Eps))   bits-so-far = []
+  pDerivBC('a', ·) applied to each:
+    from [0]:
+      rule: pDerivBC('a', r1·r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Alt(Lit('b'), Eps), [0])
+      -> (Seq(Lit('b'), Alt(Lit('b'), Eps)), [1])
+  frontier after (2 residual(s)):
+    [0] Alt(Lit('b'), Eps)   bits = [0]
+    [1] Seq(Lit('b'), Alt(Lit('b'), Eps))   bits = [1]
+  a residual in this frontier is nullable  ✓  bits accumulating
+
+Step 2 (char: 'b', position 2)
+  frontier before (2 residual(s)):
+    [0] Alt(Lit('b'), Eps)   bits-so-far = [0]
+    [1] Seq(Lit('b'), Alt(Lit('b'), Eps))   bits-so-far = [1]
+  pDerivBC('b', ·) applied to each:
+    from [0]:
+      rule: pDerivBC('b', r1+r2) = tag(0, pDerivBC('b',r1)) ++ tag(1, pDerivBC('b',r2)), nub2
+      -> (Eps, [0])
+    from [1]:
+      rule: pDerivBC('b', r1·r2)  [nullable(r1)=false]
+           = [(smartC(r1',r2), bs) | (r1',bs) <- pDerivBC(c,r1)]
+      -> (Alt(Lit('b'), Eps), [])
+  frontier after (2 residual(s)):
+    [0] Eps   bits = [00]
+    [1] Alt(Lit('b'), Eps)   bits = [1]
+  a residual in this frontier is nullable  ✓  bits accumulating
+
+-------------------------------====
+SELECTION (first nullable residual, priority/list order)
+-------------------------------====
+any nullable residual in final frontier = true -> proceed to mkEpsBC + decode
+-------------------------------====
+MKEEPSBC + DECODE
+-------------------------------====
+selected residual's accumulated bits ++ mkEpsBC(residual) = [00]
+
+decode((a+ab)(b+ε), [00]):
+  = (Left a, Left b)
+-------------------------------====
+RESULT
+-------------------------------====
+Bits:                 [00]
+Parse tree:           (Left a, Left b)
+Flattened:            "ab"
+-------------------------------====
+END OF REPORT
+-------------------------------====

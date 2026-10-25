@@ -150,6 +150,5 @@ PATHO_ROW_ID=P01 PATHO_N=20,50,100 AGREEMENT_TIMEOUT_MS=5000 \
 
 Saves `reports/demos/parser_agreement_pathological.csv` (summary) and `reports/demos/parser_agreement_pathological_samples.csv` (flagged entries).
 
-Timeouts are expected here. The pathological dataset exists to find each parser's real limit. Membership and shape mismatches are real defects.
+Timeouts are expected here. The pathological dataset exists to find each parser's real limit.
 
-Row `E51` (category L) uses a non-matching `match_input` by design, see its `notes` field. Expect a membership bug entry for it.

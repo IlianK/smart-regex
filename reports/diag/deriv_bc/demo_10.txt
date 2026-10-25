@@ -1,0 +1,59 @@
+-------------------------------====
+REGEX ENGINE DEBUG REPORT
+-------------------------------====
+Timestamp:            2026-10-25 18:42:41
+Mode:                 POSIX Bitcoded
+Regex:                a·b
+Input:                "ac"
+Result:               NO MATCH
+Policy:               POSIX
+-------------------------------====
+TIMING
+-------------------------------====
+Parse time:           0.004ms
+Derivative steps:     2
+-------------------------------====
+INTERNALIZE
+-------------------------------====
+internalize(a·b)
+  rule: internalize(r1 · r2) = []@(internalize r1)(internalize r2)
+ri0 = []@([]@'a' · []@'b')
+-------------------------------====
+FORWARD PASS (deriv_bc + simp)
+-------------------------------====
+Step 1 (char: 'a', position 1)
+  ri0 = []@([]@'a' · []@'b')
+  deriv_bc(ri0, 'a'):
+    rule: (bs@ri1·ri2) \ 'a'  [nullable_bc(ri1)=false]
+         = bs@(ri1\'a'·ri2)
+  simp → []@'b'
+  ri1 = []@'b'
+  nullable_bc(ri1) = false  ✗
+
+Step 2 (char: 'c', position 2)
+  ri1 = []@'b'
+  deriv_bc(ri1, 'c'):
+    rule: (bs@'b') \ 'c' = Phi  [literal mismatch]
+  simp → φ
+  ri2 = φ
+  nullable_bc(ri2) = false  ✗
+
+-------------------------------====
+NULLABILITY CHECK
+-------------------------------====
+nullable_bc(ri2) = false → no full parse tree exists
+-------------------------------====
+PARTIAL RECOVERY
+-------------------------------====
+No prefix matched.
+-------------------------------====
+ERROR SUMMARY
+-------------------------------====
+Failure at position:  2 (1-indexed)
+Found:                'c'
+Expected:             'b'
+  ac
+   ^
+-------------------------------====
+END OF REPORT
+-------------------------------====

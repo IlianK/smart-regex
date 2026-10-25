@@ -25,6 +25,7 @@ cargo build --release --example bench_stack_depth_worker  # for bench_stack_dept
 
 Neither `*_translate` target needs a worker. Both measure `core_regex` only, which bounds itself via a depth and node cap before the expensive part runs.
 
+
 ## Configuration
 
 Every target reads configuration from the environment. No flags, no CLI arguments.
@@ -65,6 +66,7 @@ Short notes on the more involved variables.
 
 If filtering loads nothing, these targets panic naming the active filters.
 
+
 ## bench_corpus_time
 
 ```bash
@@ -94,6 +96,7 @@ With `BENCH_SPLIT_OUTCOME=1`, a second table splits time by match and non-match.
 
 Also writes `..._entries.csv`. One row per measurement, with columns `source,parser,pattern,input,expected_match,outcome,micros,encode_micros,derive_micros,decode_micros`. Pattern and input text included, truncated past 200 characters. Filter to one `pattern` and compare across parsers.
 
+
 ## bench_corpus_memory
 
 ```bash
@@ -116,6 +119,7 @@ Also writes `..._entries.csv`, one row per measurement, with columns `source,par
 
 `deriv_std_rec` and `deriv_std_loop` allocate noticeably more than `deriv_bc`, `pderiv_bc`, and `pderiv_std`. `deriv_std` retains its whole derivation sequence. `deriv_bc` reassigns one `ARegex` in place.
 
+
 ## bench_corpus_translate
 
 No worker needed.
@@ -137,6 +141,7 @@ Three outputs.
 | `reports/benches/bench_corpus_translate{label}_patterns.csv` | One row per distinct pattern, with the translated `Regex`'s own `Debug` rendering when under `BENCH_TRANSLATE_RENDER_MAX_NODES`. Catalogue to hand-pick thesis examples from. |
 | `reports/demos/translation_examples.txt` | The `BENCH_TRANSLATE_EXAMPLES` smallest patterns per source, fully rendered. Never labelled. |
 
+
 ## bench_pathological_time
 
 ```bash
@@ -149,6 +154,7 @@ Entries grouped by category (A to L). Reported the same way as `bench_corpus_tim
 Writes `reports/benches/bench_pathological_time.csv` (category and parser summary) and `..._entries.csv`, one row per measurement, with columns `row_id,category,parser,n,p,side,pattern,input,outcome,micros,encode_micros,derive_micros,decode_micros`. Pattern and input text included, truncated past 200 characters.
 
 Filter the entries file to one `row_id` and `parser`, sort by `n`, and you have a single pattern's (input size, time) curve.
+
 
 ### Per-row scaling and Fig 7 sweeps
 
@@ -187,6 +193,7 @@ PATHO_ROW_ID=P25,P27,P28 PATHO_N=5000,10000,30000,50000,200000 \
 These are starting points. Raise or lower timeouts and caps once real run costs on the target machine are known.
 
 
+
 ## bench_pathological_memory
 
 ```bash
@@ -194,6 +201,7 @@ cargo bench --bench bench_pathological_memory
 ```
 
 Same dataset, grouping, sweep, `PATHO_*` variables, worker, and timeout and crash accounting as `bench_pathological_time`. Reports `total_bytes`, `avg_bytes`, and `max_peak` instead of durations. Writes `reports/benches/bench_pathological_memory.csv` and `..._entries.csv`, with `total_bytes` and `peak_bytes` in place of the micros columns.
+
 
 ## bench_pathological_translate
 
@@ -210,6 +218,7 @@ Categories C, D, J, and K stress compile and translate blow-up as their own stre
 Sweeps `PATHO_P` for a `generated_patterns` row with a `generator` (J and K). Sweeps `PATHO_N` for a `pattern_template` row with no generator (category D, where the unrolled quantifier bound is `n`, not `p`). Other rows are measured once.
 
 Writes `reports/benches/bench_pathological_translate.csv`, one row per category, with a `translated` and `rejected` and `crashed` split. Appended, like `bench_corpus_translate.csv`. Also writes `..._patterns.csv`, one row per distinct row, `p`, and `n` entry. Overwritten each run.
+
 
 ## bench_stack_depth
 
@@ -240,7 +249,7 @@ Default rows.
 
 
 
-## Running a full set
+## Quick reference
 
 Corpus and pathological commands set `BENCH_RUN_LABEL` so each CSV lands in its own file under `reports/benches/`. Naming scheme is `<dataset><axis><tier>`. `C` or `P` for corpus or pathological. `T`, `M`, or `X` for time, memory, or translate. `0` or `1` for smoke or full sweep.
 
