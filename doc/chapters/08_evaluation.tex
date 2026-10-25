@@ -14,29 +14,33 @@ Chapters~\ref{sec:derivative-parser} and
 \end{itemize}
 
 Three aspects are covered.
-Section~\ref{sec:eval-dataset} describes
-how the corpus is prepared and how the verified inputs are generated
-from real patterns.
+Section~\ref{sec:eval-dataset} describes the two data sources the rest
+of the chapter draws on: a real, human-authored corpus with its own
+given examples, and a hand-curated synthetic set built specifically to
+stress the parsers' asymptotic behaviour. Neither source needs a
+candidate-input generator of the kind a corpus without given examples
+would require; the two differ in how their inputs come to exist, not
+in whether they are real measurements.
 Section~\ref{sec:eval-agreement} then checks, on the prepared corpus,
 how often the POSIX parsers and the non-POSIX parsers agree on the
 shape of the parse tree they build for the same pattern and input.
 The main focus of the chapter, however, is
 Section~\ref{sec:eval-performance}, which compares the four variants
-on execution time and memory consumption, on both synthetic inputs and
-the prepared corpus.
+on execution time and memory consumption, on both the synthetic set
+and the real corpus.
 
 The chapter is organised as follows.
-Section~\ref{sec:eval-dataset} describes the corpus and the pipeline
-that produces the benchmark inputs.
+Section~\ref{sec:eval-dataset} describes both datasets and the
+pipeline that prepares the real one.
 Section~\ref{sec:eval-agreement} verifies parser agreement.
 Section~\ref{sec:eval-performance} presents timing and memory results.
 Section~\ref{sec:eval-discussion} interprets them.
 
 All measurements are produced by binaries under \texttt{benches/} and
 \texttt{examples/}, run with a fixed \texttt{--release} profile. The
-synthetic benchmarks are Criterion targets; the two corpus
-measurements are plain reporting binaries, run once per source, for
-the reasons given in \texttt{BENCHMARKS.md}.
+corpus and synthetic measurements are plain reporting binaries run
+once per source, for the reasons given in \texttt{BENCHMARKS.md}, not
+Criterion targets.
 
 % =====================================================================
 % 8.1 Dataset Preparation
@@ -45,525 +49,447 @@ the reasons given in \texttt{BENCHMARKS.md}.
 \section{Dataset Preparation}
 \label{sec:eval-dataset}
 
-% ---- CHANGED: source selection now names all five; the eval uses two ----
-\subsection{Source selection}
+\subsection{Two datasets, not one}
+\label{sec:eval-two-datasets}
 
-The pipeline supports five pattern sources. Two of them are used in
-this evaluation: Snort/Suricata and SpamAssassin. Both are maintained
-upstream, their syntax is documented by the projects that publish
-them, and their patterns are exercised in production. This makes the
-corpus a reasonable proxy for the patterns a real parser will
-encounter.
+The evaluation draws on exactly two pattern sources, chosen for two
+different jobs.
 
-The remaining three sources --- RegexLib, S2ELab, and Innovatorved
---- are opt-in. RegexLib and Innovatorved are crowd-sourced and carry
-no correctness guarantee; Innovatorved's test text is unlabeled.
-S2ELab is a curated academic benchmark, but not a maintained
-production rule set in the way the two used here are. They are
-described in Section~\ref{sec:eval-input-generation} for
-completeness, since the pipeline handles them, but no results in this
-chapter are drawn from them.
+\textbf{S2ELab} is a real, human-authored benchmark: 762 patterns,
+each with a natural-language description and the author's own labeled
+\texttt{matches}/\texttt{non\_matches}.\footnote{Published as
+\emph{Re(gEx|DoS)Eval: Evaluating Generated Regular Expressions and
+their Proneness to DoS Attacks}, ICSE-NIER 2024 (DOI:
+10.1145/3639476.3639757); dataset at
+\url{https://github.com/s2e-lab/RegexEval}. (TODO: replace this
+footnote with a \texttt{references.bib} entry and a proper citation
+once the full author list is confirmed from the paper directly.)} It
+supplies
+\emph{realistic} measurements --- how the four parser variants behave
+on patterns a person actually wrote, with inputs that person actually
+judged to match or not. Section~\ref{sec:eval-s2elab} explains why it
+was chosen over the other candidate sources, and
+Section~\ref{sec:eval-pipeline} describes the pipeline that turns it
+into benchmark input.
 
-The corpus is the union of every rule file fetched as described in
-\texttt{DATASET.md}: 47 Snort rule files under
-\texttt{data/raw/snort}, totalling 16{,}774 extracted patterns, and 62
-SpamAssassin rule files under \texttt{data/raw/spamAssassin}, totalling
-549 extracted patterns.
+\textbf{The pathological stress set} is the opposite kind of dataset:
+113 hand-curated patterns, organised into categories by the specific
+complexity mechanism each one is built to trigger, with no given
+examples at all. Its job is \emph{controlled} measurement --- holding
+every variable fixed except the one a category exists to stress
+(input length, pattern size, or both) and sweeping it by a chosen,
+reproducible amount. Section~\ref{sec:eval-pathological} describes it.
 
-The two sources differ in character, and this difference matters for the
-rest of the chapter.
+Both are read-only inputs to the benchmarks; neither is synthesised at
+benchmark time. The distinction that matters for the rest of this
+chapter is not ``real versus fake'' --- every pattern in both sets is
+a real regular expression, benchmarked with the real parsers --- but
+\emph{where the inputs come from}: S2ELab's inputs are given by a
+human author and kept as given; the pathological set's inputs are
+derived mechanically from a pattern's own stress parameter, because no
+corpus of real-world patterns reliably contains an example of, say,
+\texttt{(a+)+} swept across ten input lengths on request. Every table
+in Sections~\ref{sec:eval-agreement}--\ref{sec:eval-performance} is
+labeled by which of the two it was measured on, and the two are never
+pooled into one figure.
 
-Snort signatures are byte-oriented and often written to defeat
-obfuscation. A typical pattern mixes hexadecimal escapes, alternation
-over syntactic variants, and a case-insensitive flag:
+Four other sources --- Snort/Suricata, SpamAssassin, RegexLib, and
+Innovatorved --- were extracted and translated at an earlier stage of
+this project and remain readable by the frontend's own diagnostic
+tooling (\texttt{dataset\_stats}), but no longer feed either benchmark
+dataset: Snort and SpamAssassin ship no given examples at all, and
+RegexLib's and Innovatorved's labels carry no author guarantee. Using
+either would have reintroduced exactly the heuristic input-generation
+machinery Section~\ref{sec:eval-s2elab} explains this evaluation now
+avoids.
 
-\begin{verbatim}
-/Authorization\x3a\s*Basic\s*[a-zA-Z0-9]{255,}==/i
-/eval\x28(String\x2EfromCharCode\x28
-      |[a-z,0-9]{1,20}\x28String\x2EfromCharCode\x28)/i
-\end{verbatim}
+\subsection{Why S2ELab}
+\label{sec:eval-s2elab}
 
-The first matches HTTP \texttt{Authorization: Basic} headers with an
-unusually long base64 payload; the second matches two spellings of the
-JavaScript \texttt{eval(String.fromCharCode(...))} idiom. Both are long
-enough that a derivative parser's state grows visibly across the match.
+A benchmark corpus for a membership-deciding parser needs, for every
+pattern, both a string that is claimed to match and one that is
+claimed not to. A source that does not ship such pairs has to
+manufacture them --- walk the pattern's own language and hope the
+walk is representative, or corrupt a positive and hope the corruption
+is a meaningful negative. Either way, the resulting input reflects the
+sampler's own bias, not a judgement any person made about the
+pattern. S2ELab is the one source available to this project that
+avoids that problem entirely: every one of its 762 patterns ships
+with the original author's own \texttt{matches} and
+\texttt{non\_matches}, so the benchmark corpus is built from real
+judgements end to end, with no generation step in between.
 
-SpamAssassin rules are keyword-oriented and much shorter. A typical
-pattern is a single word with optional separators, plus a case-insensitive
-flag:
-
-\begin{verbatim}
-/xan[ae]x/i
-/l.{0,2}e.{0,2}v.{0,2}i.{0,2}t.{0,2}r.{0,2}a/i
-/boundary="[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}"/
-\end{verbatim}
-
-The first matches the drug name \emph{Xanax}; the second matches the word
-\emph{levitra} with up to two arbitrary characters between letters, a
-common spammer evasion; the third validates a MIME boundary UUID. Their
-short length is why the SpamAssassin corpus produces smaller but more
-numerous per-pattern measurements.
-
-Each source is chosen to exercise a different combination of the cost
-drivers introduced in Section~\ref{sec:eval-cost-drivers}: Snort for
-long inputs, S2ELab and RegexLib for structural variety, SpamAssassin
-as a short-pattern baseline.
-
-
-% ---- CHANGED: extraction commands now include <N> ----
-\subsection{Extraction}
-
-Extraction is the first stage of the pipeline. Each source file is read
-line by line, and patterns are pulled out as described in
-\texttt{src/data/extract.rs}: for Snort, every \texttt{pcre:"..."}
-option paired with its \texttt{content:} fields, \texttt{msg}, and
-\texttt{sid}; for SpamAssassin, every \texttt{header} and \texttt{body}
-rule.
-
-The pipeline was run with a per-pattern target of $N=10$ verified
-inputs, split evenly into five matches and five non-matches:
-
-\begin{verbatim}
-cargo run --release --example dataset_prepare -- \
-    10 suricata data/raw/snort/*.rules
-cargo run --release --example dataset_prepare -- \
-    10 spamassassin data/raw/spamAssassin/*.cf
-\end{verbatim}
-
-The first positional argument is the per-pattern target $N$: the total
-number of verified inputs each surviving pattern contributes, split
-evenly between matches and non-matches. It is required and must be a
-positive even integer. An optional literal \texttt{--} between $N$ and
-the source name is accepted and skipped.
-
-% ---- input generation unchanged except for slack note ----
-\subsection{Input generation}
-\label{sec:eval-input-generation}
-
-Every accepted pattern needs inputs before it can be benchmarked: at
-least $N/2$ matching and $N/2$ non-matching. The five sources differ
-in whether they supply such inputs themselves, and if so, in what
-form.
+The second reason is specific to the full-string-matching model fixed
+in Chapter~\ref{sec:frontend}. Table~\ref{tab:source-match-intent}
+compares all five candidate sources by what fraction of their accepted
+patterns carry an unambiguous top-level \texttt{\textasciicircum...\textdollar}
+wrap --- the one anchor shape Chapter~\ref{sec:frontend}'s frontend
+can recover losslessly under full-string matching
+(Section~\ref{sec:frontend-anchor-recovery}). S2ELab is the clear
+outlier: 80.1\% of its accepted patterns carry that wrap, against
+59.4\% for RegexLib and under a third for the three search-oriented
+sources. A source's own authors write for a search-based engine by
+default and mark full-match intent only when they mean it; S2ELab's
+patterns are written to be tested against committed labels, so authors
+mark intent far more often. That difference is exactly what this
+project's full-string-matching model needs most.
 
 \begin{table}[ht]
 \centering
 \small
-\begin{tabular}{lll}
+\begin{tabular}{lrr}
 \hline
-Source & Given input? & Generation strategy \\
+Source & Full-match wrap & \% \\
 \hline
-Suricata     & no                    & structural + content-derived \\
-SpamAssassin & no                    & structural + corpus sample \\
-RegexLib     & no                    & structural \\
-S2ELab       & yes (labeled)         & given, with structural fill \\
-Innovatorved & yes (unlabeled)       & given, with structural fill \\
+Snort        &  459 & 22.0 \\
+SpamAssassin &   23 & 14.8 \\
+RegexLib     & 1291 & 59.4 \\
+Innovatorved & 1445 & 30.1 \\
+\textbf{S2ELab} & \textbf{463} & \textbf{80.1} \\
 \hline
 \end{tabular}
-\caption{Source of candidate inputs per dataset.}
-\label{tab:input-generation}
+\caption{Of each source's accepted patterns, how many carry an
+explicit top-level \texttt{\textasciicircum...\textdollar} wrap.
+S2ELab's patterns are written against committed labels and mark
+full-match intent far more consistently than the four search-oriented
+sources.}
+\label{tab:source-match-intent}
 \end{table}
 
-%
+\subsection{Anchors and full-match intent}
+\label{sec:eval-anchors}
 
-\paragraph{Suricata.}
-A Snort rule is a conjunction of constraints; nothing in it is a
-complete candidate string. The extractor takes the first
-\texttt{pcre:"..."} option on the rule line and ignores any subsequent
-one, so a rule that carries two distinct patterns contributes one to
-the corpus, not two. The \texttt{content:} fields on the same line are
-not input: they are fragments a triggering payload must contain, with
-positional constraints (\texttt{distance}, \texttt{within},
-\texttt{depth}, \texttt{offset}) that the pipeline parses but does not
-enforce. Generation runs two strategies in parallel.
-\texttt{generate\_sample} walks the translated \texttt{Regex} and
-produces structural positives and negatives.
-\texttt{generate\_from\_content\_fields} concatenates the extracted
-\texttt{content:} bytes with a short filler between fields, producing
-strings shaped like real payloads. Both feed the same verification
-pass; only candidates that match the translated pattern (or fail late,
-for negatives) survive. A Snort rule with \texttt{pcre:} but no
-\texttt{content:} generates candidates only via the structural sampler;
-a rule with \texttt{content:} but no \texttt{pcre:} is skipped entirely
-by the extractor, since there is no pattern to translate.
+Chapter~\ref{sec:frontend} already fixed how anchors are treated: a
+pattern is rejected if it contains \texttt{\textasciicircum} or
+\texttt{\textdollar} anywhere except as a single top-level
+\texttt{\textasciicircum...\textdollar} wrap around the whole pattern,
+in which case the wrap is provably redundant under full-string
+matching and is stripped before translation
+(Section~\ref{sec:frontend-anchor-recovery}). Nothing in this chapter
+changes that mechanism; what this section adds is which of its two
+outcomes a given pattern reaches, and what that means for which
+results get reported.
 
-%
+\textbf{S2ELab.} Regular-expression authors commonly signal ``this
+whole string is what I mean'' by wrapping a pattern in
+\texttt{\textasciicircum...\textdollar}, and many S2ELab entries follow
+that convention --- the worked example in
+Section~\ref{sec:eval-worked-pipeline} is one. Every accepted S2ELab
+pattern therefore falls into one of two groups: 463 carry the
+top-level wrap and have it stripped by Chapter~\ref{sec:frontend}'s
+recovery mechanism, landing on the engine's native full-match reading
+with no ambiguity about what was intended; the remaining 115 carry no
+anchor at all and are translated unchanged, still matched under this
+project's only semantics (full-string), but with no way to tell from
+the pattern itself whether the author meant a full match or a search
+that this project does not implement. Both groups are prepared and
+written to the corpus, since dropping either at preparation time would
+foreclose a methodological choice that belongs in the benchmarks, not
+the pipeline.
 
-\paragraph{SpamAssassin.}
-Each \texttt{header} or \texttt{body} rule carries one pattern, and no
-test messages are shipped with the rules. Generation is structural plus,
-when a local ham/spam corpus is configured through \texttt{--corpus-dir},
-a scan of that directory for messages whose entire content matches the
-pattern. Under full-string matching the corpus scan finds little against
-a real corpus, since most real messages are not themselves exact matches
-of a short pattern; the structural sampler is what supplies the bulk of
-the surviving inputs.
+That choice is made once, uniformly: every benchmark in this chapter
+defaults to measuring the 463 full-match-wrapped patterns only,
+because reporting a number for the remaining 115 would silently
+assume a reading of the pattern its own author never committed to.
+(Both groups remain fully available on opt-in, since the choice is a
+default, not a dataset deletion.) Section~\ref{sec:eval-agreement} and
+Section~\ref{sec:eval-performance} therefore report S2ELab figures
+over 463 patterns, not 578.
 
-%
+\textbf{The pathological stress set.} The same question does not
+arise there in the first place. Every pathological pattern is
+hand-written directly against the engine's own full-string-matching
+model --- there is no external authoring convention to interpret,
+because the patterns were authored for this project. None of them
+contains an anchor: verified directly against
+Chapter~\ref{sec:frontend}'s own frontend, \texttt{\textasciicircum},
+\texttt{\textdollar}, word boundaries, backreferences, lookaround, and
+POSIX classes all hard-reject at parse or translate time, so none of
+those constructs appear in the set at all. The pathological set
+complies with Chapter~\ref{sec:frontend}'s model by construction,
+not by a recovery step applied after the fact.
 
-\paragraph{RegexLib.}
-Structural generation only. No side input is available from the source.
+\subsection{The S2ELab pipeline}
+\label{sec:eval-pipeline}
 
-%
+No input is generated, derived, or heuristically assembled for
+S2ELab. \texttt{run\_pipeline} turns the raw JSON into the benchmark
+corpus in seven steps.
 
-\paragraph{S2ELab.}
-Each entry ships with author-labeled \texttt{matches} and
-\texttt{non\_matches}. Generation prefers these: they are wrapped as
-candidates unchanged, deduplicated across both sides, and passed to
-verification. If after verification either side has fewer than $N/2$
-cases, structural sampling fills the gap, so a pattern with fewer given
-examples than the target is still usable provided its own language
-admits additional draws. A pattern whose given lists are empty on one
-side \emph{and} whose language is too small to sample from cannot reach
-the target and is excluded.
+\begin{enumerate}
+  \item \textbf{Extract.} Each entry's pattern and its author's own
+        \texttt{matches}/\texttt{non\_matches} become one
+        \texttt{ExtractedRule}.
+  \item \textbf{Deduplicate.} A pattern byte-identical to one already
+        seen this run is skipped; its fate is already decided.
+  \item \textbf{Translate.} \texttt{core\_regex\_tagged}
+        (Chapter~\ref{sec:frontend}) parses and translates, applying
+        the one anchor recovery described in
+        Section~\ref{sec:eval-anchors}. A pattern the frontend rejects
+        stops here.
+  \item \textbf{Deduplicate examples.} A string appearing in both
+        \texttt{matches} and \texttt{non\_matches} is kept once, as a
+        positive --- the stronger claim.
+  \item \textbf{Check labels.} Every surviving example is re-checked
+        against the real translated \texttt{Regex}. A disagreement is
+        dropped, not corrected: the dataset's claim did not hold under
+        this project's own semantics.
+  \item \textbf{Balance per pattern.} Described in
+        Section~\ref{sec:eval-balance}.
+  \item \textbf{Write.} Each surviving pair becomes one line of
+        \texttt{prepared.jsonl} under \texttt{data/processed/s2-elab/},
+        tagged with which of the two anchor groups it came from.
+\end{enumerate}
 
-%
-
-\paragraph{Innovatorved.}
-Each entry ships with free-form test text --- a mix of matching and
-non-matching lines with no marker saying which is which. Generation
-prefers this text: it is split into lines, deduplicated, sampled down to
-a cap, and each surviving line is classified against the real parser
-(matching or not) before being handed to verification as any other
-candidate. If after verification either side has fewer than $N/2$ cases,
-structural sampling fills the gap, as for S2ELab. A pattern with no test
-text, or with test text that yields too few surviving cases on one side
-and a language too small to sample from, is excluded.
-
-%
-
-\paragraph{Common rule.}
-In every case, candidates that do not match their claimed outcome under
-the real parser are discarded, and negatives must additionally fail
-\emph{late} --- past two thirds of the input --- to count as meaningful.
-The balanced target of exactly $N/2$ matches and $N/2$ non-matches per
-pattern, described in Section~\ref{sec:eval-worked-pipeline}, applies to
-all five sources: whether an input comes from the source itself or from
-structural fill, the balanced corpus carries the same count per pattern
-and the same split.
-
-% ---- NEW: candidate budget ----
-\paragraph{Candidate budget.}
-Candidate generation is bounded per pattern. Each strategy produces at
-most $\mathit{slack} \times (N/2)$ candidates per side, where
-$\mathit{slack}$ is tuned per source by how reliably that source's
-candidates verify: structural sampling walks the pattern's own language
-and needs no slack ($1$); content-derived and corpus messages are real
-bytes and also verify reliably ($1$); given examples and classified
-lines often fail and need more room ($3$ for RegexLib, $5$ for S2ELab,
-$10$ for Innovatorved). The cap is what makes the pipeline's per-pattern
-cost independent of the size of a rule file.
-
-% ---- worked example unchanged ----
 \subsection{A worked example through the pipeline}
 \label{sec:eval-worked-pipeline}
 
-Before the aggregate counts, one pattern is traced from raw text to
-prepared case, so that the later tables have a concrete referent.
-
-Consider the Snort rule:
+One entry is traced end to end, so the later tables have a concrete
+referent. S2ELab entry 100 (fields trimmed):
 
 \begin{verbatim}
-alert http $EXTERNAL_NET $HTTP_PORTS -> $HOME_NET any (
-  msg:"ET WEB_CLIENT Possible IE URI Validation";
-  content:"#|3A|../../"; content:"C|3A 5C|";
-  nocase; within:50;
-  pcre:"/\x2E\x2E\x2F\x2E\x2E\x2F.+C\x3A\x5C[a-z]/si";
-  sid:2010798; rev:4;)
+{
+  "expression":
+    "^(0[1-9]|1[0-2])\/((0[1-9]|2\d)|3[0-1])\/(19\d\d|200[0-3])$",
+  "matches": ["12/31/2003", "01/01/1900", "11/31/2002", ...],
+  "non_matches": ["1/1/2002", "01/01/02", "01/01/2004",
+                  "12/123/4322", ...]
+}
 \end{verbatim}
 
-\paragraph{Extract.} The extractor scans the line for \texttt{pcre:"...}
-and \texttt{content:"..."}. It produces one \texttt{ExtractedRule} whose
-\texttt{raw\_pattern} is \texttt{/\textbackslash x2E\textbackslash
-x2E\textbackslash x2F.../si}, and whose source-specific context records
-two \texttt{content:} fields (\texttt{\#:../../} and \texttt{C:\textbackslash}),
-a \texttt{msg}, and a \texttt{sid}.
+The natural-language description behind this entry asks for a date
+between January 1900 and December 2003 in \texttt{MM/DD/YYYY} form;
+the pattern is the author's own attempt at that, anchors included.
 
-\paragraph{Translate.} \texttt{core\_regex\_tagged} strips the
-\texttt{/.../si} wrapper, applies \texttt{case\_fold} for the \texttt{i}
-flag, leaves \texttt{.} as the full alphabet since the \texttt{s} flag is
-set, and translates the remaining pattern to a \texttt{Regex}. The result
-carries \texttt{MatchIntent::UnanchoredAmbiguous}, since the pattern has
-no top-level \texttt{\textasciicircum...\textdollar} wrap.
+\paragraph{Extract.} One \texttt{ExtractedRule} carrying the raw
+expression and the two given lists unchanged.
 
-\paragraph{Generate.} Because the rule is Snort and the extractor
-recorded two \texttt{content:} fields, generation runs in two ways. The
-structural sampler walks the translated \texttt{Regex} and produces
-strings from the pattern's own language. The content-derived sampler
-joins the \texttt{content:} bytes with a short filler between them, and
-produces strings that look like real HTTP requests:
+\paragraph{Translate.} The pattern's top level is a single
+\texttt{Concat} opening with \texttt{\textasciicircum} and closing with
+\texttt{\textdollar}, so Section~\ref{sec:frontend-anchor-recovery}'s
+recovery applies: both anchors are stripped before translation, and
+the entry is tagged as a full-match pattern.
 
-\begin{verbatim}
-#:../../C:\
-#:../../xxC:\a
-#:../../abC:\z
-\end{verbatim}
+\paragraph{Check labels.} Every given example is run through the
+translated \texttt{Regex}. The check is against the pattern's own
+semantics, not against real-world correctness: \texttt{"11/31/2002"}
+is listed as a \texttt{match}, and \emph{is} one under the translated
+pattern, since the day group (\texttt{(0[1-9]|2\textbackslash
+d)|3[0-1]}) accepts \texttt{31} regardless of which month group
+matched --- the pattern never correlates the two, so it silently
+accepts a November 31st that the calendar does not have. The label
+check keeps this example, correctly: the author's claim and the
+pattern's own language agree, and whether the pattern itself
+encodes a real calendar is a question the check cannot and does not
+answer. A different S2ELab entry's claim can still disagree with its
+own translated pattern --- that is what
+\texttt{inputs\_label\_mismatch} counts --- but this one does not
+illustrate it.
 
-The filler between the two fields is drawn from the pattern's own
-language, so the generated string stays compatible with the pattern's
-match constraint.
+\paragraph{Balance.} The entry's surviving matches and non-matches are
+truncated to the shorter side's count, as Section~\ref{sec:eval-balance}
+describes for the whole corpus.
 
-\paragraph{Verify.} Each candidate is checked against the real parser.
-Structural positives and content-derived candidates are asserted to
-match; structural negatives (produced by corrupting the last character of
-a positive) are asserted not to match, and additionally asserted to fail
-\emph{late} --- after at least two-thirds of the input. Candidates that
-fail verification are discarded. Surviving candidates are written to
-\texttt{data/processed/snort/prepared.jsonl} as one JSON line per case.
+\paragraph{Write.} The surviving pairs are appended to
+\texttt{prepared.jsonl}, each line carrying the pattern, the input, the
+claimed outcome, and the full-match tag.
 
-This worked example is the pattern the rest of the chapter refers to when
-it discusses \emph{generated} versus \emph{verified} candidates.
-
-Input generation is bounded by two distinct limits. The first is
-sampling effort: a rich language such as \texttt{[a-z]+} admits
-infinitely many matching strings, but the sampler draws them randomly
-and can spend many attempts producing duplicates before reaching the
-target count. This limit is practical, not fundamental, and is
-addressed by retrying with a larger attempt budget. The second is the
-language's own size. A pattern such as \texttt{a\{3\}} denotes exactly
-one string, and no amount of sampling can produce ten distinct matching
-inputs from it. This limit is fundamental: the pattern's language is
-smaller than the target count, and it cannot be met by any generation
-strategy. Patterns that fall into the second category are recorded as
-unusable at generation and are not written to \texttt{prepared.jsonl},
-since admitting a pattern with fewer than the standard number of inputs
-would make its benchmark results incomparable to the rest of the
-corpus.
+This worked example is the entry the rest of the chapter refers to
+when it discusses a label check in concrete terms, and it is also why
+the check exists: a real, human-authored corpus contains real human
+mistakes, and benchmarking against an uncorrected label would silently
+fold that mistake into every parser's measured accuracy.
 
 % ---- corpus overview unchanged ----
 \subsection{Corpus overview}
+\label{sec:eval-corpus-overview}
 
-Table~\ref{tab:corpus-coverage} shows the aggregate extraction counts.
-Snort contributes 16{,}774 extracted patterns; SpamAssassin 549. This
-three-order-of-magnitude gap is expected: Snort rule lines can carry
-several \texttt{pcre:} options and each is extracted separately, while
-SpamAssassin exposes at most one pattern per rule.
+Table~\ref{tab:corpus-coverage} shows the real run of the pipeline
+above over all 762 S2ELab entries.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrrr}
+\begin{tabular}{lr}
 \hline
-Source & Files & Extracted & Accepted & \% & Rejected & \% \\
+Stage & Count \\
 \hline
-Snort        & 47 & 16774 & 6123 & 36.5 & 10651 & 63.5 \\
-SpamAssassin & 62 &   549 &  162 & 29.5 &   387 & 70.5 \\
+Extracted                                  & 762 \\
+Duplicate raw pattern text (skipped)       &   7 \\
+Rejected by the frontend                   & 177 \\
+Accepted (translated)                      & 578 \\
+\quad of which, full-match wrap recovered  & 463 \\
+\quad of which, no anchor at all           & 115 \\
+Usable (at least one match and one non-match surviving the label check) & 572 \\
 \hline
-Total        & 109 & 17323 & 6285 & 36.3 & 11038 & 63.7 \\
+Given examples written to the corpus       & 13{,}248 \\
+\quad dropped, label disagreed with the real \texttt{Regex} & 255 \\
+\quad dropped, per-pattern balance (Section~\ref{sec:eval-balance}) & 779 \\
 \hline
 \end{tabular}
-\caption{Corpus coverage after extraction and translation.}
+\caption{S2ELab corpus preparation, full run.}
 \label{tab:corpus-coverage}
 \end{table}
 
-The overall acceptance rate of 36.3\% is not a frontend deficiency. The
-rejected majority are patterns the four parsers in this thesis cannot
-meaningfully evaluate: lookaround assertions and backreferences are not
-regular, and anchors fall outside the full-string matching model chosen
-in Chapter~\ref{sec:frontend}. The acceptance rate differs by source:
-Snort's 36.5\% is dominated by patterns that carry an explicit
-\texttt{\textasciicircum...\textdollar} wrap, which
-\texttt{core\_regex\_tagged} recovers; SpamAssassin's 29.5\% has more
-word-boundary rejections, since SpamAssassin uses
-\texttt{\textbackslash b} pervasively to anchor keyword matches.
+The frontend's 177 rejections (23.2\% of extracted patterns, a far
+smaller share than the multi-source corpora this project used earlier)
+break down as: 106 anchor (a lone or nested
+\texttt{\textasciicircum}/\texttt{\textdollar}, not the recoverable
+top-level wrap), 43 lookaround, 23 word boundary, 3 backreference, and
+2 other (the \texttt{MAX\_BOUND} repetition cap). None carry the
+\texttt{m}/\texttt{x} flags this evaluation's corpus already excludes
+by construction, since S2ELab entries are plain expressions with no
+PCRE flag suffix.
 
-%
+\subsection{Per-pattern balance}
+\label{sec:eval-balance}
 
-\subsection{Match intent}
+A pattern with 40 given matches and 2 given non-matches would, left
+as given, contribute 40 positive measurements and 2 negative ones ---
+not because matching is 20 times more representative for that
+pattern, but because its author happened to write more positive
+examples. After the label check, each usable pattern's longer side
+(matches or non-matches) is truncated to its shorter side's count,
+keeping the first surviving examples in their original order. A
+pattern with fewer than one example on either side is excluded
+entirely rather than balanced against zero.
 
-Accepted patterns are tagged with one of two \texttt{MatchIntent}
-values, described in \texttt{DATASET.md}.
+Patterns are \emph{not} balanced against each other: a pattern with 50
+surviving examples on each side keeps all 50, even though another
+pattern in the same corpus has only one of each. An earlier version of
+this pipeline did also truncate every pattern down to the single
+rarest pattern's own count, so that one thinly-labeled pattern dragged
+every other pattern in the corpus down to its level; on the real
+S2ELab data this meant almost every pattern lost nearly all of its
+given examples to equalize against a single outlier. That stage is
+removed. Section~\ref{sec:eval-macro-average} explains what replaced
+it, and why the replacement needs no truncation at all.
 
-\begin{table}[ht]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrr}
-\hline
-Source & Direct & \% & Explicit \texttt{\textasciicircum...\textdollar} & \% \\
-\hline
-Snort        & 5573 & 91.0 & 550 & 9.0 \\
-SpamAssassin &  139 & 85.8 &  23 & 14.2 \\
-\hline
-Total        & 5712 & 90.9 & 573 & 9.1 \\
-\hline
-\end{tabular}
-\caption{Accepted patterns by match intent.}
-\label{tab:corpus-match-intent}
-\end{table}
+\subsection{Why macro-averaging, not more truncation}
+\label{sec:eval-macro-average}
 
-The distribution is skewed toward \texttt{UnanchoredAmbiguous}. Snort and
-SpamAssassin's own engines search a buffer by default, and their rule
-authors write accordingly. Only 9\% of accepted patterns carry an
-explicit full-match wrapper.
+Removing the dataset-wide truncation reintroduces the imbalance it was
+built to avoid, just one level up: once patterns are allowed to keep
+however many examples they actually have, a pattern with 50 surviving
+examples contributes 50 times as many individual measurements to a
+flat, pooled average as a pattern with 1. A flat mean over every
+measured input would then be dominated by whichever patterns happen
+to be the most heavily labeled, which has nothing to do with how hard
+any of them is to parse.
 
-Both intents are generated for. Positives are sound under either reading,
-so the benchmark inputs are used unchanged.
+The fix is to change what is averaged, not to throw inputs away to
+force every pattern to the same count. Section~\ref{sec:eval-timing}
+and Section~\ref{sec:eval-memory} compute each pattern's own mean
+first, then take the unweighted average of those per-pattern means ---
+a \emph{macro-average}. Every pattern counts once in that average,
+regardless of how many given examples it happened to ship with, and
+no example is discarded to make the counts line up. The median,
+99th-percentile, and maximum figures reported alongside the mean are
+left as flat statistics over every individual measured input, since
+they answer a different question on purpose: not ``how costly is the
+typical \emph{pattern}'', which the macro-average answers, but ``how
+bad does the single worst \emph{input} get'', where weighting by
+pattern is not the relevant correction.
 
-%
+\subsection{The pathological stress set}
+\label{sec:eval-pathological}
 
-\subsection{Rejection causes}
+Section~\ref{sec:eval-two-datasets} introduced the second dataset as a
+hand-curated, template-generated set rather than a corpus. This
+section describes how it is built and what it is for.
 
-Table~\ref{tab:corpus-rejections} disaggregates the rejected patterns by
-the reason the frontend gave. The table is transposed for legibility: the
-causes, which are short, are rows, and the sources are columns.
+A real corpus answers ``how do the parsers behave on patterns people
+actually write''; it does not reliably answer ``how does
+\texttt{deriv\_std}'s state size grow as input length doubles'',
+because no real author sets out to write ten variants of
+\texttt{(a+)+} at ten chosen lengths. The pathological set exists to
+answer exactly that second kind of question: each row is a single,
+deliberately chosen regular expression, built to isolate one specific
+complexity mechanism (nested quantifiers, overlapping alternation,
+bounded repetition over a star, and so on), together with a rule for
+turning one swept parameter --- an input length $n$, a pattern size
+$p$, or both --- into a concrete (pattern, input) pair at any scale
+the evaluator chooses.
 
-\begin{table}[ht]
-\centering
-\small
-\begin{tabular}{lrrr}
-\hline
-Cause & Snort & SpamAssassin & Total \\
-\hline
-Anchor          & 6264 & 142 & 6406 \\
-Multiline flag  & 3963 &  19 & 3982 \\
-Backreference   &  215 &   8 &  223 \\
-Word boundary   &   19 & 164 &  183 \\
-Lookaround      &   98 &  50 &  148 \\
-Extended flag   &    0 &   0 &    0 \\
-Other           &   92 &   4 &   96 \\
-\hline
-Total           & 10651 & 387 & 11038 \\
-\hline
-\end{tabular}
-\caption{Rejection causes across both sources.}
-\label{tab:corpus-rejections}
-\end{table}
+For most rows, only the input scales: the regular expression itself is
+fixed (\texttt{(a+)+}, say), and $n$ repeats of a character are fed
+through it. A smaller number of rows need the \emph{pattern} itself to
+scale --- the family that forces full enumeration of a near-miss tail,
+for instance, is only pathological because its quantified group is
+repeated some number of times, so that repeat count has to be the
+swept parameter, substituted directly into the pattern template rather
+than only into the input. Both cases reuse the same small token
+language: \texttt{\{N\}}/\texttt{\{P\}} inside an input specification
+is a bare number; inside a pattern template, \texttt{\{\{N\}\}} keeps
+the regular expression's own literal brace pair around that number so
+that, for example, a template written as \texttt{(a?)\{\{N\}\}a\{\{N\}\}}
+becomes the concrete pattern \texttt{(a?)\{20\}a\{20\}} at $n=20$.
 
-Four causes dominate. \emph{Anchor} (6406 patterns) is the largest. It
-includes every pattern whose \texttt{\textasciicircum} or
-\texttt{\textdollar} is not part of a top-level
-\texttt{\textasciicircum...\textdollar} wrap: a lone start or end anchor,
-or one nested inside an alternation branch or under a quantifier. The
-frontend rejects these deliberately (Chapter~\ref{sec:frontend}), since
-removing them would change what the pattern denotes. Two concrete
-examples:
-
-\begin{verbatim}
-/\.ida$/iU                 (Snort, end anchor only)
-/^Argument\s+\//smi        (Snort, start anchor plus m flag)
-\end{verbatim}
-
-\emph{Multiline flag} (3982 patterns) is second. A Snort pattern ending
-in \texttt{/smi} or similar carries the \texttt{m} flag, which is
-rejected because anchors and newline-sensitive
-\texttt{\textasciicircum}/\texttt{\textdollar} have no meaning in a
-full-string matcher.
-
-\emph{Backreference} (223 patterns) and \emph{lookaround} (148 patterns)
-are both small relative to the corpus size, but they are the two most
-interesting causes from a theoretical standpoint: they are the constructs
-that place a pattern outside the regular languages. Example patterns:
-
-\begin{verbatim}
-/^(?P<addr1>.{4})(?P=addr2)(?P=addr1)/Rsi
-/(?=(?:(0x[a-f0-9]{2}|0+\d{1,3})\s*?,?...))
-\end{verbatim}
-
-The first is a Snort rule with a named backreference; the second is a
-Snort rule with a nested lookahead. Both are rejected before an
-\texttt{ExtPat} exists, so no tree is available to recover.
-
-The \emph{other} column collects patterns that fail for reasons not
-covered by the six named causes. For Snort, this is almost entirely the
-\texttt{MAX\_BOUND} cap of 1000 repetitions, triggered by patterns like
-\texttt{/\{GET\}.{}/\%.\{1586,\}/}. For SpamAssassin, the same cap and a
-handful of syntax errors.
-
-%
-
-\subsection{Anchor shape distribution}
-
-Rejection causes alone do not explain how many patterns carry anchors;
-they only explain how many were rejected for that reason. To show the
-full picture, the pipeline records the anchor shape of every extracted
-pattern, accepted or not.
+113 patterns are organised into 12 categories (Table~\ref{tab:patho-categories}),
+named by the specific mechanism each one stresses rather than by
+source. Each category carries its own recommended sweep, calibrated
+against a real measured run rather than chosen a priori: a routine,
+un-overridden benchmark pass is meant to actually cross from ``every
+parser measures in microseconds'' to ``the standard derivative parser
+is gone'' within that category's own default points, not stop short
+of the transition the way an arbitrarily small sweep would.
 
 \begin{table}[ht]
 \centering
-\small
-\begin{tabular}{lrrr}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llp{4.7cm}r}
 \hline
-Shape & Snort & SpamAssassin & Total \\
+Cat. & Name & Mechanism & Patterns \\
 \hline
-None            & 5739 & 304 & 6043 \\
-Start-only      & 5934 & 136 & 6070 \\
-Fully-wrapped   & 2783 &  34 & 2817 \\
-End-only        & 1669 &   8 & 1677 \\
-Unparseable     &  372 &  63 &  435 \\
-Nested          &  277 &   4 &  281 \\
+A & Nested quantifiers & Quantified group inside another quantifier & 16 \\
+B & Overlapping alternation & Alternatives sharing a prefix under a quantifier & 15 \\
+C & Bounded rep over star & \texttt{\{m,n\}} wrapping a \texttt{*}/\texttt{+} body, unrolled at translate time & 7 \\
+D & Anchored-failure style & Must fully consume input; near-miss tail forces full enumeration & 4 \\
+E & Prefix-overlap alternation & One alternative is a strict prefix of another & 8 \\
+F & Alternation-star + literal & \texttt{(alt)*}/\texttt{(alt)+} then a literal that fails late & 7 \\
+H & Many adjacent stars/groups & Product of \texttt{.+}, \texttt{.*}, \texttt{\textbackslash w+} etc.\ in sequence & 4 \\
+I & Trivial pattern, large input & Simple pattern, very long input (throughput baseline) & 10 \\
+J & Large pattern, trivial input & Thousands of literals/groups, short input & 5 \\
+K & Large pattern, large input & Both axes at once & 4 \\
+L & Trivial pattern, trivial input & Baseline/sanity check & 33 \\
 \hline
-Total           & 16774 & 549 & 17323 \\
+Total & & & 113 \\
 \hline
 \end{tabular}
-\caption{Anchor shape of every extracted pattern.}
-\label{tab:corpus-anchor-shape}
+\caption{The 12 pathological-set categories (\texttt{A}--\texttt{L},
+skipping \texttt{G}). \texttt{I}/\texttt{J}/\texttt{K}/\texttt{L}
+form a 2x2 matrix of (pattern size: trivial/large) $\times$ (input
+size: trivial/large), with \texttt{L} the all-trivial baseline; the
+remaining seven categories are the ones with a genuine blow-up
+mechanism to stress.}
+\label{tab:patho-categories}
 \end{table}
 
-The rows sum to the extracted count. Three observations.
+One category deserves a specific note, since it is the chapter's own
+reproduction of a published result. Two rows in category E
+(\texttt{(a|b|ab)*}/\texttt{(a|b|ab)+}, swept into the millions of
+characters) are a literal reproduction of
+\citet{sulzmannlu2014}'s own Figure 7, and are deliberately excluded
+from category E's routine default sweep --- at that scale they would
+slow down every unrelated run through the same category --- in favour
+of an explicit, individually-invoked sweep reported in
+Section~\ref{sec:eval-timing}.
 
-\emph{Fully-wrapped} (2817) is much larger than the accepted
-\texttt{ExplicitFullMatch} count in Table~\ref{tab:corpus-match-intent}
-(573). The difference is the fully-wrapped patterns that were rejected
-for a different reason: a pattern can be wrapped in
-\texttt{\textasciicircum...\textdollar} and still carry a lookaround or a
-word boundary, and the earlier cause wins.
+\subsection{Real and synthetic, kept separate}
 
-\emph{Start-only} (6070) and \emph{end-only} (1677) together account for
-most of the anchor-caused rejections. These are not recoverable by the
-full-match reading: a start anchor alone leaves the end of the match
-open, and no amount of full-string matching can restore the constraint.
-
-\emph{Unparseable} (435) are patterns rejected before an \texttt{ExtPat}
-exists: backreferences, lookaround assertions, or genuine syntax errors.
-These are the entries that need the parse step's own rejection mechanism,
-since no tree exists to strip anchors from.
-
-%
-
-\subsection{Prepared cases}
-
-The pipeline writes accepted cases to
-\texttt{data/processed/\textless source\textgreater/prepared.jsonl}. Each
-line is one verified (pattern, input, outcome) triple. The corpus
-contains 6{,}285 accepted patterns, 87{,}283 generated candidates, and
-61{,}712 verified candidates.
-
-The gap between generated and verified is worth explaining, since it
-appears in every benchmark that follows. Candidate generation produces
-two kinds of input: positives, which \emph{claim} to match, and
-negatives, which claim not to. Verification walks candidates in order
-and stops as soon as both sides have reached $N/2$ accepted cases;
-candidates the pipeline never reaches are skipped, not rejected. A
-candidate that is reached and fails verification is discarded: its
-claim did not hold under the real parser, or it was a negative that
-failed \emph{early} --- before two-thirds of the input --- which is not
-a meaningful negative. For Snort, 85{,}997 candidates were generated and
-60{,}426 survived (70\% survival); for SpamAssassin, 1{,}286 generated
-and 1{,}286 survived (100\%). The difference is that SpamAssassin's
-short, regular patterns generate cleanly, while Snort's longer patterns
-occasionally produce a structural sample that the case-folding or
-anchor-stripping steps have made unmatchable.
-
-A small fraction of accepted patterns contributes nothing to the
-corpus. These are not sampler failures. A structural negative is a
-matching input with its last character replaced by a character that
-lies outside the pattern's working alphabet, so a pattern whose language
-covers the alphabet (any star expression, any class-based pattern)
-still has a valid negative: the corrupted string contains a character
-no member of its language could contain. What remains are the patterns
-whose language is on one side empty: an expression that translates to
-the empty-string language, such as \texttt{\textasciicircum\textdollar}
-after anchor stripping or \texttt{a\{0\}}, has no structural negative
-to draw; an expression that translates to the empty language has no
-positive to draw. (Negatives that come from a source's own given data
---- S2ELab's \texttt{non\_matches}, Innovatorved's classified test
-lines --- are unaffected by this: they are not produced by corruption
-and are evaluated on their own terms.) In both cases, one side has zero
-members, and the pipeline excludes the pattern rather than fabricating
-a member that would not be a real test. The count appears as
-\emph{patterns below target} in the pipeline report and accounts for
-the difference between \emph{accepted} and \emph{usable} patterns.
+The two datasets described above answer different questions and are
+never pooled into one figure. S2ELab (572 usable patterns, 13{,}248
+real given inputs, all of it a real author's own judgement) answers
+how the four parser variants behave on regular expressions people
+actually write. The pathological set (113 hand-curated patterns, 917
+test cases under each category's own default sweep, scalable to
+millions of characters for a specific reproduction) answers how each
+variant's cost actually grows as a chosen stress parameter is swept,
+something no corpus of real patterns reliably exercises on request.
+Every table in the sections that follow names which of the two it was
+measured on.
 
 % =====================================================================
 % 8.2 Parser Agreement
@@ -1111,11 +1037,12 @@ Formal verification/teaching & \texttt{deriv\_std\_rec} & Closest to the paper's
 \label{tab:choose-parser}
 \end{table}
 
-The frontend, not the parser, is the limiting factor for the \emph{other}
-column of Table~\ref{tab:corpus-rejections}: patterns that exceed the
-\texttt{MAX\_BOUND} cap of 1000 repetitions, or that mix a bound with a
-nested alternation, are outside the current translation. Raising the cap
-is a per-pattern trade-off, not a parser choice.
+The frontend, not the parser, is the limiting factor for the small
+``other'' share of Section~\ref{sec:eval-corpus-overview}'s rejection
+count: patterns that exceed the \texttt{MAX\_BOUND} cap of 1000
+repetitions, or that mix a bound with a nested alternation, are
+outside the current translation. Raising the cap is a per-pattern
+trade-off, not a parser choice.
 
 %
 %
