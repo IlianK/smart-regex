@@ -480,7 +480,7 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
             f,
             "{},{},{},{},{},{},{},{},{},{}",
             r.category,
-            r.category_name,
+            csv_quote(&r.category_name),
             r.parser,
             r.entries,
             r.measured,

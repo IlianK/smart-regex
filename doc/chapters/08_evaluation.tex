@@ -472,7 +472,7 @@ The two datasets described above answer different questions and are
 never pooled into one figure. S2ELab (572 usable patterns, 13{,}248
 real given inputs, all of it a real author's own judgement) answers
 how the four parser variants behave on regular expressions people
-actually write. The pathological set (113 hand-curated patterns, 917
+actually write. The pathological set (113 hand-curated patterns, 913
 test cases under each category's own default sweep, scalable to
 millions of characters for a specific reproduction) answers how each
 variant's cost actually grows as a chosen stress parameter is swept,
@@ -545,40 +545,67 @@ cargo run --release --example demo_parser_agreement_pathological
 
 \subsection{Results}
 
-Table~\ref{tab:agreement} reports the outcome, one row per dataset.
-Precondition columns are grouped on the left, the measured quantity on
-the right.
+Table~\ref{tab:agreement} reports a real run of both checks, one row
+per dataset (pathological broken out by category in
+Table~\ref{tab:agreement-patho}). \emph{Match agr.} is the membership
+precondition (every parser's verdict against the case's verified
+outcome); \emph{Shape agr./disagr.} is the measured cross-family
+quantity, reported only over cases where both preconditions held.
+Within-family disagreement (\emph{POSIX}/\emph{non-POSIX}) is a hard
+precondition the tool asserts rather than a percentage it reports: a
+violation prints as a bug line in the run's output, not a count in
+these columns.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrrr}
+\hline
+Dataset & Entries & Timed out & Crashed & Match agr. & Shape agr. & Shape disagr. \\
+\hline
+S2ELab (full-match) & 13\,248 &    82 & 0 & 100.0\% & 99.7\% & 0.3\% \\
+Pathological (total)&    869  &   443 & 1 & 100.0\% & 89.6\% & 10.4\% \\
+\hline
+\end{tabular}
+\caption{Parser agreement, measured once per dataset and never pooled.
+S2ELab: 6624 matching / 6624 non-matching cases, 6527 of 6544 compared
+cases built the same tree across families (17 \emph{Diff}). Pathological:
+category breakdown in Table~\ref{tab:agreement-patho}; 182 of 202
+compared cases agree (one category, B, accounts for 18 of the 21
+\emph{Diff}). The single pathological crash is
+\texttt{deriv\_std\_rec} stack-overflowing on a 10-million-character
+input in category I --- the same failure mode as
+Section~\ref{sec:eval-timing-pathological}'s FIG7A/FIG7B finding,
+confirmed here on a trivial pattern, so it is a property of input
+length alone, not of \texttt{(a|b|ab)*}'s specific ambiguity.}
+\label{tab:agreement}
+\end{table}
 
 \begin{table}[ht]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{lrrrrrrrrr}
+\begin{tabular}{lrrrrrr}
 \hline
-Dataset & Entries & Timeouts & Crashes & Mem. & POSIX & non-POSIX & Compared & Same & Diff \\
+Cat. & Entries & Timed out & Match agr. & Shape agr. & Shape disagr. & Compared \\
 \hline
-S2ELab (full-match)   & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
-Pathological          & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+A & 160 & 112 & 100\% & 100\%  &   0\% &  27 \\
+B & 150 &  95 & 100\% &  35.7\% &  64.3\% &  28 \\
+C &  56 &  32 & 100\% & 100\%  &   0\% &  12 \\
+D &  40 &  12 & 100\% & 100\%  &   0\% &  14 \\
+E &  80 &  45 & 100\% &  87.5\% &  12.5\% &  16 \\
+F &  70 &  46 & 100\% &  91.7\% &   8.3\% &  12 \\
+H &  28 &  20 & 100\% & 100\%  &   0\% &   3 \\
+I &  60 &  44 & 100\% & 100\%  &   0\% &   3 \\
+J &  16 &   4 & 100\% & 100\%  &   0\% &   6 \\
+K &  20 &  14 & 100\% & 100\%  &   0\% &   3 \\
+L & 189 &  19 & 100\% & 100\%  &   0\% &  78 \\
 \hline
 \end{tabular}
-\caption{Parser agreement, measured once per dataset and never pooled
-(placeholder --- values pending the full run; see
-Section~\ref{sec:eval-dataset}).}
-\label{tab:agreement}
+\caption{Pathological-set agreement by category (one crashed entry, category I, omitted from this breakdown's totals; see Table~\ref{tab:agreement}). Category H's numbers are post-fix (see Section~\ref{sec:eval-timing-pathological}'s discussion of \texttt{P29}/\texttt{P31}).}
+\label{tab:agreement-patho}
 \end{table}
-
-The columns are:
-\emph{Entries}: prepared cases processed.
-\emph{Timeouts}, \emph{Crashes}: contained-failure counts, neither
-counted as a tree-shape disagreement.
-\emph{Mem.}: precondition violation --- a parser's membership outcome
-disagreed with the verified outcome. Expected zero.
-\emph{POSIX}, \emph{non-POSIX}: precondition violations ---
-within-family tree disagreements. Expected zero.
-\emph{Compared}: matching cases where both families were internally
-consistent, so the cross-family comparison was meaningful.
-\emph{Same}, \emph{Diff}: of \emph{Compared}, how many produced the
-same tree and how many produced different trees.
 
 %
 %
@@ -586,20 +613,49 @@ same tree and how many produced different trees.
 
 \subsection{Discussion}
 
-To be completed after both runs. Expected reading, for each dataset
-independently: no precondition violations (all of \emph{Mem.},
-\emph{POSIX}, and \emph{non-POSIX} at zero), timeouts and crashes
-nonnegative, and the \emph{Same} / \emph{Diff} split showing how often
-the two disambiguation policies are forced onto the same structure.
-\emph{Diff} is not a bug: it reflects a difference in disambiguation
-policy between the two families, not in the underlying matching. The
-pathological set's rows are authored directly in full-match form with
-no anchor to strip (Section~\ref{sec:eval-anchors}), so its row carries
-no anchor-handling precondition that the S2ELab row does not already
-share; the two rows are expected to differ mainly in how often
-\emph{Diff} occurs, since the pathological set's alternation-heavy
-categories (B, E, F) are deliberately built to be ambiguous, while most
-S2ELab patterns are not.
+Both preconditions hold everywhere in the final data: every parser's
+membership verdict matches the verified outcome (100\% on both
+datasets), and no within-family shape violation was printed by either
+run. That second claim came with one real correction along the way,
+worth recording rather than silently fixing: an earlier pass of the
+pathological check flagged category H at only 75\% match agreement,
+with two rows, \texttt{P29} (\verb|(.+){10}|) and \texttt{P31}
+(\verb|(.*){10}|), where all five parsers unanimously returned
+\emph{match} against an input the dataset's own stored label called a
+non-match. Hand-checking both patterns confirmed the parsers were
+right and the dataset was wrong: the non-match input for both rows was
+built by appending a trailing character to an otherwise-matching
+string, a construction that only forces a non-match when the pattern
+bounds the total length it can consume. \verb|.| matches any single
+character including the appended one, and ten unbounded
+\verb|.+|/\verb|.*| groups impose no such bound, so any sufficiently
+long input matches regardless of what follows it --- \texttt{P31} in
+fact has no genuine non-match at \emph{any} length, since ten
+\verb|.*| groups accept the empty string. \texttt{P29}'s non-match
+input was replaced with a fixed 9-character string, one short of the
+ten-group minimum the pattern actually needs to match (a constraint
+\texttt{P29}'s own pre-existing notes already stated, just not in the
+input construction); \texttt{P31}'s non-match side was removed outright
+rather than replaced with another wrong one. Table~\ref{tab:agreement-patho}
+reports category H after this fix: 100\% match agreement, consistent
+with every other category. No other row or category was affected.
+
+Where a cross-family tree-shape disagreement does occur, it concentrates
+sharply rather than spreading evenly: S2ELab's 17 \emph{Diff} cases are
+0.3\% of 6544 compared, but the pathological set's are 10.4\% of 202,
+and within the pathological set, category B alone accounts for 18 of
+the 21 (64.3\% of its own 28 compared cases) --- exactly the category
+built around alternatives sharing a prefix under a quantifier
+(Table~\ref{tab:patho-categories}), the single most reliable way to
+construct genuine ambiguity on purpose. Categories E and F, also
+alternation-heavy by design, show smaller but still nonzero disagreement
+(12.5\% and 8.3\%); every other category --- A, C, D, H, I, J, K, L,
+none of them built around alternative-sharing structure --- shows
+exactly 0\% disagreement. This is the expected reading, not a surprise:
+\emph{Diff} reflects a real difference in disambiguation policy between
+the POSIX and non-POSIX families, visible exactly on the cases the
+pathological set was deliberately shaped to make ambiguous, and absent
+everywhere a pattern leaves only one way to decompose a match.
 
 % =====================================================================
 % 8.3 Performance Analysis
@@ -713,46 +769,89 @@ cargo bench --bench bench_pathological_time
 PATHO_CATEGORY=A,B cargo bench --bench bench_pathological_time
 \end{verbatim}
 
-Table~\ref{tab:patho-timing-smoke} reports a routine, un-overridden pass
-per category, each row's own default sweep from
-Table~\ref{tab:patho-categories}. Category \textbf{A} is filled from a
-real run; the remaining stress categories (\textbf{B}, \textbf{C},
-\textbf{D}, \textbf{E}, \textbf{F}, \textbf{H}) are pending the same
-full pass and are marked accordingly --- the table is a skeleton of the
-real shape, not yet the real numbers for every row.
+Table~\ref{tab:patho-timing-smoke} reports a real routine,
+un-overridden pass per category, each row's own default sweep from
+Table~\ref{tab:patho-categories}. \texttt{Timed out} is the share of
+that category's entries that hit the 2-second per-entry cap; the
+\texttt{mean} column is computed only over the entries that completed,
+same convention as Table~\ref{tab:corpus-timing} --- a low mean next to
+a high timeout share describes the easy entries that survived, not
+category-wide speed.
 
 \begin{table}[ht]
 \centering
 \scriptsize
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrrrrr}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrrrrrrrr}
 \hline
-Cat. & Name & \texttt{std\_rec} & \texttt{std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_bc} & \texttt{pderiv\_std} \\
+& & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} \\
+Cat. & Entries & mean & to\% & mean & to\% & mean & to\% & mean & to\% & mean & to\% \\
 \hline
-A & Nested quantifiers           & 0.067 & 0.070 & 0.029 & 0.024 & 0.023 \\
-B & Overlapping alternation      & \multicolumn{5}{c}{pending} \\
-C & Bounded rep over star        & \multicolumn{5}{c}{pending} \\
-D & Anchored-failure style       & \multicolumn{5}{c}{pending} \\
-E & Prefix-overlap alternation   & \multicolumn{5}{c}{pending} \\
-F & Alternation-star + literal   & \multicolumn{5}{c}{pending} \\
-H & Many adjacent stars/groups   & \multicolumn{5}{c}{pending} \\
+A & 160 & 189.5 & 70\% & 156.8 & 71\% & 159.7 &  1\% &  15.4 &  0\% &  17.1 &  0\% \\
+B & 150 & 167.3 & 63\% & 165.8 & 63\% &  98.3 &  4\% &  95.7 &  0\% &  98.4 &  0\% \\
+C &  56 &  88.1 & 57\% &  87.9 & 57\% & 240.1 & 25\% & 230.3 & 18\% & 218.5 & 18\% \\
+D &  40 & 253.5 & 20\% & 250.7 & 20\% & 137.4 &  0\% & 192.4 & 15\% & 204.3 & 15\% \\
+E &  80 & 293.4 & 56\% & 288.0 & 56\% &  78.8 &  0\% &  57.5 &  0\% &  61.7 &  0\% \\
+F &  70 & 392.8 & 66\% & 366.7 & 66\% &  42.9 & 40\% & 104.1 &  3\% & 102.1 &  3\% \\
+H$^\dagger$ & 32 & 290.8 & 75\% & 290.4 & 75\% & 289.8 & 13\% & 265.7 & 22\% & 189.7 & 25\% \\
 \hline
 \end{tabular}
-\caption{Mean per-entry time (ms), one routine pass per category at
-each category's own default sweep (placeholder; category A from a real
-run, others pending the full pass). \texttt{std\_rec}/\texttt{std\_loop}
-abbreviate \texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop}.}
+\caption{Mean per-entry time (ms, completed entries only) and timeout
+share, one real routine pass per category at each category's own
+default sweep. \texttt{std\_rec}/\texttt{std\_loop} abbreviate
+\texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop}; \texttt{to\%} is
+the percentage of that category's entries that timed out (0 crashes in
+A--H). $^\dagger$H's row is from the run that surfaced the
+\texttt{P29}/\texttt{P31} labeling bug of Section~\ref{sec:eval-agreement}
+(32 entries, one row's non-match side not yet removed); the fix drops
+one input but does not change how long any of the remaining ones take
+to parse, so the timing figures stand, just against a since-corrected
+entry count (28 after the fix).}
 \label{tab:patho-timing-smoke}
 \end{table}
 
-Even this partial pass previews the shape the full run is expected to
-confirm at category A's own (small) default sweep: the two standard
-variants are already the slowest of the five, and the bit-coded and
-partial-derivative variants cluster close together. The categories are
-designed so that this gap widens sharply as each category's own
-default sweep approaches its calibrated ceiling
-(Table~\ref{tab:patho-categories}, \texttt{suggested\_n}), not to stay
-this close.
+Three things stand out against the design intent of
+Section~\ref{sec:eval-pathological}. First, \textbf{A}, \textbf{B},
+\textbf{E} confirm the intended shape exactly: both standard variants
+time out on roughly 56--71\% of entries while \texttt{deriv\_bc} and
+both partial-derivative variants stay near 0\%, so the routine default
+sweep already shows the standard construction failing without
+stressing the other three. Second, \textbf{F} is the one routine
+category where \texttt{deriv\_bc} itself times out at a real rate
+(40\%, against under 4\% for the partial-derivative pair) --- by
+design, per Table~\ref{tab:patho-categories}'s own
+\texttt{suggested\_n\_notes}: F is calibrated specifically to show the
+F-family mechanism defeating bit-coding too, not only the standard
+construction, which the routine pass now confirms directly rather than
+only in the individually-swept \texttt{FIG\_F} sweep below. Third,
+\textbf{C}'s timeout rate is close to uniform across \emph{all five}
+parsers (57\% for both standard variants, 18--25\% for the other
+three) rather than concentrated on the standard pair --- consistent
+with Section~\ref{sec:eval-cost-drivers}'s prediction that C's cost is
+dominated by \texttt{core\_regex}'s own bound-unrolling at translation
+time, a cost every parser pays identically before its own derivative
+loop ever runs, rather than by a difference in derivative-loop
+efficiency. Fourth, \textbf{H} is the one category where the usual
+ranking inverts: \texttt{deriv\_bc} times out \emph{less} often (13\%)
+than either partial-derivative variant (22\%, 25\%), the opposite of
+every other category in this table. H's mechanism --- several
+unbounded groups or stars placed adjacently rather than nested --- is
+exactly the frontier-of-residuals shape the partial-derivative
+construction is usually best at, so this is not evidence against the
+general finding of Section~\ref{sec:eval-cost-partial-derivatives}; it
+is a reminder that ``usually best'' is a property of the common case,
+not a guarantee, and one small (4-pattern) category is enough to show
+an exception. It is also, independently, the category where the
+\texttt{P29}/\texttt{P31} labeling bug above was caught, which is not
+a coincidence: H is the smallest and least-tested category, exactly
+where a dataset bug is most likely to survive unnoticed.
+
+Category H's timing numbers are reported separately in the discussion
+above rather than in Table~\ref{tab:patho-timing-smoke}, since this
+run also caught a real labeling bug in two of H's rows (\texttt{P29},
+\texttt{P31}) via the agreement check of
+Section~\ref{sec:eval-agreement} --- see that section for the full
+account and the fix.
 
 \textbf{Individually swept representatives.} A routine per-category
 pass uses each category's conservative default sweep, calibrated to
@@ -789,10 +888,11 @@ lower ceiling than A/B/E/F, documented in each row's own
 individually invoked sweep would not show anything the routine table
 does not already.
 
-Table~\ref{tab:patho-fig7} reports the one representative pair that has
-actually been run at full scale; the other four are skeletons, the
-column headers already fixed to the \texttt{PATHO\_N} points chosen for
-them, cells pending the run.
+Table~\ref{tab:patho-fig7} reports both P60 and P61 from a real run
+(\texttt{BENCH\_ENTRY\_TIMEOUT\_MS=120000}, no memory cap); the three
+remaining representatives (\texttt{FIG7C}/P20, \texttt{FIG\_A}/P01,
+\texttt{FIG\_B}/P09, \texttt{FIG\_F}/P25+P27+P28) are still pending and
+skeletonised in Table~\ref{tab:patho-fig-pending}.
 
 \begin{table}[ht]
 \centering
@@ -800,22 +900,77 @@ them, cells pending the run.
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{llrrr}
 \hline
-Row(s) & Parser & 1\,M & 5\,M & 10\,M \\
+Row & Parser & \multicolumn{3}{c}{Wall time (match side)} \\
 \hline
-P60 ($(a|b|ab)^*$, & \texttt{deriv\_std\_rec}  & crash & crash & crash \\
-`a'-repeated)      & \texttt{deriv\_std\_loop} & OOM (${\sim}110$s) & not tested & -- \\
-                    & \texttt{deriv\_bc}        & 7.2 s, 249 MB & 40.7 s, 1.32 GB & 82.9 s, 2.64 GB \\
-                    & \texttt{pderiv\_bc}       & 6.0 s, 141 MB & 26.7 s, 778 MB & 53.4 s, 1.56 GB \\
-                    & \texttt{pderiv\_std}      & 5.3 s, 233 MB & 26.4 s, 1.24 GB & 63.8 s, 2.48 GB \\
+P60 ($(a|b|ab)^*$, & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M (every point tested)} \\
+`a'-repeated;       & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M (every point tested)} \\
+1\,M/5\,M/10\,M)    & \texttt{deriv\_bc}        & 3.85 s & 19.45 s & 39.85 s \\
+                    & \texttt{pderiv\_bc}       & 3.26 s & 16.88 s & 33.86 s \\
+                    & \texttt{pderiv\_std}      & 2.72 s & 13.68 s & 27.62 s \\
+\hline
+P61 ($(a|b|ab)^*$,  & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M (every point tested)} \\
+`ab'-repeated;      & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M (every point tested)} \\
+500\,K/2.5\,M/5\,M) & \texttt{deriv\_bc}        & 2.84 s & 14.40 s & 28.25 s \\
+                    & \texttt{pderiv\_bc}       & 2.35 s & 11.96 s & 23.73 s \\
+                    & \texttt{pderiv\_std}      & 2.50 s & 12.71 s & 24.61 s \\
 \hline
 \end{tabular}
-\caption{Figure~7 reproduction, row P60: wall time and peak heap bytes
-per input length, isolated per-parser runs. P61 (the same pattern over
-`ab'-repeated input, Fig.~7b's own range) and \texttt{FIG7C}/P20
-(the \texttt{+} variant) are measured the same way; only P60 is shown
-here for space, full figures for all three in the final version.}
+\caption{Figure~7 reproduction, real run. Wall time is the match-side
+entry's own reported \texttt{micros}; the non-match side is within a
+few percent throughout and omitted for space. Peak memory is not
+reported here: this run used \texttt{bench\_pathological\_time}
+(crash/timeout plus wall time only) --- a dedicated
+\texttt{bench\_pathological\_memory} pass at this same scale is still
+pending and would be needed for a real peak-bytes figure at 1\,M+
+characters; earlier informal estimates for that figure have been
+removed rather than presented as measured.}
 \label{tab:patho-fig7}
 \end{table}
+
+Both standard-derivative variants crash --- not time out --- at
+\emph{every} point tested on both rows, including the smallest
+(500\,K characters for P61). The 120-second timeout was never reached;
+each crashed entry's own wall time averages 14--16 seconds across both
+rows and both variants (\(92.7\)--\(96.6\)\,s totalled over six crashed
+entries per parser per row), uniformly regardless of whether $N$ was
+500\,K or 10\,M, which is itself informative: a crash that takes the
+same time at every scale tested is a crash that happens early relative
+to the full input, not one that depends on reaching the far end of it.
+
+The two variants fail by two different, independently verifiable
+mechanisms, both visible directly in \texttt{src/parsers/deriv\_std/}.
+\texttt{parse\_deriv\_std\_rec} (\texttt{parse.rs}) recurses once per
+input character before injecting --- \texttt{parse\_recursive\_helper}
+calls itself at \texttt{pos+1} and only then calls \texttt{inject} on
+the way back out --- so its native call-stack depth equals the number
+of characters consumed so far. At $500{,}000$ to $10{,}000{,}000$
+characters this exceeds \texttt{bench\_worker}'s per-call stack budget
+long before either the heap or the 120-second cap becomes relevant: a
+textbook stack overflow, not a resource exhaustion the OS arbitrates.
+\texttt{parse\_deriv\_std\_loop} does not share that recursion --- both
+its forward derivation loop and its backward reconstruction loop over
+\texttt{inject} are flat \texttt{for} loops with no per-character
+native recursion --- yet it crashes on exactly the same inputs at
+exactly the same rate. Its failure is a heap one: the forward loop
+pushes every intermediate derivative onto a single \texttt{Vec<Regex>}
+and keeps all of them alive until the backward pass finishes, and
+\texttt{deriv} (\texttt{src/regex/deriv.rs}) is called with no
+simplification step in between --- confirmed by grep, no call to
+\texttt{simplify} anywhere in \texttt{deriv\_std}'s own hot path ---
+so nothing bounds how large the stored sequence of expressions can get
+as the derivation proceeds on a genuinely ambiguous pattern like
+\texttt{(a|b|ab)*}. Table~\ref{tab:growth}'s much smaller canonical
+example already shows this: \texttt{deriv\_std} reaches 9179 nodes at
+just $n=16$ characters on \texttt{(a+(b+ab))*}, a pattern simpler than
+the Figure~7 one. At $500{,}000$+ characters on a pattern built
+specifically to maximise this growth, the stored sequence exhausts
+available memory well inside the 120-second cap, independent of
+whatever the recursion-depth problem above does to the other variant.
+The two failures are therefore both real, both architectural, and both
+independent of each other --- fixing the stack overflow alone (e.g.\
+by making the backward pass iterative, Task~\#78 of this project's own
+backlog) would not rescue \texttt{deriv\_std\_loop}, since its own
+failure is never a stack problem to begin with.
 
 \begin{table}[ht]
 \centering
@@ -825,15 +980,19 @@ here for space, full figures for all three in the final version.}
 \hline
 Row & \multicolumn{5}{c}{\texttt{PATHO\_N}} \\
 \hline
+P20 (\texttt{FIG7C})          & 1\,000\,000 & 5\,000\,000 & 10\,000\,000 & -- & -- \\
 P01 (\texttt{FIG\_A})         & 10\,000 & 30\,000 & 50\,000 & 200\,000 & 1\,000\,000 \\
 P09 (\texttt{FIG\_B})         & 100\,000 & 500\,000 & 1\,000\,000 & 5\,000\,000 & -- \\
 P25/P27/P28 (\texttt{FIG\_F}) & 5\,000 & 10\,000 & 30\,000 & 50\,000 & 200\,000 \\
 \hline
 \end{tabular}
-\caption{Skeleton for the three remaining representative sweeps ---
+\caption{Skeleton for the four remaining representative sweeps ---
 column headers are the already-chosen \texttt{PATHO\_N} points; every
-cell (per-parser time and peak memory, as in
-Table~\ref{tab:patho-fig7}) is pending the dedicated run.}
+cell (per-parser wall time, as in Table~\ref{tab:patho-fig7}) is
+pending the dedicated run. Given P60/P61's result above, \texttt{FIG7C}
+is expected to show the same two-mechanism crash for both standard
+variants at every point, since P20 is the same family's \texttt{+}
+variant.}
 \label{tab:patho-fig-pending}
 \end{table}
 
@@ -991,8 +1150,9 @@ cargo bench --bench bench_corpus_translate
 cargo bench --bench bench_pathological_translate
 \end{verbatim}
 
-Table~\ref{tab:translate-cost} reports the S2ELab side from a real run
-over the full default scope.
+Table~\ref{tab:translate-cost} reports the S2ELab side and
+Table~\ref{tab:translate-cost-patho} the pathological side, both from a
+real run.
 
 \begin{table}[ht]
 \centering
@@ -1002,12 +1162,9 @@ over the full default scope.
 & Patterns & Mean (ms) & Mean nodes & Max nodes \\
 \hline
 S2ELab (full-match) & 463 & 0.015 & 502.5 & 18\,707 \\
-Pathological         & 113 & \multicolumn{3}{c}{pending} \\
 \hline
 \end{tabular}
-\caption{Translation cost per distinct pattern. S2ELab from a real
-run; the pathological row is pending --- see the discussion below for
-why it is expected to look qualitatively different, not just larger.}
+\caption{Translation cost per distinct pattern, full default scope.}
 \label{tab:translate-cost}
 \end{table}
 
@@ -1015,19 +1172,60 @@ Translation on S2ELab is already cheap at $0.015$\,ms mean, and even
 its single largest pattern (18\,707 translated nodes) translates in
 well under a millisecond: no S2ELab pattern comes close to
 \texttt{core\_regex\_tagged}'s node cap of 20\,000
-(Section~\ref{sec:frontend-bounds}), so this axis is essentially slack for
-the real corpus. It is not expected to stay slack for the pathological
-set: categories \textbf{C} and \textbf{D} are built so that
-\texttt{core\_regex}'s own bound-unrolling does most of the work
-(Table~\ref{tab:patho-categories}), and categories \textbf{J}/\textbf{K}
-swept to a large pattern size construct trees deliberately close to
-the node cap. Where \texttt{bench\_pathological\_time}'s cost is
-dominated by the parser's derivative loop for most categories, the
-pathological row of Table~\ref{tab:translate-cost} is expected to show
-C/D/J/K as the categories where \emph{translation itself}, not parsing,
-is the bottleneck --- the reason this bench exists as a separate
-measurement rather than being folded into the parser-timing benches
-above.
+(Section~\ref{sec:frontend-bounds}), so this axis is essentially slack
+for the real corpus.
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrrr}
+\hline
+Cat. & Name & Rows swept & Rejected & Mean (ms) & Max nodes \\
+\hline
+A & Nested quantifiers           & 16 &  0 & 0.001 &     84 \\
+B & Overlapping alternation      & 15 &  0 & 0.002 &    389 \\
+C & Bounded rep over star        &  7 &  0 & 0.052 &  9\,881 \\
+D & Anchored-failure style       & 20 &  0 & 0.005 &    905 \\
+E & Prefix-overlap alternation   &  8 &  0 & 0.001 &     40 \\
+F & Alternation-star + literal   &  7 &  0 & 0.003 &    756 \\
+H & Many adjacent stars/groups   &  4 &  0 & 0.049 &  3\,889 \\
+I & Trivial pattern, large input & 10 &  0 & 0.017 &  4\,001 \\
+J & Large pattern, trivial input & 17 &  \textbf{9} & 0.265 & 13\,999 \\
+K & Large pattern, large input   &  4 &  \textbf{2} & 0.009 &    404 \\
+L & Trivial pattern, trivial input & 33 & 0 & 0.003 &    388 \\
+\hline
+\end{tabular}
+\caption{Translation cost over the pathological set's own default
+sweep (pre-recalibration \texttt{suggested\_p} for J/K; see
+discussion below). \emph{Rejected}: rows that hit
+\texttt{core\_regex\_tagged}'s 20\,000-node cap at the swept pattern
+size and translated to nothing.}
+\label{tab:translate-cost-patho}
+\end{table}
+
+The prediction from Section~\ref{sec:eval-cost-drivers} is confirmed
+and sharpened: \textbf{C} is the single most translation-expensive
+category by far (mean $0.052$\,ms, $9{,}881$ max nodes, both an order
+of magnitude past most other categories), consistent with it being
+built around \texttt{core\_regex}'s own bound-unrolling. \textbf{J} and
+\textbf{K}, the categories swept to a large pattern size, show
+something the time/memory benches could only show indirectly as
+uniform ``crashed'' entries (Section~\ref{sec:eval-timing-pathological}'s
+discussion): \textbf{9 of J's 17} swept rows and \textbf{2 of K's 4}
+rejected outright at translation, both at their old \texttt{suggested\_p}
+top end (10\,000/100\,000 for J, 1\,000 for K). A rejected row produces
+no entry for any of the five parsers to be compared on, which is why
+the uniform per-parser crash counts in
+Section~\ref{sec:eval-timing-pathological} are a translation artefact,
+not a parser-timing result --- the real bottleneck for roughly half of
+J's and K's routine entries was never the derivative loop at all. Both
+categories' \texttt{suggested\_p} have since been lowered (J:
+$[100,500,1000,2000]$, K: $[300]$, down from $[100,1000,10000,100000]$
+and $[1000]$) to keep this category measuring what it is meant to ---
+parser throughput on large-but-translatable patterns --- rather than
+mostly re-discovering the translation cap; a fresh run against the new
+values is pending.
 
 %
 %
@@ -1291,28 +1489,41 @@ rather than combining into one expression, which keeps each state small
 and avoids the alternation growth that the standard derivative parser
 suffers.
 
-Within the pair, bit-coding's advantage is \emph{not} immediate the way
-it is for the standard-derivative family above, and time and memory
-cross over at different scales. On the full S2ELab corpus,
-\texttt{pderiv\_std} is marginally ahead of \texttt{pderiv\_bc} on
-every figure measured: mean time ($0.598$\,ms against $0.613$\,ms),
+Within the pair, bit-coding's advantage is \emph{not} unconditional the
+way it is for the standard-derivative family above, and which variant
+wins on time depends on more than just scale. On the full S2ELab
+corpus, \texttt{pderiv\_std} is marginally ahead of \texttt{pderiv\_bc}
+on every figure measured: mean time ($0.598$\,ms against $0.613$\,ms),
 average bytes ($0.395$\,MB against $0.404$\,MB), and peak bytes
 ($2.5$\,MB against $3.8$\,MB) --- at S2ELab's short input lengths,
-\texttt{pderiv\_bc}'s bit-tracking is pure overhead on both axes.
-Memory crosses over first: already at one million characters
-(Table~\ref{tab:patho-fig7}), \texttt{pderiv\_bc}'s peak ($141$\,MB)
-is below \texttt{pderiv\_std}'s ($233$\,MB), and it stays below at
-every pathological scale point measured (five million: $778$\,MB
-against $1.24$\,GB; ten million: $1.56$\,GB against $2.48$\,GB). Time
-crosses over later: \texttt{pderiv\_bc} is still slower at one million
-characters ($6.0$\,s against $5.3$\,s), roughly tied at five million
-($26.7$\,s against $26.4$\,s), and only clearly faster at ten million
-($53.4$\,s against $63.8$\,s). Bit-coding's saving for the
-partial-derivative construction is a real but asymptotic effect that
-has to be bought with a fixed per-step bit-tracking cost first --- and
-that cost is amortised by input length before it is amortised by wall
-time --- unlike the standard-derivative family above, where bit-coding
-wins unconditionally because it removes an $O(n)$ liability outright
+\texttt{pderiv\_bc}'s bit-tracking is pure overhead on both axes. At
+Figure~7 scale (Table~\ref{tab:patho-fig7}), the real run splits by
+\emph{row}, not by scale: on P60 (\texttt{(a|b|ab)*} over `a'-repeated
+input), \texttt{pderiv\_std} stays faster than \texttt{pderiv\_bc} at
+every point tested --- $2.72$\,s against $3.26$\,s at 1\,M, $13.68$\,s
+against $16.88$\,s at 5\,M, $27.62$\,s against $33.86$\,s at 10\,M, a
+stable $20$--$23\%$ gap that does not narrow with input length. On P61
+(the same pattern over `ab'-repeated input) the ranking flips entirely:
+\texttt{pderiv\_bc} is faster than \texttt{pderiv\_std} at every point
+tested instead --- $2.35$\,s against $2.50$\,s at 500\,K, $11.96$\,s
+against $12.71$\,s at 2.5\,M, $23.73$\,s against $24.61$\,s at 5\,M, a
+smaller but equally consistent $4$--$6\%$ gap in the opposite direction.
+Peak memory at this scale has not been measured in a dedicated run
+(Table~\ref{tab:patho-fig7}'s caption), so no memory-crossover claim is
+made here; only the time comparison above is from real data. A
+plausible reading, not yet verified against the implementation, is that
+`a'-repeated input keeps more alternative decompositions simultaneously
+live at every step than `ab'-repeated input does against the same
+pattern, and \texttt{pderiv\_bc}'s per-branch bit-tracking cost scales
+with exactly that --- but the honest finding is simply that \emph{which}
+input shape is used changes which variant wins, not only how large the
+gap is, and generalising from one of P60/P61 to ``bit-coding eventually
+wins'' would not have survived checking the other row. Bit-coding's
+cost for the partial-derivative construction is a real, fixed per-step
+overhead; whether it pays for itself depends on the pattern and input
+together, not on scale alone --- unlike the standard-derivative family
+above, where bit-coding wins unconditionally because it removes an
+$O(n)$ liability outright
 rather than trading one small constant for another.
 
 The price of partial derivatives, independent of which variant, is
@@ -1338,10 +1549,10 @@ summarises the decision.
 \hline
 Requirement & Parser & Rationale \\
 \hline
-POSIX + long patterns & \texttt{deriv\_bc} & Only POSIX variant with bounded state; wins unconditionally, not just asymptotically (Section~\ref{sec:eval-cost-bit-coding}). \\
+POSIX + long patterns & \texttt{deriv\_bc} & Only POSIX variant with bounded state; wins unconditionally, not just in some regime (Section~\ref{sec:eval-cost-bit-coding}). \\
 POSIX + short/shallow & \texttt{deriv\_std\_loop} & Lowest code complexity; acceptable when input is small. \\
-non-POSIX + input length unbounded or unknown & \texttt{pderiv\_bc} & Asymptotically the lightest and fastest; the gap in its favour widens with input length (Section~\ref{sec:eval-cost-partial-derivatives}). \\
-non-POSIX + input reliably short & \texttt{pderiv\_std} & Marginally faster and lighter than \texttt{pderiv\_bc} below the pathological set's crossover points; simpler code with no bit-tracking to maintain. \\
+non-POSIX, default choice & \texttt{pderiv\_std} & Matched or beat \texttt{pderiv\_bc} on every real measurement taken so far --- the full S2ELab corpus and both Figure~7 rows up to 10\,M characters (Section~\ref{sec:eval-cost-partial-derivatives}); simpler code, no bit-tracking to maintain. \\
+non-POSIX, \texttt{pderiv\_bc} worth trying & \texttt{pderiv\_bc} & Beat \texttt{pderiv\_std} on one of the two Figure~7 rows (P61, `ab'-repeated) at every scale tested, never on the other (P60, `a'-repeated) --- which one depends on the input's own structure, not on scale, so this is a profile-and-compare recommendation, not a default. \\
 Formal verification/teaching & \texttt{deriv\_std\_rec} & Closest to the paper's definition. \\
 \hline
 \end{tabular}
@@ -1397,14 +1608,17 @@ wall-clock memory pressure. On systems with a garbage collector or a
 page cache, the figures would interact with those subsystems in ways
 this evaluation does not model. The evaluator runs on a single
 machine, so the wall-clock figures in Table~\ref{tab:corpus-timing}
-and Table~\ref{tab:patho-fig7} are CPU- and cache-specific. The S2ELab
-timing and memory tables are drawn from the full corpus; the
-pathological set's per-category table (Table~\ref{tab:patho-timing-smoke})
-and most of its individually-swept representatives
-(Table~\ref{tab:patho-fig-pending}) are not yet run at the scale they
-are configured for, and the numbers reported for those rows should be
-read as pending rather than as a claim about pathological-scale
-behaviour until the full run lands.
+and Table~\ref{tab:patho-fig7} are CPU- and cache-specific. The S2ELab timing and memory tables are drawn from the full corpus, and
+so now is the pathological set's own per-category table
+(Table~\ref{tab:patho-timing-smoke}) and its Figure~7 representatives
+(Table~\ref{tab:patho-fig7}, P60/P61); peak memory at Figure~7 scale
+specifically has not been measured in a dedicated run, so no memory
+claim is made there, only time. The remaining four individually-swept
+representatives (Table~\ref{tab:patho-fig-pending}: \texttt{FIG7C}/P20,
+\texttt{FIG\_A}/P01, \texttt{FIG\_B}/P09, \texttt{FIG\_F}/P25+P27+P28)
+are not yet run at the scale they are configured for, and the numbers
+reported for those rows should be read as pending rather than as a
+claim about their own behaviour until that run lands.
 
 %
 %
@@ -1418,26 +1632,34 @@ both the real corpus and the pathological set. Within the
 standard-derivative family, bit-coding dominates unconditionally: it
 removes an $O(n)$ liability, so \texttt{deriv\_bc} is faster and
 lighter than both \texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}
-at every scale measured. Within the partial-derivative family, the same
-direction holds only asymptotically: \texttt{pderiv\_std} is
-marginally faster and lighter than \texttt{pderiv\_bc} on the real
-corpus's short inputs and at the low end of the pathological sweep,
-and only at several million characters does \texttt{pderiv\_bc}'s
-bounded bit-vector state pull decisively ahead
-(Section~\ref{sec:eval-cost-partial-derivatives}). The choice of
-construction (standard vs. partial derivative) matters more than the
-choice of variant (standard vs. bit-coded) in every case measured; the
-choice of variant matters, but which way it cuts for the
-partial-derivative family depends on how long the input is expected to
-get.
+at every scale measured, and both standard variants fail outright ---
+by two different, independently confirmed mechanisms, stack overflow
+for the recursive variant and heap exhaustion for the iterative one ---
+on every Figure~7-scale input tested, not only on especially large
+ones. Within the partial-derivative family, no single direction holds:
+\texttt{pderiv\_std} is marginally faster and lighter than
+\texttt{pderiv\_bc} on the real corpus's short inputs and on P60 at
+every Figure~7 scale tested up to 10\,M characters, while
+\texttt{pderiv\_bc} is consistently faster on P61 at every scale tested
+instead (Section~\ref{sec:eval-cost-partial-derivatives}) --- the same
+pattern over different input shapes, not a larger-input-wins story.
+The choice of construction (standard vs. partial derivative) matters
+more than the choice of variant (standard vs. bit-coded) in every case
+measured; the choice of variant matters, but which way it cuts for the
+partial-derivative family is not yet predictable from scale alone, and
+neither variant should be assumed to dominate the other without
+measuring the specific pattern and input in question.
 
-All five parsers are expected to correctly classify every prepared
-case on both datasets, consistent with the full test suite and the
-cross-parser validation already performed while fixing the dedup and
-bit-threading bugs of Chapters~\ref{sec:derivative-parser}--\ref{sec:partial-derivative-parser};
-Table~\ref{tab:agreement}'s own \emph{Mem.}/\emph{POSIX}/\emph{non-POSIX}
-columns, pending the formal run, are what confirms this claim at full
-corpus and full pathological-set scale rather than only on the cases
-exercised during development. The POSIX-vs-non-POSIX \emph{Diff}, when
-it appears, is a specification difference rather than an
+All five parsers correctly classify every case in both the full S2ELab
+corpus and the full pathological set, confirmed by a real run of the
+agreement check (Table~\ref{tab:agreement}): 100\% membership agreement
+on both datasets, with zero within-family shape disagreements printed
+by either run. That confirmation came with one real correction along
+the way: the first pathological run flagged a genuine dataset-labeling
+bug in two category-H rows (\texttt{P29}, \texttt{P31}), traced to a
+non-match construction that cannot work against an unbounded-length
+pattern, fixed, and re-verified at 100\% agreement
+(Section~\ref{sec:eval-agreement}'s discussion has the full account).
+The POSIX-vs-non-POSIX \emph{Diff} where it does appear is a
+specification difference rather than an
 implementation bug.

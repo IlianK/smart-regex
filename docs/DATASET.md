@@ -221,7 +221,7 @@ cargo run --release --example pathological_stats
 Saves `reports/data/pathological_stats.csv` (per category: patterns,
 variable-size patterns, input sizes, pattern sizes, test cases under
 the default sweep) and `reports/data/pathological_rows.csv` (per
-pattern). As of this writing: 113 patterns, 917 test cases under the
+pattern). As of this writing: 113 patterns, 913 test cases under the
 default sweep -- category `L` alone (33 baseline/edge patterns)
 accounts for 195 of them.
 
@@ -247,8 +247,8 @@ based on.
 | F | Alternation-star + literal | `(alt)*`/`(alt)+` then a literal that fails late | polynomial or derivative-state explosion | 10, 100, 1000, 10000, 50000 | -- |
 | H | Many adjacent stars/groups | Product of `.+`, `.*`, `\w+` etc. in sequence | polynomial O(N^k), k = star count | 10, 50, 200, 1000 | -- |
 | I | Trivial pattern, large input | Simple pattern, very long input | linear throughput | 100000, 1000000, 10000000 | -- |
-| J | Large pattern, trivial input | Thousands of literals/groups, short input | compile blow-up (pattern size) | -- | 100, 1000, 10000, 100000 |
-| K | Large pattern, large input | Both axes at once | compile + match blow-up | 500, 1000, 5000, 10000, 50000 | 1000 |
+| J | Large pattern, trivial input | Thousands of literals/groups, short input | compile blow-up (pattern size) | -- | 100, 500, 1000, 2000 |
+| K | Large pattern, large input | Both axes at once | compile + match blow-up | 500, 1000, 5000, 10000, 50000 | 300 |
 | L | Trivial pattern, trivial input | Baseline/sanity check | linear throughput | 10, 100, 1000 | -- |
 
 `I`/`J`/`K`/`L` form a 2x2 matrix of (pattern size: trivial/large) x
@@ -275,6 +275,43 @@ Two things worth knowing before sweeping a specific row:
   when sweeping K at its full range; this category combines both stress
   axes on purpose, so reaching a real crash point is the intended
   result, not a bug -- it just needs to happen inside a cap.
+- **J's and K's `suggested_p` were lowered** (J: `100,1000,10000,100000`
+  -> `100,500,1000,2000`; K: `1000` -> `300`) after a real full run
+  (`bench_pathological_translate`) showed the old top-end values
+  guaranteeing translation rejection, not a parser-timing result: 9 of
+  J's 17 swept rows and 2 of K's 4 rows hit `core_regex_tagged`'s
+  20,000-node cap outright at those `p` values, which is why the
+  routine `bench_pathological_time`/`bench_pathological_memory` passes
+  showed a uniform `crashed` count across *all five* parsers for those
+  rows -- a translation-level failure affecting every parser
+  identically, not a derivative-loop one. The new values keep both
+  categories measuring parser throughput on large-but-translatable
+  patterns, their actual purpose, instead of mostly re-discovering the
+  node cap.
+- **Two category-H rows were mislabeled, caught by `demo_parser_agreement_pathological`**:
+  `P29` (`(.+){10}`) and `P31` (`(.*){10}`) had a `nomatch_input` built
+  by appending a trailing character to an otherwise-matching string --
+  a construction that only forces a non-match when the pattern bounds
+  the total length it can consume. Neither does: `.` matches any single
+  character including the appended one, and ten unbounded `.+`/`.*`
+  groups impose no upper bound, so the "non-match" input actually
+  matched, and every parser correctly said so. `P31` has no genuine
+  non-match at any length (ten `.*` groups accept the empty string), so
+  its `nomatch_input` was removed; `P29`'s was replaced with a fixed
+  9-character input, one short of the ten-group minimum the pattern
+  needs. Re-running category H after the fix: 100% match agreement
+  (was 75%). No other row was affected.
+- **`bench_pathological_time`'s and `bench_pathological_memory`'s
+  summary CSVs had a quoting bug**, now fixed: `category_name` values
+  containing a comma (`"Trivial pattern, large input"`, the four `I`/
+  `J`/`K`/`L` names) were written unquoted, shifting every later column
+  for those four rows when read back by a standard CSV parser. A
+  pre-existing `csv_quote` helper in both files already quoted
+  pattern/input text in the entries CSV; the summary writer just never
+  called it on `category_name`. A tool reading an older
+  `bench_pathological_time*.csv`/`bench_pathological_memory*.csv` for
+  categories `I`/`J`/`K`/`L` should re-merge the split
+  `category_name` field by hand, or just re-run the bench.
 
 To load and sweep this dataset, see `PATHO_JSON_PATH`, `PATHO_SECTION`,
 `PATHO_CATEGORY`, `PATHO_N`, `PATHO_P` in [BENCHMARKS.md](BENCHMARKS.md).

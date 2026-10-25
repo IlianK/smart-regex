@@ -116,17 +116,18 @@
       "stress_axis": "compile blow-up (pattern size)",
       "suggested_p": [
         100,
+        500,
         1000,
-        10000,
-        100000
-      ]
+        2000
+      ],
+      "suggested_p_notes": "Lowered from [100,1000,10000,100000]: a real full-category run (bench_pathological_translate PX1) showed p=10000 and p=100000 reject at translation for every J row (core_regex_tagged's 20,000-node cap), so those two points contributed zero measured comparisons -- pure wasted wall-clock, not a stress result. p=1000 translates for most rows (observed 2000-14000 nodes depending on the row's per-alternative cost), so the new top point (2000) pushes a little past that confirmed-safe range without guaranteeing uniform rejection the way 10000 did."
     },
     "K": {
       "name": "Large pattern, large input",
       "mechanism": "Both axes simultaneously",
       "stress_axis": "compile + match blow-up",
       "suggested_p": [
-        1000
+        300
       ],
       "suggested_n": [
         500,
@@ -134,7 +135,8 @@
         5000,
         10000,
         50000
-      ]
+      ],
+      "suggested_p_notes": "Lowered from [1000]: a real full-category run showed exactly half of K's routine entries (20 of 40, uniform across all 5 parsers and every n) fail at translation, not at parsing -- p=1000 pushes at least one of K's 4 rows over core_regex_tagged's 20,000-node cap before any parser-timing comparison is possible. 300 keeps margin under the cap for the row observed with the highest per-alternative node cost."
     },
     "L": {
       "name": "Trivial pattern, trivial input",
@@ -622,11 +624,10 @@
       },
       "nomatch_input": {
         "repeat": "a",
-        "count": "{N}",
-        "suffix": "b"
+        "count": 9
       },
       "stress_axis": "polynomial (product of stars)",
-      "notes": "N must be >= 10 (one char per group)"
+      "notes": "N must be >= 10 (one char per group). A 'b'-suffixed input of length N+1 is NOT a non-match: . matches any single character including 'b', and the 10 groups have no upper bound, so any input of length >= 10 matches regardless of content or trailing suffix (confirmed by demo_parser_agreement_pathological: all 5 parsers correctly return true, the old suffix-based nomatch_input was mislabeled). The only genuine non-match is fewer than 10 characters total, fixed below the N sweep rather than scaled with it."
     },
     {
       "id": "P30",
@@ -652,12 +653,8 @@
         "repeat": "a",
         "count": "{N}"
       },
-      "nomatch_input": {
-        "repeat": "a",
-        "count": "{N}",
-        "suffix": "b"
-      },
-      "stress_axis": "polynomial (product of stars)"
+      "stress_axis": "polynomial (product of stars)",
+      "notes": "No nomatch_input: every (.*) group can be empty, so this pattern accepts every string including the empty one -- there is no non-match input at any length. The old 'b'-suffixed nomatch_input was mislabeled for the same reason as P29's (confirmed by demo_parser_agreement_pathological: all 5 parsers correctly return true for it)."
     },
     {
       "id": "P32",
