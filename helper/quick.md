@@ -56,7 +56,8 @@ BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PM1 \
 # Translate: full sweep.
 BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 
-# Stack depth: default sweep.
+
+# STACK DEPTH
 cargo bench --bench bench_stack_depth
 
 
@@ -64,10 +65,10 @@ cargo bench --bench bench_stack_depth
 cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
 cargo run --release --example demo_parser_agreement_pathological
-# Full pathological sweep; may take 30+ minutes.
 
 
-# REPRESENTATIVE PATHOLOGICAL CASES
+
+# REPRESENTATIVE PATHOLOGICAL CASES: TIMING
 
 # Confirmed measurable points plus large-scale targets.
 # P60: (a|b|ab)*, repeated 'a'.

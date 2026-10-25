@@ -156,7 +156,7 @@ Writes `reports/benches/bench_pathological_time.csv` (category and parser summar
 Filter the entries file to one `row_id` and `parser`, sort by `n`, and you have a single pattern's (input size, time) curve.
 
 
-### Per-row scaling and Fig 7 sweeps
+### Representative Pathological Cases: Timing
 
 Each `PATHO_N` list below mixes small points where `deriv_std_rec`/`deriv_std_loop` still complete (confirmed by probing each row's own entries CSV for exactly where `outcome` flips from `measured` to `timed_out`) with the original large/paper-scale points for the other three parsers. That way every single-row run reports a real number for all five parsers, not just the ones fast enough for the paper-scale input.
 
@@ -217,7 +217,7 @@ cargo bench --bench bench_pathological_memory
 Same dataset, grouping, sweep, `PATHO_*` variables, worker, and timeout and crash accounting as `bench_pathological_time`. Reports `total_bytes`, `avg_bytes`, and `max_peak` instead of durations. Writes `reports/benches/bench_pathological_memory.csv` and `..._entries.csv`, with `total_bytes` and `peak_bytes` in place of the micros columns.
 
 
-### Per-row scaling and Fig 7 sweeps
+### Representative Pathological Cases: Memory
 
 Same six representatives and the same `PATHO_N` lists as the time section above, so each row's memory curve covers the same small points where `deriv_std_rec`/`deriv_std_loop` complete, plus the large/paper-scale points for the other three parsers.
 
