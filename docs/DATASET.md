@@ -221,23 +221,31 @@ cargo run --release --example pathological_stats
 Saves `reports/data/pathological_stats.csv` (per category: patterns,
 variable-size patterns, input sizes, pattern sizes, test cases under
 the default sweep) and `reports/data/pathological_rows.csv` (per
-pattern). As of this writing: 113 patterns, 811 test cases under the
+pattern). As of this writing: 113 patterns, 917 test cases under the
 default sweep -- category `L` alone (33 baseline/edge patterns)
 accounts for 195 of them.
 
 ### Categories
 
-Every row belongs to one of 11 categories (`A`-`L`, skipping `G`):
+Every row belongs to one of 11 categories (`A`-`L`, skipping `G`).
+`suggested_n`/`suggested_p` for `A`/`B`/`C`/`D`/`E`/`F`/`H` are
+calibrated, not placeholders: each one is chosen from a real measured
+sweep (not just the one category-representative row quoted below) so
+that a routine, un-overridden run actually crosses from "every parser
+is fast" to "`deriv_std` is gone" within the category's own default
+points, instead of stopping short of it. See each category's own
+`suggested_n_notes` field in the JSON for the calibration this was
+based on.
 
 | Category | Name | Mechanism | Stress axis | suggested_n | suggested_p |
 |---|---|---|---|---|---|
-| A | Nested quantifiers | Quantified group inside another quantifier (`+`,`*`,`{1,}`) | derivative-state explosion | 20, 50, 100, 200 | -- |
-| B | Overlapping alternation | Alternatives sharing a prefix under a quantifier | derivative-state explosion | 20, 50, 100, 200 | -- |
-| C | Bounded rep over star | `{m,n}` wrapping a `*`/`+` body, unrolled at translate time | compile blow-up + polynomial match | 100, 500, 1000, 5000 | -- |
-| D | Anchored-failure style | Must fully consume input; near-miss tail forces full enumeration | compile blow-up + derivative-state explosion | 40, 60, 100 | -- |
-| E | Prefix-overlap alternation | One alternative is a strict prefix of another | derivative-state explosion | 20, 50, 100, 200 | -- |
-| F | Alternation-star + literal | `(alt)*`/`(alt)+` then a literal that fails late | polynomial or derivative-state explosion | 100, 500, 1000 | -- |
-| H | Many adjacent stars/groups | Product of `.+`, `.*`, `\w+` etc. in sequence | polynomial O(N^k), k = star count | 10, 20, 50, 100, 500, 1500 | -- |
+| A | Nested quantifiers | Quantified group inside another quantifier (`+`,`*`,`{1,}`) | derivative-state explosion | 10, 20, 30, 1000, 10000 | -- |
+| B | Overlapping alternation | Alternatives sharing a prefix under a quantifier | derivative-state explosion | 10, 20, 30, 1000, 10000 | -- |
+| C | Bounded rep over star | `{m,n}` wrapping a `*`/`+` body, unrolled at translate time | compile blow-up + polynomial match | 10, 50, 200, 1000 | -- |
+| D | Anchored-failure style | Must fully consume input; near-miss tail forces full enumeration | compile blow-up + derivative-state explosion | 10, 20, 30, 50, 75 | -- |
+| E | Prefix-overlap alternation | One alternative is a strict prefix of another | derivative-state explosion | 10, 100, 1000, 5000, 50000 | -- |
+| F | Alternation-star + literal | `(alt)*`/`(alt)+` then a literal that fails late | polynomial or derivative-state explosion | 10, 100, 1000, 10000, 50000 | -- |
+| H | Many adjacent stars/groups | Product of `.+`, `.*`, `\w+` etc. in sequence | polynomial O(N^k), k = star count | 10, 50, 200, 1000 | -- |
 | I | Trivial pattern, large input | Simple pattern, very long input | linear throughput | 100000, 1000000, 10000000 | -- |
 | J | Large pattern, trivial input | Thousands of literals/groups, short input | compile blow-up (pattern size) | -- | 100, 1000, 10000, 100000 |
 | K | Large pattern, large input | Both axes at once | compile + match blow-up | 500, 1000, 5000, 10000, 50000 | 1000 |
@@ -249,15 +257,15 @@ Every row belongs to one of 11 categories (`A`-`L`, skipping `G`):
 points; a row with no `suggested_p` has a fixed pattern size, a row
 with no `suggested_n` (only `J`) has a fixed input size.
 
-Two exceptions worth knowing before sweeping a specific row:
+Two things worth knowing before sweeping a specific row:
 
-- **D's rows don't currently scale with `PATHO_N` at all.** `P43`/
-  `P44`/`P45`/`P57` each use a fixed-integer `match_input`/
-  `nomatch_input` length (e.g. exactly 40 characters), not a `{N}`
-  template -- they test a specific near-miss boundary, not a sweepable
-  curve. `suggested_n` is listed for completeness but has no effect on
-  any row in this category today; there's no `(N, time)` curve to get
-  out of D as it stands.
+- **C's and H's own useful ceiling is much lower than the other
+  blow-up categories'**, on purpose, not an oversight: `(.*a){1,10}`-
+  and `(.+)x10`-style rows are already expensive for *every* parser,
+  not just `deriv_std` -- measured at ~0.7-0.9s per call at `n=100` and
+  ~7-10s at `n=1000` even for `deriv_bc`/`pderiv_std`, timing out for
+  everyone well before `n=5000`. Pushing these two categories as high
+  as A/B/E/F would only buy more timeouts, not more signal.
 - **K's upper range can genuinely crash `deriv_std_rec`/`deriv_std_loop`
   uncontained**, confirmed directly: at `n=50000` on the large-pattern
   generator rows (`E41`/`E52`, whose *pattern* is already ~1000 words),

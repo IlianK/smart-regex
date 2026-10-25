@@ -70,7 +70,7 @@ no CLI arguments.
 | `PATHO_SECTION` | `bench_pathological_*` | `pathological`, `baseline`, `generated`, `all` | `all` | Restricts to one of the dataset's three arrays |
 | `PATHO_CATEGORY` | `bench_pathological_*` | comma-separated `A`-`L` | unset (every category present) | |
 | `PATHO_ROW_ID` | `bench_pathological_time`/`memory` | comma-separated row ids | unset (every row other filters admit) | Narrow to one row + sweep `PATHO_N` for that pattern's own (input size, time) curve |
-| `PATHO_N` | `bench_pathological_time`/`memory` only | comma-separated integers | each row's `suggested_n` (fallback 20) | No effect on `bench_pathological_translate`: translation never depends on input length |
+| `PATHO_N` | `bench_pathological_*` | comma-separated integers | each row's `suggested_n` (fallback 20) | For `bench_pathological_translate`: only moves a row whose *pattern* itself is `n`-templated with no `generator` (category D); every other row's translated form never depends on input length |
 | `PATHO_P` | `bench_pathological_*` | comma-separated integers | each row's `suggested_p` (fallback 100) | Only matters for a `generated_patterns` row with a `generator` |
 | `STACKDEPTH_ROW_IDS` | `bench_stack_depth` only | comma-separated row ids | `P01,P30,E51` | |
 | `STACKDEPTH_TIMEOUT_MS` | `bench_stack_depth` only | positive integer (ms) | `15000` | Raised well past the other targets' 2000ms default -- see its own section |
@@ -310,12 +310,18 @@ alternation/group trees) as their own `stress_axis`, but the other two
 pathological targets only measure the parser call on an
 already-translated `Regex` -- so translation cost itself, the actual
 axis those categories stress, was never measured anywhere else. Sweeps
-`PATHO_P` only (a row's translated pattern never depends on `PATHO_N`).
-Writes `reports/benches/bench_pathological_translate.csv`, one row per
+`PATHO_P` for a `generated_patterns` row with a `generator` (J/K), or
+`PATHO_N` for a `pattern_template` row with none -- category D's own
+unrolled quantifier bound is `n`, not `p`, so this is the only other
+target where `PATHO_N` does anything; every other row's translated
+pattern depends on neither and is measured once. Writes
+`reports/benches/bench_pathological_translate.csv`, one row per
 category (same `translated`/`rejected`/`crashed` split as
-`bench_corpus_translate`, no per-pattern catalogue -- the dataset's own
-`id`/`notes` already document each row). **Appended**, like
-`bench_corpus_translate.csv`.
+`bench_corpus_translate`). **Appended**, like
+`bench_corpus_translate.csv`. Also writes
+`..._patterns.csv` (one row per distinct row/`p`/`n` entry, same
+catalogue role as the other two pathological targets' own entries
+files), overwritten each run.
 
 ## `bench_stack_depth.rs`
 
@@ -413,6 +419,14 @@ PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_L
 cargo bench --bench bench_pathological_time
 
 BENCH_RUN_LABEL=PT1 cargo bench --bench bench_pathological_time
+# PT1 now does real work at each category's calibrated suggested_n
+# (see DATASET.md's Categories table) rather than stopping short of
+# deriv_std's own collapse -- expect several minutes per blow-up
+# category (A/B/C/D/E/F/H), dominated by every non-crashing entry
+# sitting out the default 2000ms BENCH_ENTRY_TIMEOUT_MS before giving
+# up. For a faster, coarser full sweep, lower that cap (e.g. the 500ms
+# PT0 already uses above) at the cost of a timed-out entry that might
+# otherwise have measured.
 
 
 

@@ -2,10 +2,23 @@
 //!
 //! Loads and expands the hand-curated stress-pattern dataset at
 //! `data/pathological/pathological_patterns.json`. A row carries either
-//! a concrete `regex`, or a `pattern_template` + `generator` pair that
-//! `expand` resolves at bench time. `match_input`/`nomatch_input`
-//! expand the same way, parameterized by a swept input length `n` and,
-//! for generator rows, a pattern size `p`.
+//! a concrete `regex`, or a `pattern_template` that `expand` resolves
+//! at bench time -- with a `generator` (pattern size driven by `p`),
+//! or without one (the template's own `{N}`/`{P}` tokens substituted
+//! directly, for a row whose *pattern*, not just its input, needs to
+//! grow with the sweep -- e.g. a fixed quantifier bound that must
+//! scale with `n` for the row's own stress mechanism to mean anything
+//! at more than one point). `match_input`/`nomatch_input` expand the
+//! same way, parameterized by a swept input length `n` and, for
+//! generator rows, a pattern size `p`.
+//!
+//! A template's `{N}`/`{P}` token is always a bare number -- the same
+//! meaning `CountSpec` already gives it in `match_input`/`nomatch_input`
+//! (see `resolve_count_template`). A `pattern_template` that wants the
+//! regex's own literal `{..}` quantifier syntax around that number
+//! writes `{{N}}`/`{{P}}`, not `{N}`/`{P}` -- `{N}` alone is itself
+//! delimited by braces, so a bare `{N}` would consume them; the outer
+//! pair in `{{N}}` is what survives as the quantifier's own braces.
 
 use std::collections::HashMap;
 use std::io;
@@ -35,7 +48,8 @@ pub struct CategoryInfo {
 }
 
 /// A `count` field: a fixed integer, or a `{N}`/`{P}` template,
-/// optionally offset by a literal `+K`/`-K` (e.g. `{P}-1`).
+/// optionally scaled by a literal `*K` and/or offset by `+K`/`-K`
+/// (e.g. `{P}-1`, `{N}*2`, `{N}*2-1`).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum CountSpec {
@@ -53,23 +67,30 @@ impl CountSpec {
 }
 
 fn resolve_count_template(s: &str, n: u32, p: u32) -> u32 {
-    if s == "{N}" {
-        return n;
+    let (base, rest) = if let Some(rest) = s.strip_prefix("{N}") {
+        (n, rest)
+    } else if let Some(rest) = s.strip_prefix("{P}") {
+        (p, rest)
+    } else {
+        panic!("unexpected count template: {s:?}")
+    };
+    let (scaled, rest) = match rest.strip_prefix('*') {
+        Some(rest) => {
+            let end = rest.find(['+', '-']).unwrap_or(rest.len());
+            let factor: u32 =
+                rest[..end].parse().unwrap_or_else(|_| panic!("bad count multiplier: {s:?}"));
+            (base.saturating_mul(factor), &rest[end..])
+        }
+        None => (base, rest),
+    };
+    if rest.is_empty() {
+        return scaled;
     }
-    if s == "{P}" {
-        return p;
+    if let Some(off) = rest.strip_prefix('-') {
+        return scaled.saturating_sub(off.parse().unwrap_or_else(|_| panic!("bad count offset: {s:?}")));
     }
-    if let Some(rest) = s.strip_prefix("{P}-") {
-        return p.saturating_sub(rest.parse().unwrap_or_else(|_| panic!("bad count offset: {s:?}")));
-    }
-    if let Some(rest) = s.strip_prefix("{P}+") {
-        return p + rest.parse::<u32>().unwrap_or_else(|_| panic!("bad count offset: {s:?}"));
-    }
-    if let Some(rest) = s.strip_prefix("{N}-") {
-        return n.saturating_sub(rest.parse().unwrap_or_else(|_| panic!("bad count offset: {s:?}")));
-    }
-    if let Some(rest) = s.strip_prefix("{N}+") {
-        return n + rest.parse::<u32>().unwrap_or_else(|_| panic!("bad count offset: {s:?}"));
+    if let Some(off) = rest.strip_prefix('+') {
+        return scaled + off.parse::<u32>().unwrap_or_else(|_| panic!("bad count offset: {s:?}"));
     }
     panic!("unexpected count template: {s:?}")
 }
@@ -215,12 +236,16 @@ pub fn load(path: &Path) -> io::Result<PathologicalDoc> {
 }
 
 /// A row's regex, plus its expanded `match_input`/`nomatch_input`, for
-/// one `(n, p)` sweep point. `p` is unused by a row with no `generator`.
+/// one `(n, p)` sweep point. A `pattern_template` with no `generator`
+/// still gets `{N}`/`{P}` substituted into its own text (e.g. a fixed
+/// quantifier bound that needs to grow with the sweep, not just the
+/// input length) -- the same two tokens `match_input`/`nomatch_input`
+/// counts already use.
 pub fn expand(row: &PathologicalRow, n: u32, p: u32) -> (String, Option<String>, Option<String>) {
     let regex = match (&row.regex, &row.pattern_template, &row.generator) {
         (Some(r), _, _) => r.clone(),
         (None, Some(tmpl), Some(gen)) => gen.expand(tmpl, p),
-        (None, Some(tmpl), None) => tmpl.clone(),
+        (None, Some(tmpl), None) => tmpl.replace("{N}", &n.to_string()).replace("{P}", &p.to_string()),
         (None, None, _) => panic!("row {} has neither `regex` nor `pattern_template`", row.id),
     };
     let match_input = row.match_input.as_ref().map(|spec| spec.expand(n, p));
@@ -254,6 +279,39 @@ mod tests {
         let (_, m, nm) = expand(&r, 10, 0);
         assert_eq!(m, Some("a".repeat(10)));
         assert_eq!(nm, Some(format!("{}b", "a".repeat(10))));
+    }
+
+    #[test]
+    fn count_template_supports_a_multiplier_and_offset() {
+        assert_eq!(resolve_count_template("{N}*2", 20, 0), 40);
+        assert_eq!(resolve_count_template("{N}*2-1", 20, 0), 39);
+        assert_eq!(resolve_count_template("{N}*3+1", 20, 0), 61);
+        assert_eq!(resolve_count_template("{P}*2", 0, 7), 14);
+        assert_eq!(resolve_count_template("{N}-1", 20, 0), 19);
+        assert_eq!(resolve_count_template("{N}*2", 0, 0), 0);
+    }
+
+    #[test]
+    fn pattern_template_without_generator_still_substitutes_n_and_p() {
+        // `{{N}}` -- not `{N}` -- is how a template keeps the regex's
+        // own literal `{..}` quantifier braces around the substituted
+        // value: `{N}` alone is itself delimited by braces, so a bare
+        // `{N}` consumes them (see `resolve_count_template` above);
+        // `{{N}}` leaves the outer pair and substitutes only the inner.
+        let r = row(
+            r#"{
+            "id": "P43", "category": "D",
+            "pattern_template": "(a?){{N}}a{{N}}",
+            "match_input": {"repeat": "a", "count": "{N}*2"},
+            "nomatch_input": {"repeat": "a", "count": "{N}-1"},
+            "stress_axis": "compile blow-up (unrolled)"
+        }"#,
+        );
+        assert!(r.generator.is_none());
+        let (regex, m, nm) = expand(&r, 5, 0);
+        assert_eq!(regex, "(a?){5}a{5}");
+        assert_eq!(m, Some("a".repeat(10)));
+        assert_eq!(nm, Some("a".repeat(4)));
     }
 
     #[test]

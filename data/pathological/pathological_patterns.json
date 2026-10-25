@@ -16,64 +16,77 @@
       "mechanism": "Quantified group inside another quantifier (+, *, {1,})",
       "stress_axis": "derivative-state explosion",
       "suggested_n": [
+        10,
         20,
-        50,
-        100,
-        200
-      ]
+        30,
+        1000,
+        10000
+      ],
+      "suggested_n_notes": "calibrated against (a+)+/(a|aa)+: deriv_std_rec/loop already crash or time out by n=25-30 (confirmed exponential, e.g. (a+)+ roughly doubles cost every +5n); deriv_bc stays alive into the low tens of thousands before it too times out; pderiv_bc/pderiv_std stay cheap (sub-second) through n=100000 and are only pushed that far by an explicit override, not this routine default"
     },
     "B": {
       "name": "Overlapping alternation",
       "mechanism": "Alternatives matching the same prefix under a quantifier",
       "stress_axis": "derivative-state explosion",
       "suggested_n": [
+        10,
         20,
-        50,
-        100,
-        200
-      ]
+        30,
+        1000,
+        10000
+      ],
+      "suggested_n_notes": "same calibration and shape as A -- (a|aa)+'s deriv_std_rec/loop crash by n=30-40, slightly later than A's nested-quantifier family but the same order of magnitude"
     },
     "C": {
       "name": "Bounded rep over star",
       "mechanism": "{m,n} wrapping a */+ body; unrolled at translate time",
       "stress_axis": "compile blow-up (unrolled) + polynomial match",
       "suggested_n": [
-        100,
-        500,
-        1000,
-        5000
-      ]
+        10,
+        50,
+        200,
+        1000
+      ],
+      "suggested_n_notes": "calibrated against (.*a){1,10}: the {1,10} unrolling plus .*'s own branching makes this expensive for every parser, not just deriv_std -- deriv_bc/pderiv_std already take ~0.7-0.9s at n=100 and ~7-10s at n=1000, and time out well before n=5000 even for the surviving parsers, so this category's own useful ceiling is far lower than the others; going past n=1000 in a routine run buys no signal, only timeouts"
     },
     "D": {
       "name": "Anchored-failure style",
       "mechanism": "Must fully consume input; near-miss tail forces full enumeration",
       "stress_axis": "compile blow-up (unrolled) + derivative-state explosion",
       "suggested_n": [
-        40,
-        60,
-        100
-      ]
+        10,
+        20,
+        30,
+        50,
+        75
+      ],
+      "suggested_n_notes": "rows carry their own unrolled quantifier bound as {N} now (see pathological.rs's pattern_template substitution), not a fixed 20 -- so n actually controls the compile-time blow-up here, not just the input length. Calibrated against the 4 rows: growth is a milder exponential than A/B (each +5n roughly 2-10x, not consistently doubling), with (a*){N}a{N} the fastest to fail (already crashing by n=50) and (a?){N}a{N}/(a+){N}a{N} still measurable in the hundreds of ms at n=50"
     },
     "E": {
       "name": "Prefix-overlap alternation",
       "mechanism": "One alternative is a strict prefix of another",
       "stress_axis": "derivative-state explosion",
       "suggested_n": [
-        20,
-        50,
+        10,
         100,
-        200
-      ]
+        1000,
+        5000,
+        50000
+      ],
+      "suggested_n_notes": "calibrated against (ab|a)+: deriv_std_rec/loop are still fine (if already seconds-slow) at n=1000, then gone by n=5000; deriv_bc/pderiv_bc/pderiv_std stay well under a second through n=50000. P60/P61 are this category's own paper-scale outliers (see their row notes) and are swept at the millions scale through an explicit PATHO_ROW_ID/PATHO_N override, not through this routine default"
     },
     "F": {
       "name": "Alternation-star + literal",
       "mechanism": "(alt)* or (alt)+ then a literal that fails late",
       "stress_axis": "polynomial (simple alt) or derivative-state explosion (nested)",
       "suggested_n": [
+        10,
         100,
-        500,
-        1000
-      ]
+        1000,
+        10000,
+        50000
+      ],
+      "suggested_n_notes": "calibrated against (a|b)*c: deriv_std_rec/loop measurable through n=1000 (seconds-scale) then gone by n=5000; deriv_bc measurable through n=10000 (several seconds) then gone by n=50000; pderiv_bc/pderiv_std stay well under a second throughout"
     },
     "H": {
       "name": "Many adjacent stars/groups",
@@ -81,12 +94,11 @@
       "stress_axis": "polynomial O(N^k), k = number of stars",
       "suggested_n": [
         10,
-        20,
         50,
-        100,
-        500,
-        1500
-      ]
+        200,
+        1000
+      ],
+      "suggested_n_notes": "calibrated against 10 sequential (.+) groups: like C, the product-of-stars mechanism is expensive for every parser, not just deriv_std -- even pderiv_std takes ~0.4-0.6s at n=100 and ~6s at n=1000, and times out well before n=5000, so this category shares C's lower ceiling"
     },
     "I": {
       "name": "Trivial pattern, large input",
@@ -817,47 +829,47 @@
     {
       "id": "P43",
       "category": "D",
-      "regex": "(a?){20}a{20}",
+      "pattern_template": "(a?){{N}}a{{N}}",
       "match_input": {
         "repeat": "a",
-        "count": 40
+        "count": "{N}*2"
       },
       "nomatch_input": {
         "repeat": "a",
-        "count": 19
+        "count": "{N}-1"
       },
       "stress_axis": "compile blow-up (unrolled)",
-      "notes": "FIXED vs proposal: a^39 actually matches (valid range is 20..40); classic, now compile-only"
+      "notes": "the valid match range for (a?){N}a{N} is [N, 2N] (leading groups consume 0..N of their own, tail needs exactly N more); a^(2N) sits at the top of that range, a^(N-1) sits just below the floor, both scaling with N instead of being pinned to the original N=20 case's 40/19"
     },
     {
       "id": "P44",
       "category": "D",
-      "regex": "(a*){20}a{20}",
+      "pattern_template": "(a*){{N}}a{{N}}",
       "match_input": {
         "repeat": "a",
-        "count": 40
+        "count": "{N}*2"
       },
       "nomatch_input": {
         "repeat": "a",
-        "count": 19
+        "count": "{N}-1"
       },
       "stress_axis": "compile + derivative blow-up",
-      "notes": "FIXED vs proposal: a^39 actually matches (valid range is 20..inf)"
+      "notes": "valid match range for (a*){N}a{N} is [N, inf) (each leading group is unbounded, not just 0/1); a^(2N) is a representative match well inside that range, a^(N-1) sits just below the tail's own floor of N"
     },
     {
       "id": "P45",
       "category": "D",
-      "regex": "(a+){20}a{20}",
+      "pattern_template": "(a+){{N}}a{{N}}",
       "match_input": {
         "repeat": "a",
-        "count": 40
+        "count": "{N}*2"
       },
       "nomatch_input": {
         "repeat": "a",
-        "count": 39
+        "count": "{N}*2-1"
       },
       "stress_axis": "compile + derivative blow-up",
-      "notes": "a^39 correctly fails here (valid range is 40..inf); unchanged from proposal"
+      "notes": "valid match range for (a+){N}a{N} is [2N, inf) (each leading group must consume >=1); a^(2N) sits exactly at the floor, a^(2N-1) is the tightest possible near-miss"
     },
     {
       "id": "P46",
@@ -1035,17 +1047,17 @@
     {
       "id": "P57",
       "category": "D",
-      "regex": "a{1,20}a{1,20}a{1,20}",
+      "pattern_template": "a{1,{N}}a{1,{N}}a{1,{N}}",
       "match_input": {
         "repeat": "a",
-        "count": 60
+        "count": "{N}*3"
       },
       "nomatch_input": {
         "repeat": "a",
-        "count": 61
+        "count": "{N}*3+1"
       },
       "stress_axis": "derivative-state explosion (sequential same-char bound ambiguity)",
-      "notes": "three same-char bounded segments concatenated, not nested -- compile size stays modest (245 nodes, far below D's unrolling-driven siblings), but matching a run of 'a's genuinely stresses the matcher: confirmed empirically ~4x slower than the identical bound structure with distinct chars (a{1,20}b{1,20}c{1,20}) at the same total length, since every length has many ways to split across the three segments"
+      "notes": "three same-char bounded segments concatenated, not nested -- compile size stays modest relative to D's unrolling-driven siblings, but matching a run of 'a's genuinely stresses the matcher (confirmed empirically ~4x slower than the identical bound structure with distinct chars, a{1,N}b{1,N}c{1,N}, at the same total length, since every length has many ways to split across the three segments); a^(3N) sits at the top of the valid [3, 3N] range, a^(3N+1) just past it"
     },
     {
       "id": "P58",

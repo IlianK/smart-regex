@@ -34,24 +34,26 @@
 //! selection helpers (duplicated, not shared, per this codebase's
 //! existing convention of not sharing code between bench binaries).
 //! One difference from the other two `bench_pathological_*` targets:
-//! this file sweeps `PATHO_P` only, not `PATHO_N`. A pattern's
-//! translated form depends only on the pattern text -- `pattern_template`
-//! resolved through a row's `generator` at a given `p` (pattern size);
-//! `n` (input length) only ever parameterizes `match_input`/
-//! `nomatch_input`, which translation never touches. So `PATHO_N` is
-//! read nowhere in this file and has no effect here -- not an
-//! oversight, the same reasoning `bench_corpus_translate.rs` uses for
-//! not reading `BENCH_ENTRY_TIMEOUT_MS`/`BENCH_SPLIT_OUTCOME` (nothing
-//! here for that variable to act on). For a row with no `generator`,
-//! `p` doesn't move its pattern either, so it is measured exactly
-//! once; a `generated_patterns` row with a `generator` is measured
-//! once per distinct swept `p` -- the category-J/K blow-up curve this
-//! bench exists to show.
+//! this file sweeps whichever of `PATHO_P`/`PATHO_N` actually moves a
+//! given row's own pattern text, which depends on how that row is
+//! built: `pattern_template` resolved through a row's `generator` at
+//! a given `p` (pattern size) -- most rows, including every
+//! `generated_patterns` row -- or, for a row with `pattern_template`
+//! but no `generator` (its own `{N}`/`{{N}}` tokens substituted
+//! directly, e.g. category D's rows, whose unrolled quantifier bound
+//! *is* `n`), `n` instead. A row with a concrete `regex` has neither
+//! knob move its pattern, so it is measured exactly once regardless
+//! of either sweep. `n` otherwise only ever parameterizes
+//! `match_input`/`nomatch_input`, which translation never touches --
+//! so for every row *except* the no-generator-`pattern_template` case,
+//! `PATHO_N` still has no effect here, the same reasoning
+//! `bench_corpus_translate.rs` uses for not reading
+//! `BENCH_ENTRY_TIMEOUT_MS`/`BENCH_SPLIT_OUTCOME`.
 //!
 //! Writes `reports/benches/bench_pathological_translate.csv` -- one
 //! row per category: mean/median/p99/max of time (ms), allocation
 //! (total and peak bytes), and translated size (nodes), over every
-//! row/`p` combination that translated successfully (`translated`;
+//! row/`p`/`n` combination that translated successfully (`translated`;
 //! `rejected` -- `core_regex` itself returned `Err`, e.g. hit its
 //! depth/node cap -- and `crashed` are excluded, same reasoning as
 //! `bench_corpus_translate.rs`'s own summary row). Always this exact
@@ -63,20 +65,21 @@
 //! row's own invocation, since the filename no longer can.
 //!
 //! Also writes `reports/benches/bench_pathological_translate{label}_patterns.csv`
-//! (one row per distinct row/`p` entry that translated successfully:
-//! id, category, p, pattern, nodes, micros, bytes, and the `Regex` via
-//! its `Debug`, when nodes <= `BENCH_TRANSLATE_RENDER_MAX_NODES`,
-//! default 150) -- a catalogue for hand-picking thesis examples, same
-//! role and naming (label baked into the filename, not a column) as
-//! `bench_corpus_translate.rs`'s own `*_patterns.csv`. Overwritten each
-//! run, not appended.
+//! (one row per distinct row/`p`/`n` entry that translated
+//! successfully: id, category, p, n, pattern, nodes, micros, bytes,
+//! and the `Regex` via its `Debug`, when nodes <= `BENCH_TRANSLATE_
+//! RENDER_MAX_NODES`, default 150) -- a catalogue for hand-picking
+//! thesis examples, same role and naming (label baked into the
+//! filename, not a column) as `bench_corpus_translate.rs`'s own
+//! `*_patterns.csv`. Overwritten each run, not appended.
 //!
 //! Reads `PATHO_JSON_PATH`, `PATHO_SECTION`, `PATHO_CATEGORY`,
-//! `PATHO_P`, `BENCH_PATTERN_LIMIT` (caps selected *rows*, before the
-//! `p` sweep, same as the other two `bench_pathological_*` targets),
+//! `PATHO_P`, `PATHO_N` (see above -- moves only a no-generator
+//! `pattern_template` row's own pattern, e.g. category D),
+//! `BENCH_PATTERN_LIMIT` (caps selected *rows*, before either sweep,
+//! same as the other two `bench_pathological_*` targets),
 //! `BENCH_RUN_LABEL`, and `BENCH_TRANSLATE_RENDER_MAX_NODES`. Does not
-//! read `PATHO_N` (see above) or `BENCH_ENTRY_TIMEOUT_MS` (no process
-//! isolation to bound).
+//! read `BENCH_ENTRY_TIMEOUT_MS` (no process isolation to bound).
 //!
 //! cargo bench --bench bench_pathological_translate
 
@@ -160,8 +163,10 @@ unsafe impl GlobalAlloc for CountingAllocator {
 static GLOBAL: CountingAllocator = CountingAllocator;
 
 // -------------------------------
-// Selection -- mirrors bench_pathological_time.rs's own, minus PATHO_N
-// (see module doc for why this file never reads it).
+// Selection -- mirrors bench_pathological_time.rs's own row-selection
+// helpers exactly (section/category/limit); its n/p sweep resolution
+// is reimplemented in build_entries below, since which knob applies
+// depends on how a row builds its pattern (see module doc).
 // -------------------------------
 
 #[derive(Clone, Copy)]
@@ -237,16 +242,24 @@ struct PatternEntry {
     row_id: String,
     category: String,
     p: u32,
+    n: u32,
     pattern: String,
 }
 
-/// One entry per row per swept `p`. `p` only moves the resulting
-/// pattern for a `generated_patterns` row with a `generator` --
-/// `pathological::expand`'s own `n` parameter is irrelevant to the
-/// pattern it returns, so it is called with a fixed, unused value
-/// (`0`) rather than threading a real `n` sweep through this file.
-fn build_entries(doc: &PathologicalDoc, rows: &[&PathologicalRow], p_override: &Option<Vec<u32>>) -> Vec<PatternEntry> {
-    const UNUSED_N: u32 = 0;
+const UNUSED_N: u32 = 0;
+
+/// One entry per row per swept `p` and/or `n` -- whichever actually
+/// moves that row's own pattern text (see the module doc): `p` for a
+/// `generated_patterns` row with a `generator`, `n` for a
+/// `pattern_template` row with none (e.g. category D), neither for a
+/// concrete `regex`. The knob that doesn't apply to a given row is
+/// held at a fixed, unused value instead of being swept pointlessly.
+fn build_entries(
+    doc: &PathologicalDoc,
+    rows: &[&PathologicalRow],
+    p_override: &Option<Vec<u32>>,
+    n_override: &Option<Vec<u32>>,
+) -> Vec<PatternEntry> {
     let mut entries = Vec::new();
     for row in rows {
         let cat = doc.categories.get(&row.category);
@@ -260,14 +273,27 @@ fn build_entries(doc: &PathologicalDoc, rows: &[&PathologicalRow], p_override: &
         } else {
             vec![pathological::DEFAULT_P]
         };
-        for &p in &p_list {
-            let (pattern, _match_input, _nomatch_input) = pathological::expand(row, UNUSED_N, p);
-            entries.push(PatternEntry {
-                row_id: row.id.clone(),
-                category: row.category.clone(),
-                p,
-                pattern,
-            });
+        let needs_n = row.regex.is_none() && row.generator.is_none() && row.pattern_template.is_some();
+        let n_list = if needs_n {
+            n_override
+                .clone()
+                .or_else(|| row.suggested_n.clone())
+                .or_else(|| cat.and_then(|c| c.suggested_n.clone()))
+                .unwrap_or_else(|| vec![pathological::DEFAULT_N])
+        } else {
+            vec![UNUSED_N]
+        };
+        for &n in &n_list {
+            for &p in &p_list {
+                let (pattern, _match_input, _nomatch_input) = pathological::expand(row, n, p);
+                entries.push(PatternEntry {
+                    row_id: row.id.clone(),
+                    category: row.category.clone(),
+                    p,
+                    n,
+                    pattern,
+                });
+            }
         }
     }
     entries
@@ -320,6 +346,7 @@ struct PatternStat {
     row_id: String,
     category: String,
     p: u32,
+    n: u32,
     pattern: String,
     nodes: usize,
     micros: u64,
@@ -439,6 +466,7 @@ fn report(
                     row_id: entry.row_id.clone(),
                     category: category.to_string(),
                     p: entry.p,
+                    n: entry.n,
                     pattern: entry.pattern.clone(),
                     nodes: m.nodes,
                     micros: m.micros,
@@ -450,15 +478,15 @@ fn report(
             MeasureOutcome::Rejected(e) => {
                 rejected += 1;
                 eprintln!(
-                    "  rejected: {category}/{} row={} p={} pat={:?} -- {e}",
-                    category_name, entry.row_id, entry.p, entry.pattern,
+                    "  rejected: {category}/{} row={} p={} n={} pat={:?} -- {e}",
+                    category_name, entry.row_id, entry.p, entry.n, entry.pattern,
                 );
             }
             MeasureOutcome::Crashed => {
                 crashed += 1;
                 eprintln!(
-                    "  crash: {category}/{} row={} p={} pat={:?} -- core_regex panicked",
-                    category_name, entry.row_id, entry.p, entry.pattern,
+                    "  crash: {category}/{} row={} p={} n={} pat={:?} -- core_regex panicked",
+                    category_name, entry.row_id, entry.p, entry.n, entry.pattern,
                 );
             }
         }
@@ -529,7 +557,7 @@ fn csv_quote(s: &str) -> String {
 /// hand-picking thesis examples, not a measurement in itself.
 fn write_patterns_csv(path: &str, rows: &[PatternStat]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "id,category,p,pattern,nodes,micros,total_bytes,peak_bytes,translated")?;
+    writeln!(f, "id,category,p,n,pattern,nodes,micros,total_bytes,peak_bytes,translated")?;
     for r in rows {
         let translated = r
             .rendered
@@ -538,10 +566,11 @@ fn write_patterns_csv(path: &str, rows: &[PatternStat]) -> std::io::Result<()> {
             .unwrap_or_else(|| format!("<{} nodes, not rendered>", r.nodes));
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{}",
             r.row_id,
             r.category,
             r.p,
+            r.n,
             csv_quote(&r.pattern),
             r.nodes,
             r.micros,
@@ -601,6 +630,7 @@ fn main() {
     let section = parse_section();
     let categories = parse_categories();
     let p_override = parse_u32_list("PATHO_P");
+    let n_override = parse_u32_list("PATHO_N");
     let limit = pattern_limit();
     let path = json_path();
     let render_cap = render_max_nodes();
@@ -611,7 +641,7 @@ fn main() {
     if rows.is_empty() {
         panic!("no rows selected from {path:?} (section/category filters too narrow?)");
     }
-    let entries = build_entries(&doc, &rows, &p_override);
+    let entries = build_entries(&doc, &rows, &p_override, &n_override);
     eprintln!(
         "bench_pathological_translate: {} rows -> {} pattern entries (limit {})",
         rows.len(),
