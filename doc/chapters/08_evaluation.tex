@@ -36,14 +36,14 @@ targets.
 \label{sec:eval-two-datasets}
 
 The evaluation draws on two pattern sources, chosen for two different
-evluations.
+evaluations.
 
-\textbf{S2ELab} is a human-written dataset with 762 patterns. 
+\textbf{S2ELab} is a human-written dataset with 762 patterns.
 Each has a natural-language description and the author's own labeled
 \texttt{matches}/\texttt{non\_matches}. It supplies realistic
 measurements of how the four parsers behave on patterns a person wrote,
-with inputs a person judged to match or not. 
-The dataset is available at \citet{s2elab-regexeval-dataset}.
+with inputs a person judged to match or not.
+The dataset is available at \citep{siddiq2024regexeval}.
 
 \textbf{The pathological stress set} holds 113 hand-curated patterns,
 grouped by the specific complexity mechanism each one triggers, with
@@ -474,12 +474,6 @@ full-match-stripped S2ELab patterns, and
 \texttt{demo\_parser\_agreement\_pathological} against the 113-row
 pathological set.
 
-\begin{verbatim}
-cargo build --release --example demo_parser_agreement_worker
-cargo run --release --example demo_parser_agreement
-cargo run --release --example demo_parser_agreement_pathological
-\end{verbatim}
-
 %
 %
 %
@@ -647,11 +641,6 @@ same \texttt{BENCH\_PATTERN\_LIMIT}/\texttt{BENCH\_ENTRY\_TIMEOUT\_MS}
 used by the corpus benches. There is no \texttt{BENCH\_MATCH\_INTENT}
 here, since these patterns are authored directly in full-match form.
 
-\begin{verbatim}
-cargo bench --bench bench_pathological_time
-PATHO_CATEGORY=A,B cargo bench --bench bench_pathological_time
-\end{verbatim}
-
 Table~\ref{tab:patho-timing-smoke} reports one routine,
 un-overridden pass per category. \texttt{to\%} is the share of
 entries that hit the 2-second cap. The mean column is over completed
@@ -664,16 +653,16 @@ easy entries that survived, not category-wide speed.
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{llrrrrrrrrrr}
 \hline
-& & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} \\
+& & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
 Cat. & Entries & mean & to\% & mean & to\% & mean & to\% & mean & to\% & mean & to\% \\
 \hline
-A & 160 & 190.6 & 71\% & 176.5 & 71\% & 176.9 &  1\% &  17.7 &  0\% &  18.9 &  0\% \\
-B & 150 & 184.1 & 63\% & 157.5 & 64\% & 106.0 &  4\% & 103.7 &  0\% & 108.2 &  0\% \\
-C &  56 &  95.6 & 57\% &  96.2 & 57\% & 282.4 & 25\% & 289.3 & 18\% & 273.4 & 18\% \\
-D &  40 & 221.9 & 22\% & 220.4 & 22\% & 150.0 &  0\% & 215.4 & 15\% & 241.2 & 15\% \\
-E &  80 & 167.7 & 60\% & 161.1 & 60\% &  89.7 &  0\% &  63.7 &  0\% &  68.4 &  0\% \\
-F &  70 & 429.8 & 66\% & 400.7 & 66\% &  46.8 & 40\% & 115.9 &  3\% & 111.7 &  3\% \\
-H &  28 & 250.7 & 64\% & 253.9 & 64\% & 292.2 &  7\% & 158.2 & 18\% & 152.7 & 18\% \\
+A & 160 & 190.6 & 71\% & 176.5 & 71\% & 176.9 &  1\% &  18.9 &  0\% &  17.7 &  0\% \\
+B & 150 & 184.1 & 63\% & 157.5 & 64\% & 106.0 &  4\% & 108.2 &  0\% & 103.7 &  0\% \\
+C &  56 &  95.6 & 57\% &  96.2 & 57\% & 282.4 & 25\% & 273.4 & 18\% & 289.3 & 18\% \\
+D &  40 & 221.9 & 22\% & 220.4 & 22\% & 150.0 &  0\% & 241.2 & 15\% & 215.4 & 15\% \\
+E &  80 & 167.7 & 60\% & 161.1 & 60\% &  89.7 &  0\% &  68.4 &  0\% &  63.7 &  0\% \\
+F &  70 & 429.8 & 66\% & 400.7 & 66\% &  46.8 & 40\% & 111.7 &  3\% & 115.9 &  3\% \\
+H &  28 & 250.7 & 64\% & 253.9 & 64\% & 292.2 &  7\% & 152.7 & 18\% & 158.2 & 18\% \\
 \hline
 \end{tabular}
 \caption{Mean per-entry time (ms, completed entries only) and timeout
@@ -734,33 +723,83 @@ Table~\ref{tab:patho-fig7} reports P60 and P61 from a real run. The
 remaining representatives (P20, P01, P09, P25+P27+P28) are still
 pending.
 
-\begin{table}[ht]
+Figure~\ref{fig:patho-fig7} plots P60 and P61 from a real run. The
+remaining representatives (P20, P01, P09, P25+P27+P28) are still
+pending.
+\begin{figure}[ht]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{llrrr}
-\hline
-Row & Parser & \multicolumn{3}{c}{Wall time (match side)} \\
-\hline
-P60 ($(a|b|ab)^*$, & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M} \\
-`a'-repeated;       & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M} \\
-1\,M/5\,M/10\,M)    & \texttt{deriv\_bc}        & 3.85 s & 19.45 s & 39.85 s \\
-                    & \texttt{pderiv\_bc}       & 3.26 s & 16.88 s & 33.86 s \\
-                    & \texttt{pderiv\_std}      & 2.72 s & 13.68 s & 27.62 s \\
-\hline
-P61 ($(a|b|ab)^*$,  & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M} \\
-`ab'-repeated;      & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M} \\
-500\,K/2.5\,M/5\,M) & \texttt{deriv\_bc}        & 2.84 s & 14.40 s & 28.25 s \\
-                    & \texttt{pderiv\_bc}       & 2.35 s & 11.96 s & 23.73 s \\
-                    & \texttt{pderiv\_std}      & 2.50 s & 12.71 s & 24.61 s \\
-\hline
-\end{tabular}
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=5cm,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (s)},
+  title={P60: $(a|b|ab)^*$, `a'-repeated},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+  xmin=0, xmax=11000000,
+  ymin=0, ymax=45,
+  xtick={1000000, 5000000, 10000000},
+  xticklabels={1M, 5M, 10M},
+  ytick={0, 10, 20, 30, 40},
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(1000000,3.85) (5000000,19.45) (10000000,39.85)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(1000000,3.26) (5000000,16.88) (10000000,33.86)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(1000000,2.72) (5000000,13.68) (10000000,27.62)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+
+\vspace{0.6em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=5cm,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (s)},
+  title={P61: $(a|b|ab)^*$, `ab'-repeated},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+  xmin=0, xmax=5500000,
+  ymin=0, ymax=32,
+  xtick={500000, 2500000, 5000000},
+  xticklabels={500K, 2.5M, 5M},
+  ytick={0, 10, 20, 30},
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(500000,2.84) (2500000,14.40) (5000000,28.25)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(500000,2.35) (2500000,11.96) (5000000,23.73)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(500000,2.50) (2500000,12.71) (5000000,24.61)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+
 \caption{Figure~7 reproduction. Wall time is the match-side entry's
 own reported \texttt{micros}; the non-match side is within a few
-percent throughout and omitted. Peak memory was not measured at this
-scale.}
-\label{tab:patho-fig7}
-\end{table}
+percent throughout and omitted. \texttt{deriv\_std\_rec} and
+\texttt{deriv\_std\_loop} crash at every point tested on both rows
+(500\,K--10\,M characters) and have no curve to plot. Peak memory was
+not measured at this scale.}
+\label{fig:patho-fig7}
+\end{figure}
 
 Both standard variants crash rather than time out at every point
 tested, including the smallest (500\,K for P61). The 120-second
@@ -793,14 +832,6 @@ overflow alone would not rescue the loop variant.
 Corpus timing is measured by \texttt{bench\_corpus\_time}. It runs
 each parser once over the admitted S2ELab corpus, timing every entry
 individually and reporting total, mean, median, p99, and maximum.
-
-\begin{verbatim}
-cargo bench --bench bench_corpus_time
-BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_corpus_time
-BENCH_SPLIT_OUTCOME=1   cargo bench --bench bench_corpus_time
-BENCH_MATCH_INTENT=both cargo bench --bench bench_corpus_time
-\end{verbatim}
-
 \texttt{BENCH\_MATCH\_INTENT} chooses between the two groups of
 Section~\ref{sec:eval-anchors}; every table uses the default
 (\texttt{explicit}, the 463 stripped patterns). \texttt{BENCH\_SPLIT\_OUTCOME}
@@ -817,8 +848,8 @@ Parser & Entries & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \texttt{deriv\_std\_rec}  & 10\,888 & 69 & 7.650 & 0.226 & 1\,781.268 \\
 \texttt{deriv\_std\_loop} & 10\,888 & 67 & 7.323 & 0.243 & 1\,725.692 \\
 \texttt{deriv\_bc}        & 10\,888 &  0 & 1.808 & 0.340 &   317.078 \\
-\texttt{pderiv\_bc}       & 10\,888 &  0 & 0.660 & 0.104 &   107.936 \\
 \texttt{pderiv\_std}      & 10\,888 &  0 & 0.656 & 0.102 &   112.035 \\
+\texttt{pderiv\_bc}       & 10\,888 &  0 & 0.660 & 0.104 &   107.936 \\
 \hline
 \end{tabular}
 \caption{Corpus timing over the full default scope (463 patterns,
@@ -848,8 +879,8 @@ Parser & Matches & Match time (s) & Non-matches & Non-match time (s) \\
 \texttt{deriv\_std\_rec}  & 5\,377 &  69.633 & 5\,442 & 10.398 \\
 \texttt{deriv\_std\_loop} & 5\,379 &  66.323 & 5\,442 & 10.460 \\
 \texttt{deriv\_bc}        & 5\,444 &  14.393 & 5\,444 & 5.482 \\
-\texttt{pderiv\_bc}       & 5\,444 &   5.602 & 5\,444 & 1.649 \\
 \texttt{pderiv\_std}      & 5\,444 &   5.582 & 5\,444 & 1.629 \\
+\texttt{pderiv\_bc}       & 5\,444 &   5.602 & 5\,444 & 1.649 \\
 \hline
 \end{tabular}
 \caption{Total wall time by verified outcome, same run as
@@ -889,11 +920,6 @@ The benches above time an already-translated \texttt{Regex}.
 \texttt{bench\_corpus\_translate} and
 \texttt{bench\_pathological\_translate} measure translation alone,
 deduplicated by distinct pattern.
-
-\begin{verbatim}
-cargo bench --bench bench_corpus_translate
-cargo bench --bench bench_pathological_translate
-\end{verbatim}
 
 \begin{table}[ht]
 \centering
@@ -968,16 +994,12 @@ lowered sweep, and a handful of rejections still remain at its top end.
 wrapper that counts allocated bytes and reports three figures per
 parser: total bytes (every allocation including churn), average bytes
 per entry (macro-average, same as the timing mean), and max peak
-(highest live-byte high-water mark on any single entry, flat).
+(highest live-byte high-water mark on any single entry, flat). Like
+\texttt{bench\_corpus\_time}, it reads \texttt{BENCH\_PATTERN\_LIMIT}
+and \texttt{BENCH\_MATCH\_INTENT}.
 
 Heap-only accounting: each worker's call-thread stack is invisible to
 it, so a pattern dominated by recursion depth would under-report here.
-
-\begin{verbatim}
-cargo bench --bench bench_corpus_memory
-BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_corpus_memory
-BENCH_MATCH_INTENT=both cargo bench --bench bench_corpus_memory
-\end{verbatim}
 
 \begin{table}[ht]
 \centering
@@ -990,8 +1012,8 @@ Parser & Total bytes & Avg bytes/entry & Max peak \\
 \texttt{deriv\_std\_rec}  & 24.51 GB & 2.364 MB & 514.8 MB \\
 \texttt{deriv\_std\_loop} & 25.75 GB & 2.463 MB & 556.8 MB \\
 \texttt{deriv\_bc}        & 14.80 GB & 1.345 MB &   5.1 MB \\
-\texttt{pderiv\_bc}       &  4.44 GB & 0.404 MB &   3.8 MB \\
 \texttt{pderiv\_std}      &  4.34 GB & 0.395 MB &   2.5 MB \\
+\texttt{pderiv\_bc}       &  4.44 GB & 0.404 MB &   3.8 MB \\
 \hline
 \end{tabular}
 \caption{Heap allocation over the full default scope (463 patterns,
@@ -1025,20 +1047,15 @@ input grows, not which is smaller at S2ELab's input lengths.
 \subsubsection{Growth on canonical expressions}
 \label{sec:eval-growth}
 
-Two demos drive the parsers on two canonical expressions and report
-live-state size per input character.
-
-\begin{verbatim}
-cargo run --release --example demo_growth_deriv
-cargo run --release --example demo_growth_pderiv
-cargo run --release --example demo_growth_eval
-cargo run --release --example demo_simp_branches
-\end{verbatim}
+Three demos (\texttt{demo\_growth\_deriv},
+\texttt{demo\_growth\_pderiv}, \texttt{demo\_growth\_eval}) drive the
+parsers on two canonical expressions and report live-state size per
+input character. A fourth (\texttt{demo\_simp\_branches}) records the
+branch counts behind the simplification discussion below.
 
 For \texttt{deriv\_std} and \texttt{deriv\_bc} the figure is the node
 count of the current residual. For \texttt{pderiv\_std} and
 \texttt{pderiv\_bc} it is the total node count across the frontier.
-
 \begin{table}[ht]
 \centering
 \small
@@ -1050,8 +1067,8 @@ count of the current residual. For \texttt{pderiv\_std} and
 Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
 \hline
 \texttt{deriv\_std}  & 4 & 39 & 79 &   16 &  539 & 9179 \\
-\texttt{deriv\_bc}   & 2 &  2 &  2 &   12 &  143 & 2303 \\
-\texttt{pderiv\_std} & 2 &  2 &  2 &   22 &  160 & 2560 \\
+\texttt{deriv\_bc}   & 2 &  2 &  2 &   12 &    8 &    8 \\
+\texttt{pderiv\_std} & 2 &  2 &  2 &   18 &  128 & 2048 \\
 \texttt{pderiv\_bc}  & 2 &  2 &  2 &   18 &  128 & 2048 \\
 \hline
 \end{tabular}
@@ -1065,21 +1082,30 @@ intermediate expression alive until the backward pass, so its state is
 a function of input length. Bit-coded and partial-derivative variants
 do not carry a history.
 
-On \texttt{(a+(b+ab))*}, all four grow but at very different rates. At
-$n=16$, \texttt{deriv\_std} is at 9179 nodes, \texttt{deriv\_bc} at
-2303, and the partial-derivative variants at 2560 and 2048. The gap
-between the two derivative-based variants is the cost of carrying
-reconstruction information through each step.
+On \texttt{(a+(b+ab))*}, \texttt{deriv\_std} grows unboundedly, reaching
+9179 nodes at $n=16$. \texttt{deriv\_bc} does not: once \texttt{simp}'s
+dedup compares branches by structural shape alone, ignoring each
+branch's own bit history, the two same-shape branches this pattern
+produces at every step collapse into one, and the residual oscillates
+between 8 and 12 nodes forever rather than growing. The gap between
+the two derivative-based variants is therefore not a fixed cost of
+carrying reconstruction information, as it is for \texttt{a*} -- it is
+the difference between a construction whose branches merge and one
+whose branches do not.
 
-The two partial-derivative variants stay close. Their live state is
-the frontier of residuals, not a single expression, and the
-accumulation is bounded by the pattern's own size.
+The two partial-derivative variants are identical at every step
+(2048 nodes at $n=16$), now that \texttt{pderiv\_std} builds its
+residuals with the same \texttt{smart\_seq} construction
+\texttt{pderiv\_bc} already used. Their live state is the frontier of
+residuals, not a single expression, and the accumulation is bounded by
+the pattern's own size, well above \texttt{deriv\_bc}'s fully-collapsed
+total but far below \texttt{deriv\_std}'s.
 
-\texttt{demo\_simp\_branches} shows why simplification never fires its
-$r + r = r$ rule on \texttt{(a+(b+ab))*}. Every step has distinct
-branches by bit-annotation even when the structural shape is identical.
-Merging them would lose the reconstruction information that makes
-single-pass decoding possible.
+\texttt{demo\_simp\_branches} confirms this directly: at every step,
+\texttt{(a+(b+ab))*}'s derivative collapses to a single top-level
+alternation branch once \texttt{simp}'s dedup ignores bit history. This
+is the same fix responsible for \texttt{deriv\_bc}'s bounded growth
+above.
 
 %
 %
