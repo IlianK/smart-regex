@@ -38,9 +38,7 @@ always what a human intended. `run_pipeline` trusts each entry's own
 ## Dataset statistics
 
 ```bash
-cargo run --release --example dataset_stats                              # all default sources
-cargo run --release --example dataset_stats -- --verbose --source s2-elab # list rejects + cause
-cargo run --release --example dataset_stats -- --source suricata --source s2-elab
+cargo run --release --example dataset_stats
 ```
 
 Flags: `--source S` restrict to one source, `--verbose` list each
