@@ -186,39 +186,6 @@ PATHO_ROW_ID=P25,P27,P28 PATHO_N=5000,10000,30000,50000,200000 \
 
 These are starting points. Raise or lower timeouts and caps once real run costs on the target machine are known.
 
-### Fig 7 reproduction results
-
-Rows `P60` and `P61` reproduce FLOPS'14 Fig. 7 at the paper's own scale. `P60` sweeps `'a'`-repeated input. `P61` sweeps `'ab'`-repeated input.
-
-Measured on `'a'`-repeated input, isolated per-parser runs.
-
-| parser | 1M | 5M | 10M |
-|---|---|---|---|
-| `deriv_std_rec` | crashes (stack overflow) | crashes | crashes |
-| `deriv_std_loop` | OOM-killed (~110s in) | not tested | not tested |
-| `deriv_bc` | 7.2s, 249 MB peak | 40.7s, 1.32 GB peak | 82.9s, 2.64 GB peak |
-| `pderiv_bc` | 6.0s, 141 MB peak | 26.7s, 778 MB peak | 53.4s, 1.56 GB peak |
-| `pderiv_std` | 5.3s, 233 MB peak | 26.4s, 1.24 GB peak | 63.8s, 2.48 GB peak |
-
-`deriv_bc`, `pderiv_bc`, and `pderiv_std` scale linearly in both time and memory across 10M characters. `deriv_std_rec` and `deriv_std_loop` fail. They implement the Fig. 3 algorithm, which has no simplification step. Every Star iteration's dead alternatives accumulate.
-
-### parseBC vs DERIV
-
-FLOPS'14 benchmarks two implementations.
-
-- `parseBC` is the bit-coded general parse-tree algorithm. `deriv_bc` and `pderiv_bc` implement this.
-- `DERIV` is a narrower DFA-compiled POSIX submatching implementation that keeps only each repeated subexpression's last iteration. This is the curve Fig. 7 plots.
-
-The two solve different problems. The table above reaches the same 10M-character scale with `parseBC`.
-
-### Why deriv_bc reaches this scale
-
-Two design choices.
-
-- Bits materialize lazily via `prepend_bits` and `fuse_bits`. History stays an unmaterialized chain until final decode.
-- The per-character driver is a loop (`derive_and_simplify`), not recursion. No stack frame per character.
-
-`pderiv_bc` materializes history once at the end and loops rather than recurses.
 
 ## bench_pathological_memory
 
