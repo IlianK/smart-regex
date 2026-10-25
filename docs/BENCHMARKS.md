@@ -129,8 +129,14 @@ process's own time around the whole loop, including spawn/pipe
 overhead -- not the sum of the columns below), `mean`/`median`/`p99`/
 `max (ms)` (over `measured` entries only; `max` is a lower bound on the
 corpus's true worst case, since the entries likeliest to time out are
-exactly the ones excluded). With `BENCH_SPLIT_OUTCOME=1`, a second
-table splits time by match vs. non-match.
+exactly the ones excluded). `mean` is a macro-average -- each
+*pattern*'s own mean first, then an unweighted average of those
+per-pattern means -- so a pattern with many given examples does not
+outweigh one with few (patterns are no longer truncated to a common
+count; see `docs/DATASET.md`); `median`/`p99`/`max` stay flat over
+every measured input, a different question ("how bad does the worst
+single input get"). With `BENCH_SPLIT_OUTCOME=1`, a second table
+splits time by match vs. non-match.
 
 Also writes `..._entries.csv`: one row per individual
 `source,parser,pattern,input,expected_match,outcome,micros,
@@ -153,8 +159,11 @@ durations. "Heap" specifically: the counting `#[global_allocator]`
 a cost dominated by stack depth rather than allocation won't show up.
 Writes `reports/benches/bench_corpus_memory.csv`: `total bytes` (every
 allocation including freed-and-reallocated churn, over `measured`
-entries), `avg/entry`, `max peak` (highest live-byte high-water mark on
-any single entry). Also writes `..._entries.csv`, one row per
+entries), `avg/entry` (a macro-average -- each pattern's own mean
+total-bytes first, then an unweighted average of those per-pattern
+means, same reasoning as `bench_corpus_time.rs`'s `mean`), `max peak`
+(highest live-byte high-water mark on any single entry, flat, not
+macro-averaged). Also writes `..._entries.csv`, one row per
 individual `source,parser,pattern,input,outcome,total_bytes,peak_bytes`
 measurement, same role and convention as `bench_corpus_time.rs`'s own
 entries file above. The three partial-derivative parsers (`deriv_bc`,

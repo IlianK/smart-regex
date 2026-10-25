@@ -50,6 +50,21 @@
 //! to have had the largest true peak. `measured` is how many entries
 //! `avg_bytes`/`max_peak` are actually computed over.
 //!
+//! `avg_bytes` is a macro-average, not a flat average over every
+//! measured entry: each *pattern*'s own average total-bytes is
+//! computed first, then those per-pattern averages are averaged
+//! together, unweighted. `dataset_prepare` no longer truncates every
+//! pattern down to the dataset-wide rarest pattern's own example
+//! count (see `src/data/mod.rs`'s module doc for why that was
+//! removed) -- patterns now keep however many given examples they
+//! actually have, which can vary a lot. Without macro-averaging, a
+//! pattern with 50 examples would outweigh one with 2 by 25x in a
+//! flat mean, for no reason connected to how much memory either
+//! pattern actually takes to parse. `total_bytes` (a sum) and
+//! `max_peak` (a max) are not averages and are left as flat,
+//! pooled-over-every-entry figures -- macro-averaging does not apply
+//! to them the same way.
+//!
 //! Writes a CSV summary to `reports/benches/bench_corpus_memory.csv`,
 //! replacing any existing file. Also writes `..._entries.csv`, one row
 //! per individual `source,parser,pattern,input,outcome,total_bytes,
@@ -63,6 +78,7 @@
 //!   cargo build --release --example bench_worker
 //!   cargo bench --bench bench_corpus_memory
 
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -350,6 +366,7 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
         let mut measured = 0usize;
         let mut timed_out = 0usize;
         let mut crashed = 0usize;
+        let mut by_pattern: HashMap<&str, Vec<usize>> = HashMap::new();
         for entry in corpus {
             let (outcome, total_bytes, peak_bytes) =
                 match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
@@ -357,6 +374,7 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
                         total_sum += total_bytes;
                         peak_max = peak_max.max(peak_bytes);
                         measured += 1;
+                        by_pattern.entry(entry.pattern.as_str()).or_default().push(total_bytes);
                         ("measured", Some(total_bytes), Some(peak_bytes))
                     }
                     Outcome::TimedOut => {
@@ -384,7 +402,17 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
                 peak_bytes,
             });
         }
-        let avg = if measured > 0 { Some(total_sum / measured) } else { None };
+        // `avg` is a macro-average -- each pattern's own mean total-bytes
+        // first, then the unweighted average of those per-pattern means --
+        // so a pattern with many given examples does not outweigh one with
+        // few. See the module doc.
+        let avg = if by_pattern.is_empty() {
+            None
+        } else {
+            let pattern_means: Vec<f64> =
+                by_pattern.values().map(|bytes| bytes.iter().sum::<usize>() as f64 / bytes.len() as f64).collect();
+            Some((pattern_means.iter().sum::<f64>() / pattern_means.len() as f64) as usize)
+        };
         println!(
             "{:<16} {:>9} {:>9} {:>7} {:>14} {:>14} {:>14}",
             parser_type.name(),

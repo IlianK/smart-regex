@@ -59,6 +59,21 @@
 //! true worst case itself. The `measured` column is how many entries
 //! those statistics are actually computed over.
 //!
+//! `mean` (and its `encode`/`derive`/`decode` breakdown) is a
+//! macro-average, not a flat average over every measured entry: each
+//! *pattern*'s own mean is computed first, then those per-pattern
+//! means are averaged together, unweighted. `dataset_prepare` no
+//! longer truncates every pattern down to the dataset-wide rarest
+//! pattern's own example count (see `src/data/mod.rs`'s module doc for
+//! why that was removed) -- patterns now keep however many given
+//! examples they actually have, which can vary a lot. Without
+//! macro-averaging, a pattern with 50 examples would outweigh one with
+//! 2 by 25x in a flat mean, for no reason connected to how hard either
+//! pattern is to parse. `median`/`p99`/`max` are intentionally left as
+//! flat per-input statistics -- they already answer a different
+//! question ("how bad does the single worst input get"), where
+//! pattern-weighting isn't the relevant correction.
+//!
 //! Writes a CSV summary to `reports/benches/bench_corpus_time.csv`
 //! (and `..._by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`), replacing
 //! any existing file -- the same "latest run, not a log" convention
@@ -77,6 +92,7 @@
 //!   cargo build --release --example bench_worker
 //!   cargo bench --bench bench_corpus_time
 
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -432,6 +448,7 @@ fn report(
 
     for (parser_idx, parser_type) in ALL.iter().enumerate() {
         let mut all: Vec<Timing> = Vec::with_capacity(corpus.len());
+        let mut by_pattern: HashMap<&str, Vec<Timing>> = HashMap::new();
         let mut matches: Vec<Duration> = Vec::new();
         let mut non_matches: Vec<Duration> = Vec::new();
         let mut timed_out = 0usize;
@@ -442,6 +459,7 @@ fn report(
                 match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
                     Outcome::Done(t) => {
                         all.push(t);
+                        by_pattern.entry(entry.pattern.as_str()).or_default().push(t);
                         if entry.expected_match {
                             matches.push(t.total);
                         } else {
@@ -485,21 +503,35 @@ fn report(
         }
         let total = start.elapsed();
 
+        // `mean*` are macro-averages -- each pattern's own mean first,
+        // then the unweighted average of those per-pattern means -- so
+        // a pattern with many given examples does not outweigh one
+        // with few. `median`/`p99`/`max` stay pooled over every
+        // measured *input*, describing the shape of the full per-input
+        // distribution (a different, still-useful question: "how bad
+        // does the worst single input get"), not a pattern-weighted
+        // figure. See the module doc.
         let (mean, median, p99, max, mean_encode, mean_derive, mean_decode) = if all.is_empty() {
             (None, None, None, None, None, None, None)
         } else {
             let mut sorted: Vec<Duration> = all.iter().map(|t| t.total).collect();
             sorted.sort();
             let n = sorted.len();
-            let mean_of = |pick: fn(&Timing) -> Duration| ms(all.iter().map(pick).sum::<Duration>() / n as u32);
+            let macro_mean_of = |pick: fn(&Timing) -> Duration| -> f64 {
+                let pattern_means: Vec<f64> = by_pattern
+                    .values()
+                    .map(|timings| ms(timings.iter().map(pick).sum::<Duration>() / timings.len() as u32))
+                    .collect();
+                pattern_means.iter().sum::<f64>() / pattern_means.len() as f64
+            };
             (
-                Some(ms(sorted.iter().sum::<Duration>() / n as u32)),
+                Some(macro_mean_of(|t| t.total)),
                 Some(ms(sorted[n / 2])),
                 Some(ms(sorted[(n * 99) / 100])),
                 Some(ms(*sorted.last().expect("non-empty"))),
-                Some(mean_of(|t| t.encode)),
-                Some(mean_of(|t| t.derive)),
-                Some(mean_of(|t| t.decode)),
+                Some(macro_mean_of(|t| t.encode)),
+                Some(macro_mean_of(|t| t.derive)),
+                Some(macro_mean_of(|t| t.decode)),
             )
         };
 

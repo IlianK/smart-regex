@@ -113,20 +113,20 @@ cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 
 Writes `data/processed/s2-elab/prepared.jsonl`, replacing the file.
 
-**Every usable pattern contributes the same total row count**, from
-two truncations applied after the label check:
+**Per-pattern balance.** After the label check, each pattern's longer
+side (matches or non-matches) is truncated to its shorter side's
+count, keeping the first examples in original order. Fewer than one
+of each makes the pattern unusable. Patterns are *not* truncated
+against each other -- a pattern with 50 given examples keeps all 50,
+even if another pattern only has 1. An earlier version did also
+truncate every pattern down to the dataset-wide minimum, so one
+thinly-labeled pattern forced every other pattern down to its level;
+removed, since the benches that consume this data avoid the same
+cross-pattern-weighting bias a different way (macro-averaging: see
+`bench_corpus_time.rs`'s module doc), without needing to throw away
+most of the corpus's own given examples to get there.
 
-1. **Per-pattern balance.** Truncate each pattern's longer side
-   (matches or non-matches) to the shorter side's count, keeping the
-   first examples in original order. Fewer than one of each makes the
-   pattern unusable.
-2. **Dataset-wide balance.** Truncate every usable pattern further
-   down to the smallest per-pattern count (`balance_k_global`). On the
-   real corpus this is expensive: one pattern balanced to `1` forces
-   every other pattern down to `1` match + `1` non-match too.
-   `dataset_prepare` prints the actual `global balance k`.
-
-Two accounting notes: a rule byte-identical to an earlier one's raw
+One accounting note: a rule byte-identical to an earlier one's raw
 pattern text is skipped before translation (`patterns_duplicate`),
 same column `dataset_stats` reports on the raw corpus; and summary
 numbers are **appended**, one row per run, to
@@ -148,12 +148,9 @@ schema change).
    `Regex`; a disagreement is dropped (`inputs_label_mismatch`).
 6. Per-pattern balance: longer side truncated to the shorter side's
    count (`inputs_dropped_for_pattern_balance`).
-7. Dataset-wide balance: every usable pattern truncated again, to the
-   smallest per-pattern count (`balance_k_global`,
-   `inputs_dropped_for_global_balance`).
-8. Each surviving pair becomes a `PreparedCase`, written as JSON lines
+7. Each surviving pair becomes a `PreparedCase`, written as JSON lines
    tagged with its `MatchIntent`.
-9. `run_pipeline` drives 1-8 and returns `PipelineReport`;
+8. `run_pipeline` drives 1-7 and returns `PipelineReport`;
    `load_prepared_cases` reads the result back for benchmarks.
 
 ## Match-intent

@@ -7,9 +7,10 @@
 //! translated `Regex`; a claim that disagrees is dropped and counted.
 //! A pattern needs at least one match and one non-match left after that
 //! to be usable; below that, it is counted, not dropped. Every usable
-//! pattern is then truncated, first to its own balanced match/non-match
-//! count, then to the smallest such count anywhere in the run, so every
-//! usable pattern contributes the same total row count.
+//! pattern is then truncated to its own balanced match/non-match count
+//! -- patterns are not truncated against each other, so a pattern with
+//! more given examples keeps all of them; see `src/data/mod.rs`'s
+//! module doc for why.
 //!
 //! Appends one row per run to `reports/data/dataset_prepare.csv`.
 
@@ -79,8 +80,7 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
             f,
             "files,patterns_extracted,patterns_duplicate,patterns_unusable,patterns_accepted,\
              patterns_explicit_full_match,patterns_unanchored_ambiguous,patterns_usable,\
-             inputs_usable,inputs_label_mismatch,inputs_dropped_for_pattern_balance,\
-             balance_k_global,inputs_dropped_for_global_balance,patterns_truncated_for_global_balance"
+             inputs_usable,inputs_label_mismatch,inputs_dropped_for_pattern_balance"
         ) {
             eprintln!("could not write header to {path}: {e}");
             return;
@@ -89,7 +89,7 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
     let files_joined = files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(";");
     if let Err(e) = writeln!(
         f,
-        "\"{}\",{},{},{},{},{},{},{},{},{},{},{},{},{}",
+        "\"{}\",{},{},{},{},{},{},{},{},{},{}",
         files_joined,
         report.patterns_extracted,
         report.patterns_duplicate,
@@ -101,9 +101,6 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
         report.inputs_usable,
         report.inputs_label_mismatch,
         report.inputs_dropped_for_pattern_balance,
-        report.balance_k_global,
-        report.inputs_dropped_for_global_balance,
-        report.patterns_truncated_for_global_balance,
     ) {
         eprintln!("could not append to {path}: {e}");
         return;
@@ -150,18 +147,6 @@ fn print_report(report: &regex_engine::data::PipelineReport) {
         println!(
             "  pattern balance  {:>7}   (per-pattern: longer side truncated to the shorter)",
             report.inputs_dropped_for_pattern_balance,
-        );
-    }
-    println!(
-        "  global balance k {:>6}   every usable pattern truncated to this many of each",
-        report.balance_k_global,
-    );
-    if report.inputs_dropped_for_global_balance > 0 {
-        println!(
-            "  global balance   {:>7}   ({} patterns truncated further to k={})",
-            report.inputs_dropped_for_global_balance,
-            report.patterns_truncated_for_global_balance,
-            report.balance_k_global,
         );
     }
     println!("  inputs written   {:>7}", report.inputs_usable);
