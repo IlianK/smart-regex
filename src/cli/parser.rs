@@ -35,6 +35,7 @@ pub fn run_parse_single(
     run_parser(regex_str, &r, input, &config);
 }
 
+
 /// All five parsers in one table, then a summary block.
 ///
 /// Three checks, all bugs if they fail:
@@ -46,7 +47,7 @@ pub fn run_parse_single(
 /// may differ on tree shape.
 pub fn run_parse_all(regex_str: &str, input: &str) {
     let r = match parse_pattern(regex_str) {
-        Ok(r)  => r,
+        Ok(r) => r,
         Err(e) => {
             eprintln!("Regex parse error: {}", e);
             std::process::exit(2);
@@ -56,8 +57,20 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
     println!("Regex: {}", regex_str);
     println!("Input: {:?}", input);
     println!();
-    println!("  {:<14} | {:<6} | {:<8} | {}", "parser", "family", "match", "tree");
-    println!("  {:-<14}-+-{:-<6}-+-{:-<8}-+-{:-<30}", "", "", "", "");
+
+    // Table column widths.
+    const PARSER_W: usize = 14;
+    const FAMILY_W: usize = 10;
+    const MATCH_W: usize = 8;
+
+    println!(
+        "  {:<PARSER_W$} | {:<FAMILY_W$} | {:<MATCH_W$} | {}",
+        "parser", "family", "match", "tree"
+    );
+    println!(
+        "  {:-<PARSER_W$}-+-{:-<FAMILY_W$}-+-{:-<MATCH_W$}-+-{:-<30}",
+        "", "", "", ""
+    );
 
     type ParserFn = fn(&str, &regex_engine::Regex) -> Option<ParseTree>;
 
@@ -65,42 +78,86 @@ pub fn run_parse_all(regex_str: &str, input: &str) {
         (ParserType::DerivStdRec.name(),  parse_deriv_std_rec,  "POSIX"),
         (ParserType::DerivStdLoop.name(), parse_deriv_std_loop, "POSIX"),
         (ParserType::DerivBc.name(),      parse_deriv_bc,       "POSIX"),
-        (ParserType::PDerivStd.name(),    parse_pderiv_std,     "Greedy"),
-        (ParserType::PDerivBc.name(),     parse_pderiv_bc,      "Greedy"),
+        (ParserType::PDerivStd.name(),    parse_pderiv_std,     "Non-POSIX"),
+        (ParserType::PDerivBc.name(),     parse_pderiv_bc,      "Non-POSIX"),
     ];
 
-    let mut results: Vec<Option<ParseTree>> = Vec::new();
+    let mut results: Vec<Option<ParseTree>> = Vec::with_capacity(rows.len());
+
     for (label, f, family) in rows {
         let result = f(input, &r);
+
         match &result {
-            Some(tree) => println!("  {:<14} | {:<6} | {:<8} | {:?}", label, family, flatten(tree), tree),
-            None       => println!("  {:<14} | {:<6} | {:<8} | no match", label, family, ""),
+            Some(tree) => println!(
+                "  {:<PARSER_W$} | {:<FAMILY_W$} | {:<MATCH_W$} | {:?}",
+                label,
+                family,
+                flatten(tree),
+                tree
+            ),
+            None => println!(
+                "  {:<PARSER_W$} | {:<FAMILY_W$} | {:<MATCH_W$} | no match",
+                label,
+                family,
+                ""
+            ),
         }
+
         results.push(result);
     }
 
-    // results[0..3] POSIX, results[3..5] Greedy, matching `rows` order.
-    let posix  = &results[0..3];
-    let greedy = &results[3..5];
+    // results[0..3] POSIX, results[3..5] Non-POSIX, matching `rows` order.
+    let posix = &results[0..3];
+    let non_posix = &results[3..5];
 
-    let posix_agree  = posix.windows(2).all(|w| w[0] == w[1]);
-    let greedy_agree = greedy.windows(2).all(|w| w[0] == w[1]);
-    let membership_agree =
-        results.iter().map(|t| t.is_some()).all(|m| m == results[0].is_some());
+    let posix_agree = posix.windows(2).all(|w| w[0] == w[1]);
+    let non_posix_agree = non_posix.windows(2).all(|w| w[0] == w[1]);
+
+    let membership_agree = results
+        .iter()
+        .all(|t| t.is_some() == results[0].is_some());
 
     // Informational: does pderiv_bc produce the same tree as deriv_bc?
-    let greedy_vs_posix = if results[4] == results[2] { "agree" } else { "disagree" };
+    let non_posix_vs_posix = if results[4] == results[2] {
+        "agree"
+    } else {
+        "disagree"
+    };
 
     let membership = if membership_agree {
-        if results[0].is_some() { "[ok] all agree: match" } else { "[ok] all agree: no match" }
+        if results[0].is_some() {
+            "[ok] all agree: match"
+        } else {
+            "[ok] all agree: no match"
+        }
     } else {
         "[FAIL] parsers disagree on membership"
     };
 
     println!();
     println!("  summary");
-    println!("    membership       : {}", membership);
-    println!("    POSIX parsers    : {}", if posix_agree  { "[ok] agree" } else { "[FAIL] DISAGREE" });
-    println!("    Greedy parsers   : {}", if greedy_agree { "[ok] agree" } else { "[FAIL] DISAGREE" });
-    println!("    Greedy vs POSIX  : {}", greedy_vs_posix);
+
+    // Align all summary colons.
+    const SUMMARY_W: usize = 20;
+
+    println!("    {:<SUMMARY_W$}: {}", "membership", membership);
+    println!(
+        "    {:<SUMMARY_W$}: {}",
+        "POSIX parsers",
+        if posix_agree { "[ok] agree" } else { "[FAIL] DISAGREE" }
+    );
+    println!(
+        "    {:<SUMMARY_W$}: {}",
+        "Non-POSIX parsers",
+        if non_posix_agree {
+            "[ok] agree"
+        } else {
+            "[FAIL] DISAGREE"
+        }
+    );
+    println!(
+        "    {:<SUMMARY_W$}: {}",
+        "Non-POSIX vs POSIX",
+        non_posix_vs_posix
+    );
 }

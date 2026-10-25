@@ -1,26 +1,18 @@
 # Datasets
 
-Two pattern sources:
+Two pattern sources.
 
-- **S2ELab** -- real human-authored regex benchmark with its own given
-  test inputs.
-- **Pathological stress patterns** -- hand-curated patterns with
-  generated inputs, no author-given examples (see
-  [Pathological stress patterns](#pathological-stress-patterns) below).
+- **S2ELab** is a real human-authored regex benchmark with its own given test inputs.
+- **Pathological stress patterns** are hand-curated patterns with generated inputs. No author-given examples. See [Pathological stress patterns](#pathological-stress-patterns) below.
 
-Suricata/Snort, SpamAssassin, RegexLib and Innovatorved are still read
-by `dataset_stats`'s raw-corpus diagnostics for historical comparison,
-but no longer feed `dataset_prepare`/`run_pipeline`, and aren't used by
-any benchmark.
+Suricata, Snort, SpamAssassin, RegexLib and Innovatorved feed only `dataset_stats`'s raw-corpus diagnostics. They no longer feed `dataset_prepare` or `run_pipeline`, and no benchmark reads them.
+
 
 ## S2ELab
 
-762 patterns, each with a natural-language description and the
-author's own labeled examples. Lives at
-`data/raw/s2-elab/RegexEval.json`, taken from
-[github.com/s2e-lab/RegexEval](https://github.com/s2e-lab/RegexEval).
+762 patterns. Each one has a natural-language description and the author's own labeled examples. Lives at `data/raw/s2-elab/RegexEval.json`, taken from [github.com/s2e-lab/RegexEval](https://github.com/s2e-lab/RegexEval).
 
-One entry (`id: 100`), fields trimmed:
+One entry (`id: 100`), fields trimmed.
 
 ```json
 {
@@ -30,25 +22,20 @@ One entry (`id: 100`), fields trimmed:
 }
 ```
 
-Real patterns with real author-given labels, sometimes debatable but
-always what a human intended. `run_pipeline` trusts each entry's own
-`matches`/`non_matches` wherever they agree with the real translated
-`Regex`; nothing else about S2ELab's labels is re-checked.
+`run_pipeline` reads each entry's own `matches` and `non_matches` and keeps every case whose outcome agrees with the translated `Regex`.
 
-## Dataset statistics
+
+### Dataset statistics
 
 ```bash
 cargo run --release --example dataset_stats
 ```
 
-Flags: `--source S` restrict to one source, `--verbose` list each
-rejected pattern next to its cause, `--no-flags` suppress the two flag
-tables (and CSVs). Below is a run of all 5 sources.
+Flags are `--source S` to restrict to one source, `--verbose` to list each rejected pattern next to its cause, and `--no-flags` to suppress the two flag tables and their CSVs.
 
-**Dataset coverage** -- *Accepted*/*Rejected* count distinct raw
-pattern text, not rule instances. *Dup* is how many extracted
-instances dedup removed. *Inputs Provided* is S2ELab's own given
-`matches`+`non_matches`; 0 for every other source.
+The run below covers all five sources.
+
+**Dataset coverage.** Accepted and Rejected count distinct raw pattern text, not rule instances. Dup is how many extracted instances dedup removed. Inputs Provided is S2ELab's own given `matches` plus `non_matches`. It is 0 for every other source.
 
 | Source | Files | Extracted | Inputs Provided | Dup | Accepted | Acc% | Rejected | Rej% |
 |---|---|---|---|---|---|---|---|---|
@@ -59,9 +46,7 @@ instances dedup removed. *Inputs Provided* is S2ELab's own given
 | innovatorved | 1 | 8549 | 0 | 340 | 4803 | 95.6 | 3406 | 96.6 |
 | **total** | **113** | **33140** | **18930** | **10186** | **9230** | **57.4** | **13724** | **80.4** |
 
-**Accepted by match-intent reliability** -- `Direct`/`UnanchoredAmbiguous`
-= no anchor, translated as-is; `Explicit ^...$`/`ExplicitFullMatch` =
-top-level wrap, anchors stripped (any other placement is rejected).
+**Accepted by match-intent reliability.** `UnanchoredAmbiguous` means no anchor, translated as-is. `ExplicitFullMatch` means a top-level `^...$` wrap, anchors stripped. Any other anchor placement is rejected.
 
 | Source | UnanchoredAmbiguous | % | ExplicitFullMatch `^...$` | % |
 |---|---|---|---|---|
@@ -72,7 +57,7 @@ top-level wrap, anchors stripped (any other placement is rejected).
 | innovatorved | 3358 | 69.9 | 1445 | 30.1 |
 | **total** | **6000** | **65.0** | **3230** | **35.0** |
 
-**Rejection reasons** (one column per cause `core_regex_tagged` gave):
+**Rejection reasons.** One column per cause `core_regex_tagged` reported.
 
 | Source | backreference | lookaround | word-boundary | anchor | flag-m | flag-x | other |
 |---|---|---|---|---|---|---|---|
@@ -83,9 +68,7 @@ top-level wrap, anchors stripped (any other placement is rejected).
 | innovatorved | 154 | 1324 | 239 | 1052 | 2 | 0 | 754 |
 | **total** | **449** | **2109** | **598** | **8465** | **3993** | **0** | **1459** |
 
-**Anchor shape** (every extracted pattern, accepted or not) --
-*Unparseable*: rejected before an `ExtPat` even exists. *Fully-wrapped*:
-recovered by `core_regex_tagged`. *start/end/nested*: rejected.
+**Anchor shape.** Covers every extracted pattern, accepted or not. Unparseable means rejected before an `ExtPat` even exists. Fully-wrapped means recovered by `core_regex_tagged`. The start, end, and nested columns are rejected.
 
 | Source | unparseable | none | fully-wrapped | start-only | end-only | nested |
 |---|---|---|---|---|---|---|
@@ -96,14 +79,10 @@ recovered by `core_regex_tagged`. *start/end/nested*: rejected.
 | innovatorved | 2170 | 3745 | 1580 | 445 | 195 | 414 |
 | **total** | **3885** | **11692** | **7491** | **6728** | **1978** | **1366** |
 
-## Dataset preparation
 
-No input is generated, derived, or heuristically assembled.
-`run_pipeline` is **S2ELab-only**: extracts and translates patterns,
-then writes each usable pattern's own `matches`/`non_matches`, each
-re-checked against the real translated `Regex` via `matches_bounded`
-(a disagreement is dropped, `inputs_label_mismatch`). The other four
-sources are still read by `dataset_stats`, never by `run_pipeline`.
+### Dataset preparation
+
+No input is generated, derived, or heuristically assembled. `run_pipeline` is S2ELab-only. It extracts and translates patterns, then writes each usable pattern's own `matches` and `non_matches` back out. Every case is re-checked against the real translated `Regex` via `matches_bounded`. A disagreement is dropped and counted under `inputs_label_mismatch`.
 
 ```bash
 cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
@@ -111,205 +90,114 @@ cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 
 Writes `data/processed/s2-elab/prepared.jsonl`, replacing the file.
 
-**Per-pattern balance.** After the label check, each pattern's longer
-side (matches or non-matches) is truncated to its shorter side's
-count, keeping the first examples in original order. Fewer than one
-of each makes the pattern unusable. Patterns are *not* truncated
-against each other -- a pattern with 50 given examples keeps all 50,
-even if another pattern only has 1. An earlier version did also
-truncate every pattern down to the dataset-wide minimum, so one
-thinly-labeled pattern forced every other pattern down to its level;
-removed, since the benches that consume this data avoid the same
-cross-pattern-weighting bias a different way (macro-averaging: see
-`bench_corpus_time.rs`'s module doc), without needing to throw away
-most of the corpus's own given examples to get there.
+**Per-pattern balance.** After the label check, each pattern's longer side (matches or non-matches) is truncated to its shorter side's count, keeping the first examples in original order. Fewer than one of each makes the pattern unusable. Patterns are not truncated against each other. A pattern with 50 given examples keeps all 50, even if another pattern has only 1.
 
-One accounting note: a rule byte-identical to an earlier one's raw
-pattern text is skipped before translation (`patterns_duplicate`),
-same column `dataset_stats` reports on the raw corpus; and summary
-numbers are **appended**, one row per run, to
-`reports/data/dataset_prepare.csv` -- not replaced, so re-runs
-accumulate (archive or clear the file first if comparing across a
-schema change).
+Per-pattern balance is local. A single pattern is not balanced against the dataset-wide minimum. `bench_corpus_time.rs` avoids cross-pattern weighting with macro-averaging (see that file's module doc), so it does not need the corpus trimmed to the thinnest pattern.
 
-## Pipeline
+**Accounting notes.** A rule byte-identical to an earlier one's raw pattern text is skipped before translation (`patterns_duplicate`). The summary numbers append to `reports/data/dataset_prepare.csv`, one row per run. Re-runs accumulate. Archive or clear the file first when comparing across a schema change.
 
-1. `extract::extract_s2_elab` turns the raw JSON into `ExtractedRule`s
-   (pattern + the author's own `matches`/`non_matches`).
-2. Dedup by raw pattern text against every rule already seen this run
-   (`patterns_duplicate`, skipped).
-3. `prepare::core_regex_tagged` parses and translates, with two size
-   caps and one narrow anchor recovery. Rejected patterns stop here.
-4. A small dedup/positive-wins helper turns `matches`/`non_matches`
-   into `(text, is_match)` pairs, unchanged, uncapped, unsampled.
-5. `prepare::matches_bounded` re-checks each pair against the real
-   `Regex`; a disagreement is dropped (`inputs_label_mismatch`).
-6. Per-pattern balance: longer side truncated to the shorter side's
-   count (`inputs_dropped_for_pattern_balance`).
-7. Each surviving pair becomes a `PreparedCase`, written as JSON lines
-   tagged with its `MatchIntent`.
-8. `run_pipeline` drives 1-7 and returns `PipelineReport`;
-   `load_prepared_cases` reads the result back for benchmarks.
 
-## Match-intent
+### Pipeline
 
-A pattern is accepted one of two ways, recorded on every
-`PreparedCase`:
+1. `extract::extract_s2_elab` turns the raw JSON into `ExtractedRule` values, each carrying the pattern plus the author's own `matches` and `non_matches`.
+2. Dedup by raw pattern text against every rule already seen this run (`patterns_duplicate`, skipped).
+3. `prepare::core_regex_tagged` parses and translates with two size caps and one narrow anchor recovery. Rejected patterns stop here.
+4. A small dedup helper with positive-wins resolves `matches` and `non_matches` into `(text, is_match)` pairs. Unchanged, uncapped, unsampled.
+5. `prepare::matches_bounded` re-checks each pair against the real `Regex`. A disagreement is dropped (`inputs_label_mismatch`).
+6. Per-pattern balance. The longer side is truncated to the shorter side's count (`inputs_dropped_for_pattern_balance`).
+7. Each surviving pair becomes a `PreparedCase`, written as JSON lines tagged with its `MatchIntent`.
+8. `run_pipeline` drives steps 1 to 7 and returns a `PipelineReport`. `load_prepared_cases` reads the result back for benchmarks.
 
-| `MatchIntent` | Pattern | Why |
+
+### Match-intent
+
+Each `PreparedCase` carries the reading under which it was accepted.
+
+| `MatchIntent` | Trigger | Reading |
 |---|---|---|
-| `ExplicitFullMatch` | Wrapped in `^...$` at its own top level | Anchors are provably redundant under full-string matching, so stripped before translation instead of rejected |
-| `UnanchoredAmbiguous` | No anchor anywhere | Benchmarked as a full match -- this project's choice, not the source tool's native convention |
+| `ExplicitFullMatch` | Top-level `^...$` wrap | Full match. Anchors stripped before translation. |
+| `UnanchoredAmbiguous` | No anchor anywhere | Full match under this project's convention. |
 
-`ExplicitFullMatch` is narrow on purpose: a lone `^`/`$`, or one nested
-in an `Or` branch or under a quantifier, is left untouched and
-rejected by `translate`. `UnanchoredAmbiguous` covers the rest --
-Suricata/SpamAssassin search a buffer by default, and RegexLib's
-unanchored entries mix forgotten anchors with deliberate substring
-checks.
+Only a top-level `^...$` wrap counts. A lone `^` or `$`, one nested in an `Or` branch, or one under a quantifier is rejected by `translate`.
 
-**Default scope.** The benches default `BENCH_MATCH_INTENT` to
-`explicit` (`ExplicitFullMatch` only): an unanchored pattern's intended
-reading (search vs. full match) is genuinely ambiguous, so defaulting
-to benchmarking it would overstate how settled that reading is.
-`UnanchoredAmbiguous` is opt-in via `BENCH_MATCH_INTENT=direct`/`both`.
+**Default scope.** `BENCH_MATCH_INTENT=explicit` is the default. It selects `ExplicitFullMatch` only. `UnanchoredAmbiguous` is opt-in via `direct` or `both`.
 
-**Positives vs. negatives.** A positive holds under either reading (a
-string in the pattern's own language is trivially found by a search
-over that string). A negative does not automatically hold for
-`UnanchoredAmbiguous`: a string that fails full-match semantics can
-still contain a valid match earlier under search semantics.
-`run_pipeline` does not check for this -- every given negative is
-written as-is, trusting the dataset's own label. Only
-`UnanchoredAmbiguous` negatives are affected.
+**Positives and negatives.**
 
-**Benchmark cap.** The benches and `demo_parser_agreement` admit every
-distinct pattern per source by default; `BENCH_PATTERN_LIMIT=N` caps
-to the first N distinct patterns (not rows).
+| Case | `ExplicitFullMatch` | `UnanchoredAmbiguous` |
+|---|---|---|
+| Positive | Holds | Holds |
+| Negative | Holds | May fail. A substring can still match earlier in a search. |
 
+`run_pipeline` does not re-check negatives under `UnanchoredAmbiguous`. Each given negative is written as-is.
+
+**Benchmark cap.** `BENCH_PATTERN_LIMIT=N` caps to the first N distinct patterns per source, not rows.
+
+
+---
 ## Pathological stress patterns
 
-A second, unrelated dataset at
-`data/pathological/pathological_patterns.json`: 107 hand-curated rows
-(56 `pathological_patterns` + 43 `baseline_and_edge_patterns` + 8
-`generated_patterns`) designed to stress this project's own derivative
-engines, not backtracking blowup. Curated input, not pipeline output
--- tracked like `RegexEval.json`, read directly by
-`bench_pathological_time`/`memory`/`translate` (plus row `E51`
-specifically by `bench_stack_depth`, see
-[BENCHMARKS.md](BENCHMARKS.md)), never through `run_pipeline`.
-`src/data/pathological.rs` has the loader and the
-`{N}`/`{P}`-template expansion.
+`data/pathological/pathological_patterns.json` holds 113 hand-curated rows.
 
-The file's own `meta.purpose`/`meta.engine_notes` fields: "pathological"
-here means derivative-state explosion or polynomial/compile blow-up
-under this engine family, not backtracking blowup (catastrophic
-backtracking does not apply); every pattern is full-string-match only
--- anchors, `\b`/`\B`, backreferences, lookaround, and POSIX classes
-all hard-reject at parse/translate time in this project's own frontend,
-verified directly against it, so none appear in the dataset.
+| Section | Rows | Purpose |
+|---|---|---|
+| `pathological_patterns` | 61 | Main stress rows |
+| `baseline_and_edge_patterns` | 43 | Baseline and edge cases |
+| `generated_patterns` | 9 | Parameterised by `{N}` and `{P}` templates |
 
-Row count alone is misleading: `suggested_n`/`suggested_p` sweeps mean
-one row expands into several entries.
+Read directly by `bench_pathological_time`, `bench_pathological_memory`, `bench_pathological_translate`, and row `E51` only by `bench_stack_depth`. Never read by `run_pipeline`. Loader and template expansion in `src/data/pathological.rs`.
+
+**Scope.** Pathological here means derivative-state explosion, polynomial blow-up, or compile blow-up under this engine family. Not catastrophic backtracking. Every row is full-string-match only. Anchors, `\b`, `\B`, backreferences, lookaround, and POSIX classes hard-reject at parse or translate time, so no row contains one.
+
+**Test surface.** Rows expand into more entries than their raw count suggests. `suggested_n` and `suggested_p` sweeps multiply each row into several test cases.
 
 ```bash
 cargo run --release --example pathological_stats
 ```
 
-Saves `reports/data/pathological_stats.csv` (per category: patterns,
-variable-size patterns, input sizes, pattern sizes, test cases under
-the default sweep) and `reports/data/pathological_rows.csv` (per
-pattern). As of this writing: 113 patterns, 913 test cases under the
-default sweep -- category `L` alone (33 baseline/edge patterns)
-accounts for 195 of them.
+Writes `reports/data/pathological_stats.csv` (one row per category) and `reports/data/pathological_rows.csv` (one row per pattern).
+
+Current totals are 113 patterns and 913 test cases under the default sweep. Category `L` alone (33 baseline and edge patterns) accounts for 195 cases.
 
 ### Categories
 
-Every row belongs to one of 11 categories (`A`-`L`, skipping `G`).
-`suggested_n`/`suggested_p` for `A`/`B`/`C`/`D`/`E`/`F`/`H` are
-calibrated, not placeholders: each one is chosen from a real measured
-sweep (not just the one category-representative row quoted below) so
-that a routine, un-overridden run actually crosses from "every parser
-is fast" to "`deriv_std` is gone" within the category's own default
-points, instead of stopping short of it. See each category's own
-`suggested_n_notes` field in the JSON for the calibration this was
-based on.
+Every row belongs to one of 11 categories, `A` through `L` with `G` skipped.
+
+`suggested_n` and `suggested_p` for `A`, `B`, `C`, `D`, `E`, `F`, and `H` are calibrated. Each range is chosen from a real measured sweep so that a routine, un-overridden run crosses from "every parser is fast" to "`deriv_std` is gone" within the category's own default points. Each category's `suggested_n_notes` field in the JSON records the calibration behind the range.
 
 | Category | Name | Mechanism | Stress axis | suggested_n | suggested_p |
 |---|---|---|---|---|---|
-| A | Nested quantifiers | Quantified group inside another quantifier (`+`,`*`,`{1,}`) | derivative-state explosion | 10, 20, 30, 1000, 10000 | -- |
-| B | Overlapping alternation | Alternatives sharing a prefix under a quantifier | derivative-state explosion | 10, 20, 30, 1000, 10000 | -- |
-| C | Bounded rep over star | `{m,n}` wrapping a `*`/`+` body, unrolled at translate time | compile blow-up + polynomial match | 10, 50, 200, 1000 | -- |
-| D | Anchored-failure style | Must fully consume input; near-miss tail forces full enumeration | compile blow-up + derivative-state explosion | 10, 20, 30, 50, 75 | -- |
-| E | Prefix-overlap alternation | One alternative is a strict prefix of another | derivative-state explosion | 10, 100, 1000, 5000, 50000 | -- |
-| F | Alternation-star + literal | `(alt)*`/`(alt)+` then a literal that fails late | polynomial or derivative-state explosion | 10, 100, 1000, 10000, 50000 | -- |
-| H | Many adjacent stars/groups | Product of `.+`, `.*`, `\w+` etc. in sequence | polynomial O(N^k), k = star count | 10, 50, 200, 1000 | -- |
-| I | Trivial pattern, large input | Simple pattern, very long input | linear throughput | 100000, 1000000, 10000000 | -- |
-| J | Large pattern, trivial input | Thousands of literals/groups, short input | compile blow-up (pattern size) | -- | 100, 500, 1000, 2000 |
-| K | Large pattern, large input | Both axes at once | compile + match blow-up | 500, 1000, 5000, 10000, 50000 | 300 |
-| L | Trivial pattern, trivial input | Baseline/sanity check | linear throughput | 10, 100, 1000 | -- |
+| A | Nested quantifiers | Quantified group inside another quantifier (`+`, `*`, `{1,}`) | derivative-state explosion | 10, 20, 30, 1000, 10000 | none |
+| B | Overlapping alternation | Alternatives sharing a prefix under a quantifier | derivative-state explosion | 10, 20, 30, 1000, 10000 | none |
+| C | Bounded rep over star | `{m,n}` wrapping a `*` or `+` body, unrolled at translate time | compile blow-up plus polynomial match | 10, 50, 200, 1000 | none |
+| D | Anchored-failure style | Must fully consume input. A near-miss tail forces full enumeration. | compile blow-up plus derivative-state explosion | 10, 20, 30, 50, 75 | none |
+| E | Prefix-overlap alternation | One alternative is a strict prefix of another | derivative-state explosion | 10, 100, 1000, 5000, 50000 | none |
+| F | Alternation-star plus literal | `(alt)*` or `(alt)+` then a literal that fails late | polynomial or derivative-state explosion | 10, 100, 1000, 10000, 50000 | none |
+| H | Many adjacent stars or groups | Product of `.+`, `.*`, `\w+` and similar in sequence | polynomial O(N^k), k is star count | 10, 50, 200, 1000 | none |
+| I | Trivial pattern, large input | Simple pattern, very long input | linear throughput | 100000, 1000000, 10000000 | none |
+| J | Large pattern, trivial input | Thousands of literals or groups, short input | compile blow-up on pattern size | none | 100, 500, 1000, 2000 |
+| K | Large pattern, large input | Both axes at once | compile plus match blow-up | 500, 1000, 5000, 10000, 50000 | 300 |
+| L | Trivial pattern, trivial input | Baseline, sanity check | linear throughput | 10, 100, 1000 | none |
 
-`I`/`J`/`K`/`L` form a 2x2 matrix of (pattern size: trivial/large) x
-(input size: trivial/large), `L` the all-trivial baseline.
-`suggested_n`/`suggested_p` are each category's recommended sweep
-points; a row with no `suggested_p` has a fixed pattern size, a row
-with no `suggested_n` (only `J`) has a fixed input size.
+`I`, `J`, `K`, and `L` form a 2x2 matrix of pattern size (trivial or large) against input size (trivial or large). `L` is the all-trivial baseline.
 
-Two things worth knowing before sweeping a specific row:
+A row with no `suggested_p` has a fixed pattern size. Only `J` has no `suggested_n`, reflecting its fixed input size.
 
-- **C's and H's own useful ceiling is much lower than the other
-  blow-up categories'**, on purpose, not an oversight: `(.*a){1,10}`-
-  and `(.+)x10`-style rows are already expensive for *every* parser,
-  not just `deriv_std` -- measured at ~0.7-0.9s per call at `n=100` and
-  ~7-10s at `n=1000` even for `deriv_bc`/`pderiv_std`, timing out for
-  everyone well before `n=5000`. Pushing these two categories as high
-  as A/B/E/F would only buy more timeouts, not more signal.
-- **K's upper range can genuinely crash `deriv_std_rec`/`deriv_std_loop`
-  uncontained**, confirmed directly: at `n=50000` on the large-pattern
-  generator rows (`E41`/`E52`, whose *pattern* is already ~1000 words),
-  both std parsers can exhaust memory for real -- not a timeout, an
-  actual OS-level crash, exactly the failure mode `BENCH_MEM_CAP_MB`
-  (see [BENCHMARKS.md](BENCHMARKS.md)) exists to contain. Always set it
-  when sweeping K at its full range; this category combines both stress
-  axes on purpose, so reaching a real crash point is the intended
-  result, not a bug -- it just needs to happen inside a cap.
-- **J's and K's `suggested_p` were lowered** (J: `100,1000,10000,100000`
-  -> `100,500,1000,2000`; K: `1000` -> `300`) after a real full run
-  (`bench_pathological_translate`) showed the old top-end values
-  guaranteeing translation rejection, not a parser-timing result: 9 of
-  J's 17 swept rows and 2 of K's 4 rows hit `core_regex_tagged`'s
-  20,000-node cap outright at those `p` values, which is why the
-  routine `bench_pathological_time`/`bench_pathological_memory` passes
-  showed a uniform `crashed` count across *all five* parsers for those
-  rows -- a translation-level failure affecting every parser
-  identically, not a derivative-loop one. The new values keep both
-  categories measuring parser throughput on large-but-translatable
-  patterns, their actual purpose, instead of mostly re-discovering the
-  node cap.
-- **Two category-H rows were mislabeled, caught by `demo_parser_agreement_pathological`**:
-  `P29` (`(.+){10}`) and `P31` (`(.*){10}`) had a `nomatch_input` built
-  by appending a trailing character to an otherwise-matching string --
-  a construction that only forces a non-match when the pattern bounds
-  the total length it can consume. Neither does: `.` matches any single
-  character including the appended one, and ten unbounded `.+`/`.*`
-  groups impose no upper bound, so the "non-match" input actually
-  matched, and every parser correctly said so. `P31` has no genuine
-  non-match at any length (ten `.*` groups accept the empty string), so
-  its `nomatch_input` was removed; `P29`'s was replaced with a fixed
-  9-character input, one short of the ten-group minimum the pattern
-  needs. Re-running category H after the fix: 100% match agreement
-  (was 75%). No other row was affected.
-- **`bench_pathological_time`'s and `bench_pathological_memory`'s
-  summary CSVs had a quoting bug**, now fixed: `category_name` values
-  containing a comma (`"Trivial pattern, large input"`, the four `I`/
-  `J`/`K`/`L` names) were written unquoted, shifting every later column
-  for those four rows when read back by a standard CSV parser. A
-  pre-existing `csv_quote` helper in both files already quoted
-  pattern/input text in the entries CSV; the summary writer just never
-  called it on `category_name`. A tool reading an older
-  `bench_pathological_time*.csv`/`bench_pathological_memory*.csv` for
-  categories `I`/`J`/`K`/`L` should re-merge the split
-  `category_name` field by hand, or just re-run the bench.
+### Category notes
 
-To load and sweep this dataset, see `PATHO_JSON_PATH`, `PATHO_SECTION`,
-`PATHO_CATEGORY`, `PATHO_N`, `PATHO_P` in [BENCHMARKS.md](BENCHMARKS.md).
+| Category | Note |
+|---|---|
+| `C`, `H` | Sweep ceilings are lower than the blow-up categories on purpose. At `n=100` these rows cost ~0.7-0.9s per call for `deriv_bc` and `pderiv_std`. At `n=1000` they cost ~7-10s. Every parser times out before `n=5000`. Higher values produce more timeouts without more signal. |
+| `K` | Upper range can crash `deriv_std_rec` and `deriv_std_loop`. `E41` runs at fixed `p=1000`, so its pattern is around 1000 alternation branches. At `n=50000`, both std parsers can exhaust memory on it. That is an OS-level crash, not a timeout. Always run `K` at full range under `BENCH_MEM_CAP_MB` (see [BENCHMARKS.md](BENCHMARKS.md)). A crash inside the cap is the expected outcome at the top of this range. |
+| `J`, `K` | `suggested_p` values stay under `core_regex_tagged`'s 20,000-node cap. Higher values push every parser through the same translation-level failure and report a uniform `crashed` count, which is not a parser-timing result. |
+
+### Rows without a nomatch_input
+
+Two category `H` rows use a different shape from their siblings.
+
+- `P29` (`(.+){10}`) uses a fixed 9-character input.
+- `P31` (`(.*){10}`) carries no `nomatch_input` at all.
+
+`.` matches any single character, so a pattern built from ten unbounded `.+` or `.*` groups accepts every input of ten characters or more. A non-matching input has to be shorter than the pattern's own group minimum. `P29` therefore sweeps a 9-character input. `P31` accepts the empty string and every extension of it, so no input can fail to match and the row carries no `nomatch_input`.
+
+To load and sweep this dataset, see `PATHO_JSON_PATH`, `PATHO_SECTION`, `PATHO_CATEGORY`, `PATHO_N`, and `PATHO_P` in [BENCHMARKS.md](BENCHMARKS.md).
