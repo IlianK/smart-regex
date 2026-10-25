@@ -103,4 +103,14 @@ cargo build --release --example demo_parser_agreement_worker
 cargo run   --release --example demo_parser_agreement_pathological
 
 
+# Fig. 7(a) reproduction — only P60, at paper scale
+PATHO_ROW_ID=P60 PATHO_N=1000000,5000000,10000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 \
+  BENCH_RUN_LABEL=FIG7A cargo bench --bench bench_pathological_time
+
+# Fig. 7(b) reproduction — only P61, at paper scale
+PATHO_ROW_ID=P61 PATHO_N=500000,2500000,5000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 \
+  BENCH_RUN_LABEL=FIG7B cargo bench --bench bench_pathological_time
+
 ```
