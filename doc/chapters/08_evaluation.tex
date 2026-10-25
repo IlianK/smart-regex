@@ -43,7 +43,7 @@ Each has a natural-language description and the author's own labeled
 \texttt{matches}/\texttt{non\_matches}. It supplies realistic
 measurements of how the four parsers behave on patterns a person wrote,
 with inputs a person judged to match or not.
-The dataset is available at \citep{siddiq2024regexeval}.
+The dataset is available at \citep{s2elab-regexeval-dataset}.
 
 \textbf{The pathological stress set} holds 113 hand-curated patterns,
 grouped by the specific complexity mechanism each one triggers, with
@@ -577,9 +577,7 @@ removed. Category H now reports 100\%.
 \section{Performance Analysis}
 \label{sec:eval-performance}
 
-The four parsers are compared on execution time
-(Section~\ref{sec:eval-timing}) and memory
-(Section~\ref{sec:eval-memory}).
+The four parsers are compared on execution time and memory.
 
 %
 %
@@ -630,22 +628,21 @@ dataset exists.
 %
 %
 %
-
 \subsubsection{Pathological}
 \label{sec:eval-timing-pathological}
 
 Synthetic timing is measured by \texttt{bench\_pathological\_time}
 against the 113-row stress set, grouped by category. Selection is
-controlled by the file's own \texttt{PATHO\_*} variables, plus the
-same \texttt{BENCH\_PATTERN\_LIMIT}/\texttt{BENCH\_ENTRY\_TIMEOUT\_MS}
-used by the corpus benches. There is no \texttt{BENCH\_MATCH\_INTENT}
-here, since these patterns are authored directly in full-match form.
+controlled by the file's own \texttt{PATHO\_*} variables and by
+\texttt{BENCH\_PATTERN\_LIMIT} and \texttt{BENCH\_ENTRY\_TIMEOUT\_MS}.
+There is no \texttt{BENCH\_MATCH\_INTENT} here, since these patterns
+are authored directly in full-match form.
 
-Table~\ref{tab:patho-timing-smoke} reports one routine,
-un-overridden pass per category. \texttt{to\%} is the share of
-entries that hit the 2-second cap. The mean column is over completed
-entries only, so a low mean next to a high timeout share describes the
-easy entries that survived, not category-wide speed.
+Table~\ref{tab:patho-timing-smoke} reports one routine, un-overridden
+pass per category. \texttt{to\%} is the share of entries that hit the
+2-second cap. The mean column covers completed entries only, so a low
+mean next to a high timeout share describes the easy entries that
+survived.
 
 \begin{table}[ht]
 \centering
@@ -672,37 +669,33 @@ P29/P31 fix of Section~\ref{sec:eval-agreement}.}
 \label{tab:patho-timing-smoke}
 \end{table}
 
-Three observations. First, categories A, B, and E confirm the design
-intent exactly: both standard variants time out on 60--71\% of entries
-while \texttt{deriv\_bc} and both partial-derivative variants stay
-near 0\%. Second, category F is the routine category where
-\texttt{deriv\_bc} itself times out at a real rate (40\%, against
-under 4\% for the partial-derivative pair). This is by design: F is
-calibrated to show the F-family mechanism defeating bit-coding too.
-Third, category C's timeout rate is close to uniform across all five
-parsers (57\% for both standard variants, 18--25\% for the other
-three) rather than concentrated on the standard pair. This matches the
-prediction that C's cost is dominated by \texttt{core\_regex}'s own
-bound-unrolling at translation time, a cost every parser pays
-identically before its derivative loop runs.
+Three observations. Categories A, B, and E confirm the design intent:
+both standard variants time out on 60--71\% of entries while
+\texttt{deriv\_bc} and both partial-derivative variants stay near 0\%.
+Category F is the routine category where \texttt{deriv\_bc} itself
+times out at a real rate (40\%, against under 4\% for the
+partial-derivative pair), by design: F is calibrated to show the
+F-family mechanism defeating bit-coding too. Category C's timeout rate
+is close to uniform across all five parsers (57\% for both standard
+variants, 18--25\% for the other three) rather than concentrated on the
+standard pair, consistent with C's cost being dominated by
+\texttt{core\_regex}'s own bound-unrolling at translation time, a cost
+every parser pays identically before its derivative loop runs.
 
 Category H is the one category where the ranking inverts:
 \texttt{deriv\_bc} times out less often (7\%) than either
-partial-derivative variant (both 18\%), the opposite of every other
-category. H's mechanism, several unbounded groups placed adjacently
-rather than nested, is the frontier-of-residuals shape the
-partial-derivative construction is usually best at. This is a reminder
-that "usually best" is a property of the common case, not a
-guarantee, and one small category is enough to show an exception.
+partial-derivative variant (both 18\%). H's mechanism, several
+unbounded groups placed adjacently rather than nested, is the
+frontier-of-residuals shape the partial-derivative construction is
+usually best at.
 
-\textbf{Individually swept representatives.} A routine per-category
-pass uses each category's conservative default sweep. Six rows are
-singled out for a dedicated sweep that pushes past the routine
-default, using \texttt{PATHO\_ROW\_ID} and \texttt{PATHO\_N}:
+\textbf{Individually swept representatives.} Six rows are singled out
+for a dedicated sweep that pushes past the routine default, using
+\texttt{PATHO\_ROW\_ID} and \texttt{PATHO\_N}:
 
 \begin{itemize}
-  \item \textbf{P60}/\textbf{P61}: the literal
-        \citet{sulzmannlu2014} Figure~7 reproduction,
+  \item \textbf{P60}/\textbf{P61}: the pattern and scale of
+        \citet{sulzmannlu2014}'s Figure~7,
         \texttt{(a|b|ab)*} swept into the millions.
   \item \textbf{P20}: the same family's \texttt{+} variant, pushed to
         the same scale.
@@ -715,17 +708,23 @@ default, using \texttt{PATHO\_ROW\_ID} and \texttt{PATHO\_N}:
         itself eventually times out.
 \end{itemize}
 
-Categories C, D, and H have no row singled out. Their calibrated
+Categories C, D, and H have no row singled out, since their calibrated
 default sweep already reaches each category's interesting regime
 within the routine pass.
 
-Table~\ref{tab:patho-fig7} reports P60 and P61 from a real run. The
-remaining representatives (P20, P01, P09, P25+P27+P28) are still
-pending.
+The FLOPS'14 paper benchmarks two implementations.
+\texttt{parseBC} (its Figures~5 and~6) is the general bit-coded
+algorithm that builds the full ambiguous POSIX parse tree, the
+algorithm \texttt{deriv\_bc} and \texttt{pderiv\_bc} implement.
+\texttt{DERIV} is a narrower, DFA-compiled implementation for POSIX
+submatching that records only the last iteration of each Kleene star,
+a strictly easier problem than full parse-tree construction. Only
+\texttt{DERIV} appears in their Figure~7, and its source was never
+released. Figure~\ref{fig:patho-fig7} therefore uses the same pattern
+and scale as Figure~7 but applies \texttt{parseBC}, the harder of the
+two algorithms, from a clean-room implementation of the paper's prose
+description.
 
-Figure~\ref{fig:patho-fig7} plots P60 and P61 from a real run. The
-remaining representatives (P20, P01, P09, P25+P27+P28) are still
-pending.
 \begin{figure}[ht]
 \centering
 \begin{tikzpicture}
@@ -792,9 +791,12 @@ pending.
 \end{axis}
 \end{tikzpicture}
 
-\caption{Figure~7 reproduction. Wall time is the match-side entry's
-own reported \texttt{micros}; the non-match side is within a few
-percent throughout and omitted. \texttt{deriv\_std\_rec} and
+\caption{Wall time at the pattern and scale of
+\citet{sulzmannlu2014}'s Figure~7, using \texttt{parseBC} (their
+Figures~5 and~6) rather than the narrower \texttt{DERIV} implementation
+the paper actually plots. Wall time is the match-side entry's own
+reported \texttt{micros}; the non-match side is within a few percent
+throughout and omitted. \texttt{deriv\_std\_rec} and
 \texttt{deriv\_std\_loop} crash at every point tested on both rows
 (500\,K--10\,M characters) and have no curve to plot. Peak memory was
 not measured at this scale.}
@@ -802,25 +804,25 @@ not measured at this scale.}
 \end{figure}
 
 Both standard variants crash rather than time out at every point
-tested, including the smallest (500\,K for P61). The 120-second
-timeout was never reached. Crashed entries average 14--16 seconds of
-wall time, uniformly across scale. A crash that takes the same time at
-every scale is a crash that happens early relative to the input.
+tested, including the smallest (500\,K for P61). Crashed entries
+average 14--16 seconds of wall time, uniformly across scale, which
+itself says something: a crash that takes the same time at every scale
+is one that happens early relative to the input.
 
-The two variants fail by two different mechanisms. The recursive
+The two variants fail by two independent mechanisms. The recursive
 variant recurses once per character before injecting, so its stack
-depth equals characters consumed. At 500\,K to 10\,M characters this
-exceeds the worker's per-call stack budget: a stack overflow. The loop
-variant has no per-character recursion, yet crashes on the same
-inputs. Its forward loop pushes every intermediate derivative onto a
-single \texttt{Vec<Regex>} and keeps them alive until the backward
-pass, and \texttt{deriv} runs with no simplification step in between.
-Nothing bounds the stored sequence's growth on a genuinely ambiguous
-pattern. Table~\ref{tab:growth}'s smaller example already shows
-\texttt{deriv\_std} reaching 9179 nodes at $n=16$ characters. At
+depth equals characters consumed, and at 500\,K to 10\,M characters
+this exceeds the worker's per-call stack budget. The loop variant has
+no per-character recursion, yet crashes on the same inputs. Its
+forward loop pushes every intermediate derivative onto a single
+\texttt{Vec<Regex>} and keeps them alive until the backward pass, and
+\texttt{deriv} runs with no simplification step in between, so nothing
+bounds the stored sequence's growth on a genuinely ambiguous pattern.
+Table~\ref{tab:growth}'s smaller example already shows
+\texttt{deriv\_std} reaching 9179 nodes at $n=16$ characters, and at
 500\,K+ characters the stored sequence exhausts memory well inside the
 120-second cap. The two failures are independent: fixing the stack
-overflow alone would not rescue the loop variant.
+overflow alone would not rescue the loop variant. 
 
 %
 %
