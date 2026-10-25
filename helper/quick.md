@@ -60,6 +60,7 @@ BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 
 
 # STACK DEPTH
+cargo build --release --example bench_stack_depth_worker
 cargo bench --bench bench_stack_depth
 
 
@@ -68,7 +69,6 @@ cargo bench --bench bench_stack_depth
 cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
 cargo run --release --example demo_parser_agreement_pathological
-
 
 
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
@@ -102,7 +102,6 @@ PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
 PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
   cargo bench --bench bench_pathological_time
-
 
 
 # REPRESENTATIVE PATHOLOGICAL CASES: MEMORY
