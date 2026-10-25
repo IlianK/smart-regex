@@ -667,26 +667,24 @@ easy entries that survived, not category-wide speed.
 & & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} \\
 Cat. & Entries & mean & to\% & mean & to\% & mean & to\% & mean & to\% & mean & to\% \\
 \hline
-A & 160 & 189.5 & 70\% & 156.8 & 71\% & 159.7 &  1\% &  15.4 &  0\% &  17.1 &  0\% \\
-B & 150 & 167.3 & 63\% & 165.8 & 63\% &  98.3 &  4\% &  95.7 &  0\% &  98.4 &  0\% \\
-C &  56 &  88.1 & 57\% &  87.9 & 57\% & 240.1 & 25\% & 230.3 & 18\% & 218.5 & 18\% \\
-D &  40 & 253.5 & 20\% & 250.7 & 20\% & 137.4 &  0\% & 192.4 & 15\% & 204.3 & 15\% \\
-E &  80 & 293.4 & 56\% & 288.0 & 56\% &  78.8 &  0\% &  57.5 &  0\% &  61.7 &  0\% \\
-F &  70 & 392.8 & 66\% & 366.7 & 66\% &  42.9 & 40\% & 104.1 &  3\% & 102.1 &  3\% \\
-H &  32 & 290.8 & 75\% & 290.4 & 75\% & 289.8 & 13\% & 265.7 & 22\% & 189.7 & 25\% \\
+A & 160 & 190.6 & 71\% & 176.5 & 71\% & 176.9 &  1\% &  17.7 &  0\% &  18.9 &  0\% \\
+B & 150 & 184.1 & 63\% & 157.5 & 64\% & 106.0 &  4\% & 103.7 &  0\% & 108.2 &  0\% \\
+C &  56 &  95.6 & 57\% &  96.2 & 57\% & 282.4 & 25\% & 289.3 & 18\% & 273.4 & 18\% \\
+D &  40 & 221.9 & 22\% & 220.4 & 22\% & 150.0 &  0\% & 215.4 & 15\% & 241.2 & 15\% \\
+E &  80 & 167.7 & 60\% & 161.1 & 60\% &  89.7 &  0\% &  63.7 &  0\% &  68.4 &  0\% \\
+F &  70 & 429.8 & 66\% & 400.7 & 66\% &  46.8 & 40\% & 115.9 &  3\% & 111.7 &  3\% \\
+H &  28 & 250.7 & 64\% & 253.9 & 64\% & 292.2 &  7\% & 158.2 & 18\% & 152.7 & 18\% \\
 \hline
 \end{tabular}
 \caption{Mean per-entry time (ms, completed entries only) and timeout
 share, one routine pass per category at each category's default sweep.
-No crashes in A--H. Category H's row is from before the P29/P31 fix
-of Section~\ref{sec:eval-agreement}; the fix drops one input but does
-not change how long the remaining ones take, so the figures stand
-against the post-fix entry count of 28.}
+No crashes in A--H. Category H's entry count (28) already reflects the
+P29/P31 fix of Section~\ref{sec:eval-agreement}.}
 \label{tab:patho-timing-smoke}
 \end{table}
 
 Three observations. First, categories A, B, and E confirm the design
-intent exactly: both standard variants time out on 56--71\% of entries
+intent exactly: both standard variants time out on 60--71\% of entries
 while \texttt{deriv\_bc} and both partial-derivative variants stay
 near 0\%. Second, category F is the routine category where
 \texttt{deriv\_bc} itself times out at a real rate (40\%, against
@@ -700,8 +698,8 @@ bound-unrolling at translation time, a cost every parser pays
 identically before its derivative loop runs.
 
 Category H is the one category where the ranking inverts:
-\texttt{deriv\_bc} times out less often (13\%) than either
-partial-derivative variant (22\%, 25\%), the opposite of every other
+\texttt{deriv\_bc} times out less often (7\%) than either
+partial-derivative variant (both 18\%), the opposite of every other
 category. H's mechanism, several unbounded groups placed adjacently
 rather than nested, is the frontier-of-residuals shape the
 partial-derivative construction is usually best at. This is a reminder
@@ -816,11 +814,11 @@ prints a second table split by verified outcome.
 \hline
 Parser & Entries & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
-\texttt{deriv\_std\_rec}  & 10\,888 & 67 & 7.379 & 0.211 & 1\,811.961 \\
-\texttt{deriv\_std\_loop} & 10\,888 & 66 & 6.902 & 0.226 & 1\,909.783 \\
-\texttt{deriv\_bc}        & 10\,888 &  0 & 1.653 & 0.316 &   270.844 \\
-\texttt{pderiv\_bc}       & 10\,888 &  0 & 0.613 & 0.097 &   100.659 \\
-\texttt{pderiv\_std}      & 10\,888 &  0 & 0.598 & 0.094 &   104.699 \\
+\texttt{deriv\_std\_rec}  & 10\,888 & 69 & 7.650 & 0.226 & 1\,781.268 \\
+\texttt{deriv\_std\_loop} & 10\,888 & 67 & 7.323 & 0.243 & 1\,725.692 \\
+\texttt{deriv\_bc}        & 10\,888 &  0 & 1.808 & 0.340 &   317.078 \\
+\texttt{pderiv\_bc}       & 10\,888 &  0 & 0.660 & 0.104 &   107.936 \\
+\texttt{pderiv\_std}      & 10\,888 &  0 & 0.656 & 0.102 &   112.035 \\
 \hline
 \end{tabular}
 \caption{Corpus timing over the full default scope (463 patterns,
@@ -833,10 +831,10 @@ standard variants' true cost.}
 Three observations. The two standard variants are the slowest by a
 wide margin, roughly $4$--$12\times$ \texttt{deriv\_bc}'s mean and
 over an order of magnitude past both partial-derivative variants, and
-this is before the 66--67 entries each timed out on. Within the
+this is before the 67--69 entries each timed out on. Within the
 bit-coded/partial-derivative group, the ranking is not what the growth
 curves alone would predict. \texttt{pderiv\_std} is marginally faster
-than \texttt{pderiv\_bc} on this corpus (0.598\,ms against 0.613\,ms
+than \texttt{pderiv\_bc} on this corpus (0.656\,ms against 0.660\,ms
 mean).
 
 \begin{table}[ht]
@@ -847,11 +845,11 @@ mean).
 \hline
 Parser & Matches & Match time (s) & Non-matches & Non-match time (s) \\
 \hline
-\texttt{deriv\_std\_rec}  & 5\,379 &  67.913 & 5\,442 & 9.620 \\
-\texttt{deriv\_std\_loop} & 5\,380 &  62.660 & 5\,442 & 9.773 \\
-\texttt{deriv\_bc}        & 5\,444 &  13.162 & 5\,444 & 5.014 \\
-\texttt{pderiv\_bc}       & 5\,444 &   5.208 & 5\,444 & 1.525 \\
-\texttt{pderiv\_std}      & 5\,444 &   5.078 & 5\,444 & 1.496 \\
+\texttt{deriv\_std\_rec}  & 5\,377 &  69.633 & 5\,442 & 10.398 \\
+\texttt{deriv\_std\_loop} & 5\,379 &  66.323 & 5\,442 & 10.460 \\
+\texttt{deriv\_bc}        & 5\,444 &  14.393 & 5\,444 & 5.482 \\
+\texttt{pderiv\_bc}       & 5\,444 &   5.602 & 5\,444 & 1.649 \\
+\texttt{pderiv\_std}      & 5\,444 &   5.582 & 5\,444 & 1.629 \\
 \hline
 \end{tabular}
 \caption{Total wall time by verified outcome, same run as
@@ -864,8 +862,8 @@ $3\times$ to $7\times$ depending on the parser. A non-match can often
 be rejected early in the derivation, while a match forces the parser
 to construct a tree. The split is also where the two standard
 variants' near-identical means resolve into a real difference:
-\texttt{deriv\_std\_loop}'s match-side total (62.660\,s) is below
-\texttt{deriv\_std\_rec}'s (67.913\,s), while their non-match totals
+\texttt{deriv\_std\_loop}'s match-side total (66.323\,s) is below
+\texttt{deriv\_std\_rec}'s (69.633\,s), while their non-match totals
 are almost the same. The recursion-versus-iteration difference is
 specifically a cost of the matching path.
 
@@ -873,7 +871,7 @@ The bit-coded parser reports its mean split into
 \texttt{mean\_encode} (building the initial \texttt{ARegex}),
 \texttt{mean\_derive} (the derivative loop), and \texttt{mean\_decode}
 (walking the bit-code into a tree). On the full corpus these are
-0.117\,ms, 1.504\,ms, and 0.005\,ms. The derivative loop is the cost.
+0.128\,ms, 1.644\,ms, and 0.005\,ms. The derivative loop is the cost.
 Encoding is a small fixed overhead paid once. Decoding is close to
 free, since it is a single linear walk over an already-small bit-code
 rather than a second derivation pass. The other three parsers do not
@@ -904,14 +902,14 @@ cargo bench --bench bench_pathological_translate
 \hline
 & Patterns & Mean (ms) & Mean nodes & Max nodes \\
 \hline
-S2ELab (full-match) & 463 & 0.015 & 502.5 & 18\,707 \\
+S2ELab (full-match) & 463 & 0.018 & 502.5 & 18\,707 \\
 \hline
 \end{tabular}
 \caption{Translation cost per distinct pattern, full default scope.}
 \label{tab:translate-cost}
 \end{table}
 
-Translation on S2ELab is cheap at 0.015\,ms mean. Even its single
+Translation on S2ELab is cheap at 0.018\,ms mean. Even its single
 largest pattern (18\,707 translated nodes) translates in well under a
 millisecond, so no S2ELab pattern comes close to
 \texttt{core\_regex\_tagged}'s 20\,000-node cap.
@@ -925,20 +923,20 @@ millisecond, so no S2ELab pattern comes close to
 Cat. & Name & Rows swept & Rejected & Mean (ms) & Max nodes \\
 \hline
 A & Nested quantifiers             & 16 &  0 & 0.001 &     84 \\
-B & Overlapping alternation        & 15 &  0 & 0.002 &    389 \\
-C & Bounded rep over star          &  7 &  0 & 0.052 &  9\,881 \\
-D & Anchored-failure style         & 20 &  0 & 0.005 &    905 \\
-E & Prefix-overlap alternation     &  8 &  0 & 0.001 &     40 \\
-F & Alternation-star + literal     &  7 &  0 & 0.003 &    756 \\
-H & Many adjacent stars/groups     &  4 &  0 & 0.049 &  3\,889 \\
-I & Trivial pattern, large input   & 10 &  0 & 0.017 &  4\,001 \\
-J & Large pattern, trivial input   & 17 &  9 & 0.265 & 13\,999 \\
-K & Large pattern, large input     &  4 &  2 & 0.009 &    404 \\
+B & Overlapping alternation        & 15 &  0 & 0.003 &    389 \\
+C & Bounded rep over star          &  7 &  0 & 0.120 &  9\,881 \\
+D & Anchored-failure style         & 20 &  0 & 0.007 &    905 \\
+E & Prefix-overlap alternation     &  8 &  0 & 0.002 &     40 \\
+F & Alternation-star + literal     &  7 &  0 & 0.006 &    756 \\
+H & Many adjacent stars/groups     &  4 &  0 & 0.076 &  3\,889 \\
+I & Trivial pattern, large input   & 10 &  0 & 0.027 &  4\,001 \\
+J & Large pattern, trivial input   & 17 &  4 & 0.390 & 15\,999 \\
+K & Large pattern, large input     &  4 &  1 & 0.153 &  8\,400 \\
 L & Trivial pattern, trivial input & 33 &  0 & 0.003 &    388 \\
 \hline
 \end{tabular}
-\caption{Translation cost over the pathological set's default sweep
-(pre-recalibration \texttt{suggested\_p} for J/K; see below).
+\caption{Translation cost over the pathological set's default sweep,
+with J/K's recalibrated \texttt{suggested\_p} (see below).
 \emph{Rejected} counts rows that hit
 \texttt{core\_regex\_tagged}'s 20\,000-node cap at the swept pattern
 size and translated to nothing.}
@@ -946,18 +944,18 @@ size and translated to nothing.}
 \end{table}
 
 Category C is the single most translation-expensive category by far
-(mean 0.052\,ms, 9\,881 max nodes), consistent with its being built
+(mean 0.120\,ms, 9\,881 max nodes), consistent with its being built
 around bound-unrolling. Categories J and K show what the time and
-memory benches could only show indirectly as uniform crash counts: 9
-of J's 17 swept rows and 2 of K's 4 reject outright at translation, at
-the old \texttt{suggested\_p} top end. A rejected row produces no
+memory benches could only show indirectly as uniform crash counts: 4
+of J's 17 swept rows and 1 of K's 4 reject outright at translation, at
+the top of each category's sweep. A rejected row produces no
 entry for any of the five parsers, which is why the uniform per-parser
 crash counts are a translation artifact, not a parser-timing result.
 Both categories' \texttt{suggested\_p} have been lowered (J:
 $[100,500,1000,2000]$, K: $[300]$, from $[100,1000,10000,100000]$ and
 $[1000]$) to keep the category measuring parser throughput on
-large-but-translatable patterns. A fresh run against the new values is
-pending.
+large-but-translatable patterns; the table above already reflects this
+lowered sweep, and a handful of rejections still remain at its top end.
 
 %
 %
@@ -989,8 +987,8 @@ BENCH_MATCH_INTENT=both cargo bench --bench bench_corpus_memory
 \hline
 Parser & Total bytes & Avg bytes/entry & Max peak \\
 \hline
-\texttt{deriv\_std\_rec}  & 26.77 GB & 2.551 MB & 582.4 MB \\
-\texttt{deriv\_std\_loop} & 26.91 GB & 2.563 MB & 582.4 MB \\
+\texttt{deriv\_std\_rec}  & 24.51 GB & 2.364 MB & 514.8 MB \\
+\texttt{deriv\_std\_loop} & 25.75 GB & 2.463 MB & 556.8 MB \\
 \texttt{deriv\_bc}        & 14.80 GB & 1.345 MB &   5.1 MB \\
 \texttt{pderiv\_bc}       &  4.44 GB & 0.404 MB &   3.8 MB \\
 \texttt{pderiv\_std}      &  4.34 GB & 0.395 MB &   2.5 MB \\
@@ -1001,13 +999,14 @@ Parser & Total bytes & Avg bytes/entry & Max peak \\
 \label{tab:memory}
 \end{table}
 
-The gap between constructions is starkest in peak allocation. Both
-standard variants peak at 582.4\,MB on their single worst entry,
-against 5.1\,MB for \texttt{deriv\_bc}, a factor of about $114\times$.
-The standard parser retains its full derivation sequence for the
-backward pass; \texttt{deriv\_bc} carries only a flat bit vector. The
-same pattern holds in total and average bytes, though less sharply
-(roughly $1.8\times$ and $1.9\times$).
+The gap between constructions is starkest in peak allocation. The two
+standard variants peak at 514.8\,MB and 556.8\,MB respectively on
+their single worst entry, against 5.1\,MB for \texttt{deriv\_bc}, a
+factor of about $100$--$109\times$. The standard parser retains its
+full derivation sequence for the backward pass; \texttt{deriv\_bc}
+carries only a flat bit vector. The same pattern holds in total and
+average bytes, though less sharply (roughly $1.7\times$ and
+$1.8\times$).
 
 The partial-derivative pair behaves differently from what the growth
 curves alone suggest. \texttt{pderiv\_std} is lower than
@@ -1052,7 +1051,7 @@ Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
 \hline
 \texttt{deriv\_std}  & 4 & 39 & 79 &   16 &  539 & 9179 \\
 \texttt{deriv\_bc}   & 2 &  2 &  2 &   12 &  143 & 2303 \\
-\texttt{pderiv\_std} & 4 &  4 &  4 &   22 &  160 & 2560 \\
+\texttt{pderiv\_std} & 2 &  2 &  2 &   22 &  160 & 2560 \\
 \texttt{pderiv\_bc}  & 2 &  2 &  2 &   18 &  128 & 2048 \\
 \hline
 \end{tabular}
@@ -1091,8 +1090,8 @@ single-pass decoding possible.
 The max-peak column of Table~\ref{tab:memory} answers whether any
 S2ELab pattern causes a peak infeasible on a production machine. At
 full corpus scale the answer is no. The highest single-entry peak is
-582.4\,MB, for the two standard variants; the other three peak in
-single-digit megabytes.
+556.8\,MB, for \texttt{deriv\_std\_loop} (\texttt{deriv\_std\_rec}
+peaks at 514.8\,MB); the other three peak in single-digit megabytes.
 
 That is a property of S2ELab's input lengths, not a general bound.
 Table~\ref{tab:patho-fig7}'s figures, on inputs several orders of
@@ -1123,10 +1122,10 @@ length $n$, state size grows linearly in $n$, while the bit-coded and
 partial-derivative parsers stay constant.
 
 On the full corpus the two standard variants are close in mean time
-(7.379\,ms against 6.902\,ms) but the outcome split shows where the
+(7.650\,ms against 7.323\,ms) but the outcome split shows where the
 difference lives. On matching entries, \texttt{deriv\_std\_loop}'s
-total (62.660\,s) is measurably below \texttt{deriv\_std\_rec}'s
-(67.913\,s), while their non-match totals are almost the same. The
+total (66.323\,s) is measurably below \texttt{deriv\_std\_rec}'s
+(69.633\,s), while their non-match totals are almost the same. The
 recursion-versus-iteration difference is specifically a cost of the
 matching path.
 
@@ -1138,9 +1137,9 @@ matching path.
 \label{sec:eval-cost-bit-coding}
 
 For the standard-derivative family, bit-coding wins unconditionally.
-\texttt{deriv\_bc}'s mean time (1.653\,ms) is roughly $4$--$4.5\times$
+\texttt{deriv\_bc}'s mean time (1.808\,ms) is roughly $4$--$4.25\times$
 below either standard variant's, and its peak allocation (5.1\,MB) is
-about $114\times$ below theirs. The trade-off is that the forward pass
+about $100$--$109\times$ below theirs. The trade-off is that the forward pass
 cannot simplify away redundant branches without losing reconstruction
 information. The retention is not wasted: it is exactly what makes
 single-pass reconstruction possible, and \texttt{deriv\_bc}'s decode
@@ -1163,8 +1162,8 @@ parser suffers.
 Within the pair, bit-coding's advantage is not unconditional the way
 it is for the standard-derivative family, and which variant wins
 depends on more than scale. On the full corpus, \texttt{pderiv\_std}
-is marginally ahead on every figure: mean time (0.598 against
-0.613\,ms), average bytes (0.395 against 0.404\,MB), and peak bytes
+is marginally ahead on every figure: mean time (0.656 against
+0.660\,ms), average bytes (0.395 against 0.404\,MB), and peak bytes
 (2.5 against 3.8\,MB). At Figure~7 scale, the ranking splits by row.
 On P60 (\texttt{(a|b|ab)*} over `a'-repeated input),
 \texttt{pderiv\_std} stays faster at every point, with a stable
