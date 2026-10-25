@@ -216,7 +216,49 @@ PATHO_ROW_ID=P60 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 
   BENCH_RUN_LABEL=FIG7A cargo bench --bench bench_pathological_time
 PATHO_ROW_ID=P61 PATHO_N=500000,2500000,5000000 BENCH_ENTRY_TIMEOUT_MS=120000 \
   BENCH_RUN_LABEL=FIG7B cargo bench --bench bench_pathological_time
+
+# P20: same family as P60/P61 ((a|b|ab)+, no dedicated sweep in the
+# dataset itself -- see P61's own notes), confirmed at n up to 100000
+# to behave like P60/P61 (deriv_bc/pderiv_std both still well under
+# 1.5s there); pushed here to the same paper scale as P60 for the same
+# full Fig. 7 story with the + variant:
+PATHO_ROW_ID=P20 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 \
+  BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C cargo bench --bench bench_pathological_time
+
+# P01: the single most-cited ReDoS example, (a+)+. deriv_std is dead by
+# n~=25-30 already (see data/pathological/pathological_patterns.json's
+# own category A suggested_n_notes); deriv_bc measured alive at n=10000
+# (~1s) and gone by n=50000 in informal testing -- this sweep brackets
+# that collapse point and pushes pderiv_bc/pderiv_std's own tail out to
+# confirm they stay linear well past it:
+PATHO_ROW_ID=P01 PATHO_N=10000,30000,50000,200000,1000000 \
+  BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
+  cargo bench --bench bench_pathological_time
+
+# P09: same nested-quantifier family as P01, but deriv_bc measured
+# alive and under 1s even at n=100000 in informal testing -- pushed
+# further to find where it actually gives way, if it does before P60-
+# style paper scale:
+PATHO_ROW_ID=P09 PATHO_N=100000,500000,1000000,5000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
+  cargo bench --bench bench_pathological_time
+
+# P25/P27/P28: unlike P60/P61/P20, here deriv_bc itself (not just
+# deriv_std) eventually times out -- informally measured alive at
+# n=1000-10000 depending on the row and gone by n=10000-50000, while
+# pderiv_bc/pderiv_std stay under 2s even at n=100000. This sweep
+# brackets deriv_bc's own collapse for all three rows together (same
+# category F mechanism, run as one comparison):
+PATHO_ROW_ID=P25,P27,P28 PATHO_N=5000,10000,30000,50000,200000 \
+  BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
+  cargo bench --bench bench_pathological_time
 ```
+
+The four new blocks above are starting points, not yet run at the
+scales they request: informal testing only went as far as the N
+values quoted in each comment. `BENCH_ENTRY_TIMEOUT_MS`/
+`BENCH_MEM_CAP_MB` may need raising or lowering once the real run's
+actual wall-clock cost on this machine is known.
 
 Entries are grouped by category (A-L), reported the same way as
 `bench_corpus_time`. Reuses `bench_worker` and its accounting

@@ -9,8 +9,8 @@
 \newlabel{sec:frontend-scope}{{7.1}{58}{The Interface and Its Design Choices}{section.7.1}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7.2}The External AST}{59}{section.7.2}\protected@file@percent }
 \newlabel{sec:frontend-extpat}{{7.2}{59}{The External AST}{section.7.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces The 19 \texttt  {ExtPat} variants, grouped by role. Of the six in the last group, \texttt  {Carat}, \texttt  {Dollar}, and \texttt  {WordBoundary} are parsed but rejected by \texttt  {translate}; \texttt  {Dot} lowers to the working alphabet (or its \texttt  {\textbackslash n}-free complement); \texttt  {Eps} and \texttt  {Never} lower to the core \texttt  {Regex::Eps} and \texttt  {Regex::Phi}.}}{59}{table.caption.38}\protected@file@percent }
-\newlabel{tab:extpat}{{7.1}{59}{The 19 \texttt {ExtPat} variants, grouped by role. Of the six in the last group, \texttt {Carat}, \texttt {Dollar}, and \texttt {WordBoundary} are parsed but rejected by \texttt {translate}; \texttt {Dot} lowers to the working alphabet (or its \texttt {\textbackslash n}-free complement); \texttt {Eps} and \texttt {Never} lower to the core \texttt {Regex::Eps} and \texttt {Regex::Phi}}{table.caption.38}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces The 19 \texttt  {ExtPat} variants, grouped by role. Of the six in the last group, \texttt  {Carat}, \texttt  {Dollar}, and \texttt  {WordBoundary} are parsed but rejected by \texttt  {translate}; \texttt  {Dot} lowers to the working alphabet (or its \texttt  {\textbackslash n}-free complement); \texttt  {Eps} and \texttt  {Never} lower to the core \texttt  {Regex::Eps} and \texttt  {Regex::Phi}.}}{60}{table.caption.38}\protected@file@percent }
+\newlabel{tab:extpat}{{7.1}{60}{The 19 \texttt {ExtPat} variants, grouped by role. Of the six in the last group, \texttt {Carat}, \texttt {Dollar}, and \texttt {WordBoundary} are parsed but rejected by \texttt {translate}; \texttt {Dot} lowers to the working alphabet (or its \texttt {\textbackslash n}-free complement); \texttt {Eps} and \texttt {Never} lower to the core \texttt {Regex::Eps} and \texttt {Regex::Phi}}{table.caption.38}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7.3}Parsing: String to ExtPat}{60}{section.7.3}\protected@file@percent }
 \newlabel{sec:frontend-parse}{{7.3}{60}{Parsing: String to ExtPat}{section.7.3}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {7.3.1}Precedence and associativity}{60}{subsection.7.3.1}\protected@file@percent }
@@ -26,16 +26,23 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {7.5.1}Character classes and the working alphabet}{63}{subsection.7.5.1}\protected@file@percent }
 \newlabel{sec:frontend-alphabet}{{7.5.1}{63}{Character classes and the working alphabet}{subsection.7.5.1}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {7.5.2}Bounds and unrolling}{63}{subsection.7.5.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.3}Anchor recovery}{63}{subsection.7.5.3}\protected@file@percent }
-\newlabel{sec:frontend-anchor-recovery}{{7.5.3}{63}{Anchor recovery}{subsection.7.5.3}{}}
+\newlabel{sec:frontend-bounds}{{7.5.2}{63}{Bounds and unrolling}{subsection.7.5.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.3}Anchor recovery}{64}{subsection.7.5.3}\protected@file@percent }
+\newlabel{sec:frontend-anchor-recovery}{{7.5.3}{64}{Anchor recovery}{subsection.7.5.3}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {7.6}Translation Size}{64}{section.7.6}\protected@file@percent }
 \newlabel{sec:frontend-sizes}{{7.6}{64}{Translation Size}{section.7.6}{}}
 \@writefile{lot}{\contentsline {table}{\numberline {7.3}{\ignorespaces Translated size in \texttt  {Regex} nodes for representative patterns.}}{64}{table.caption.40}\protected@file@percent }
 \newlabel{tab:translation-sizes}{{7.3}{64}{Translated size in \texttt {Regex} nodes for representative patterns}{table.caption.40}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.7}Summary and Bridge to Evaluation}{64}{section.7.7}\protected@file@percent }
-\newlabel{sec:frontend-summary}{{7.7}{64}{Summary and Bridge to Evaluation}{section.7.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.7}Acceptance on the Evaluation's Datasets}{65}{section.7.7}\protected@file@percent }
+\newlabel{sec:frontend-acceptance}{{7.7}{65}{Acceptance on the Evaluation's Datasets}{section.7.7}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.4}{\ignorespaces What the frontend accepts on each dataset. ``n/a'' marks a column that does not apply: the pathological set is authored directly against the engine's full-string-matching model and contains no anchors to recover (Section~\ref {sec:frontend-anchor-recovery}).}}{65}{table.caption.41}\protected@file@percent }
+\newlabel{tab:frontend-acceptance}{{7.4}{65}{What the frontend accepts on each dataset. ``n/a'' marks a column that does not apply: the pathological set is authored directly against the engine's full-string-matching model and contains no anchors to recover (Section~\ref {sec:frontend-anchor-recovery})}{table.caption.41}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.5}{\ignorespaces S2ELab's 177 rejections by cause.}}{65}{table.caption.42}\protected@file@percent }
+\newlabel{tab:frontend-rejection-causes}{{7.5}{65}{S2ELab's 177 rejections by cause}{table.caption.42}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.8}Summary and Bridge to Evaluation}{66}{section.7.8}\protected@file@percent }
+\newlabel{sec:frontend-summary}{{7.8}{66}{Summary and Bridge to Evaluation}{section.7.8}{}}
 \@setckpt{chapters/07_frontend}{
-\setcounter{page}{66}
+\setcounter{page}{67}
 \setcounter{equation}{0}
 \setcounter{enumi}{3}
 \setcounter{enumii}{0}
@@ -45,13 +52,13 @@
 \setcounter{mpfootnote}{0}
 \setcounter{part}{0}
 \setcounter{chapter}{7}
-\setcounter{section}{7}
+\setcounter{section}{8}
 \setcounter{subsection}{0}
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
 \setcounter{figure}{0}
-\setcounter{table}{3}
+\setcounter{table}{5}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
 \setcounter{continuedfloat}{0}
@@ -66,6 +73,6 @@
 \setcounter{section@level}{0}
 \setcounter{Item}{3}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{57}
+\setcounter{bookmark@seq@number}{58}
 \setcounter{lstlisting}{0}
 }

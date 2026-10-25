@@ -304,8 +304,12 @@ fold that mistake into every parser's measured accuracy.
 \subsection{Corpus overview}
 \label{sec:eval-corpus-overview}
 
-Table~\ref{tab:corpus-coverage} shows the real run of the pipeline
-above over all 762 S2ELab entries.
+Chapter~\ref{sec:frontend} (Table~\ref{tab:frontend-acceptance},
+Table~\ref{tab:frontend-rejection-causes}) already gives the
+extraction and acceptance counts: 762 extracted, 7 duplicate, 177
+rejected, 578 accepted (463 full-match wrap recovered, 115 no anchor
+at all), with the rejection causes broken down there. What follows is
+specific to this chapter's own pipeline, downstream of acceptance.
 
 \begin{table}[ht]
 \centering
@@ -315,12 +319,7 @@ above over all 762 S2ELab entries.
 \hline
 Stage & Count \\
 \hline
-Extracted                                  & 762 \\
-Duplicate raw pattern text (skipped)       &   7 \\
-Rejected by the frontend                   & 177 \\
-Accepted (translated)                      & 578 \\
-\quad of which, full-match wrap recovered  & 463 \\
-\quad of which, no anchor at all           & 115 \\
+Accepted (from Chapter~\ref{sec:frontend})                              & 578 \\
 Usable (at least one match and one non-match surviving the label check) & 572 \\
 \hline
 Given examples written to the corpus       & 13{,}248 \\
@@ -328,19 +327,9 @@ Given examples written to the corpus       & 13{,}248 \\
 \quad dropped, per-pattern balance (Section~\ref{sec:eval-balance}) & 779 \\
 \hline
 \end{tabular}
-\caption{S2ELab corpus preparation, full run.}
+\caption{S2ELab corpus preparation downstream of acceptance.}
 \label{tab:corpus-coverage}
 \end{table}
-
-The frontend's 177 rejections (23.2\% of extracted patterns, a far
-smaller share than the multi-source corpora this project used earlier)
-break down as: 106 anchor (a lone or nested
-\texttt{\textasciicircum}/\texttt{\textdollar}, not the recoverable
-top-level wrap), 43 lookaround, 23 word boundary, 3 backreference, and
-2 other (the \texttt{MAX\_BOUND} repetition cap). None carry the
-\texttt{m}/\texttt{x} flags this evaluation's corpus already excludes
-by construction, since S2ELab entries are plain expressions with no
-PCRE flag suffix.
 
 \subsection{Per-pattern balance}
 \label{sec:eval-balance}
@@ -537,9 +526,17 @@ infinite loop is contained. A 2-second wall-clock timeout kills the
 process. Timeouts and crashes are counted separately from tree-shape
 outcomes, since neither produces a result to compare.
 
+The two datasets are run through this check separately, with separate
+binaries, and never pooled into one row: \texttt{demo\_parser\_agreement}
+against the 463 full-match-wrapped S2ELab patterns (the same default
+scope as every other benchmark in this chapter,
+Section~\ref{sec:eval-anchors}), and \texttt{demo\_parser\_agreement\_pathological}
+against the 113-row pathological set.
+
 \begin{verbatim}
 cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
+cargo run --release --example demo_parser_agreement_pathological
 \end{verbatim}
 
 %
@@ -548,8 +545,9 @@ cargo run --release --example demo_parser_agreement
 
 \subsection{Results}
 
-Table~\ref{tab:agreement} reports the outcome. Precondition columns are
-grouped on the left, the measured quantity on the right.
+Table~\ref{tab:agreement} reports the outcome, one row per dataset.
+Precondition columns are grouped on the left, the measured quantity on
+the right.
 
 \begin{table}[ht]
 \centering
@@ -557,16 +555,15 @@ grouped on the left, the measured quantity on the right.
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{lrrrrrrrrr}
 \hline
-Source & Entries & Timeouts & Crashes & Mem. & POSIX & non-POSIX & Compared & Same & Diff \\
+Dataset & Entries & Timeouts & Crashes & Mem. & POSIX & non-POSIX & Compared & Same & Diff \\
 \hline
-Snort        & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
-SpamAssassin & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
-\hline
-Total        & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+S2ELab (full-match)   & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
+Pathological          & -- & -- & -- & -- & -- & -- & -- & -- & -- \\
 \hline
 \end{tabular}
-\caption{Parser agreement over the prepared corpus.
-(Values to be filled after the run.)}
+\caption{Parser agreement, measured once per dataset and never pooled
+(placeholder --- values pending the full run; see
+Section~\ref{sec:eval-dataset}).}
 \label{tab:agreement}
 \end{table}
 
@@ -589,13 +586,20 @@ same tree and how many produced different trees.
 
 \subsection{Discussion}
 
-To be completed after the corpus run. Expected reading: no
-precondition violations (all of \emph{Mem.}, \emph{POSIX}, and
-\emph{non-POSIX} at zero), timeouts and crashes nonnegative, and the
-\emph{Same} / \emph{Diff} split showing how often the two policies are
-forced onto the same structure. \emph{Diff} is not a bug: it reflects
-a difference in disambiguation policy between the two families, not in
-the underlying matching.
+To be completed after both runs. Expected reading, for each dataset
+independently: no precondition violations (all of \emph{Mem.},
+\emph{POSIX}, and \emph{non-POSIX} at zero), timeouts and crashes
+nonnegative, and the \emph{Same} / \emph{Diff} split showing how often
+the two disambiguation policies are forced onto the same structure.
+\emph{Diff} is not a bug: it reflects a difference in disambiguation
+policy between the two families, not in the underlying matching. The
+pathological set's rows are authored directly in full-match form with
+no anchor to strip (Section~\ref{sec:eval-anchors}), so its row carries
+no anchor-handling precondition that the S2ELab row does not already
+share; the two rows are expected to differ mainly in how often
+\emph{Diff} occurs, since the pathological set's alternation-heavy
+categories (B, E, F) are deliberately built to be ambiguous, while most
+S2ELab patterns are not.
 
 % =====================================================================
 % 8.3 Performance Analysis
@@ -637,7 +641,21 @@ alternation over many branches, and repeated classes inflate the
 translated \texttt{Regex}, and every parser pays for that size on
 every input. This driver is independent of input length: a short
 input against a large pattern can cost more than a long input against
-a small one.
+a small one. It also splits into two phases this evaluation measures
+separately, since they are paid at different times and by different
+code: \emph{translation} (the PCRE string into the translated
+\texttt{Regex}, \texttt{core\_regex} in Chapter~\ref{sec:frontend}),
+measured once per distinct pattern by
+\texttt{bench\_corpus\_translate}/\texttt{bench\_pathological\_translate};
+and the \emph{parser's own derivative loop} over an already-translated
+\texttt{Regex}, measured per (pattern, input) pair by the timing and
+memory benches below. A pattern can be cheap to translate and
+expensive to derive, or the reverse --- the pathological categories
+\textbf{C}, \textbf{D}, \textbf{J}, and \textbf{K} are specifically
+built around the first phase (bounded-repetition unrolling and
+large-tree construction in \texttt{core\_regex} itself), while
+\textbf{A}, \textbf{B}, \textbf{E}, \textbf{F}, and \textbf{H} are
+built around the second.
 
 \textbf{Ambiguity.} When a single input admits more than one valid
 decomposition of the pattern, the parsers keep more state alive and
@@ -647,25 +665,26 @@ governed by the parser family's disambiguation policy
 \ref{sec:partial-derivative-parser}), and the two families are
 visible on exactly those (pattern, input) pairs where the policies
 diverge. Ambiguity is a property of a pattern, not of a corpus; the
-synthetic family of Section~\ref{sec:eval-timing} is what isolates it.
+pathological categories built around overlapping or prefix-sharing
+alternation (\textbf{B}, \textbf{E}, \textbf{F}) are what isolate it
+at a controlled scale.
 
 Not every cost is a driver. There is also a fixed per-call cost paid
 once per (pattern, input) pair regardless of length, structure, or
 ambiguity: allocating the initial residual, setting up the derivation
 loop, and constructing the parse tree from the final nullable
-expression. The \texttt{small\_patterns} family isolates this cost,
-and it is why the four parsers differ even on inputs where none of
-the three drivers is active.
+expression. This cost is why the four parsers differ even on the
+corpus's own shortest, simplest entries, where none of the three
+drivers above is active enough to matter.
 
-Each of the synthetic families of Section~\ref{sec:eval-timing} is
-shaped to isolate one of these costs; the corpus tables that follow
-mix all three, and reading them without this separation makes the
-numbers hard to interpret. Snort, whose patterns are long and whose
-content-derived inputs are byte-shaped, exercises the first driver
-most strongly. S2ELab and RegexLib, whose patterns vary in structural
-complexity but whose inputs are short, exercise the second. The third
-is not a property of any one source, and is why the synthetic side of
-the evaluation exists at all.
+The pathological categories of Section~\ref{sec:eval-pathological} are
+each shaped to isolate one of these costs at a scale no real corpus
+reliably reaches; the corpus tables that follow mix all three, and
+reading them without this separation makes the numbers hard to
+interpret. S2ELab's patterns are short, human-authored rules with
+modest structural complexity and short given inputs, so it exercises
+all three drivers only mildly --- which is exactly why a second,
+deliberately extreme dataset exists at all (Section~\ref{sec:eval-two-datasets}).
 
 %
 %
@@ -674,32 +693,149 @@ the evaluation exists at all.
 \subsection{Timing}
 \label{sec:eval-timing}
 
-\subsubsection{Synthetic benchmarks}
+\subsubsection{Pathological benchmarks}
+\label{sec:eval-timing-pathological}
 
-\texttt{bench\_parse} runs the five parsers on four families of
-hand-constructed inputs. Each family targets one cost.
-
-\begin{itemize}
-  \item \texttt{small\_patterns}: fixed per-call overhead on four fixed
-        cases (a literal, a star against empty input, against one
-        character, against three).
-  \item \texttt{scaling\_a\_star}: how cost grows with input length for
-        \texttt{a*}.
-  \item \texttt{deep\_expression}: how cost grows with expression size
-        for a flat chain \texttt{a·a·...·a}.
-  \item \texttt{ambiguous\_star\_a\_or\_aa}: how cost grows when the
-        expression is genuinely ambiguous, using \texttt{(a|aa)*}.
-\end{itemize}
+Synthetic timing is measured by \texttt{bench\_pathological\_time}
+against the 113-row stress set of Section~\ref{sec:eval-pathological},
+grouped by category (Table~\ref{tab:patho-categories}). Selection and
+sweep are controlled by this file's own \texttt{PATHO\_*} variables ---
+\texttt{PATHO\_SECTION}, \texttt{PATHO\_CATEGORY}, \texttt{PATHO\_ROW\_ID}
+to narrow to one or a few rows, and \texttt{PATHO\_N}/\texttt{PATHO\_P}
+to override a row's default sweep --- plus the same
+\texttt{BENCH\_PATTERN\_LIMIT}/\texttt{BENCH\_ENTRY\_TIMEOUT\_MS}
+used by the corpus benches below. There is no \texttt{BENCH\_MATCH\_INTENT}
+here: these patterns are authored directly in full-match form, with
+no anchor to strip (Section~\ref{sec:eval-anchors}).
 
 \begin{verbatim}
-cargo bench --bench bench_parse
-BENCH_SIZE_LIMIT=200 cargo bench --bench bench_parse
-BENCH_SAMPLE_SIZE=50 cargo bench --bench bench_parse
+cargo bench --bench bench_pathological_time
+PATHO_CATEGORY=A,B cargo bench --bench bench_pathological_time
 \end{verbatim}
 
-Figures for each family to be added. The expected shape: \texttt{deriv\_bc}
-and the two \texttt{pderiv} variants stay flat or nearly flat;
-\texttt{deriv\_std} grows with input length.
+Table~\ref{tab:patho-timing-smoke} reports a routine, un-overridden pass
+per category, each row's own default sweep from
+Table~\ref{tab:patho-categories}. Category \textbf{A} is filled from a
+real run; the remaining stress categories (\textbf{B}, \textbf{C},
+\textbf{D}, \textbf{E}, \textbf{F}, \textbf{H}) are pending the same
+full pass and are marked accordingly --- the table is a skeleton of the
+real shape, not yet the real numbers for every row.
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrrrr}
+\hline
+Cat. & Name & \texttt{std\_rec} & \texttt{std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_bc} & \texttt{pderiv\_std} \\
+\hline
+A & Nested quantifiers           & 0.067 & 0.070 & 0.029 & 0.024 & 0.023 \\
+B & Overlapping alternation      & \multicolumn{5}{c}{pending} \\
+C & Bounded rep over star        & \multicolumn{5}{c}{pending} \\
+D & Anchored-failure style       & \multicolumn{5}{c}{pending} \\
+E & Prefix-overlap alternation   & \multicolumn{5}{c}{pending} \\
+F & Alternation-star + literal   & \multicolumn{5}{c}{pending} \\
+H & Many adjacent stars/groups   & \multicolumn{5}{c}{pending} \\
+\hline
+\end{tabular}
+\caption{Mean per-entry time (ms), one routine pass per category at
+each category's own default sweep (placeholder; category A from a real
+run, others pending the full pass). \texttt{std\_rec}/\texttt{std\_loop}
+abbreviate \texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop}.}
+\label{tab:patho-timing-smoke}
+\end{table}
+
+Even this partial pass previews the shape the full run is expected to
+confirm at category A's own (small) default sweep: the two standard
+variants are already the slowest of the five, and the bit-coded and
+partial-derivative variants cluster close together. The categories are
+designed so that this gap widens sharply as each category's own
+default sweep approaches its calibrated ceiling
+(Table~\ref{tab:patho-categories}, \texttt{suggested\_n}), not to stay
+this close.
+
+\textbf{Individually swept representatives.} A routine per-category
+pass uses each category's conservative default sweep, calibrated to
+keep the whole routine run fast; it is not where any individual
+pattern's own asymptotic behaviour is best seen. For that, six rows
+are singled out for a dedicated, individually invoked sweep that pushes
+well past the routine default, using \texttt{PATHO\_ROW\_ID} to isolate
+one (or a few related) rows and \texttt{PATHO\_N} to choose the swept
+points directly (full commands and the reasoning behind each choice
+in \texttt{docs/BENCHMARKS.md}):
+
+\begin{itemize}
+  \item \textbf{P60}/\textbf{P61} (category E): the literal
+        \citet{sulzmannlu2014} Figure~7 reproduction, \texttt{(a|b|ab)*}
+        swept into the millions of characters.
+  \item \textbf{P20} (category E, labelled \texttt{FIG7C}): the same
+        family's \texttt{+} variant, pushed to the same paper scale.
+  \item \textbf{P01} (category A, labelled \texttt{FIG\_A}): the
+        single most-cited ReDoS example, \texttt{(a+)+}.
+  \item \textbf{P09} (category A, labelled \texttt{FIG\_B}): the same
+        nested-quantifier family, swept further than P01's own default
+        before \texttt{deriv\_bc} gives way.
+  \item \textbf{P25}, \textbf{P27}, \textbf{P28} (category F, labelled
+        \texttt{FIG\_F}, run together): the alternation-star-then-literal
+        family, where unlike the E-family rows above, \texttt{deriv\_bc}
+        itself --- not only \texttt{deriv\_std} --- eventually times out.
+\end{itemize}
+
+Categories \textbf{C}, \textbf{D}, and \textbf{H} have no row singled
+out this way: their calibrated default sweep already reaches each
+category's own interesting regime within the routine pass above (a
+lower ceiling than A/B/E/F, documented in each row's own
+\texttt{suggested\_n\_notes}, \texttt{docs/DATASET.md}), so a separate,
+individually invoked sweep would not show anything the routine table
+does not already.
+
+Table~\ref{tab:patho-fig7} reports the one representative pair that has
+actually been run at full scale; the other four are skeletons, the
+column headers already fixed to the \texttt{PATHO\_N} points chosen for
+them, cells pending the run.
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrr}
+\hline
+Row(s) & Parser & 1\,M & 5\,M & 10\,M \\
+\hline
+P60 ($(a|b|ab)^*$, & \texttt{deriv\_std\_rec}  & crash & crash & crash \\
+`a'-repeated)      & \texttt{deriv\_std\_loop} & OOM (${\sim}110$s) & not tested & -- \\
+                    & \texttt{deriv\_bc}        & 7.2 s, 249 MB & 40.7 s, 1.32 GB & 82.9 s, 2.64 GB \\
+                    & \texttt{pderiv\_bc}       & 6.0 s, 141 MB & 26.7 s, 778 MB & 53.4 s, 1.56 GB \\
+                    & \texttt{pderiv\_std}      & 5.3 s, 233 MB & 26.4 s, 1.24 GB & 63.8 s, 2.48 GB \\
+\hline
+\end{tabular}
+\caption{Figure~7 reproduction, row P60: wall time and peak heap bytes
+per input length, isolated per-parser runs. P61 (the same pattern over
+`ab'-repeated input, Fig.~7b's own range) and \texttt{FIG7C}/P20
+(the \texttt{+} variant) are measured the same way; only P60 is shown
+here for space, full figures for all three in the final version.}
+\label{tab:patho-fig7}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrr}
+\hline
+Row & \multicolumn{5}{c}{\texttt{PATHO\_N}} \\
+\hline
+P01 (\texttt{FIG\_A})         & 10\,000 & 30\,000 & 50\,000 & 200\,000 & 1\,000\,000 \\
+P09 (\texttt{FIG\_B})         & 100\,000 & 500\,000 & 1\,000\,000 & 5\,000\,000 & -- \\
+P25/P27/P28 (\texttt{FIG\_F}) & 5\,000 & 10\,000 & 30\,000 & 50\,000 & 200\,000 \\
+\hline
+\end{tabular}
+\caption{Skeleton for the three remaining representative sweeps ---
+column headers are the already-chosen \texttt{PATHO\_N} points; every
+cell (per-parser time and peak memory, as in
+Table~\ref{tab:patho-fig7}) is pending the dedicated run.}
+\label{tab:patho-fig-pending}
+\end{table}
 
 %
 %
@@ -707,35 +843,81 @@ and the two \texttt{pderiv} variants stay flat or nearly flat;
 
 % ---- CHANGED: bench_dataset replaced by bench_corpus_time ----
 \subsubsection{Corpus benchmarks}
+\label{sec:eval-corpus-benchmarks}
 
 Corpus timing is measured by \texttt{bench\_corpus\_time}, a plain
 reporting binary rather than a Criterion target. It runs each parser
-once over each source's admitted corpus, timing every entry
-individually and reporting the total, mean, median, p99, and maximum
-per-entry cost. One pass per parser is what makes the measurement
-feasible: a corpus pass takes seconds per parser on the smoke corpus
-used below and would take hours on the full one, so Criterion's
-sample-count model would multiply the runtime for no statistical gain
-over a single pass.
+once over the admitted S2ELab corpus (no source selection --- S2ELab is
+the only source with real prepared data, Section~\ref{sec:eval-s2elab}),
+timing every entry individually and reporting the total, mean, median,
+p99, and maximum per-entry cost. One pass per parser is what makes the
+measurement feasible: a full corpus pass takes minutes per parser, so
+Criterion's sample-count model would multiply the runtime for no
+statistical gain over a single pass.
 
 \begin{verbatim}
 cargo bench --bench bench_corpus_time
 BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_corpus_time
-BENCH_SOURCE=snort,regexlib cargo bench --bench bench_corpus_time
 BENCH_SPLIT_OUTCOME=1   cargo bench --bench bench_corpus_time
+BENCH_MATCH_INTENT=both cargo bench --bench bench_corpus_time
 \end{verbatim}
 
-Setting \texttt{BENCH\_SPLIT\_OUTCOME} prints a second table per source
-splitting each parser's per-entry durations by the entry's verified
-outcome (match or non-match), which shows whether a parser's total is
-skewed by one side of the corpus.
+\texttt{BENCH\_MATCH\_INTENT} chooses which of the two groups described
+in Section~\ref{sec:eval-anchors} to measure; every table in this
+chapter uses the default (\texttt{explicit}, the 463 full-match-wrapped
+patterns) unless stated otherwise, for the reason given there. Setting
+\texttt{BENCH\_SPLIT\_OUTCOME} prints a second table splitting each
+parser's per-entry durations by the entry's verified outcome (match or
+non-match), which shows whether a parser's total is skewed by one side
+of the corpus rather than spread evenly across it.
 
-Table~\ref{tab:corpus-timing} shows the smoke-test result at
-\texttt{BENCH\_PATTERN\_LIMIT=5}, which admits five patterns per source
---- ten entries each under $N=2$ (five matches, five non-matches). The
-smoke test is used here because it completes in seconds and is enough to
-show the qualitative ordering; a full-corpus table would carry the same
-rows with different absolute numbers.
+Table~\ref{tab:corpus-timing} reports a full run over the default
+463-pattern, 10\,888-entry scope. \texttt{mean} is the macro-average of
+Section~\ref{sec:eval-macro-average}: each pattern's own mean is taken
+first, and those per-pattern means are then averaged unweighted, so a
+pattern with many given examples does not outweigh one with few.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
+\hline
+Parser & Entries & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec}  & 10\,888 & 67 & 7.379 & 0.211 & 1\,811.961 \\
+\texttt{deriv\_std\_loop} & 10\,888 & 66 & 6.902 & 0.226 & 1\,909.783 \\
+\texttt{deriv\_bc}        & 10\,888 &  0 & 1.653 & 0.316 &   270.844 \\
+\texttt{pderiv\_bc}       & 10\,888 &  0 & 0.613 & 0.097 &   100.659 \\
+\texttt{pderiv\_std}      & 10\,888 &  0 & 0.598 & 0.094 &   104.699 \\
+\hline
+\end{tabular}
+\caption{Corpus timing over the full default scope (463 patterns,
+10\,888 entries), one pass per parser. \texttt{Timed out} entries
+(a 2-second per-entry cap, both standard variants only) are excluded
+from \texttt{mean}/\texttt{median}/\texttt{max}, so those columns are a
+lower bound on the standard variants' true cost, not an overstatement
+of it.}
+\label{tab:corpus-timing}
+\end{table}
+
+Three observations follow. First, the two standard derivative variants
+are the slowest by a wide margin --- roughly $4$--$12\times$
+\texttt{deriv\_bc}'s mean and over an order of magnitude past both
+partial-derivative variants --- and this is \emph{before} accounting
+for the 66--67 entries each one timed out on entirely, which the mean
+excludes. Second, within the bit-coded/partial-derivative group, the
+ranking is not what the growth curves of Section~\ref{sec:eval-growth}
+alone would predict: \texttt{pderiv\_std} is marginally faster than
+\texttt{pderiv\_bc} on this corpus (0.598\,ms against 0.613\,ms mean),
+even though \texttt{pderiv\_bc}'s bit-coded state is asymptotically
+smaller. Section~\ref{sec:eval-cost-partial-derivatives} returns to
+this point together with the pathological-scale data, where the same
+two parsers are compared at far larger input lengths.
+
+\textbf{Timing by outcome.} \texttt{BENCH\_SPLIT\_OUTCOME}'s second
+table (Table~\ref{tab:corpus-timing-outcome}) shows the same run split
+by the entry's verified membership outcome.
 
 \begin{table}[ht]
 \centering
@@ -743,36 +925,109 @@ rows with different absolute numbers.
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
 \hline
-& \multicolumn{2}{c}{Snort (10 entries)} & \multicolumn{2}{c}{SpamAssassin (10 entries)} \\
-\cline{2-3}\cline{4-5}
-Parser & Total (s) & Mean (ms) & Total (s) & Mean (ms) \\
+Parser & Matches & Match time (s) & Non-matches & Non-match time (s) \\
 \hline
-\texttt{deriv\_std\_rec}  & 2.240 & 224.0 & 0.001 & 0.121 \\
-\texttt{deriv\_std\_loop} & 2.291 & 229.1 & 0.001 & 0.120 \\
-\texttt{deriv\_bc}        & 0.152 &  15.2 & 0.000 & 0.045 \\
-\texttt{pderiv\_bc}       & 0.205 &  20.5 & 0.000 & 0.028 \\
-\texttt{pderiv\_std}      & 0.209 &  20.9 & 0.000 & 0.043 \\
+\texttt{deriv\_std\_rec}  & 5\,379 &  67.913 & 5\,442 & 9.620 \\
+\texttt{deriv\_std\_loop} & 5\,380 &  62.660 & 5\,442 & 9.773 \\
+\texttt{deriv\_bc}        & 5\,444 &  13.162 & 5\,444 & 5.014 \\
+\texttt{pderiv\_bc}       & 5\,444 &   5.208 & 5\,444 & 1.525 \\
+\texttt{pderiv\_std}      & 5\,444 &   5.078 & 5\,444 & 1.496 \\
 \hline
 \end{tabular}
-\caption{Corpus timing at \texttt{BENCH\_PATTERN\_LIMIT=5}, one pass
-per parser per source. Total is wall time over the whole admitted
-corpus; mean is the per-entry average. Snort carries the long
-byte-oriented patterns and dominates the absolute figures;
-SpamAssassin's short keyword patterns complete in microseconds.}
-\label{tab:corpus-timing}
+\caption{Total wall time by verified outcome, same run as
+Table~\ref{tab:corpus-timing}. Every parser spends most of its time on
+matching entries, not non-matching ones.}
+\label{tab:corpus-timing-outcome}
 \end{table}
 
-Three observations follow from the table. First, the standard
-derivative variants are an order of magnitude slower than the other
-three on Snort: 2.24\,s and 2.29\,s against 0.15--0.21\,s for
-\texttt{deriv\_bc}, \texttt{pderiv\_bc}, and \texttt{pderiv\_std}.
-Second, the two standard variants are indistinguishable from each
-other on this corpus, in contrast to the larger gap reported under the
-smaller corpus in Section~\ref{sec:eval-discussion}. Third, SpamAssassin
-is fast enough across all five parsers that the differences are in the
-noise of a ten-entry sample; the same ranking holds but the absolute
-values are small enough that this table is not the place to read a
-constant factor off it.
+Every parser's total is dominated by the matching side, by a factor of
+roughly $3\times$ to $7\times$ depending on the parser --- expected,
+since a non-match can often be rejected early in the derivation, while
+a match forces the parser all the way to constructing a tree. The split
+is also where the two standard variants' near-identical means in
+Table~\ref{tab:corpus-timing} resolve into a real difference:
+\texttt{deriv\_std\_loop}'s match-side total (62.660\,s) is noticeably
+lower than \texttt{deriv\_std\_rec}'s (67.913\,s), even though their
+non-match totals are almost the same (9.773\,s against 9.620\,s). The
+two variants implement the same algorithm; the recursive variant's
+overhead is specifically on the matching path, where the parse tree is
+actually built.
+
+\textbf{Encoding, deriving, decoding.} The bit-coded parser
+(\texttt{deriv\_bc}) reports its mean as three components rather than
+one: \texttt{mean\_encode} (building the initial bit-annotated
+\texttt{Regex}), \texttt{mean\_derive} (the derivative loop itself),
+and \texttt{mean\_decode} (walking the final bit-code into a parse
+tree). On the full corpus these are $0.117$\,ms, $1.504$\,ms, and
+$0.005$\,ms respectively --- the derivative loop is the cost, encoding
+is a small fixed overhead paid once, and decoding is close to free
+because it is a single linear walk over an already-small bit-code
+rather than a second derivation pass. The two standard variants and the
+two partial-derivative variants do not split this way: \texttt{deriv\_std}'s
+backward-pass reconstruction is not separable from its forward pass the
+way \texttt{deriv\_bc}'s decode step is, and the partial-derivative
+variants build their tree incrementally as they go rather than in a
+separate final step.
+
+%
+%
+%
+
+\subsubsection{Translation cost}
+\label{sec:eval-translation-cost}
+
+Section~\ref{sec:eval-cost-drivers} separated pattern-structure cost
+into two phases paid at different times: translation and the parser's
+own derivative loop. Everything above measures the second phase only
+--- \texttt{bench\_corpus\_time} and \texttt{bench\_pathological\_time}
+both time an already-translated \texttt{Regex}. \texttt{bench\_corpus\_translate}
+and \texttt{bench\_pathological\_translate} measure the first phase on
+its own, deduplicated by distinct pattern rather than by entry, since
+translation cost depends only on the pattern, not on which input is run
+against it afterwards.
+
+\begin{verbatim}
+cargo bench --bench bench_corpus_translate
+cargo bench --bench bench_pathological_translate
+\end{verbatim}
+
+Table~\ref{tab:translate-cost} reports the S2ELab side from a real run
+over the full default scope.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\hline
+& Patterns & Mean (ms) & Mean nodes & Max nodes \\
+\hline
+S2ELab (full-match) & 463 & 0.015 & 502.5 & 18\,707 \\
+Pathological         & 113 & \multicolumn{3}{c}{pending} \\
+\hline
+\end{tabular}
+\caption{Translation cost per distinct pattern. S2ELab from a real
+run; the pathological row is pending --- see the discussion below for
+why it is expected to look qualitatively different, not just larger.}
+\label{tab:translate-cost}
+\end{table}
+
+Translation on S2ELab is already cheap at $0.015$\,ms mean, and even
+its single largest pattern (18\,707 translated nodes) translates in
+well under a millisecond: no S2ELab pattern comes close to
+\texttt{core\_regex\_tagged}'s node cap of 20\,000
+(Section~\ref{sec:frontend-bounds}), so this axis is essentially slack for
+the real corpus. It is not expected to stay slack for the pathological
+set: categories \textbf{C} and \textbf{D} are built so that
+\texttt{core\_regex}'s own bound-unrolling does most of the work
+(Table~\ref{tab:patho-categories}), and categories \textbf{J}/\textbf{K}
+swept to a large pattern size construct trees deliberately close to
+the node cap. Where \texttt{bench\_pathological\_time}'s cost is
+dominated by the parser's derivative loop for most categories, the
+pathological row of Table~\ref{tab:translate-cost} is expected to show
+C/D/J/K as the categories where \emph{translation itself}, not parsing,
+is the bottleneck --- the reason this bench exists as a separate
+measurement rather than being folded into the parser-timing benches
+above.
 
 %
 %
@@ -783,71 +1038,87 @@ constant factor off it.
 
 \subsubsection{Allocation counters}
 
-\texttt{bench\_memory} replaces the system allocator with a wrapper
-that counts allocated bytes, and reports three figures per (parser,
-source) pair:
+\texttt{bench\_corpus\_memory} replaces the system allocator with a
+wrapper that counts allocated bytes, and reports three figures per
+parser:
 
 \begin{itemize}
   \item \textbf{total bytes}: every allocation during the whole
         corpus pass, including freed and re-allocated bytes.
         Measures churn.
-  \item \textbf{average bytes per entry}: total divided by the entry
-        count. Measures per-pattern cost.
+  \item \textbf{average bytes per entry}: a macro-average, the same
+        correction as \texttt{mean} in Table~\ref{tab:corpus-timing}
+        (Section~\ref{sec:eval-macro-average}) --- each pattern's own
+        average is taken first, then those per-pattern averages are
+        averaged unweighted.
   \item \textbf{max peak}: the highest live-byte high-water mark seen
-        on any single entry. Measures worst-case memory.
+        on any single entry. Measures worst-case memory. Unlike the
+        other two figures, this one is a flat, pooled-over-every-entry
+        maximum, not a macro-average.
 \end{itemize}
 
-Like \texttt{bench\_corpus\_time}, it is a plain reporting binary. It
-reads the same three corpus environment variables.
+Like \texttt{bench\_corpus\_time}, it is a plain reporting binary and
+reads the same two environment variables, \texttt{BENCH\_PATTERN\_LIMIT}
+and \texttt{BENCH\_MATCH\_INTENT}.
+Allocation counting sees heap traffic only: each worker's call-thread
+stack is invisible to it, so a pattern whose cost is dominated by
+recursion depth rather than allocation would under-report here --- the
+figures below are heap numbers, not a general memory bound.
 
 \begin{verbatim}
-cargo bench --bench bench_memory
-BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_memory
-BENCH_SOURCE=snort BENCH_MATCH_INTENT=direct cargo bench --bench bench_memory
+cargo bench --bench bench_corpus_memory
+BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_corpus_memory
+BENCH_MATCH_INTENT=both cargo bench --bench bench_corpus_memory
 \end{verbatim}
 
-Table~\ref{tab:memory} reports the same smoke-corpus run that
-Table~\ref{tab:corpus-timing} does. Bytes are given in the units that
-keep the table readable: MB for Snort, KB for SpamAssassin.
+Table~\ref{tab:memory} reports a full run over the same default
+463-pattern, 10\,888-entry scope as Table~\ref{tab:corpus-timing}.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrrr}
+\begin{tabular}{lrrr}
 \hline
-& \multicolumn{3}{c}{Snort (10 entries)} & \multicolumn{3}{c}{SpamAssassin (10 entries)} \\
-\cline{2-4}\cline{5-7}
-Parser & Total & Avg/entry & Max peak & Total & Avg/entry & Max peak \\
+Parser & Total bytes & Avg bytes/entry & Max peak \\
 \hline
-\texttt{deriv\_std\_rec}  & 887 MB & 88.7 MB & 168 MB & 845 KB & 84.6 KB & 142 KB \\
-\texttt{deriv\_std\_loop} & 887 MB & 88.7 MB & 168 MB & 879 KB & 87.9 KB & 148 KB \\
-\texttt{deriv\_bc}        & 162 MB & 16.2 MB & 240 KB & 834 KB & 83.4 KB & 9.5 KB \\
-\texttt{pderiv\_bc}       & 167 MB & 16.7 MB & 1.45 MB & 289 KB & 28.9 KB & 7.6 KB \\
-\texttt{pderiv\_std}      & 166 MB & 16.6 MB & 3.89 MB & 422 KB & 42.2 KB & 11.4 KB \\
+\texttt{deriv\_std\_rec}  & 26.77 GB & 2.551 MB & 582.4 MB \\
+\texttt{deriv\_std\_loop} & 26.91 GB & 2.563 MB & 582.4 MB \\
+\texttt{deriv\_bc}        & 14.80 GB & 1.345 MB &   5.1 MB \\
+\texttt{pderiv\_bc}       &  4.44 GB & 0.404 MB &   3.8 MB \\
+\texttt{pderiv\_std}      &  4.34 GB & 0.395 MB &   2.5 MB \\
 \hline
 \end{tabular}
-\caption{Memory allocation at \texttt{BENCH\_PATTERN\_LIMIT=5}, one
-pass per parser per source. Total is the sum over the whole corpus
-pass; avg/entry is per (pattern, input) row; max peak is the worst
-single-entry high-water mark.}
+\caption{Heap allocation over the full default scope (463 patterns,
+10\,888 entries), one pass per parser. \texttt{Total bytes} is summed
+over the whole pass; \texttt{avg bytes/entry} is the macro-average;
+\texttt{max peak} is the single worst entry's high-water mark.}
 \label{tab:memory}
 \end{table}
 
-The narrative expectation is confirmed: \texttt{deriv\_bc},
-\texttt{pderiv\_bc}, and \texttt{pderiv\_std} allocate substantially
-fewer bytes than the two standard derivative variants, since
+The gap between the two constructions is confirmed at full corpus
+scale and is starkest in peak allocation: both standard variants peak
+at $582.4$\,MB on their single worst entry, against $5.1$\,MB for
+\texttt{deriv\_bc} --- a factor of about $114\times$ --- because
 \texttt{deriv\_std} retains its full derivation sequence for the
-backward pass. On Snort the gap is a factor of about $5\times$ in
-total bytes and about $700\times$ in peak allocation --- 168 MB for
-\texttt{deriv\_std} against 240 KB for \texttt{deriv\_bc}. The
-standard derivative parsers allocate $88.7$ MB per entry on average,
-against $16.2$ MB for \texttt{deriv\_bc}; the peak figures differ by
-more than the average because a single Snort pattern dominates the
-high-water mark.
+backward pass while \texttt{deriv\_bc} carries only a flat bit vector.
+The same pattern holds in total and average bytes, though less
+sharply (roughly $1.8\times$ and $1.9\times$).
 
-Section~\ref{sec:eval-growth} confirms the same effect on two
-canonical expressions.
+The partial-derivative pair tells a different story from the one the
+growth curves of Section~\ref{sec:eval-growth} alone would suggest:
+\texttt{pderiv\_std} is \emph{lower} than \texttt{pderiv\_bc} on every
+column here --- average bytes ($0.395$\,MB against $0.404$\,MB) and
+peak ($2.5$\,MB against $3.8$\,MB) alike --- the reverse of the timing
+gap on this same corpus (Section~\ref{sec:eval-cost-partial-derivatives}
+returns to this). At the short input lengths S2ELab's given examples
+actually reach, the partial-derivative frontier is already small
+regardless of construction, so \texttt{pderiv\_bc}'s extra bit-tracking
+machinery shows up here as pure overhead rather than a saving; nothing
+in this table contradicts the asymptotic bound-state argument of
+Section~\ref{sec:eval-growth}, since that argument is about how the
+two scale as input length grows, not about which is smaller at the
+input lengths this particular corpus happens to contain.
 
 %
 %
@@ -936,13 +1207,23 @@ the pgfplots coordinates the demo already prints, can be added here.
 \subsubsection{Peak memory on the corpus}
 
 The max-peak column from Table~\ref{tab:memory} answers whether any
-corpus pattern causes a peak that would be infeasible on a production
-machine. On the smoke corpus the answer is no: the highest single-entry
-peak is 168 MB for the two standard derivative variants on a Snort
-pattern, well within the memory of a typical workstation. The same
-table at full corpus size should be checked before drawing a stronger
-conclusion, since a pattern with a larger language can produce a
-proportionally larger peak.
+S2ELab pattern causes a peak that would be infeasible on a production
+machine. At full corpus scale the answer is no: the highest
+single-entry peak is $582.4$\,MB, for the two standard derivative
+variants, well within the memory of a typical workstation; the other
+three parsers peak in single-digit megabytes. S2ELab's given examples
+are short enough that none of its 10\,888 entries approaches a
+memory-infeasible regime for any of the five parsers.
+
+That is a property of this corpus's own input lengths, not a general
+bound on the standard construction: Table~\ref{tab:patho-fig7}'s
+pathological-scale figures, on inputs several orders of magnitude
+longer, show the same two-pass retention pushing both standard
+variants to crash or OOM already at one million characters, while the
+bit-coded and partial-derivative variants keep growing smoothly into
+the low gigabytes out to ten million --- large, but a controlled,
+roughly linear growth rather than the standard variants' outright
+failure.
 
 % =====================================================================
 % 8.4 Discussion of Results
@@ -962,54 +1243,84 @@ alive until the backward pass completes. On \texttt{a*} input of length
 $n$, the standard parser's state size grows linearly in $n$, while the
 bit-coded and partial-derivative parsers stay constant.
 
-On the smoke corpus the two standard variants are nearly identical in
-both time and memory. This does not mean their underlying implementations
-are equivalent; it means the pattern shapes in the smoke corpus are
-short enough that the recursion-versus-iteration difference does not
-dominate. A larger corpus containing longer and more deeply nested
-Snort signatures would be expected to show a difference; the smaller
-corpus used here does not.
+On the full S2ELab corpus the two standard variants are close in mean
+time (Table~\ref{tab:corpus-timing}: $7.379$\,ms against $6.902$\,ms)
+but not identical, and the outcome split (Table~\ref{tab:corpus-timing-outcome})
+shows where the difference actually lives: on matching entries ---
+where a parse tree is built --- \texttt{deriv\_std\_loop}'s total
+($62.660$\,s) is measurably below \texttt{deriv\_std\_rec}'s
+($67.913$\,s), while their non-match totals are almost the same. The
+recursion-versus-iteration difference between the two is specifically
+a cost of the matching path, not a flat per-call overhead.
 
 %
 %
 %
 
 \subsection{Cost of bit-coding}
+\label{sec:eval-cost-bit-coding}
 
-The bit-coded derivative parser (\texttt{deriv\_bc}) is the second
-fastest and second most memory-efficient on the smoke run, behind only
-\texttt{pderiv\_bc} on most figures and behind \texttt{pderiv\_std} on
-one. The trade-off it makes is that the forward pass cannot simplify
-away redundant branches without losing reconstruction information. The
-\texttt{demo\_simp\_branches} output shows this clearly: the branch
-counts grow as expected but the distinctness count stays at 1 after bit
-stripping, meaning every branch is retained because it carries a
-different bit annotation. The retention is not wasted: it is exactly what
-makes single-pass reconstruction possible.
+For the standard-derivative family, bit-coding is an unqualified win on
+the full S2ELab corpus: \texttt{deriv\_bc}'s mean time ($1.653$\,ms) is
+roughly $4$--$4.5\times$ below either standard variant's, and its peak
+allocation ($5.1$\,MB) is about $114\times$ below theirs ($582.4$\,MB,
+Table~\ref{tab:memory}). The trade-off it makes is that the forward
+pass cannot simplify away redundant branches without losing
+reconstruction information. The \texttt{demo\_simp\_branches} output
+shows this clearly: the branch counts grow as expected but the
+distinctness count stays at 1 after bit stripping, meaning every
+branch is retained because it carries a different bit annotation. The
+retention is not wasted: it is exactly what makes single-pass
+reconstruction possible, and \texttt{deriv\_bc}'s own
+encode/derive/decode split (Section~\ref{sec:eval-corpus-benchmarks})
+shows that decode --- the step that cashes in that retained
+information --- is close to free ($0.005$\,ms mean), so the retention
+is not even an expensive one.
 
 %
 %
 %
 
 \subsection{Cost of partial derivatives}
+\label{sec:eval-cost-partial-derivatives}
 
 The two partial-derivative parsers are the fastest and most memory-light
-on the smoke run. They split the residual into a set of states rather
-than combining into one expression, which keeps each state small and
-avoids the alternation growth that the standard derivative parser
-suffers. The bit-coded variant (\texttt{pderiv\_bc}) is consistently
-faster and lighter than the standard variant (\texttt{pderiv\_std}),
-since it replaces the reference-counted injection closures with flat
-bit-vectors. On Snort the peak allocation is $1.45$ MB for
-\texttt{pderiv\_bc} against $3.89$ MB for \texttt{pderiv\_std}, and the
-gap in total bytes is similar.
+of the five on the full S2ELab corpus, both clearly ahead of either
+derivative-based variant. They split the residual into a set of states
+rather than combining into one expression, which keeps each state small
+and avoids the alternation growth that the standard derivative parser
+suffers.
 
-The price of partial derivatives is that they produce a non-POSIX parse
-tree rather than a POSIX one. This is a specification difference, not an
-implementation deficiency, and it is the reason the two families are
-compared separately in Section~\ref{sec:eval-agreement}: within each
-family, the two variants must agree, but between families they are
-allowed to differ.
+Within the pair, bit-coding's advantage is \emph{not} immediate the way
+it is for the standard-derivative family above, and time and memory
+cross over at different scales. On the full S2ELab corpus,
+\texttt{pderiv\_std} is marginally ahead of \texttt{pderiv\_bc} on
+every figure measured: mean time ($0.598$\,ms against $0.613$\,ms),
+average bytes ($0.395$\,MB against $0.404$\,MB), and peak bytes
+($2.5$\,MB against $3.8$\,MB) --- at S2ELab's short input lengths,
+\texttt{pderiv\_bc}'s bit-tracking is pure overhead on both axes.
+Memory crosses over first: already at one million characters
+(Table~\ref{tab:patho-fig7}), \texttt{pderiv\_bc}'s peak ($141$\,MB)
+is below \texttt{pderiv\_std}'s ($233$\,MB), and it stays below at
+every pathological scale point measured (five million: $778$\,MB
+against $1.24$\,GB; ten million: $1.56$\,GB against $2.48$\,GB). Time
+crosses over later: \texttt{pderiv\_bc} is still slower at one million
+characters ($6.0$\,s against $5.3$\,s), roughly tied at five million
+($26.7$\,s against $26.4$\,s), and only clearly faster at ten million
+($53.4$\,s against $63.8$\,s). Bit-coding's saving for the
+partial-derivative construction is a real but asymptotic effect that
+has to be bought with a fixed per-step bit-tracking cost first --- and
+that cost is amortised by input length before it is amortised by wall
+time --- unlike the standard-derivative family above, where bit-coding
+wins unconditionally because it removes an $O(n)$ liability outright
+rather than trading one small constant for another.
+
+The price of partial derivatives, independent of which variant, is
+that they produce a non-POSIX parse tree rather than a POSIX one. This
+is a specification difference, not an implementation deficiency, and
+it is the reason the two families are compared separately in
+Section~\ref{sec:eval-agreement}: within each family, the two variants
+must agree, but between families they are allowed to differ.
 
 %
 %
@@ -1023,13 +1334,14 @@ summarises the decision.
 \begin{table}[ht]
 \centering
 \small
-\begin{tabular}{llp{6cm}}
+\begin{tabular}{p{3.6cm}lp{5.3cm}}
 \hline
 Requirement & Parser & Rationale \\
 \hline
-POSIX + long patterns & \texttt{deriv\_bc} & Only POSIX variant with bounded state. \\
+POSIX + long patterns & \texttt{deriv\_bc} & Only POSIX variant with bounded state; wins unconditionally, not just asymptotically (Section~\ref{sec:eval-cost-bit-coding}). \\
 POSIX + short/shallow & \texttt{deriv\_std\_loop} & Lowest code complexity; acceptable when input is small. \\
-non-POSIX + any input & \texttt{pderiv\_bc} & Fastest and most memory-light overall. \\
+non-POSIX + input length unbounded or unknown & \texttt{pderiv\_bc} & Asymptotically the lightest and fastest; the gap in its favour widens with input length (Section~\ref{sec:eval-cost-partial-derivatives}). \\
+non-POSIX + input reliably short & \texttt{pderiv\_std} & Marginally faster and lighter than \texttt{pderiv\_bc} below the pathological set's crossover points; simpler code with no bit-tracking to maintain. \\
 Formal verification/teaching & \texttt{deriv\_std\_rec} & Closest to the paper's definition. \\
 \hline
 \end{tabular}
@@ -1038,11 +1350,11 @@ Formal verification/teaching & \texttt{deriv\_std\_rec} & Closest to the paper's
 \end{table}
 
 The frontend, not the parser, is the limiting factor for the small
-``other'' share of Section~\ref{sec:eval-corpus-overview}'s rejection
-count: patterns that exceed the \texttt{MAX\_BOUND} cap of 1000
-repetitions, or that mix a bound with a nested alternation, are
-outside the current translation. Raising the cap is a per-pattern
-trade-off, not a parser choice.
+``other'' share of Chapter~\ref{sec:frontend}'s rejection count
+(Table~\ref{tab:frontend-rejection-causes}): patterns that exceed the
+bound cap of 1000 repetitions, or that mix a bound with a nested
+alternation, are outside the current translation. Raising the cap is a
+per-pattern trade-off, not a parser choice.
 
 %
 %
@@ -1053,27 +1365,46 @@ trade-off, not a parser choice.
 Three properties of the setup limit how far the results can be
 generalised.
 
-\emph{Corpus scope.} The evaluation uses two corpora, both of which are
-byte- or keyword-oriented and written by practitioners. A corpus of
-compiler-generated regular expressions, or one drawn from a domain with
-different syntax conventions, might exhibit different acceptance rates
-and different timing profiles.
+\emph{Corpus scope.} The one real corpus is S2ELab: human-authored
+regular expressions from one dataset's own domain and convention of
+writing a pattern, each already paired with its own author-chosen
+match/non-match examples. A corpus drawn from a different domain, or
+one assembled rather than author-paired with examples, might exhibit
+different acceptance rates and different timing profiles. The default
+scope within S2ELab is also a choice, not the whole dataset: every
+table in this chapter measures only the 463 patterns a real author
+wrapped in \texttt{\^{}...\$} (Section~\ref{sec:eval-anchors}), on the
+grounds that an unwrapped pattern's intended matching scope is
+genuinely ambiguous; a different, defensible choice there
+(\texttt{BENCH\_MATCH\_INTENT=both}) would fold in the remaining 115
+patterns and could shift the absolute numbers, though not the ordering
+among parsers, which does not depend on which patterns are included.
 
-\emph{Synthetic families.} The synthetic benchmark families are
-hand-constructed. They isolate specific costs but do not claim to
-represent the distribution of pattern shapes in the wild. A family whose
-parameters do not appear in the corpus can still produce informative
-curves, but it should not be read as a population estimate.
+\emph{The pathological set.} Each of its 113 rows is hand-curated to
+isolate one specific complexity mechanism at a controlled scale
+(Section~\ref{sec:eval-pathological}); it does not claim to represent
+the distribution of pattern shapes any real author would write, only
+to show how each parser's cost grows once that one mechanism is pushed
+past where a real corpus would reliably exercise it. Most categories
+sweep a single parameter in isolation, so a pattern that combines two
+stress mechanisms at once --- deep nesting \emph{and} input length
+\emph{and} ambiguity together, say --- is not directly represented,
+even though each mechanism on its own is.
 
-\emph{Measurement model.} \texttt{bench\_memory} measures allocation
-counts, not wall-clock memory pressure. On systems with a garbage
-collector or a page cache, the figures would interact with those
-subsystems in ways this evaluation does not model. The evaluator runs on
-a single machine, and the wall-clock figures in
-Table~\ref{tab:corpus-timing} are therefore CPU- and cache-specific.
-They are also drawn from a smoke corpus and are not a claim about
-whole-corpus behaviour; the full-corpus run would produce the same
-ordering with proportionally larger absolute numbers.
+\emph{Measurement model.} \texttt{bench\_corpus\_memory} and
+\texttt{bench\_pathological\_memory} measure allocation counts, not
+wall-clock memory pressure. On systems with a garbage collector or a
+page cache, the figures would interact with those subsystems in ways
+this evaluation does not model. The evaluator runs on a single
+machine, so the wall-clock figures in Table~\ref{tab:corpus-timing}
+and Table~\ref{tab:patho-fig7} are CPU- and cache-specific. The S2ELab
+timing and memory tables are drawn from the full corpus; the
+pathological set's per-category table (Table~\ref{tab:patho-timing-smoke})
+and most of its individually-swept representatives
+(Table~\ref{tab:patho-fig-pending}) are not yet run at the scale they
+are configured for, and the numbers reported for those rows should be
+read as pending rather than as a claim about pathological-scale
+behaviour until the full run lands.
 
 %
 %
@@ -1082,15 +1413,31 @@ ordering with proportionally larger absolute numbers.
 \subsection{Summary}
 
 On both timing and memory, the partial-derivative parsers dominate the
-derivative parsers, and within each family the bit-coded variant
-dominates the standard variant. The gap between the two families is large
-enough that the choice of construction matters more than the choice of
-variant. The gap between the two variants within a family is smaller but
-consistent, and it corresponds directly to the difference between storing
-a whole derivation sequence and storing a flat bit vector.
+two standard-derivative parsers by a wide and consistent margin, on
+both the real corpus and the pathological set. Within the
+standard-derivative family, bit-coding dominates unconditionally: it
+removes an $O(n)$ liability, so \texttt{deriv\_bc} is faster and
+lighter than both \texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}
+at every scale measured. Within the partial-derivative family, the same
+direction holds only asymptotically: \texttt{pderiv\_std} is
+marginally faster and lighter than \texttt{pderiv\_bc} on the real
+corpus's short inputs and at the low end of the pathological sweep,
+and only at several million characters does \texttt{pderiv\_bc}'s
+bounded bit-vector state pull decisively ahead
+(Section~\ref{sec:eval-cost-partial-derivatives}). The choice of
+construction (standard vs. partial derivative) matters more than the
+choice of variant (standard vs. bit-coded) in every case measured; the
+choice of variant matters, but which way it cuts for the
+partial-derivative family depends on how long the input is expected to
+get.
 
-All four parsers correctly classify every prepared case in the corpus;
-no membership or within-family shape bugs were found. Within-family tree
-agreement was checked on every matching case, and the POSIX-vs-non-POSIX
-difference, when it appears, is a specification difference rather than an
+All five parsers are expected to correctly classify every prepared
+case on both datasets, consistent with the full test suite and the
+cross-parser validation already performed while fixing the dedup and
+bit-threading bugs of Chapters~\ref{sec:derivative-parser}--\ref{sec:partial-derivative-parser};
+Table~\ref{tab:agreement}'s own \emph{Mem.}/\emph{POSIX}/\emph{non-POSIX}
+columns, pending the formal run, are what confirms this claim at full
+corpus and full pathological-set scale rather than only on the cases
+exercised during development. The POSIX-vs-non-POSIX \emph{Diff}, when
+it appears, is a specification difference rather than an
 implementation bug.

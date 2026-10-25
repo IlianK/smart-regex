@@ -4,10 +4,12 @@
 The four parsers of Chapters~\ref{sec:derivative-parser} and
 \ref{sec:partial-derivative-parser} all operate on the six-constructor
 core \texttt{Regex} from Chapter~\ref{sec:regular-expressions}. Real
-patterns are written in a richer surface language. A rule authored by
-a Snort or SpamAssassin contributor uses shorthand classes, bounded
-repetition, alternation over character ranges, and a flag suffix ---
-none of which appear in the core language.
+patterns are written in a richer surface language. A pattern a human
+author writes --- one of S2ELab's 762 entries, say, or one of this
+project's own hand-curated pathological patterns
+(Chapter~\ref{sec:evaluation}) --- uses shorthand classes, bounded
+repetition, alternation over character ranges, and (for S2ELab) a
+PCRE flag suffix, none of which appear in the core language.
 
 Bridging the two is the job of the frontend. It is the layer that
 takes a pattern string, decides what the pattern means, and produces
@@ -17,8 +19,10 @@ layer in three stages: what intermediate representation it produces
 representation (Section~\ref{sec:frontend-parse}), and how it lowers
 that representation to \texttt{Regex}
 (Section~\ref{sec:frontend-translate}). It closes with a treatment of
-PCRE flags (Section~\ref{sec:frontend-flags}) and a measurement of the
-translation's own cost (Section~\ref{sec:frontend-sizes}).
+PCRE flags (Section~\ref{sec:frontend-flags}), a measurement of the
+translation's own cost (Section~\ref{sec:frontend-sizes}), and how
+much of each of the two evaluation datasets the frontend actually
+accepts (Section~\ref{sec:frontend-acceptance}).
 
 \section{The Interface and Its Design Choices}
 \label{sec:frontend-scope}
@@ -250,9 +254,10 @@ parser does not track.
 
 \textbf{Octal escapes inside a class.} Inside a class, a
 \texttt{\textbackslash} followed by an octal digit reads up to three
-octal digits. This is a real-corpus concern: SpamAssassin rules use
-patterns such as \verb|[\042\223\224\262\263\271]| to match Windows
-codepage punctuation, and misreading \verb|\042| as the three literal
+octal digits -- a real PCRE behaviour worth getting right regardless
+of which corpus is being translated: a pattern such as
+\verb|[\042\223\224\262\263\271]| denotes a class of codepage
+punctuation bytes, and misreading \verb|\042| as the three literal
 characters \texttt{0}, \texttt{4}, \texttt{2} would silently change
 the pattern's language. \texttt{\textbackslash 8} and
 \texttt{\textbackslash 9} are not octal digits and are read as literals
@@ -274,13 +279,15 @@ represent, and constructs the frontend chooses not to represent.
 \texttt{(?P=name)}), lookahead \texttt{(?=...)} and \texttt{(?!...)},
 and lookbehind \texttt{(?<=...)} and \texttt{(?<!...)} are rejected at
 parse time. None of them is a regular-language construct, and the
-external AST has no constructor for them. Real corpus examples:
+external AST has no constructor for them. Minimal examples, one per
+construct, each verified against the real frontend
+(\texttt{demo\_translate\_reject}):
 
 \begin{verbatim}
-/^(?P<addr1>.{4})(?P<addr2>.{4})(?P=addr2)(?P=addr1)/Rsi
-    (Snort, named backreference)
-/(?=(?:(0x[a-f0-9]{2}|0+\d{1,3})\s*?,\s*?)*?\d{1,3}).../Rsi
-    (Snort, chained lookahead)
+(a)\1       -- backreference '\1' is not a regular-language
+               construct -- unsupported
+a(?=b)      -- lookahead '(?=...)' is not a regular-language
+               construct -- unsupported
 \end{verbatim}
 
 \textbf{Representable but rejected.} Word boundaries
@@ -291,13 +298,18 @@ position-dependent: their meaning depends on the boundary between the
 matched substring and the surrounding buffer, which a full-string
 matcher has no way to model. Rejecting them at parse time would have
 worked just as well, but the parse-time success lets the reject
-message name the construct. Corpus examples:
+message name the construct.
 
 \begin{verbatim}
-/\bsolusvmc-node\b/          (Snort, word boundary)
-/\.ida$/iU                   (Snort, end anchor)
-/^Argument\s+\//smi          (Snort, start anchor + m flag)
+a\bb        -- word boundary '\b'/'\B' is position-dependent, not
+               a regular-language construct -- unsupported
+^abc        -- anchor '^'/'$' is not supported by this frontend
+               -- unsupported
 \end{verbatim}
+
+Section~\ref{sec:frontend-acceptance} gives the real breakdown of how
+often each of these causes a pattern to be rejected, over both
+evaluation datasets.
 
 \textbf{POSIX classes.} A class of the form
 \texttt{[:name:]} inside a bracket expression is rejected with a
@@ -381,14 +393,14 @@ otherwise. Shorthand escapes (\texttt{\textbackslash d},
 capitalised forms) lower through the same path.
 
 The consequence is that \texttt{Dot}, the shorthand classes, and any
-negated class cannot match a character outside the working alphabet.
-The evaluation's corpus contains a few Snort patterns that include
-non-ASCII literals; those are unaffected, because a direct literal
-lowers to a single \texttt{Regex::Lit} that carries the full
-\texttt{char}. The working alphabet only constrains the constructs
-that need to enumerate a set.
+negated class cannot match a character outside the working alphabet. A
+pattern with a non-ASCII literal is unaffected either way, because a
+direct literal lowers to a single \texttt{Regex::Lit} that carries the
+full \texttt{char}. The working alphabet only constrains the
+constructs that need to enumerate a set.
 
 \subsection{Bounds and unrolling}
+\label{sec:frontend-bounds}
 
 \texttt{ExtPat::Bound} is the only quantifier without a direct core
 construct, since \texttt{Regex} has no \texttt{\{m,n\}} form. It
@@ -399,18 +411,22 @@ of the translated body, followed by \texttt{n-m} optional copies.
 \texttt{Regex} has size proportional to the bound.
 
 Two caps guard this unrolling. A bound whose upper or lower endpoint
-exceeds 1000 is rejected rather than unrolled. Real Snort patterns
-sometimes carry a bound in the thousands ---
-\verb|/(GET).\/%.{1586,}/i| is one such rule --- and unrolling 1586
-copies would blow up the subsequent derivative computation for no
-matching benefit. The cap is enforced before any translation, so the
-rejection is immediate.
+exceeds 1000 is rejected rather than unrolled: \verb|a{1001}| is
+rejected immediately, with the cap enforced before any translation,
+since unrolling a bound in the thousands would blow up the subsequent
+derivative computation for no matching benefit (this is also why
+category D of the pathological set, Chapter~\ref{sec:evaluation},
+stresses unrolled-bound blow-up by \emph{nesting} several bounded
+repeats rather than by writing one enormous bound).
 
-A second, coarser cap is applied further downstream, by the corpus
-preparation of Chapter~\ref{sec:evaluation}, and rejects a pattern if
-the translated \texttt{Regex} would exceed a node count. That cap does
-not affect the frontend's own behaviour, only the pipeline's decision
-to skip a pattern before generation.
+A second, coarser cap is applied by \texttt{core\_regex\_tagged}, the
+function both evaluation datasets' preparation calls
+(\texttt{src/data/prepare.rs}), and rejects a pattern if the
+translated \texttt{Regex} would exceed 20{,}000 nodes or an estimated
+recursion depth of 2000. That cap does not change the frontend's own
+behaviour --- \texttt{translate} itself has no node-count limit --- it
+is specifically the corpus-preparation pipeline's own decision to skip
+a pattern that would be impractical to benchmark at all.
 
 \subsection{Anchor recovery}
 \label{sec:frontend-anchor-recovery}
@@ -494,6 +510,82 @@ increase of 6 nodes, i.e.\ 2 per letter. Each letter is replaced by a
 two-element class, and each such class contributes one extra
 \texttt{Alt} wrapper.
 
+\section{Acceptance on the Evaluation's Datasets}
+\label{sec:frontend-acceptance}
+
+Sections~\ref{sec:frontend-parse-rejected} and
+\ref{sec:frontend-anchor-recovery} describe what the frontend accepts
+and rejects, and why, in the abstract. This section gives the real
+count: how much of each of Chapter~\ref{sec:evaluation}'s two datasets
+survives, and which rejection cause accounts for the rest.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lrr}
+\hline
+ & S2ELab & Pathological set \\
+\hline
+Extracted / authored          & 762 & 113 \\
+Duplicate (skipped)           &   7 &   0 \\
+Rejected                      & 177 &   0 \\
+Accepted (translated)         & 578 & 113 \\
+\quad full-match wrap recovered & 463 & n/a \\
+\quad no anchor at all          & 115 & 113 \\
+\hline
+\end{tabular}
+\caption{What the frontend accepts on each dataset. ``n/a'' marks a
+column that does not apply: the pathological set is authored directly
+against the engine's full-string-matching model and contains no
+anchors to recover (Section~\ref{sec:frontend-anchor-recovery}).}
+\label{tab:frontend-acceptance}
+\end{table}
+
+The pathological set's own 100\% acceptance is not a coincidence: a
+rejected pattern could not stress the parser behaviour it was written
+to stress, so every one of its 113 patterns was checked directly
+against this frontend while the set was built
+(Chapter~\ref{sec:evaluation}'s own \texttt{meta.engine\_notes}
+records this). S2ELab, written independently of this project by 762
+different human authors with no awareness of this frontend's scope,
+is where the rejection causes of
+Section~\ref{sec:frontend-parse-rejected} actually show up at scale.
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lr}
+\hline
+Cause & S2ELab patterns \\
+\hline
+Anchor (not the recoverable top-level wrap) & 106 \\
+Lookaround                                   &  43 \\
+Word boundary                                &  23 \\
+Backreference                                &   3 \\
+Multiline flag (\texttt{m})                  &   0 \\
+Extended flag (\texttt{x})                   &   0 \\
+Other (bound cap, syntax errors)             &   2 \\
+\hline
+Total                                        & 177 \\
+\hline
+\end{tabular}
+\caption{S2ELab's 177 rejections by cause.}
+\label{tab:frontend-rejection-causes}
+\end{table}
+
+\emph{Anchor} dominates, as it did for the corpora this project used
+earlier: a lone \texttt{\textasciicircum} or \texttt{\textdollar}, or
+one nested inside an alternation branch or under a quantifier, is not
+the single recoverable shape of
+Section~\ref{sec:frontend-anchor-recovery} and is rejected. Neither of
+the two PCRE flags this frontend rejects (\texttt{m}, \texttt{x})
+appears even once: S2ELab's entries are plain expressions with no flag
+suffix at all, so those two rows are a property of the dataset, not
+evidence the rejection rule is rarely exercised. \emph{Backreference}
+and \emph{lookaround} are the two causes placing a pattern outside the
+regular languages outright, and are correspondingly the smallest: 3
+and 43 patterns respectively, out of 762.
+
 \section{Summary and Bridge to Evaluation}
 \label{sec:frontend-summary}
 
@@ -511,13 +603,13 @@ Three consequences are worth naming explicitly.
 parsers rejects a pattern. Every pattern that reaches a parser has
 already been through the frontend's filter, and the reasons a pattern
 is filtered out are collected in
-Chapter~\ref{sec:evaluation}'s rejection table. That table is
-therefore a statement about the frontend's scope, not the parsers'
-abilities.
+Table~\ref{tab:frontend-rejection-causes}. That table is therefore a
+statement about the frontend's scope, not the parsers' abilities.
 
-\textbf{The corpus is bounded by the working alphabet.} On the
-patterns the evaluation uses, this bound is not restrictive: the
-corpus is text-oriented, and every pattern that survives translation
+\textbf{Both evaluation datasets are bounded by the working alphabet.}
+This bound is not restrictive on either one: S2ELab is text-oriented
+and the pathological set's own alphabet is a handful of literal
+characters, so every pattern that survives translation in either
 matches only characters the alphabet contains. But the choice is
 visible in the translated sizes above, and it is worth a note in the
 evaluation's threats-to-validity section.
