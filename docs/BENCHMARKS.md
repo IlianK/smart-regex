@@ -281,59 +281,76 @@ The two translate aggregate CSVs record the label as a `run_label` column rather
 
 Stack-depth commands read no `BENCH_RUN_LABEL` and always overwrite `bench_stack_depth.csv`. Save that CSV aside before running the next stack-depth command.
 
+
 ### Corpus
 
 ```bash
-# Corpus time, CT0 smoke, CT1 full sweep with match/non-match split
+# BENCHMARKS: S2ELAB
+cargo build --release --example bench_worker
+```
+
+#### SMOKE TESTS
+```bash
+# Time
 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CT0 \
-cargo bench --bench bench_corpus_time
+  cargo bench --bench bench_corpus_time
 
-BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 cargo bench --bench bench_corpus_time
-
-
-# Corpus memory, CM0 smoke, CM1 full sweep
+# Memory
 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CM0 \
-cargo bench --bench bench_corpus_memory
+  cargo bench --bench bench_corpus_memory
 
+# Translate
+BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=CX0 \
+  cargo bench --bench bench_corpus_translate
+```
+
+#### FULL CORPUS
+```bash
+# Time
+BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
+  cargo bench --bench bench_corpus_time
+
+# Memory
 BENCH_RUN_LABEL=CM1 cargo bench --bench bench_corpus_memory
 
-
-# Corpus translate, CX0 smoke, CX1 full sweep
-# Repeat per other source with its own label
-BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=CX0 \
-cargo bench --bench bench_corpus_translate
-
+# Translate
 BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
 ```
 
+
 ### Pathological
 
+#### SMOKE TESTS
+
 ```bash
-# Pathological time, PT0 smoke, PT1 full sweep
-# PT1 works at each category's calibrated suggested_n
-# (see DATASET.md, Categories table)
-# Expect several minutes per blow-up category A/B/C/D/E/F/H
-# Each non-crashing entry sits out the default 2000ms BENCH_ENTRY_TIMEOUT_MS
-# For a faster, coarser sweep, lower that cap (e.g. PT0's 500ms)
+# Time
 PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PT0 \
-cargo bench --bench bench_pathological_time
+  cargo bench --bench bench_pathological_time
 
-BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PT1 cargo bench --bench bench_pathological_time
-
-
-# Pathological memory, PM0 smoke, PM1 full sweep
+# Memory
 PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PM0 \
-cargo bench --bench bench_pathological_memory
+  cargo bench --bench bench_pathological_memory
 
-BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PM1 cargo bench --bench bench_pathological_memory
-
-
-# Pathological translate, PX0 smoke, PX1 full sweep
+# Translate
 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=PX0 \
-cargo bench --bench bench_pathological_translate
+  cargo bench --bench bench_pathological_translate
+```
 
+#### FULL CORPUS
+
+```bash
+# Time
+BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PT1 \
+  cargo bench --bench bench_pathological_time
+
+# Memory
+BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PM1 \
+  cargo bench --bench bench_pathological_memory
+
+# Translate
 BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 ```
+
 
 ### Stack depth
 
