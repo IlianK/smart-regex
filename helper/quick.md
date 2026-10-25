@@ -43,6 +43,7 @@ BENCH_RUN_LABEL=CM1 cargo bench --bench bench_corpus_memory
 BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
 
 
+
 # BENCHMARKS: PATHOLOGICAL
 
 # Time: full sweep; memory cap protects large generator cases.
@@ -57,14 +58,17 @@ BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PM1 \
 BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 
 
+
 # STACK DEPTH
 cargo bench --bench bench_stack_depth
+
 
 
 # PARSER AGREEMENT
 cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
 cargo run --release --example demo_parser_agreement_pathological
+
 
 
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
@@ -99,7 +103,8 @@ PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
   cargo bench --bench bench_pathological_time
 
-  
+
+
 # REPRESENTATIVE PATHOLOGICAL CASES: MEMORY
 
 # P60 (E): (a|b|ab)*, 'a'-repeated.

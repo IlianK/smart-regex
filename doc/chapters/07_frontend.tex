@@ -459,7 +459,7 @@ every \texttt{Dot} into \texttt{NoneOf(\textbackslash n)}.
 
 \texttt{translate} is a structural pass over \texttt{ExtPat}. Every
 accepted form lowers by one of the three mechanisms introduced in
-Section~\ref{sec:frontend-parse}'s accepted-syntax table. Three parts
+Section~\ref{sec:frontend-parse}'s accepted-syntax table. Two parts
 need more care than a single row can convey.
 
 %
@@ -509,50 +509,6 @@ Chapter~\ref{sec:evaluation}'s dataset preparation calls
 translated \texttt{Regex} would exceed 20{,}000 nodes or an estimated
 recursion depth of 2000. \texttt{translate} itself has no node-count
 limit. The 20{,}000-node cap is that pipeline's own decision.
-
-%
-%
-%
-
-\subsection{Anchor recovery}
-\label{sec:frontend-anchor-recovery}
-
-Translation is where anchors are rejected, with one exception. After
-unwrapping any top-level \texttt{(...)} or \texttt{(?:...)} shell, if
-the pattern is a \texttt{Concat} whose first element is
-\texttt{Carat} and last element is \texttt{Dollar}, those two anchors
-are stripped before translation. Under full-string matching they are
-provably redundant. Consuming the whole input already requires both
-endpoints, so removing them changes nothing about what the pattern
-denotes. Both \texttt{\textasciicircum abc\textdollar} and
-\texttt{(\textasciicircum abc\textdollar)} strip to the same
-\texttt{ExtPat}, and both are accepted. \texttt{\textasciicircum
-\textdollar} alone strips to \texttt{Eps}.
-
-Every other anchor placement reaches \texttt{translate} and is
-rejected there. Four shapes appear.
-
-\begin{itemize}
-  \item Start-only, \texttt{\textasciicircum abc}. The opening
-        anchor is present but nothing closes the wrap.
-  \item End-only, \texttt{abc\textdollar}. The closing anchor is
-        present but nothing opens the wrap.
-  \item Nested, \texttt{(a\textasciicircum |b)c} or
-        \texttt{(a\textasciicircum b)*c}. An anchor inside a group,
-        alternation branch, or quantifier. After shell unwrapping the
-        top level is not a \texttt{Concat} whose first element is
-        \texttt{Carat} and last element is \texttt{Dollar}, so
-        nothing is stripped.
-  \item Multiple pairs, \texttt{\textasciicircum a\textdollar
-        b\textdollar}. The outermost pair strips, but the inner
-        \texttt{Dollar} remains in the stripped expression and
-        \texttt{translate} rejects it.
-\end{itemize}
-
-\texttt{parse\_pattern} and \texttt{parse\_pcre\_rule} strip no
-anchors at all. Both reject every anchor they encounter, the
-recoverable wrap included. A caller that has reason to recover the
-redundant wrap does so before invoking \texttt{translate}. 
 
 %
 %

@@ -3,136 +3,89 @@
 
 This chapter evaluates the four parser variants implemented in
 Chapters~\ref{sec:derivative-parser} and
-\ref{sec:partial-derivative-parser}. The four candidates are:
+\ref{sec:partial-derivative-parser}: the standard derivative parser
+(\texttt{deriv\_std}, recursive and loop variants), the bit-coded
+derivative parser (\texttt{deriv\_bc}), the standard partial-derivative
+parser (\texttt{pderiv\_std}), and the bit-coded partial-derivative
+parser (\texttt{pderiv\_bc}).
 
-\begin{itemize}
-  \item the standard derivative-based parser (\texttt{deriv\_std},
-        direct and loop variants),
-  \item the bit-coded derivative-based parser (\texttt{deriv\_bc}),
-  \item the standard partial-derivative parser (\texttt{pderiv\_std}),
-  \item the bit-coded partial-derivative parser (\texttt{pderiv\_bc}).
-\end{itemize}
-
-Three aspects are covered.
-Section~\ref{sec:eval-dataset} describes the two data sources the rest
-of the chapter draws on: a real, human-authored corpus with its own
-given examples, and a hand-curated synthetic set built specifically to
-stress the parsers' asymptotic behaviour. Neither source needs a
-candidate-input generator of the kind a corpus without given examples
-would require; the two differ in how their inputs come to exist, not
-in whether they are real measurements.
-Section~\ref{sec:eval-agreement} then checks, on the prepared corpus,
-how often the POSIX parsers and the non-POSIX parsers agree on the
-shape of the parse tree they build for the same pattern and input.
-The main focus of the chapter, however, is
-Section~\ref{sec:eval-performance}, which compares the four variants
-on execution time and memory consumption, on both the synthetic set
-and the real corpus.
-
-The chapter is organised as follows.
-Section~\ref{sec:eval-dataset} describes both datasets and the
-pipeline that prepares the real one.
-Section~\ref{sec:eval-agreement} verifies parser agreement.
-Section~\ref{sec:eval-performance} presents timing and memory results.
-Section~\ref{sec:eval-discussion} interprets them.
+Section~\ref{sec:eval-dataset} describes the two data sources.
+Section~\ref{sec:eval-agreement} checks how often the POSIX and
+non-POSIX parser families agree on parse-tree shape.
+Section~\ref{sec:eval-performance} compares the four variants on
+execution time and memory. Section~\ref{sec:eval-discussion}
+interprets the results.
 
 All measurements are produced by binaries under \texttt{benches/} and
-\texttt{examples/}, run with a fixed \texttt{--release} profile. The
-corpus and synthetic measurements are plain reporting binaries run
-once per source, for the reasons given in \texttt{BENCHMARKS.md}, not
-Criterion targets.
+\texttt{examples/}, run with a fixed \texttt{--release} profile. They
+are plain reporting binaries run once per source, not Criterion
+targets.
 
-% =====================================================================
-% 8.1 Dataset Preparation
-% =====================================================================
+%
+%
+%
 
 \section{Dataset Preparation}
 \label{sec:eval-dataset}
 
-\subsection{Two datasets, not one}
+%
+%
+%
+
+\subsection{Two datasets}
 \label{sec:eval-two-datasets}
 
-The evaluation draws on exactly two pattern sources, chosen for two
-different jobs.
+The evaluation draws on two pattern sources, chosen for two different
+evluations.
 
-\textbf{S2ELab} is a real, human-authored benchmark: 762 patterns,
-each with a natural-language description and the author's own labeled
-\texttt{matches}/\texttt{non\_matches}.\footnote{Published as
-\emph{Re(gEx|DoS)Eval: Evaluating Generated Regular Expressions and
-their Proneness to DoS Attacks}, ICSE-NIER 2024 (DOI:
-10.1145/3639476.3639757); dataset at
-\url{https://github.com/s2e-lab/RegexEval}. (TODO: replace this
-footnote with a \texttt{references.bib} entry and a proper citation
-once the full author list is confirmed from the paper directly.)} It
-supplies
-\emph{realistic} measurements --- how the four parser variants behave
-on patterns a person actually wrote, with inputs that person actually
-judged to match or not. Section~\ref{sec:eval-s2elab} explains why it
-was chosen over the other candidate sources, and
-Section~\ref{sec:eval-pipeline} describes the pipeline that turns it
-into benchmark input.
+\textbf{S2ELab} is a human-written dataset with 762 patterns. 
+Each has a natural-language description and the author's own labeled
+\texttt{matches}/\texttt{non\_matches}. It supplies realistic
+measurements of how the four parsers behave on patterns a person wrote,
+with inputs a person judged to match or not. 
+The dataset is available at \citet{s2elab-regexeval-dataset}.
 
-\textbf{The pathological stress set} is the opposite kind of dataset:
-113 hand-curated patterns, organised into categories by the specific
-complexity mechanism each one is built to trigger, with no given
-examples at all. Its job is \emph{controlled} measurement --- holding
-every variable fixed except the one a category exists to stress
-(input length, pattern size, or both) and sweeping it by a chosen,
-reproducible amount. Section~\ref{sec:eval-pathological} describes it.
+\textbf{The pathological stress set} holds 113 hand-curated patterns,
+grouped by the specific complexity mechanism each one triggers, with
+no given examples. Its job is controlled measurement. It holds every
+variable fixed except the one a category stresses (input length,
+pattern size, or both), and sweeps that one by a chosen,
+reproducible amount.
 
-Both are read-only inputs to the benchmarks; neither is synthesised at
-benchmark time. The distinction that matters for the rest of this
-chapter is not ``real versus fake'' --- every pattern in both sets is
-a real regular expression, benchmarked with the real parsers --- but
-\emph{where the inputs come from}: S2ELab's inputs are given by a
-human author and kept as given; the pathological set's inputs are
-derived mechanically from a pattern's own stress parameter, because no
-corpus of real-world patterns reliably contains an example of, say,
-\texttt{(a+)+} swept across ten input lengths on request. Every table
-in Sections~\ref{sec:eval-agreement}--\ref{sec:eval-performance} is
-labeled by which of the two it was measured on, and the two are never
-pooled into one figure.
+Both are read-only inputs to the benchmarks. The distinction that
+matters throughout this chapter is where the inputs come from. S2ELab
+inputs are given by the pattern's own author. Pathological inputs are
+derived mechanically from a per-row stress parameter. Every table in
+Sections~\ref{sec:eval-agreement}--\ref{sec:eval-performance} names
+which of the two it was measured on. The two are never pooled into one
+figure.
 
-Four other sources --- Snort/Suricata, SpamAssassin, RegexLib, and
-Innovatorved --- were extracted and translated at an earlier stage of
-this project and remain readable by the frontend's own diagnostic
-tooling (\texttt{dataset\_stats}), but no longer feed either benchmark
-dataset: Snort and SpamAssassin ship no given examples at all, and
-RegexLib's and Innovatorved's labels carry no author guarantee. Using
-either would have reintroduced exactly the heuristic input-generation
-machinery Section~\ref{sec:eval-s2elab} explains this evaluation now
-avoids.
+Four other sources (Snort/Suricata, SpamAssassin, RegexLib,
+Innovatorved) are readable by the frontend's diagnostic tooling
+(\texttt{dataset\_stats}) but feed neither benchmark dataset. Snort
+and SpamAssassin ship no given examples. RegexLib's and Innovatorved's
+labels carry no author guarantee.
 
-\subsection{Why S2ELab}
+%
+%
+%
+
+\subsection{S2ELab}
 \label{sec:eval-s2elab}
 
-A benchmark corpus for a membership-deciding parser needs, for every
-pattern, both a string that is claimed to match and one that is
-claimed not to. A source that does not ship such pairs has to
-manufacture them --- walk the pattern's own language and hope the
-walk is representative, or corrupt a positive and hope the corruption
-is a meaningful negative. Either way, the resulting input reflects the
-sampler's own bias, not a judgement any person made about the
-pattern. S2ELab is the one source available to this project that
-avoids that problem entirely: every one of its 762 patterns ships
-with the original author's own \texttt{matches} and
-\texttt{non\_matches}, so the benchmark corpus is built from real
-judgements end to end, with no generation step in between.
+A benchmark corpus for a membership-deciding parser needs, for each
+pattern, both a matching string and a non-matching string. A source
+that does not ship such pairs forces the corpus builder to manufacture
+them, and a manufactured input reflects the sampler's bias. S2ELab
+ships both lists with every pattern, so no generation step is needed.
 
-The second reason is specific to the full-string-matching model fixed
-in Chapter~\ref{sec:frontend}. Table~\ref{tab:source-match-intent}
-compares all five candidate sources by what fraction of their accepted
-patterns carry an unambiguous top-level \texttt{\textasciicircum...\textdollar}
-wrap --- the one anchor shape Chapter~\ref{sec:frontend}'s frontend
-can recover losslessly under full-string matching
-(Section~\ref{sec:frontend-anchor-recovery}). S2ELab is the clear
-outlier: 80.1\% of its accepted patterns carry that wrap, against
-59.4\% for RegexLib and under a third for the three search-oriented
-sources. A source's own authors write for a search-based engine by
-default and mark full-match intent only when they mean it; S2ELab's
-patterns are written to be tested against committed labels, so authors
-mark intent far more often. That difference is exactly what this
-project's full-string-matching model needs most.
+Table~\ref{tab:source-match-intent} gives a second reason specific to
+this project's full-string-matching model. It compares all five
+candidate sources by what fraction of their accepted patterns carry a
+top-level \texttt{\textasciicircum...\textdollar} wrap. S2ELab leads
+by a wide margin: authors writing for a search-based engine mark
+full-match intent sparingly, while authors writing against committed
+labels mark it often.
 
 \begin{table}[ht]
 \centering
@@ -148,72 +101,89 @@ Innovatorved & 1445 & 30.1 \\
 \textbf{S2ELab} & \textbf{463} & \textbf{80.1} \\
 \hline
 \end{tabular}
-\caption{Of each source's accepted patterns, how many carry an
-explicit top-level \texttt{\textasciicircum...\textdollar} wrap.
-S2ELab's patterns are written against committed labels and mark
-full-match intent far more consistently than the four search-oriented
-sources.}
+\caption{Of each source's accepted patterns, how many carry a
+top-level \texttt{\textasciicircum...\textdollar} wrap.}
 \label{tab:source-match-intent}
 \end{table}
+
+%
+%
+%
 
 \subsection{Anchors and full-match intent}
 \label{sec:eval-anchors}
 
-Chapter~\ref{sec:frontend} already fixed how anchors are treated: a
-pattern is rejected if it contains \texttt{\textasciicircum} or
-\texttt{\textdollar} anywhere except as a single top-level
-\texttt{\textasciicircum...\textdollar} wrap around the whole pattern,
-in which case the wrap is provably redundant under full-string
-matching and is stripped before translation
-(Section~\ref{sec:frontend-anchor-recovery}). Nothing in this chapter
-changes that mechanism; what this section adds is which of its two
-outcomes a given pattern reaches, and what that means for which
-results get reported.
+The frontend of Chapter~\ref{sec:frontend} rejects every anchor. A
+pattern containing \texttt{\textasciicircum} or \texttt{\textdollar}
+anywhere reaches \texttt{translate} and is rejected there.
 
-\textbf{S2ELab.} Regular-expression authors commonly signal ``this
-whole string is what I mean'' by wrapping a pattern in
-\texttt{\textasciicircum...\textdollar}, and many S2ELab entries follow
-that convention --- the worked example in
-Section~\ref{sec:eval-worked-pipeline} is one. Every accepted S2ELab
-pattern therefore falls into one of two groups: 463 carry the
-top-level wrap and have it stripped by Chapter~\ref{sec:frontend}'s
-recovery mechanism, landing on the engine's native full-match reading
-with no ambiguity about what was intended; the remaining 115 carry no
-anchor at all and are translated unchanged, still matched under this
-project's only semantics (full-string), but with no way to tell from
-the pattern itself whether the author meant a full match or a search
-that this project does not implement. Both groups are prepared and
-written to the corpus, since dropping either at preparation time would
-foreclose a methodological choice that belongs in the benchmarks, not
-the pipeline.
+Before calling the frontend, the pipeline applies one transformation
+of its own. A pattern whose top level is a single
+\texttt{\textasciicircum...\textdollar} wrap has that wrap stripped by
+\texttt{strip\_full\_anchors} in \texttt{src/data/prepare.rs}. Under
+full-string matching the wrap is provably redundant: consuming the
+whole input already requires both endpoints. The pipeline records the
+strip as part of the pattern's \texttt{MatchIntent} tag
+(\texttt{ExplicitFullMatch}) and passes the anchor-free pattern to the
+frontend.
 
-That choice is made once, uniformly: every benchmark in this chapter
-defaults to measuring the 463 full-match-wrapped patterns only,
-because reporting a number for the remaining 115 would silently
-assume a reading of the pattern its own author never committed to.
-(Both groups remain fully available on opt-in, since the choice is a
-default, not a dataset deletion.) Section~\ref{sec:eval-agreement} and
-Section~\ref{sec:eval-performance} therefore report S2ELab figures
-over 463 patterns, not 578.
+\textbf{What strips.} \texttt{strip\_full\_anchors} first unwraps any
+top-level \texttt{(...)} or \texttt{(?:...)} shell. It then checks
+whether the result is a \texttt{Concat} whose first element is
+\texttt{Carat} and last element is \texttt{Dollar}, and removes that
+pair. Both \texttt{\textasciicircum abc\textdollar} and
+\texttt{(\textasciicircum abc\textdollar)} strip to the same
+\texttt{ExtPat}. \texttt{\textasciicircum\textdollar} alone strips to
+\texttt{Eps}.
 
-\textbf{The pathological stress set.} The same question does not
-arise there in the first place. Every pathological pattern is
-hand-written directly against the engine's own full-string-matching
-model --- there is no external authoring convention to interpret,
-because the patterns were authored for this project. None of them
-contains an anchor: verified directly against
-Chapter~\ref{sec:frontend}'s own frontend, \texttt{\textasciicircum},
-\texttt{\textdollar}, word boundaries, backreferences, lookaround, and
-POSIX classes all hard-reject at parse or translate time, so none of
-those constructs appear in the set at all. The pathological set
-complies with Chapter~\ref{sec:frontend}'s model by construction,
-not by a recovery step applied after the fact.
+\textbf{What still rejects.} Every other anchor placement reaches
+\texttt{translate} and is rejected. Four shapes appear.
 
-\subsection{The S2ELab pipeline}
+\begin{itemize}
+  \item Start-only, \texttt{\textasciicircum abc}.
+  \item End-only, \texttt{abc\textdollar}.
+  \item Nested, \texttt{(a\textasciicircum |b)c} or
+        \texttt{(a\textasciicircum b)*c}. After shell unwrapping the
+        top level is not a strippable \texttt{Concat}, so nothing
+        strips.
+  \item Multiple pairs, \texttt{\textasciicircum a\textdollar
+        b\textdollar}. The outermost pair strips, the inner
+        \texttt{Dollar} remains, and \texttt{translate} rejects it.
+\end{itemize}
+
+\texttt{parse\_pattern} and \texttt{parse\_pcre\_rule} strip no
+anchors at all. Both reject every anchor they encounter, the strippable
+wrap included. Stripping is a pipeline-side step, run before either
+frontend function.
+
+\textbf{S2ELab.} Every accepted S2ELab pattern falls into one of two
+groups. 463 carry the top-level wrap and have it stripped, landing on
+the engine's native full-match reading. 115 carry no anchor and are
+translated unchanged, still matched under full-string semantics but
+with no way to tell whether the author meant a full match or a search
+this project does not implement. Both groups are written to the
+corpus.
+
+Every benchmark in this chapter defaults to the 463 stripped patterns
+only. Reporting a number for the remaining 115 would assume a reading
+of the pattern its own author never committed to. Both groups remain
+available on opt-in via \texttt{BENCH\_MATCH\_INTENT=both}.
+
+\textbf{The pathological stress set.} The question does not arise
+there. Every pathological pattern is hand-written directly against
+the engine's full-string-matching model. None contains an anchor, a
+word boundary, a backreference, lookaround, or a POSIX class. The set
+complies with Chapter~\ref{sec:frontend}'s model by construction, not
+by a stripping step.
+
+%
+%
+%
+
+\subsection{The pipeline}
 \label{sec:eval-pipeline}
 
-No input is generated, derived, or heuristically assembled for
-S2ELab. \texttt{run\_pipeline} turns the raw JSON into the benchmark
+\texttt{run\_pipeline} turns the raw S2ELab JSON into the benchmark
 corpus in seven steps.
 
 \begin{enumerate}
@@ -221,31 +191,30 @@ corpus in seven steps.
         \texttt{matches}/\texttt{non\_matches} become one
         \texttt{ExtractedRule}.
   \item \textbf{Deduplicate.} A pattern byte-identical to one already
-        seen this run is skipped; its fate is already decided.
-  \item \textbf{Translate.} \texttt{core\_regex\_tagged}
-        (Chapter~\ref{sec:frontend}) parses and translates, applying
-        the one anchor recovery described in
-        Section~\ref{sec:eval-anchors}. A pattern the frontend rejects
-        stops here.
+        seen this run is skipped.
+  \item \textbf{Translate.} \texttt{core\_regex\_tagged} parses and
+        translates, applying the anchor strip of
+        Section~\ref{sec:eval-anchors}. A rejected pattern stops here.
   \item \textbf{Deduplicate examples.} A string appearing in both
         \texttt{matches} and \texttt{non\_matches} is kept once, as a
-        positive --- the stronger claim.
+        positive.
   \item \textbf{Check labels.} Every surviving example is re-checked
-        against the real translated \texttt{Regex}. A disagreement is
-        dropped, not corrected: the dataset's claim did not hold under
-        this project's own semantics.
+        against the translated \texttt{Regex}. A disagreement is
+        dropped, not corrected.
   \item \textbf{Balance per pattern.} Described in
         Section~\ref{sec:eval-balance}.
   \item \textbf{Write.} Each surviving pair becomes one line of
-        \texttt{prepared.jsonl} under \texttt{data/processed/s2-elab/},
-        tagged with which of the two anchor groups it came from.
+        \texttt{prepared.jsonl}, tagged with its \texttt{MatchIntent}.
 \end{enumerate}
 
-\subsection{A worked example through the pipeline}
+%
+%
+%
+
+\subsection{A worked example}
 \label{sec:eval-worked-pipeline}
 
-One entry is traced end to end, so the later tables have a concrete
-referent. S2ELab entry 100 (fields trimmed):
+S2ELab entry 100 (fields trimmed):
 
 \begin{verbatim}
 {
@@ -257,73 +226,98 @@ referent. S2ELab entry 100 (fields trimmed):
 }
 \end{verbatim}
 
-The natural-language description behind this entry asks for a date
-between January 1900 and December 2003 in \texttt{MM/DD/YYYY} form;
-the pattern is the author's own attempt at that, anchors included.
-
 \paragraph{Extract.} One \texttt{ExtractedRule} carrying the raw
 expression and the two given lists unchanged.
 
-\paragraph{Translate.} The pattern's top level is a single
-\texttt{Concat} opening with \texttt{\textasciicircum} and closing with
-\texttt{\textdollar}, so Section~\ref{sec:frontend-anchor-recovery}'s
-recovery applies: both anchors are stripped before translation, and
-the entry is tagged as a full-match pattern.
+\paragraph{Translate.} The top level is a single \texttt{Concat}
+opening with \texttt{\textasciicircum} and closing with
+\texttt{\textdollar}, so the strip of Section~\ref{sec:eval-anchors}
+applies. Both anchors are removed before translation, and the entry is
+tagged as a full-match pattern.
 
 \paragraph{Check labels.} Every given example is run through the
 translated \texttt{Regex}. The check is against the pattern's own
-semantics, not against real-world correctness: \texttt{"11/31/2002"}
-is listed as a \texttt{match}, and \emph{is} one under the translated
-pattern, since the day group (\texttt{(0[1-9]|2\textbackslash
-d)|3[0-1]}) accepts \texttt{31} regardless of which month group
-matched --- the pattern never correlates the two, so it silently
-accepts a November 31st that the calendar does not have. The label
-check keeps this example, correctly: the author's claim and the
-pattern's own language agree, and whether the pattern itself
-encodes a real calendar is a question the check cannot and does not
-answer. A different S2ELab entry's claim can still disagree with its
-own translated pattern --- that is what
-\texttt{inputs\_label\_mismatch} counts --- but this one does not
-illustrate it.
+semantics, not real-world correctness. The given string
+\texttt{"11/31/2002"} is listed as a match and is one under the
+translated pattern, since the day group accepts \texttt{31} regardless
+of month. The pattern silently accepts a November 31st the calendar
+does not have, and the check keeps it because the author's claim and
+the pattern's own language agree. Whether the pattern encodes a real
+calendar is a question the check does not answer.
 
 \paragraph{Balance.} The entry's surviving matches and non-matches are
-truncated to the shorter side's count, as Section~\ref{sec:eval-balance}
-describes for the whole corpus.
+truncated to the shorter side's count.
 
 \paragraph{Write.} The surviving pairs are appended to
-\texttt{prepared.jsonl}, each line carrying the pattern, the input, the
-claimed outcome, and the full-match tag.
+\texttt{prepared.jsonl}.
 
-This worked example is the entry the rest of the chapter refers to
-when it discusses a label check in concrete terms, and it is also why
-the check exists: a real, human-authored corpus contains real human
-mistakes, and benchmarking against an uncorrected label would silently
-fold that mistake into every parser's measured accuracy.
+%
+%
+%
 
-% ---- corpus overview unchanged ----
-\subsection{Corpus overview}
+\subsection{Corpus acceptance and preparation}
 \label{sec:eval-corpus-overview}
 
-Chapter~\ref{sec:frontend} (Table~\ref{tab:frontend-acceptance},
-Table~\ref{tab:frontend-rejection-causes}) already gives the
-extraction and acceptance counts: 762 extracted, 7 duplicate, 177
-rejected, 578 accepted (463 full-match wrap recovered, 115 no anchor
-at all), with the rejection causes broken down there. What follows is
-specific to this chapter's own pipeline, downstream of acceptance.
+Table~\ref{tab:corpus-acceptance} reports what the frontend accepts on
+S2ELab, and Table~\ref{tab:corpus-rejection-causes} breaks down the
+rejections by cause. Table~\ref{tab:corpus-coverage} reports what the
+pipeline keeps downstream of acceptance.
 
 \begin{table}[ht]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lr}
 \hline
 Stage & Count \\
 \hline
-Accepted (from Chapter~\ref{sec:frontend})                              & 578 \\
-Usable (at least one match and one non-match surviving the label check) & 572 \\
+Authored                        & 762 \\
+Duplicate (skipped)             &   7 \\
+Rejected                        & 177 \\
+Accepted                        & 578 \\
+\quad full-match wrap stripped   & 463 \\
+\quad no anchor at all           & 115 \\
 \hline
-Given examples written to the corpus       & 13{,}248 \\
-\quad dropped, label disagreed with the real \texttt{Regex} & 255 \\
+\end{tabular}
+\caption{S2ELab patterns by frontend outcome.}
+\label{tab:corpus-acceptance}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lr}
+\hline
+Cause & S2ELab patterns \\
+\hline
+Anchor (not the strippable top-level wrap) & 106 \\
+Lookaround                                  &  43 \\
+Word boundary                               &  23 \\
+Backreference                               &   3 \\
+Multiline flag (\texttt{m})                 &   0 \\
+Extended flag (\texttt{x})                  &   0 \\
+Other (node cap, syntax errors)             &   2 \\
+\hline
+Total                                       & 177 \\
+\hline
+\end{tabular}
+\caption{S2ELab's 177 rejections by cause. ``Other'' covers the
+20{,}000-node cap of \texttt{core\_regex\_tagged}
+(Section~\ref{sec:frontend-bounds}) and residual syntax errors.}
+\label{tab:corpus-rejection-causes}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\small
+\begin{tabular}{lr}
+\hline
+Stage & Count \\
+\hline
+Accepted                                                         & 578 \\
+Usable (at least one match and one non-match survive the label check) & 572 \\
+\hline
+Given examples written to the corpus                             & 13{,}248 \\
+\quad dropped, label disagreed with the translated \texttt{Regex} & 255 \\
 \quad dropped, per-pattern balance (Section~\ref{sec:eval-balance}) & 779 \\
 \hline
 \end{tabular}
@@ -331,98 +325,70 @@ Given examples written to the corpus       & 13{,}248 \\
 \label{tab:corpus-coverage}
 \end{table}
 
-\subsection{Per-pattern balance}
+Anchor dominates the rejection causes. A lone \texttt{\textasciicircum}
+or \texttt{\textdollar}, or one nested inside an alternation branch or
+under a quantifier, is not the strippable shape. Neither \texttt{m}
+nor \texttt{x} appears, since S2ELab's entries carry no flag suffix.
+Backreference and lookaround are the two causes that place a pattern
+outside the regular languages outright, and correspondingly the
+smallest at 3 and 43 patterns.
+
+%
+%
+%
+
+\subsection{Per-pattern balance and macro-averaging}
 \label{sec:eval-balance}
 
 A pattern with 40 given matches and 2 given non-matches would, left
-as given, contribute 40 positive measurements and 2 negative ones ---
-not because matching is 20 times more representative for that
-pattern, but because its author happened to write more positive
-examples. After the label check, each usable pattern's longer side
-(matches or non-matches) is truncated to its shorter side's count,
-keeping the first surviving examples in their original order. A
-pattern with fewer than one example on either side is excluded
-entirely rather than balanced against zero.
+as given, contribute 40 positive measurements and 2 negative ones.
+After the label check, each usable pattern's longer side is truncated
+to its shorter side's count, keeping the first surviving examples in
+their original order. A pattern with fewer than one example on either
+side is excluded.
 
-Patterns are \emph{not} balanced against each other: a pattern with 50
-surviving examples on each side keeps all 50, even though another
-pattern in the same corpus has only one of each. An earlier version of
-this pipeline did also truncate every pattern down to the single
-rarest pattern's own count, so that one thinly-labeled pattern dragged
-every other pattern in the corpus down to its level; on the real
-S2ELab data this meant almost every pattern lost nearly all of its
-given examples to equalize against a single outlier. That stage is
-removed. Section~\ref{sec:eval-macro-average} explains what replaced
-it, and why the replacement needs no truncation at all.
+Patterns are not balanced against each other. A pattern with 50
+surviving examples on each side keeps all 50, even when another
+pattern in the same corpus has only one of each. A cross-pattern
+truncation step would force every pattern down to the thinnest
+pattern's own count, discarding most of the corpus to equalize against
+a single outlier.
 
-\subsection{Why macro-averaging, not more truncation}
-\label{sec:eval-macro-average}
+Cross-pattern weighting is instead corrected where the numbers are
+computed. Sections~\ref{sec:eval-timing} and~\ref{sec:eval-memory}
+compute each pattern's own mean first, then average those per-pattern
+means unweighted, a macro-average. Every pattern counts once,
+regardless of how many examples it shipped with. Median, p99, and max
+stay as flat statistics over every individual input, since they answer
+a different question: how bad does the single worst input get, where
+per-pattern weighting is not the relevant correction.
 
-Removing the dataset-wide truncation reintroduces the imbalance it was
-built to avoid, just one level up: once patterns are allowed to keep
-however many examples they actually have, a pattern with 50 surviving
-examples contributes 50 times as many individual measurements to a
-flat, pooled average as a pattern with 1. A flat mean over every
-measured input would then be dominated by whichever patterns happen
-to be the most heavily labeled, which has nothing to do with how hard
-any of them is to parse.
-
-The fix is to change what is averaged, not to throw inputs away to
-force every pattern to the same count. Section~\ref{sec:eval-timing}
-and Section~\ref{sec:eval-memory} compute each pattern's own mean
-first, then take the unweighted average of those per-pattern means ---
-a \emph{macro-average}. Every pattern counts once in that average,
-regardless of how many given examples it happened to ship with, and
-no example is discarded to make the counts line up. The median,
-99th-percentile, and maximum figures reported alongside the mean are
-left as flat statistics over every individual measured input, since
-they answer a different question on purpose: not ``how costly is the
-typical \emph{pattern}'', which the macro-average answers, but ``how
-bad does the single worst \emph{input} get'', where weighting by
-pattern is not the relevant correction.
+%
+%
+%
 
 \subsection{The pathological stress set}
 \label{sec:eval-pathological}
 
-Section~\ref{sec:eval-two-datasets} introduced the second dataset as a
-hand-curated, template-generated set rather than a corpus. This
-section describes how it is built and what it is for.
+A real corpus answers how the parsers behave on patterns people
+actually write. It does not answer how \texttt{deriv\_std}'s state
+size grows as input length doubles, because no real author writes ten
+variants of \texttt{(a+)+} at ten chosen lengths. The pathological set
+exists for that second kind of question.
 
-A real corpus answers ``how do the parsers behave on patterns people
-actually write''; it does not reliably answer ``how does
-\texttt{deriv\_std}'s state size grow as input length doubles'',
-because no real author sets out to write ten variants of
-\texttt{(a+)+} at ten chosen lengths. The pathological set exists to
-answer exactly that second kind of question: each row is a single,
-deliberately chosen regular expression, built to isolate one specific
-complexity mechanism (nested quantifiers, overlapping alternation,
-bounded repetition over a star, and so on), together with a rule for
-turning one swept parameter --- an input length $n$, a pattern size
-$p$, or both --- into a concrete (pattern, input) pair at any scale
-the evaluator chooses.
+Each row is a single regular expression plus a rule for turning one
+swept parameter (an input length $n$, a pattern size $p$, or both)
+into a concrete (pattern, input) pair. For most rows the pattern is
+fixed and $n$ repeats of a character are fed through it. A smaller
+number of rows scale the pattern itself, via a template parameter
+substituted into the regular expression before parsing.
 
-For most rows, only the input scales: the regular expression itself is
-fixed (\texttt{(a+)+}, say), and $n$ repeats of a character are fed
-through it. A smaller number of rows need the \emph{pattern} itself to
-scale --- the family that forces full enumeration of a near-miss tail,
-for instance, is only pathological because its quantified group is
-repeated some number of times, so that repeat count has to be the
-swept parameter, substituted directly into the pattern template rather
-than only into the input. Both cases reuse the same small token
-language: \texttt{\{N\}}/\texttt{\{P\}} inside an input specification
-is a bare number; inside a pattern template, \texttt{\{\{N\}\}} keeps
-the regular expression's own literal brace pair around that number so
-that, for example, a template written as \texttt{(a?)\{\{N\}\}a\{\{N\}\}}
-becomes the concrete pattern \texttt{(a?)\{20\}a\{20\}} at $n=20$.
-
-113 patterns are organised into 12 categories (Table~\ref{tab:patho-categories}),
-named by the specific mechanism each one stresses rather than by
-source. Each category carries its own recommended sweep, calibrated
-against a real measured run rather than chosen a priori: a routine,
-un-overridden benchmark pass is meant to actually cross from ``every
-parser measures in microseconds'' to ``the standard derivative parser
-is gone'' within that category's own default points, not stop short
-of the transition the way an arbitrarily small sweep would.
+113 patterns are grouped into 12 categories
+(Table~\ref{tab:patho-categories}). Each category carries its own
+recommended sweep, calibrated against a real measured run so that a
+routine, un-overridden pass crosses from "every parser measures in
+microseconds" to "the standard derivative parser is gone" within the
+category's own default points.
 
 \begin{table}[ht]
 \centering
@@ -439,62 +405,46 @@ D & Anchored-failure style & Must fully consume input; near-miss tail forces ful
 E & Prefix-overlap alternation & One alternative is a strict prefix of another & 8 \\
 F & Alternation-star + literal & \texttt{(alt)*}/\texttt{(alt)+} then a literal that fails late & 7 \\
 H & Many adjacent stars/groups & Product of \texttt{.+}, \texttt{.*}, \texttt{\textbackslash w+} etc.\ in sequence & 4 \\
-I & Trivial pattern, large input & Simple pattern, very long input (throughput baseline) & 10 \\
+I & Trivial pattern, large input & Simple pattern, very long input & 10 \\
 J & Large pattern, trivial input & Thousands of literals/groups, short input & 5 \\
 K & Large pattern, large input & Both axes at once & 4 \\
-L & Trivial pattern, trivial input & Baseline/sanity check & 33 \\
+L & Trivial pattern, trivial input & Baseline, sanity check & 33 \\
 \hline
 Total & & & 113 \\
 \hline
 \end{tabular}
-\caption{The 12 pathological-set categories (\texttt{A}--\texttt{L},
-skipping \texttt{G}). \texttt{I}/\texttt{J}/\texttt{K}/\texttt{L}
-form a 2x2 matrix of (pattern size: trivial/large) $\times$ (input
-size: trivial/large), with \texttt{L} the all-trivial baseline; the
-remaining seven categories are the ones with a genuine blow-up
-mechanism to stress.}
+\caption{The pathological-set categories. \texttt{I}/\texttt{J}/\texttt{K}/\texttt{L}
+form a 2x2 matrix of pattern size against input size; the remaining
+seven categories stress a genuine blow-up mechanism.}
 \label{tab:patho-categories}
 \end{table}
 
-One category deserves a specific note, since it is the chapter's own
-reproduction of a published result. Two rows in category E
-(\texttt{(a|b|ab)*}/\texttt{(a|b|ab)+}, swept into the millions of
-characters) are a literal reproduction of
-\citet{sulzmannlu2014}'s own Figure 7, and are deliberately excluded
-from category E's routine default sweep --- at that scale they would
-slow down every unrelated run through the same category --- in favour
-of an explicit, individually-invoked sweep reported in
-Section~\ref{sec:eval-timing}.
+Two rows in category E (\texttt{(a|b|ab)*}/\texttt{(a|b|ab)+}, swept
+into the millions of characters) are a reproduction of
+\citet{sulzmannlu2014}'s Figure~7. They are excluded from category E's
+routine default sweep, which would otherwise slow every unrelated run
+through the same category. They are reported in
+Section~\ref{sec:eval-timing} through an explicit, individually-invoked
+sweep.
 
-\subsection{Real and synthetic, kept separate}
+S2ELab has 572 usable patterns and 13{,}248 real given inputs. The
+pathological set has 113 patterns and 913 test cases under default
+sweeps, scalable to millions of characters for the Figure~7
+reproduction. The two are never pooled.
 
-The two datasets described above answer different questions and are
-never pooled into one figure. S2ELab (572 usable patterns, 13{,}248
-real given inputs, all of it a real author's own judgement) answers
-how the four parser variants behave on regular expressions people
-actually write. The pathological set (113 hand-curated patterns, 913
-test cases under each category's own default sweep, scalable to
-millions of characters for a specific reproduction) answers how each
-variant's cost actually grows as a chosen stress parameter is swept,
-something no corpus of real patterns reliably exercises on request.
-Every table in the sections that follow names which of the two it was
-measured on.
-
-% =====================================================================
-% 8.2 Parser Agreement
-% =====================================================================
+%
+%
+%
 
 \section{Parser Agreement}
 \label{sec:eval-agreement}
 
-Every case in the prepared corpus already carries a verified outcome,
-so membership is a precondition rather than something this section
-establishes. The question here is the shape of the parse tree. On a
-matching case, the POSIX parsers and the non-POSIX parsers may build
-different trees --- the same input can admit more than one valid
-decomposition --- but some patterns and inputs leave neither policy a
-choice, forcing both onto the same structure. This section measures
-how often that happens across the corpus.
+Every case in the prepared corpus carries a verified outcome, so
+membership is a precondition, not something this section establishes.
+The question here is parse-tree shape. On a matching case, the POSIX
+parsers and the non-POSIX parsers may build different trees, since the
+same input can admit several valid decompositions. Some inputs force
+both policies onto the same structure. This section measures how often.
 
 %
 %
@@ -503,35 +453,26 @@ how often that happens across the corpus.
 \subsection{Method}
 
 The check is implemented in \texttt{demo\_parser\_agreement}. For every
-prepared case, all five parsers --- \texttt{deriv\_std\_rec},
-\texttt{deriv\_std\_loop}, \texttt{deriv\_bc}, \texttt{pderiv\_std},
-\texttt{pderiv\_bc} --- run on the same (pattern, input) pair.
-
-Two conditions are checked as preconditions. First, every parser
-returns the case's verified membership outcome. Second, within each
-family the parsers agree with each other on the tree: the three POSIX
-variants build the same tree, and the two non-POSIX variants build the
-same tree. A violation of either condition is a bug, not a
-measurement.
+prepared case, all five parsers run on the same (pattern, input) pair.
+Two preconditions are checked. First, every parser returns the case's
+verified membership outcome. Second, within each family the parsers
+agree with each other: the three POSIX variants build the same tree,
+and the two non-POSIX variants build the same tree. A violation of
+either is a bug, not a measurement.
 
 The measured quantity is cross-family tree agreement: of the cases
 where both families matched and were internally consistent, how many
-produced the same tree. The two families apply different
-disambiguation policies, so a difference is expected where the input
-admits several decompositions; a match where the input admits only one
-forces both families onto the same structure.
+produced the same tree.
 
-Each parser call runs in a subprocess so that a stack overflow or an
-infinite loop is contained. A 2-second wall-clock timeout kills the
-process. Timeouts and crashes are counted separately from tree-shape
-outcomes, since neither produces a result to compare.
+Each parser call runs in a subprocess with a 2-second wall-clock
+timeout. Timeouts and crashes are counted separately from tree-shape
+outcomes.
 
-The two datasets are run through this check separately, with separate
-binaries, and never pooled into one row: \texttt{demo\_parser\_agreement}
-against the 463 full-match-wrapped S2ELab patterns (the same default
-scope as every other benchmark in this chapter,
-Section~\ref{sec:eval-anchors}), and \texttt{demo\_parser\_agreement\_pathological}
-against the 113-row pathological set.
+The two datasets are run separately, with separate binaries, and never
+pooled: \texttt{demo\_parser\_agreement} against the 463
+full-match-stripped S2ELab patterns, and
+\texttt{demo\_parser\_agreement\_pathological} against the 113-row
+pathological set.
 
 \begin{verbatim}
 cargo build --release --example demo_parser_agreement_worker
@@ -545,16 +486,10 @@ cargo run --release --example demo_parser_agreement_pathological
 
 \subsection{Results}
 
-Table~\ref{tab:agreement} reports a real run of both checks, one row
-per dataset (pathological broken out by category in
-Table~\ref{tab:agreement-patho}). \emph{Match agr.} is the membership
-precondition (every parser's verdict against the case's verified
-outcome); \emph{Shape agr./disagr.} is the measured cross-family
-quantity, reported only over cases where both preconditions held.
-Within-family disagreement (\emph{POSIX}/\emph{non-POSIX}) is a hard
-precondition the tool asserts rather than a percentage it reports: a
-violation prints as a bug line in the run's output, not a count in
-these columns.
+Table~\ref{tab:agreement} reports one row per dataset. Match
+agreement is the membership precondition; shape agreement and
+disagreement are the measured cross-family quantity, over cases where
+both preconditions held.
 
 \begin{table}[ht]
 \centering
@@ -569,16 +504,13 @@ Pathological (total)&    869  &   443 & 1 & 100.0\% & 89.6\% & 10.4\% \\
 \hline
 \end{tabular}
 \caption{Parser agreement, measured once per dataset and never pooled.
-S2ELab: 6624 matching / 6624 non-matching cases, 6527 of 6544 compared
-cases built the same tree across families (17 \emph{Diff}). Pathological:
-category breakdown in Table~\ref{tab:agreement-patho}; 182 of 202
-compared cases agree (one category, B, accounts for 18 of the 21
-\emph{Diff}). The single pathological crash is
+S2ELab has 6544 compared cases, of which 17 disagree. The pathological
+set has 202 compared cases, of which 21 disagree. The single crash is
 \texttt{deriv\_std\_rec} stack-overflowing on a 10-million-character
-input in category I --- the same failure mode as
-Section~\ref{sec:eval-timing-pathological}'s FIG7A/FIG7B finding,
-confirmed here on a trivial pattern, so it is a property of input
-length alone, not of \texttt{(a|b|ab)*}'s specific ambiguity.}
+input in category I, the same failure mode
+Section~\ref{sec:eval-timing-pathological} reports on the Figure~7
+rows, here on a trivial pattern, so it is a property of input length
+alone.}
 \label{tab:agreement}
 \end{table}
 
@@ -603,7 +535,7 @@ K &  20 &  14 & 100\% & 100\%  &   0\% &   3 \\
 L & 189 &  19 & 100\% & 100\%  &   0\% &  78 \\
 \hline
 \end{tabular}
-\caption{Pathological-set agreement by category (one crashed entry, category I, omitted from this breakdown's totals; see Table~\ref{tab:agreement}). Category H's numbers are post-fix (see Section~\ref{sec:eval-timing-pathological}'s discussion of \texttt{P29}/\texttt{P31}).}
+\caption{Pathological-set agreement by category.}
 \label{tab:agreement-patho}
 \end{table}
 
@@ -613,134 +545,86 @@ L & 189 &  19 & 100\% & 100\%  &   0\% &  78 \\
 
 \subsection{Discussion}
 
-Both preconditions hold everywhere in the final data: every parser's
-membership verdict matches the verified outcome (100\% on both
-datasets), and no within-family shape violation was printed by either
-run. That second claim came with one real correction along the way,
-worth recording rather than silently fixing: an earlier pass of the
-pathological check flagged category H at only 75\% match agreement,
-with two rows, \texttt{P29} (\verb|(.+){10}|) and \texttt{P31}
-(\verb|(.*){10}|), where all five parsers unanimously returned
-\emph{match} against an input the dataset's own stored label called a
-non-match. Hand-checking both patterns confirmed the parsers were
-right and the dataset was wrong: the non-match input for both rows was
-built by appending a trailing character to an otherwise-matching
-string, a construction that only forces a non-match when the pattern
-bounds the total length it can consume. \verb|.| matches any single
-character including the appended one, and ten unbounded
-\verb|.+|/\verb|.*| groups impose no such bound, so any sufficiently
-long input matches regardless of what follows it --- \texttt{P31} in
-fact has no genuine non-match at \emph{any} length, since ten
-\verb|.*| groups accept the empty string. \texttt{P29}'s non-match
-input was replaced with a fixed 9-character string, one short of the
-ten-group minimum the pattern actually needs to match (a constraint
-\texttt{P29}'s own pre-existing notes already stated, just not in the
-input construction); \texttt{P31}'s non-match side was removed outright
-rather than replaced with another wrong one. Table~\ref{tab:agreement-patho}
-reports category H after this fix: 100\% match agreement, consistent
-with every other category. No other row or category was affected.
+Both preconditions hold throughout: every parser matches the verified
+outcome (100\% on both datasets), and no within-family shape violation
+was printed by either run.
 
-Where a cross-family tree-shape disagreement does occur, it concentrates
-sharply rather than spreading evenly: S2ELab's 17 \emph{Diff} cases are
-0.3\% of 6544 compared, but the pathological set's are 10.4\% of 202,
-and within the pathological set, category B alone accounts for 18 of
-the 21 (64.3\% of its own 28 compared cases) --- exactly the category
-built around alternatives sharing a prefix under a quantifier
-(Table~\ref{tab:patho-categories}), the single most reliable way to
-construct genuine ambiguity on purpose. Categories E and F, also
-alternation-heavy by design, show smaller but still nonzero disagreement
-(12.5\% and 8.3\%); every other category --- A, C, D, H, I, J, K, L,
-none of them built around alternative-sharing structure --- shows
-exactly 0\% disagreement. This is the expected reading, not a surprise:
-\emph{Diff} reflects a real difference in disambiguation policy between
-the POSIX and non-POSIX families, visible exactly on the cases the
-pathological set was deliberately shaped to make ambiguous, and absent
-everywhere a pattern leaves only one way to decompose a match.
+Cross-family disagreement concentrates sharply. S2ELab's 17
+disagreements are 0.3\% of 6544 compared. The pathological set's are
+10.4\% of 202, and within that set category B alone accounts for 18 of
+the 21 (64.3\% of its own 28 compared). Category B is exactly the
+category built around alternatives sharing a prefix under a quantifier,
+the most reliable way to construct genuine ambiguity on purpose.
+Categories E and F, also alternation-heavy by design, show smaller but
+nonzero disagreement (12.5\% and 8.3\%). Every other category shows
+zero. Disagreement reflects the POSIX-versus-non-POSIX policy
+difference visible exactly on the ambiguous cases the pathological set
+was built to contain, and absent everywhere a pattern leaves only one
+decomposition.
 
-% =====================================================================
-% 8.3 Performance Analysis
-% =====================================================================
+The agreement check is what surfaced one dataset defect. Categories A,
+B, and C of an early pathological pass all reported 100\% match
+agreement. Category H reported 75\%, with two rows, \texttt{P29}
+(\verb|(.+){10}|) and \texttt{P31} (\verb|(.*){10}|), where all five
+parsers returned match against an input the dataset labeled a
+non-match. Both patterns' non-match inputs had been built by appending
+a trailing character to a matching string, which only forces a
+non-match when the pattern bounds the total input length. Neither
+pattern does. \texttt{P31} has no genuine non-match at any length,
+since ten \texttt{.*} groups accept the empty string. \texttt{P29}'s
+non-match input was replaced with a fixed 9-character string, one
+short of the ten-group minimum the pattern needs. \texttt{P31}'s was
+removed. Category H now reports 100\%.
+
+%
+%
+%
 
 \section{Performance Analysis}
 \label{sec:eval-performance}
 
-The four parsers are compared on two axes: execution time
-(Section~\ref{sec:eval-timing}) and memory consumption
-(Section~\ref{sec:eval-memory}). Both axes are measured on synthetic
-inputs first, since synthetic families isolate a single cost, and on the
-corpus second, since the corpus is the environment the parsers will
-encounter in practice.
+The four parsers are compared on execution time
+(Section~\ref{sec:eval-timing}) and memory
+(Section~\ref{sec:eval-memory}).
 
-% =====================================================================
-% Cost drivers  (new subsection of \section{Performance Analysis})
-% =====================================================================
+%
+%
+%
 
 \subsection{Cost drivers}
 \label{sec:eval-cost-drivers}
 
-Before the measurements, it is worth separating the properties of a
-corpus that make the four parsers cost something. Three are
-distinguishable, and each is exercised to a different degree by the
-corpus of Section~\ref{sec:eval-dataset} and by the synthetic
-families of Section~\ref{sec:eval-timing}.
+Three properties of a corpus make the four parsers cost something.
 
 \textbf{Input length.} The two standard derivative parsers retain
-every intermediate expression until the backward pass reconstructs
-the tree, so their live state grows with the number of characters
-consumed. The bit-coded and partial-derivative parsers do not carry
-that history. A corpus of long inputs separates the two groups; a
-corpus of short inputs does not, however many entries it contains.
+every intermediate expression until the backward pass, so their live
+state grows with the number of characters consumed. The bit-coded and
+partial-derivative parsers do not carry that history.
 
-\textbf{Pattern structure.} Translation size and derivative cost
-scale with the pattern's own node count. Deeply nested groups,
-alternation over many branches, and repeated classes inflate the
-translated \texttt{Regex}, and every parser pays for that size on
-every input. This driver is independent of input length: a short
-input against a large pattern can cost more than a long input against
-a small one. It also splits into two phases this evaluation measures
-separately, since they are paid at different times and by different
-code: \emph{translation} (the PCRE string into the translated
-\texttt{Regex}, \texttt{core\_regex} in Chapter~\ref{sec:frontend}),
-measured once per distinct pattern by
-\texttt{bench\_corpus\_translate}/\texttt{bench\_pathological\_translate};
-and the \emph{parser's own derivative loop} over an already-translated
-\texttt{Regex}, measured per (pattern, input) pair by the timing and
-memory benches below. A pattern can be cheap to translate and
-expensive to derive, or the reverse --- the pathological categories
-\textbf{C}, \textbf{D}, \textbf{J}, and \textbf{K} are specifically
-built around the first phase (bounded-repetition unrolling and
-large-tree construction in \texttt{core\_regex} itself), while
-\textbf{A}, \textbf{B}, \textbf{E}, \textbf{F}, and \textbf{H} are
-built around the second.
+\textbf{Pattern structure.} Translation size and derivative cost scale
+with the pattern's own node count. This splits into two phases the
+evaluation measures separately. \emph{Translation} (PCRE string to
+\texttt{Regex}, measured once per distinct pattern by
+\texttt{bench\_corpus\_translate} and
+\texttt{bench\_pathological\_translate}) and the \emph{derivative
+loop} (measured per pattern-input pair by the timing and memory
+benches below). A pattern can be cheap to translate and expensive to
+derive, or the reverse. Categories C, D, J, K stress the first phase.
+Categories A, B, E, F, H stress the second.
 
-\textbf{Ambiguity.} When a single input admits more than one valid
-decomposition of the pattern, the parsers keep more state alive and
-must eventually choose among the surviving trees. The choice is
-governed by the parser family's disambiguation policy
-(Chapter~\ref{sec:derivative-parser} versus
-\ref{sec:partial-derivative-parser}), and the two families are
-visible on exactly those (pattern, input) pairs where the policies
-diverge. Ambiguity is a property of a pattern, not of a corpus; the
-pathological categories built around overlapping or prefix-sharing
-alternation (\textbf{B}, \textbf{E}, \textbf{F}) are what isolate it
-at a controlled scale.
+\textbf{Ambiguity.} When a single input admits several valid
+decompositions, the parsers keep more state alive and must choose
+among the surviving trees. Categories B, E, F isolate this at a
+controlled scale.
 
-Not every cost is a driver. There is also a fixed per-call cost paid
-once per (pattern, input) pair regardless of length, structure, or
-ambiguity: allocating the initial residual, setting up the derivation
-loop, and constructing the parse tree from the final nullable
-expression. This cost is why the four parsers differ even on the
-corpus's own shortest, simplest entries, where none of the three
-drivers above is active enough to matter.
+A fixed per-call cost is paid once per pattern-input pair regardless
+of length, structure, or ambiguity. It is why the four parsers differ
+even on the corpus's shortest entries.
 
-The pathological categories of Section~\ref{sec:eval-pathological} are
-each shaped to isolate one of these costs at a scale no real corpus
-reliably reaches; the corpus tables that follow mix all three, and
-reading them without this separation makes the numbers hard to
-interpret. S2ELab's patterns are short, human-authored rules with
-modest structural complexity and short given inputs, so it exercises
-all three drivers only mildly --- which is exactly why a second,
-deliberately extreme dataset exists at all (Section~\ref{sec:eval-two-datasets}).
+S2ELab's patterns are short, human-authored rules with modest
+structural complexity and short given inputs, so it exercises all
+three drivers mildly. This is why a second, deliberately extreme
+dataset exists.
 
 %
 %
@@ -749,34 +633,30 @@ deliberately extreme dataset exists at all (Section~\ref{sec:eval-two-datasets})
 \subsection{Timing}
 \label{sec:eval-timing}
 
-\subsubsection{Pathological benchmarks}
+%
+%
+%
+
+\subsubsection{Pathological}
 \label{sec:eval-timing-pathological}
 
 Synthetic timing is measured by \texttt{bench\_pathological\_time}
-against the 113-row stress set of Section~\ref{sec:eval-pathological},
-grouped by category (Table~\ref{tab:patho-categories}). Selection and
-sweep are controlled by this file's own \texttt{PATHO\_*} variables ---
-\texttt{PATHO\_SECTION}, \texttt{PATHO\_CATEGORY}, \texttt{PATHO\_ROW\_ID}
-to narrow to one or a few rows, and \texttt{PATHO\_N}/\texttt{PATHO\_P}
-to override a row's default sweep --- plus the same
-\texttt{BENCH\_PATTERN\_LIMIT}/\texttt{BENCH\_ENTRY\_TIMEOUT\_MS}
-used by the corpus benches below. There is no \texttt{BENCH\_MATCH\_INTENT}
-here: these patterns are authored directly in full-match form, with
-no anchor to strip (Section~\ref{sec:eval-anchors}).
+against the 113-row stress set, grouped by category. Selection is
+controlled by the file's own \texttt{PATHO\_*} variables, plus the
+same \texttt{BENCH\_PATTERN\_LIMIT}/\texttt{BENCH\_ENTRY\_TIMEOUT\_MS}
+used by the corpus benches. There is no \texttt{BENCH\_MATCH\_INTENT}
+here, since these patterns are authored directly in full-match form.
 
 \begin{verbatim}
 cargo bench --bench bench_pathological_time
 PATHO_CATEGORY=A,B cargo bench --bench bench_pathological_time
 \end{verbatim}
 
-Table~\ref{tab:patho-timing-smoke} reports a real routine,
-un-overridden pass per category, each row's own default sweep from
-Table~\ref{tab:patho-categories}. \texttt{Timed out} is the share of
-that category's entries that hit the 2-second per-entry cap; the
-\texttt{mean} column is computed only over the entries that completed,
-same convention as Table~\ref{tab:corpus-timing} --- a low mean next to
-a high timeout share describes the easy entries that survived, not
-category-wide speed.
+Table~\ref{tab:patho-timing-smoke} reports one routine,
+un-overridden pass per category. \texttt{to\%} is the share of
+entries that hit the 2-second cap. The mean column is over completed
+entries only, so a low mean next to a high timeout share describes the
+easy entries that survived, not category-wide speed.
 
 \begin{table}[ht]
 \centering
@@ -793,106 +673,68 @@ C &  56 &  88.1 & 57\% &  87.9 & 57\% & 240.1 & 25\% & 230.3 & 18\% & 218.5 & 18
 D &  40 & 253.5 & 20\% & 250.7 & 20\% & 137.4 &  0\% & 192.4 & 15\% & 204.3 & 15\% \\
 E &  80 & 293.4 & 56\% & 288.0 & 56\% &  78.8 &  0\% &  57.5 &  0\% &  61.7 &  0\% \\
 F &  70 & 392.8 & 66\% & 366.7 & 66\% &  42.9 & 40\% & 104.1 &  3\% & 102.1 &  3\% \\
-H$^\dagger$ & 32 & 290.8 & 75\% & 290.4 & 75\% & 289.8 & 13\% & 265.7 & 22\% & 189.7 & 25\% \\
+H &  32 & 290.8 & 75\% & 290.4 & 75\% & 289.8 & 13\% & 265.7 & 22\% & 189.7 & 25\% \\
 \hline
 \end{tabular}
 \caption{Mean per-entry time (ms, completed entries only) and timeout
-share, one real routine pass per category at each category's own
-default sweep. \texttt{std\_rec}/\texttt{std\_loop} abbreviate
-\texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop}; \texttt{to\%} is
-the percentage of that category's entries that timed out (0 crashes in
-A--H). $^\dagger$H's row is from the run that surfaced the
-\texttt{P29}/\texttt{P31} labeling bug of Section~\ref{sec:eval-agreement}
-(32 entries, one row's non-match side not yet removed); the fix drops
-one input but does not change how long any of the remaining ones take
-to parse, so the timing figures stand, just against a since-corrected
-entry count (28 after the fix).}
+share, one routine pass per category at each category's default sweep.
+No crashes in A--H. Category H's row is from before the P29/P31 fix
+of Section~\ref{sec:eval-agreement}; the fix drops one input but does
+not change how long the remaining ones take, so the figures stand
+against the post-fix entry count of 28.}
 \label{tab:patho-timing-smoke}
 \end{table}
 
-Three things stand out against the design intent of
-Section~\ref{sec:eval-pathological}. First, \textbf{A}, \textbf{B},
-\textbf{E} confirm the intended shape exactly: both standard variants
-time out on roughly 56--71\% of entries while \texttt{deriv\_bc} and
-both partial-derivative variants stay near 0\%, so the routine default
-sweep already shows the standard construction failing without
-stressing the other three. Second, \textbf{F} is the one routine
-category where \texttt{deriv\_bc} itself times out at a real rate
-(40\%, against under 4\% for the partial-derivative pair) --- by
-design, per Table~\ref{tab:patho-categories}'s own
-\texttt{suggested\_n\_notes}: F is calibrated specifically to show the
-F-family mechanism defeating bit-coding too, not only the standard
-construction, which the routine pass now confirms directly rather than
-only in the individually-swept \texttt{FIG\_F} sweep below. Third,
-\textbf{C}'s timeout rate is close to uniform across \emph{all five}
+Three observations. First, categories A, B, and E confirm the design
+intent exactly: both standard variants time out on 56--71\% of entries
+while \texttt{deriv\_bc} and both partial-derivative variants stay
+near 0\%. Second, category F is the routine category where
+\texttt{deriv\_bc} itself times out at a real rate (40\%, against
+under 4\% for the partial-derivative pair). This is by design: F is
+calibrated to show the F-family mechanism defeating bit-coding too.
+Third, category C's timeout rate is close to uniform across all five
 parsers (57\% for both standard variants, 18--25\% for the other
-three) rather than concentrated on the standard pair --- consistent
-with Section~\ref{sec:eval-cost-drivers}'s prediction that C's cost is
-dominated by \texttt{core\_regex}'s own bound-unrolling at translation
-time, a cost every parser pays identically before its own derivative
-loop ever runs, rather than by a difference in derivative-loop
-efficiency. Fourth, \textbf{H} is the one category where the usual
-ranking inverts: \texttt{deriv\_bc} times out \emph{less} often (13\%)
-than either partial-derivative variant (22\%, 25\%), the opposite of
-every other category in this table. H's mechanism --- several
-unbounded groups or stars placed adjacently rather than nested --- is
-exactly the frontier-of-residuals shape the partial-derivative
-construction is usually best at, so this is not evidence against the
-general finding of Section~\ref{sec:eval-cost-partial-derivatives}; it
-is a reminder that ``usually best'' is a property of the common case,
-not a guarantee, and one small (4-pattern) category is enough to show
-an exception. It is also, independently, the category where the
-\texttt{P29}/\texttt{P31} labeling bug above was caught, which is not
-a coincidence: H is the smallest and least-tested category, exactly
-where a dataset bug is most likely to survive unnoticed.
+three) rather than concentrated on the standard pair. This matches the
+prediction that C's cost is dominated by \texttt{core\_regex}'s own
+bound-unrolling at translation time, a cost every parser pays
+identically before its derivative loop runs.
 
-Category H's timing numbers are reported separately in the discussion
-above rather than in Table~\ref{tab:patho-timing-smoke}, since this
-run also caught a real labeling bug in two of H's rows (\texttt{P29},
-\texttt{P31}) via the agreement check of
-Section~\ref{sec:eval-agreement} --- see that section for the full
-account and the fix.
+Category H is the one category where the ranking inverts:
+\texttt{deriv\_bc} times out less often (13\%) than either
+partial-derivative variant (22\%, 25\%), the opposite of every other
+category. H's mechanism, several unbounded groups placed adjacently
+rather than nested, is the frontier-of-residuals shape the
+partial-derivative construction is usually best at. This is a reminder
+that "usually best" is a property of the common case, not a
+guarantee, and one small category is enough to show an exception.
 
 \textbf{Individually swept representatives.} A routine per-category
-pass uses each category's conservative default sweep, calibrated to
-keep the whole routine run fast; it is not where any individual
-pattern's own asymptotic behaviour is best seen. For that, six rows
-are singled out for a dedicated, individually invoked sweep that pushes
-well past the routine default, using \texttt{PATHO\_ROW\_ID} to isolate
-one (or a few related) rows and \texttt{PATHO\_N} to choose the swept
-points directly (full commands and the reasoning behind each choice
-in \texttt{docs/BENCHMARKS.md}):
+pass uses each category's conservative default sweep. Six rows are
+singled out for a dedicated sweep that pushes past the routine
+default, using \texttt{PATHO\_ROW\_ID} and \texttt{PATHO\_N}:
 
 \begin{itemize}
-  \item \textbf{P60}/\textbf{P61} (category E): the literal
-        \citet{sulzmannlu2014} Figure~7 reproduction, \texttt{(a|b|ab)*}
-        swept into the millions of characters.
-  \item \textbf{P20} (category E, labelled \texttt{FIG7C}): the same
-        family's \texttt{+} variant, pushed to the same paper scale.
-  \item \textbf{P01} (category A, labelled \texttt{FIG\_A}): the
-        single most-cited ReDoS example, \texttt{(a+)+}.
-  \item \textbf{P09} (category A, labelled \texttt{FIG\_B}): the same
-        nested-quantifier family, swept further than P01's own default
-        before \texttt{deriv\_bc} gives way.
-  \item \textbf{P25}, \textbf{P27}, \textbf{P28} (category F, labelled
-        \texttt{FIG\_F}, run together): the alternation-star-then-literal
-        family, where unlike the E-family rows above, \texttt{deriv\_bc}
-        itself --- not only \texttt{deriv\_std} --- eventually times out.
+  \item \textbf{P60}/\textbf{P61}: the literal
+        \citet{sulzmannlu2014} Figure~7 reproduction,
+        \texttt{(a|b|ab)*} swept into the millions.
+  \item \textbf{P20}: the same family's \texttt{+} variant, pushed to
+        the same scale.
+  \item \textbf{P01}: the single most-cited ReDoS example,
+        \texttt{(a+)+}.
+  \item \textbf{P09}: the same nested-quantifier family, swept
+        further.
+  \item \textbf{P25}, \textbf{P27}, \textbf{P28}, run together: the
+        alternation-star-then-literal family, where \texttt{deriv\_bc}
+        itself eventually times out.
 \end{itemize}
 
-Categories \textbf{C}, \textbf{D}, and \textbf{H} have no row singled
-out this way: their calibrated default sweep already reaches each
-category's own interesting regime within the routine pass above (a
-lower ceiling than A/B/E/F, documented in each row's own
-\texttt{suggested\_n\_notes}, \texttt{docs/DATASET.md}), so a separate,
-individually invoked sweep would not show anything the routine table
-does not already.
+Categories C, D, and H have no row singled out. Their calibrated
+default sweep already reaches each category's interesting regime
+within the routine pass.
 
-Table~\ref{tab:patho-fig7} reports both P60 and P61 from a real run
-(\texttt{BENCH\_ENTRY\_TIMEOUT\_MS=120000}, no memory cap); the three
-remaining representatives (\texttt{FIG7C}/P20, \texttt{FIG\_A}/P01,
-\texttt{FIG\_B}/P09, \texttt{FIG\_F}/P25+P27+P28) are still pending and
-skeletonised in Table~\ref{tab:patho-fig-pending}.
+Table~\ref{tab:patho-fig7} reports P60 and P61 from a real run. The
+remaining representatives (P20, P01, P09, P25+P27+P28) are still
+pending.
 
 \begin{table}[ht]
 \centering
@@ -902,117 +744,57 @@ skeletonised in Table~\ref{tab:patho-fig-pending}.
 \hline
 Row & Parser & \multicolumn{3}{c}{Wall time (match side)} \\
 \hline
-P60 ($(a|b|ab)^*$, & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M (every point tested)} \\
-`a'-repeated;       & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M (every point tested)} \\
+P60 ($(a|b|ab)^*$, & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M} \\
+`a'-repeated;       & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 1\,M, 5\,M, and 10\,M} \\
 1\,M/5\,M/10\,M)    & \texttt{deriv\_bc}        & 3.85 s & 19.45 s & 39.85 s \\
                     & \texttt{pderiv\_bc}       & 3.26 s & 16.88 s & 33.86 s \\
                     & \texttt{pderiv\_std}      & 2.72 s & 13.68 s & 27.62 s \\
 \hline
-P61 ($(a|b|ab)^*$,  & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M (every point tested)} \\
-`ab'-repeated;      & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M (every point tested)} \\
+P61 ($(a|b|ab)^*$,  & \texttt{deriv\_std\_rec}  & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M} \\
+`ab'-repeated;      & \texttt{deriv\_std\_loop} & \multicolumn{3}{c}{crashed at 500\,K, 2.5\,M, and 5\,M} \\
 500\,K/2.5\,M/5\,M) & \texttt{deriv\_bc}        & 2.84 s & 14.40 s & 28.25 s \\
                     & \texttt{pderiv\_bc}       & 2.35 s & 11.96 s & 23.73 s \\
                     & \texttt{pderiv\_std}      & 2.50 s & 12.71 s & 24.61 s \\
 \hline
 \end{tabular}
-\caption{Figure~7 reproduction, real run. Wall time is the match-side
-entry's own reported \texttt{micros}; the non-match side is within a
-few percent throughout and omitted for space. Peak memory is not
-reported here: this run used \texttt{bench\_pathological\_time}
-(crash/timeout plus wall time only) --- a dedicated
-\texttt{bench\_pathological\_memory} pass at this same scale is still
-pending and would be needed for a real peak-bytes figure at 1\,M+
-characters; earlier informal estimates for that figure have been
-removed rather than presented as measured.}
+\caption{Figure~7 reproduction. Wall time is the match-side entry's
+own reported \texttt{micros}; the non-match side is within a few
+percent throughout and omitted. Peak memory was not measured at this
+scale.}
 \label{tab:patho-fig7}
 \end{table}
 
-Both standard-derivative variants crash --- not time out --- at
-\emph{every} point tested on both rows, including the smallest
-(500\,K characters for P61). The 120-second timeout was never reached;
-each crashed entry's own wall time averages 14--16 seconds across both
-rows and both variants (\(92.7\)--\(96.6\)\,s totalled over six crashed
-entries per parser per row), uniformly regardless of whether $N$ was
-500\,K or 10\,M, which is itself informative: a crash that takes the
-same time at every scale tested is a crash that happens early relative
-to the full input, not one that depends on reaching the far end of it.
+Both standard variants crash rather than time out at every point
+tested, including the smallest (500\,K for P61). The 120-second
+timeout was never reached. Crashed entries average 14--16 seconds of
+wall time, uniformly across scale. A crash that takes the same time at
+every scale is a crash that happens early relative to the input.
 
-The two variants fail by two different, independently verifiable
-mechanisms, both visible directly in \texttt{src/parsers/deriv\_std/}.
-\texttt{parse\_deriv\_std\_rec} (\texttt{parse.rs}) recurses once per
-input character before injecting --- \texttt{parse\_recursive\_helper}
-calls itself at \texttt{pos+1} and only then calls \texttt{inject} on
-the way back out --- so its native call-stack depth equals the number
-of characters consumed so far. At $500{,}000$ to $10{,}000{,}000$
-characters this exceeds \texttt{bench\_worker}'s per-call stack budget
-long before either the heap or the 120-second cap becomes relevant: a
-textbook stack overflow, not a resource exhaustion the OS arbitrates.
-\texttt{parse\_deriv\_std\_loop} does not share that recursion --- both
-its forward derivation loop and its backward reconstruction loop over
-\texttt{inject} are flat \texttt{for} loops with no per-character
-native recursion --- yet it crashes on exactly the same inputs at
-exactly the same rate. Its failure is a heap one: the forward loop
-pushes every intermediate derivative onto a single \texttt{Vec<Regex>}
-and keeps all of them alive until the backward pass finishes, and
-\texttt{deriv} (\texttt{src/regex/deriv.rs}) is called with no
-simplification step in between --- confirmed by grep, no call to
-\texttt{simplify} anywhere in \texttt{deriv\_std}'s own hot path ---
-so nothing bounds how large the stored sequence of expressions can get
-as the derivation proceeds on a genuinely ambiguous pattern like
-\texttt{(a|b|ab)*}. Table~\ref{tab:growth}'s much smaller canonical
-example already shows this: \texttt{deriv\_std} reaches 9179 nodes at
-just $n=16$ characters on \texttt{(a+(b+ab))*}, a pattern simpler than
-the Figure~7 one. At $500{,}000$+ characters on a pattern built
-specifically to maximise this growth, the stored sequence exhausts
-available memory well inside the 120-second cap, independent of
-whatever the recursion-depth problem above does to the other variant.
-The two failures are therefore both real, both architectural, and both
-independent of each other --- fixing the stack overflow alone (e.g.\
-by making the backward pass iterative, Task~\#78 of this project's own
-backlog) would not rescue \texttt{deriv\_std\_loop}, since its own
-failure is never a stack problem to begin with.
-
-\begin{table}[ht]
-\centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lrrrrr}
-\hline
-Row & \multicolumn{5}{c}{\texttt{PATHO\_N}} \\
-\hline
-P20 (\texttt{FIG7C})          & 1\,000\,000 & 5\,000\,000 & 10\,000\,000 & -- & -- \\
-P01 (\texttt{FIG\_A})         & 10\,000 & 30\,000 & 50\,000 & 200\,000 & 1\,000\,000 \\
-P09 (\texttt{FIG\_B})         & 100\,000 & 500\,000 & 1\,000\,000 & 5\,000\,000 & -- \\
-P25/P27/P28 (\texttt{FIG\_F}) & 5\,000 & 10\,000 & 30\,000 & 50\,000 & 200\,000 \\
-\hline
-\end{tabular}
-\caption{Skeleton for the four remaining representative sweeps ---
-column headers are the already-chosen \texttt{PATHO\_N} points; every
-cell (per-parser wall time, as in Table~\ref{tab:patho-fig7}) is
-pending the dedicated run. Given P60/P61's result above, \texttt{FIG7C}
-is expected to show the same two-mechanism crash for both standard
-variants at every point, since P20 is the same family's \texttt{+}
-variant.}
-\label{tab:patho-fig-pending}
-\end{table}
+The two variants fail by two different mechanisms. The recursive
+variant recurses once per character before injecting, so its stack
+depth equals characters consumed. At 500\,K to 10\,M characters this
+exceeds the worker's per-call stack budget: a stack overflow. The loop
+variant has no per-character recursion, yet crashes on the same
+inputs. Its forward loop pushes every intermediate derivative onto a
+single \texttt{Vec<Regex>} and keeps them alive until the backward
+pass, and \texttt{deriv} runs with no simplification step in between.
+Nothing bounds the stored sequence's growth on a genuinely ambiguous
+pattern. Table~\ref{tab:growth}'s smaller example already shows
+\texttt{deriv\_std} reaching 9179 nodes at $n=16$ characters. At
+500\,K+ characters the stored sequence exhausts memory well inside the
+120-second cap. The two failures are independent: fixing the stack
+overflow alone would not rescue the loop variant.
 
 %
 %
 %
 
-% ---- CHANGED: bench_dataset replaced by bench_corpus_time ----
-\subsubsection{Corpus benchmarks}
+\subsubsection{Corpus}
 \label{sec:eval-corpus-benchmarks}
 
-Corpus timing is measured by \texttt{bench\_corpus\_time}, a plain
-reporting binary rather than a Criterion target. It runs each parser
-once over the admitted S2ELab corpus (no source selection --- S2ELab is
-the only source with real prepared data, Section~\ref{sec:eval-s2elab}),
-timing every entry individually and reporting the total, mean, median,
-p99, and maximum per-entry cost. One pass per parser is what makes the
-measurement feasible: a full corpus pass takes minutes per parser, so
-Criterion's sample-count model would multiply the runtime for no
-statistical gain over a single pass.
+Corpus timing is measured by \texttt{bench\_corpus\_time}. It runs
+each parser once over the admitted S2ELab corpus, timing every entry
+individually and reporting total, mean, median, p99, and maximum.
 
 \begin{verbatim}
 cargo bench --bench bench_corpus_time
@@ -1021,20 +803,10 @@ BENCH_SPLIT_OUTCOME=1   cargo bench --bench bench_corpus_time
 BENCH_MATCH_INTENT=both cargo bench --bench bench_corpus_time
 \end{verbatim}
 
-\texttt{BENCH\_MATCH\_INTENT} chooses which of the two groups described
-in Section~\ref{sec:eval-anchors} to measure; every table in this
-chapter uses the default (\texttt{explicit}, the 463 full-match-wrapped
-patterns) unless stated otherwise, for the reason given there. Setting
-\texttt{BENCH\_SPLIT\_OUTCOME} prints a second table splitting each
-parser's per-entry durations by the entry's verified outcome (match or
-non-match), which shows whether a parser's total is skewed by one side
-of the corpus rather than spread evenly across it.
-
-Table~\ref{tab:corpus-timing} reports a full run over the default
-463-pattern, 10\,888-entry scope. \texttt{mean} is the macro-average of
-Section~\ref{sec:eval-macro-average}: each pattern's own mean is taken
-first, and those per-pattern means are then averaged unweighted, so a
-pattern with many given examples does not outweigh one with few.
+\texttt{BENCH\_MATCH\_INTENT} chooses between the two groups of
+Section~\ref{sec:eval-anchors}; every table uses the default
+(\texttt{explicit}, the 463 stripped patterns). \texttt{BENCH\_SPLIT\_OUTCOME}
+prints a second table split by verified outcome.
 
 \begin{table}[ht]
 \centering
@@ -1052,31 +824,20 @@ Parser & Entries & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
 \end{tabular}
 \caption{Corpus timing over the full default scope (463 patterns,
-10\,888 entries), one pass per parser. \texttt{Timed out} entries
-(a 2-second per-entry cap, both standard variants only) are excluded
-from \texttt{mean}/\texttt{median}/\texttt{max}, so those columns are a
-lower bound on the standard variants' true cost, not an overstatement
-of it.}
+10\,888 entries), one pass per parser. Timeouts are excluded from
+mean, median, and max, so those columns are a lower bound on the
+standard variants' true cost.}
 \label{tab:corpus-timing}
 \end{table}
 
-Three observations follow. First, the two standard derivative variants
-are the slowest by a wide margin --- roughly $4$--$12\times$
-\texttt{deriv\_bc}'s mean and over an order of magnitude past both
-partial-derivative variants --- and this is \emph{before} accounting
-for the 66--67 entries each one timed out on entirely, which the mean
-excludes. Second, within the bit-coded/partial-derivative group, the
-ranking is not what the growth curves of Section~\ref{sec:eval-growth}
-alone would predict: \texttt{pderiv\_std} is marginally faster than
-\texttt{pderiv\_bc} on this corpus (0.598\,ms against 0.613\,ms mean),
-even though \texttt{pderiv\_bc}'s bit-coded state is asymptotically
-smaller. Section~\ref{sec:eval-cost-partial-derivatives} returns to
-this point together with the pathological-scale data, where the same
-two parsers are compared at far larger input lengths.
-
-\textbf{Timing by outcome.} \texttt{BENCH\_SPLIT\_OUTCOME}'s second
-table (Table~\ref{tab:corpus-timing-outcome}) shows the same run split
-by the entry's verified membership outcome.
+Three observations. The two standard variants are the slowest by a
+wide margin, roughly $4$--$12\times$ \texttt{deriv\_bc}'s mean and
+over an order of magnitude past both partial-derivative variants, and
+this is before the 66--67 entries each timed out on. Within the
+bit-coded/partial-derivative group, the ranking is not what the growth
+curves alone would predict. \texttt{pderiv\_std} is marginally faster
+than \texttt{pderiv\_bc} on this corpus (0.598\,ms against 0.613\,ms
+mean).
 
 \begin{table}[ht]
 \centering
@@ -1094,39 +855,30 @@ Parser & Matches & Match time (s) & Non-matches & Non-match time (s) \\
 \hline
 \end{tabular}
 \caption{Total wall time by verified outcome, same run as
-Table~\ref{tab:corpus-timing}. Every parser spends most of its time on
-matching entries, not non-matching ones.}
+Table~\ref{tab:corpus-timing}.}
 \label{tab:corpus-timing-outcome}
 \end{table}
 
-Every parser's total is dominated by the matching side, by a factor of
-roughly $3\times$ to $7\times$ depending on the parser --- expected,
-since a non-match can often be rejected early in the derivation, while
-a match forces the parser all the way to constructing a tree. The split
-is also where the two standard variants' near-identical means in
-Table~\ref{tab:corpus-timing} resolve into a real difference:
-\texttt{deriv\_std\_loop}'s match-side total (62.660\,s) is noticeably
-lower than \texttt{deriv\_std\_rec}'s (67.913\,s), even though their
-non-match totals are almost the same (9.773\,s against 9.620\,s). The
-two variants implement the same algorithm; the recursive variant's
-overhead is specifically on the matching path, where the parse tree is
-actually built.
+Every parser's total is dominated by the matching side, by roughly
+$3\times$ to $7\times$ depending on the parser. A non-match can often
+be rejected early in the derivation, while a match forces the parser
+to construct a tree. The split is also where the two standard
+variants' near-identical means resolve into a real difference:
+\texttt{deriv\_std\_loop}'s match-side total (62.660\,s) is below
+\texttt{deriv\_std\_rec}'s (67.913\,s), while their non-match totals
+are almost the same. The recursion-versus-iteration difference is
+specifically a cost of the matching path.
 
-\textbf{Encoding, deriving, decoding.} The bit-coded parser
-(\texttt{deriv\_bc}) reports its mean as three components rather than
-one: \texttt{mean\_encode} (building the initial bit-annotated
-\texttt{Regex}), \texttt{mean\_derive} (the derivative loop itself),
-and \texttt{mean\_decode} (walking the final bit-code into a parse
-tree). On the full corpus these are $0.117$\,ms, $1.504$\,ms, and
-$0.005$\,ms respectively --- the derivative loop is the cost, encoding
-is a small fixed overhead paid once, and decoding is close to free
-because it is a single linear walk over an already-small bit-code
-rather than a second derivation pass. The two standard variants and the
-two partial-derivative variants do not split this way: \texttt{deriv\_std}'s
-backward-pass reconstruction is not separable from its forward pass the
-way \texttt{deriv\_bc}'s decode step is, and the partial-derivative
-variants build their tree incrementally as they go rather than in a
-separate final step.
+The bit-coded parser reports its mean split into
+\texttt{mean\_encode} (building the initial \texttt{ARegex}),
+\texttt{mean\_derive} (the derivative loop), and \texttt{mean\_decode}
+(walking the bit-code into a tree). On the full corpus these are
+0.117\,ms, 1.504\,ms, and 0.005\,ms. The derivative loop is the cost.
+Encoding is a small fixed overhead paid once. Decoding is close to
+free, since it is a single linear walk over an already-small bit-code
+rather than a second derivation pass. The other three parsers do not
+split this way, since their tree construction is not separable from
+derivation.
 
 %
 %
@@ -1135,24 +887,15 @@ separate final step.
 \subsubsection{Translation cost}
 \label{sec:eval-translation-cost}
 
-Section~\ref{sec:eval-cost-drivers} separated pattern-structure cost
-into two phases paid at different times: translation and the parser's
-own derivative loop. Everything above measures the second phase only
---- \texttt{bench\_corpus\_time} and \texttt{bench\_pathological\_time}
-both time an already-translated \texttt{Regex}. \texttt{bench\_corpus\_translate}
-and \texttt{bench\_pathological\_translate} measure the first phase on
-its own, deduplicated by distinct pattern rather than by entry, since
-translation cost depends only on the pattern, not on which input is run
-against it afterwards.
+The benches above time an already-translated \texttt{Regex}.
+\texttt{bench\_corpus\_translate} and
+\texttt{bench\_pathological\_translate} measure translation alone,
+deduplicated by distinct pattern.
 
 \begin{verbatim}
 cargo bench --bench bench_corpus_translate
 cargo bench --bench bench_pathological_translate
 \end{verbatim}
-
-Table~\ref{tab:translate-cost} reports the S2ELab side and
-Table~\ref{tab:translate-cost-patho} the pathological side, both from a
-real run.
 
 \begin{table}[ht]
 \centering
@@ -1168,12 +911,10 @@ S2ELab (full-match) & 463 & 0.015 & 502.5 & 18\,707 \\
 \label{tab:translate-cost}
 \end{table}
 
-Translation on S2ELab is already cheap at $0.015$\,ms mean, and even
-its single largest pattern (18\,707 translated nodes) translates in
-well under a millisecond: no S2ELab pattern comes close to
-\texttt{core\_regex\_tagged}'s node cap of 20\,000
-(Section~\ref{sec:frontend-bounds}), so this axis is essentially slack
-for the real corpus.
+Translation on S2ELab is cheap at 0.015\,ms mean. Even its single
+largest pattern (18\,707 translated nodes) translates in well under a
+millisecond, so no S2ELab pattern comes close to
+\texttt{core\_regex\_tagged}'s 20\,000-node cap.
 
 \begin{table}[ht]
 \centering
@@ -1183,49 +924,40 @@ for the real corpus.
 \hline
 Cat. & Name & Rows swept & Rejected & Mean (ms) & Max nodes \\
 \hline
-A & Nested quantifiers           & 16 &  0 & 0.001 &     84 \\
-B & Overlapping alternation      & 15 &  0 & 0.002 &    389 \\
-C & Bounded rep over star        &  7 &  0 & 0.052 &  9\,881 \\
-D & Anchored-failure style       & 20 &  0 & 0.005 &    905 \\
-E & Prefix-overlap alternation   &  8 &  0 & 0.001 &     40 \\
-F & Alternation-star + literal   &  7 &  0 & 0.003 &    756 \\
-H & Many adjacent stars/groups   &  4 &  0 & 0.049 &  3\,889 \\
-I & Trivial pattern, large input & 10 &  0 & 0.017 &  4\,001 \\
-J & Large pattern, trivial input & 17 &  \textbf{9} & 0.265 & 13\,999 \\
-K & Large pattern, large input   &  4 &  \textbf{2} & 0.009 &    404 \\
-L & Trivial pattern, trivial input & 33 & 0 & 0.003 &    388 \\
+A & Nested quantifiers             & 16 &  0 & 0.001 &     84 \\
+B & Overlapping alternation        & 15 &  0 & 0.002 &    389 \\
+C & Bounded rep over star          &  7 &  0 & 0.052 &  9\,881 \\
+D & Anchored-failure style         & 20 &  0 & 0.005 &    905 \\
+E & Prefix-overlap alternation     &  8 &  0 & 0.001 &     40 \\
+F & Alternation-star + literal     &  7 &  0 & 0.003 &    756 \\
+H & Many adjacent stars/groups     &  4 &  0 & 0.049 &  3\,889 \\
+I & Trivial pattern, large input   & 10 &  0 & 0.017 &  4\,001 \\
+J & Large pattern, trivial input   & 17 &  9 & 0.265 & 13\,999 \\
+K & Large pattern, large input     &  4 &  2 & 0.009 &    404 \\
+L & Trivial pattern, trivial input & 33 &  0 & 0.003 &    388 \\
 \hline
 \end{tabular}
-\caption{Translation cost over the pathological set's own default
-sweep (pre-recalibration \texttt{suggested\_p} for J/K; see
-discussion below). \emph{Rejected}: rows that hit
+\caption{Translation cost over the pathological set's default sweep
+(pre-recalibration \texttt{suggested\_p} for J/K; see below).
+\emph{Rejected} counts rows that hit
 \texttt{core\_regex\_tagged}'s 20\,000-node cap at the swept pattern
 size and translated to nothing.}
 \label{tab:translate-cost-patho}
 \end{table}
 
-The prediction from Section~\ref{sec:eval-cost-drivers} is confirmed
-and sharpened: \textbf{C} is the single most translation-expensive
-category by far (mean $0.052$\,ms, $9{,}881$ max nodes, both an order
-of magnitude past most other categories), consistent with it being
-built around \texttt{core\_regex}'s own bound-unrolling. \textbf{J} and
-\textbf{K}, the categories swept to a large pattern size, show
-something the time/memory benches could only show indirectly as
-uniform ``crashed'' entries (Section~\ref{sec:eval-timing-pathological}'s
-discussion): \textbf{9 of J's 17} swept rows and \textbf{2 of K's 4}
-rejected outright at translation, both at their old \texttt{suggested\_p}
-top end (10\,000/100\,000 for J, 1\,000 for K). A rejected row produces
-no entry for any of the five parsers to be compared on, which is why
-the uniform per-parser crash counts in
-Section~\ref{sec:eval-timing-pathological} are a translation artefact,
-not a parser-timing result --- the real bottleneck for roughly half of
-J's and K's routine entries was never the derivative loop at all. Both
-categories' \texttt{suggested\_p} have since been lowered (J:
-$[100,500,1000,2000]$, K: $[300]$, down from $[100,1000,10000,100000]$
-and $[1000]$) to keep this category measuring what it is meant to ---
-parser throughput on large-but-translatable patterns --- rather than
-mostly re-discovering the translation cap; a fresh run against the new
-values is pending.
+Category C is the single most translation-expensive category by far
+(mean 0.052\,ms, 9\,881 max nodes), consistent with its being built
+around bound-unrolling. Categories J and K show what the time and
+memory benches could only show indirectly as uniform crash counts: 9
+of J's 17 swept rows and 2 of K's 4 reject outright at translation, at
+the old \texttt{suggested\_p} top end. A rejected row produces no
+entry for any of the five parsers, which is why the uniform per-parser
+crash counts are a translation artifact, not a parser-timing result.
+Both categories' \texttt{suggested\_p} have been lowered (J:
+$[100,500,1000,2000]$, K: $[300]$, from $[100,1000,10000,100000]$ and
+$[1000]$) to keep the category measuring parser throughput on
+large-but-translatable patterns. A fresh run against the new values is
+pending.
 
 %
 %
@@ -1234,43 +966,20 @@ values is pending.
 \subsection{Memory}
 \label{sec:eval-memory}
 
-\subsubsection{Allocation counters}
-
 \texttt{bench\_corpus\_memory} replaces the system allocator with a
-wrapper that counts allocated bytes, and reports three figures per
-parser:
+wrapper that counts allocated bytes and reports three figures per
+parser: total bytes (every allocation including churn), average bytes
+per entry (macro-average, same as the timing mean), and max peak
+(highest live-byte high-water mark on any single entry, flat).
 
-\begin{itemize}
-  \item \textbf{total bytes}: every allocation during the whole
-        corpus pass, including freed and re-allocated bytes.
-        Measures churn.
-  \item \textbf{average bytes per entry}: a macro-average, the same
-        correction as \texttt{mean} in Table~\ref{tab:corpus-timing}
-        (Section~\ref{sec:eval-macro-average}) --- each pattern's own
-        average is taken first, then those per-pattern averages are
-        averaged unweighted.
-  \item \textbf{max peak}: the highest live-byte high-water mark seen
-        on any single entry. Measures worst-case memory. Unlike the
-        other two figures, this one is a flat, pooled-over-every-entry
-        maximum, not a macro-average.
-\end{itemize}
-
-Like \texttt{bench\_corpus\_time}, it is a plain reporting binary and
-reads the same two environment variables, \texttt{BENCH\_PATTERN\_LIMIT}
-and \texttt{BENCH\_MATCH\_INTENT}.
-Allocation counting sees heap traffic only: each worker's call-thread
-stack is invisible to it, so a pattern whose cost is dominated by
-recursion depth rather than allocation would under-report here --- the
-figures below are heap numbers, not a general memory bound.
+Heap-only accounting: each worker's call-thread stack is invisible to
+it, so a pattern dominated by recursion depth would under-report here.
 
 \begin{verbatim}
 cargo bench --bench bench_corpus_memory
 BENCH_PATTERN_LIMIT=5   cargo bench --bench bench_corpus_memory
 BENCH_MATCH_INTENT=both cargo bench --bench bench_corpus_memory
 \end{verbatim}
-
-Table~\ref{tab:memory} reports a full run over the same default
-463-pattern, 10\,888-entry scope as Table~\ref{tab:corpus-timing}.
 
 \begin{table}[ht]
 \centering
@@ -1288,50 +997,37 @@ Parser & Total bytes & Avg bytes/entry & Max peak \\
 \hline
 \end{tabular}
 \caption{Heap allocation over the full default scope (463 patterns,
-10\,888 entries), one pass per parser. \texttt{Total bytes} is summed
-over the whole pass; \texttt{avg bytes/entry} is the macro-average;
-\texttt{max peak} is the single worst entry's high-water mark.}
+10\,888 entries), one pass per parser.}
 \label{tab:memory}
 \end{table}
 
-The gap between the two constructions is confirmed at full corpus
-scale and is starkest in peak allocation: both standard variants peak
-at $582.4$\,MB on their single worst entry, against $5.1$\,MB for
-\texttt{deriv\_bc} --- a factor of about $114\times$ --- because
-\texttt{deriv\_std} retains its full derivation sequence for the
-backward pass while \texttt{deriv\_bc} carries only a flat bit vector.
-The same pattern holds in total and average bytes, though less
-sharply (roughly $1.8\times$ and $1.9\times$).
+The gap between constructions is starkest in peak allocation. Both
+standard variants peak at 582.4\,MB on their single worst entry,
+against 5.1\,MB for \texttt{deriv\_bc}, a factor of about $114\times$.
+The standard parser retains its full derivation sequence for the
+backward pass; \texttt{deriv\_bc} carries only a flat bit vector. The
+same pattern holds in total and average bytes, though less sharply
+(roughly $1.8\times$ and $1.9\times$).
 
-The partial-derivative pair tells a different story from the one the
-growth curves of Section~\ref{sec:eval-growth} alone would suggest:
-\texttt{pderiv\_std} is \emph{lower} than \texttt{pderiv\_bc} on every
-column here --- average bytes ($0.395$\,MB against $0.404$\,MB) and
-peak ($2.5$\,MB against $3.8$\,MB) alike --- the reverse of the timing
-gap on this same corpus (Section~\ref{sec:eval-cost-partial-derivatives}
-returns to this). At the short input lengths S2ELab's given examples
-actually reach, the partial-derivative frontier is already small
-regardless of construction, so \texttt{pderiv\_bc}'s extra bit-tracking
-machinery shows up here as pure overhead rather than a saving; nothing
-in this table contradicts the asymptotic bound-state argument of
-Section~\ref{sec:eval-growth}, since that argument is about how the
-two scale as input length grows, not about which is smaller at the
-input lengths this particular corpus happens to contain.
+The partial-derivative pair behaves differently from what the growth
+curves alone suggest. \texttt{pderiv\_std} is lower than
+\texttt{pderiv\_bc} on every column here (average bytes 0.395 against
+0.404\,MB, peak 2.5 against 3.8\,MB), the reverse of the timing gap on
+the same corpus. At S2ELab's short input lengths the partial-derivative
+frontier is already small regardless of construction, so
+\texttt{pderiv\_bc}'s extra bit-tracking machinery is pure overhead.
+The asymptotic bound-state argument is about how the two scale as
+input grows, not which is smaller at S2ELab's input lengths.
 
 %
 %
 %
 
-\subsubsection{Growth: two canonical expressions}
+\subsubsection{Growth on canonical expressions}
 \label{sec:eval-growth}
 
-To show \emph{why} memory behaves as measured, three growth demos drive
-the parsers on two canonical expressions and plot the size of the live
-state per input character.
-
-The first expression is \texttt{a*}, the smallest non-trivial star
-expression. The second is \texttt{(a+(b+ab))*}, which forces every parser
-to hold multiple residuals simultaneously.
+Two demos drive the parsers on two canonical expressions and report
+live-state size per input character.
 
 \begin{verbatim}
 cargo run --release --example demo_growth_deriv
@@ -1340,11 +1036,9 @@ cargo run --release --example demo_growth_eval
 cargo run --release --example demo_simp_branches
 \end{verbatim}
 
-Table~\ref{tab:growth} reports the live-state size at three input lengths
-per expression. For \texttt{deriv\_std} and \texttt{deriv\_bc} the figure
-is the node count of the current residual. For \texttt{pderiv\_std} and
-\texttt{pderiv\_bc} it is the total node count summed across the whole
-frontier.
+For \texttt{deriv\_std} and \texttt{deriv\_bc} the figure is the node
+count of the current residual. For \texttt{pderiv\_std} and
+\texttt{pderiv\_bc} it is the total node count across the frontier.
 
 \begin{table}[ht]
 \centering
@@ -1366,90 +1060,75 @@ Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
 \label{tab:growth}
 \end{table}
 
-Three patterns are visible.
+On \texttt{a*}, the \texttt{deriv\_std} column grows linearly in $n$
+while the other three stay bounded. The two-pass structure keeps every
+intermediate expression alive until the backward pass, so its state is
+a function of input length. Bit-coded and partial-derivative variants
+do not carry a history.
 
-First, on \texttt{a*} the \texttt{deriv\_std} column grows linearly in
-$n$, while the other three are bounded. This is the cost of the two-pass
-structure: the standard parser keeps every intermediate expression alive
-until the backward pass reconstructs the tree, so its state size is a
-function of input length. The bit-coded and partial-derivative variants
-do not carry a history, so their state does not grow.
+On \texttt{(a+(b+ab))*}, all four grow but at very different rates. At
+$n=16$, \texttt{deriv\_std} is at 9179 nodes, \texttt{deriv\_bc} at
+2303, and the partial-derivative variants at 2560 and 2048. The gap
+between the two derivative-based variants is the cost of carrying
+reconstruction information through each step.
 
-Second, on \texttt{(a+(b+ab))*}, all four grow, but at very different
-rates. At $n=16$, \texttt{deriv\_std} has grown to 9179 nodes,
-\texttt{deriv\_bc} to 2303, and the two partial-derivative variants to
-2560 and 2048. The gap between the two derivative-based variants is the
-cost of carrying reconstruction information through each step, which the
-bit-coded variant does not.
-
-Third, the two partial-derivative variants stay close to each other
-across both expressions. Their live state is the frontier of residuals,
-not a single expression; the accumulation is linear in the number of
-distinct residuals reachable, which is bounded by the pattern's own size.
+The two partial-derivative variants stay close. Their live state is
+the frontier of residuals, not a single expression, and the
+accumulation is bounded by the pattern's own size.
 
 \texttt{demo\_simp\_branches} shows why simplification never fires its
-$r + r = r$ rule on \texttt{(a+(b+ab))*}. Every step has \emph{distinct}
+$r + r = r$ rule on \texttt{(a+(b+ab))*}. Every step has distinct
 branches by bit-annotation even when the structural shape is identical.
-This is a property of the bit-coded representation, not a deficiency of
-the simplifier: the branches genuinely differ, and merging them would
-lose the reconstruction information that makes single-pass decoding
-possible.
+Merging them would lose the reconstruction information that makes
+single-pass decoding possible.
 
-\begin{verbatim}
-cargo run --release --example demo_simp_branches
-\end{verbatim}
+%
+%
+%
 
-A figure showing the branch-count series for \texttt{(a+(b+ab))*}, using
-the pgfplots coordinates the demo already prints, can be added here.
+\subsubsection{Peak memory in the large}
 
-\subsubsection{Peak memory on the corpus}
+The max-peak column of Table~\ref{tab:memory} answers whether any
+S2ELab pattern causes a peak infeasible on a production machine. At
+full corpus scale the answer is no. The highest single-entry peak is
+582.4\,MB, for the two standard variants; the other three peak in
+single-digit megabytes.
 
-The max-peak column from Table~\ref{tab:memory} answers whether any
-S2ELab pattern causes a peak that would be infeasible on a production
-machine. At full corpus scale the answer is no: the highest
-single-entry peak is $582.4$\,MB, for the two standard derivative
-variants, well within the memory of a typical workstation; the other
-three parsers peak in single-digit megabytes. S2ELab's given examples
-are short enough that none of its 10\,888 entries approaches a
-memory-infeasible regime for any of the five parsers.
-
-That is a property of this corpus's own input lengths, not a general
-bound on the standard construction: Table~\ref{tab:patho-fig7}'s
-pathological-scale figures, on inputs several orders of magnitude
-longer, show the same two-pass retention pushing both standard
-variants to crash or OOM already at one million characters, while the
+That is a property of S2ELab's input lengths, not a general bound.
+Table~\ref{tab:patho-fig7}'s figures, on inputs several orders of
+magnitude longer, show the same two-pass retention pushing both
+standard variants to crash at one million characters, while the
 bit-coded and partial-derivative variants keep growing smoothly into
-the low gigabytes out to ten million --- large, but a controlled,
-roughly linear growth rather than the standard variants' outright
-failure.
+the low gigabytes out to ten million, a controlled, roughly linear
+growth rather than an outright failure.
 
-% =====================================================================
-% 8.4 Discussion of Results
-% =====================================================================
+%
+%
+%
 
 \section{Discussion of Results}
 \label{sec:eval-discussion}
 
+%
+%
+%
+
 \subsection{Cost of the standard construction}
 
-The two standard derivative parsers (\texttt{deriv\_std\_rec} and
-\texttt{deriv\_std\_loop}) are consistently the slowest and
-memory-heaviest of the four. This is a direct consequence of the two-pass
-structure described in Chapter~\ref{sec:derivative-parser}: every
-intermediate expression is stored, so the whole derivation sequence stays
-alive until the backward pass completes. On \texttt{a*} input of length
-$n$, the standard parser's state size grows linearly in $n$, while the
-bit-coded and partial-derivative parsers stay constant.
+The two standard derivative parsers are consistently the slowest and
+memory-heaviest. This follows directly from the two-pass structure of
+Chapter~\ref{sec:derivative-parser}: every intermediate expression is
+stored until the backward pass completes. On \texttt{a*} input of
+length $n$, state size grows linearly in $n$, while the bit-coded and
+partial-derivative parsers stay constant.
 
-On the full S2ELab corpus the two standard variants are close in mean
-time (Table~\ref{tab:corpus-timing}: $7.379$\,ms against $6.902$\,ms)
-but not identical, and the outcome split (Table~\ref{tab:corpus-timing-outcome})
-shows where the difference actually lives: on matching entries ---
-where a parse tree is built --- \texttt{deriv\_std\_loop}'s total
-($62.660$\,s) is measurably below \texttt{deriv\_std\_rec}'s
-($67.913$\,s), while their non-match totals are almost the same. The
-recursion-versus-iteration difference between the two is specifically
-a cost of the matching path, not a flat per-call overhead.
+On the full corpus the two standard variants are close in mean time
+(7.379\,ms against 6.902\,ms) but the outcome split shows where the
+difference lives. On matching entries, \texttt{deriv\_std\_loop}'s
+total (62.660\,s) is measurably below \texttt{deriv\_std\_rec}'s
+(67.913\,s), while their non-match totals are almost the same. The
+recursion-versus-iteration difference is specifically a cost of the
+matching path.
 
 %
 %
@@ -1458,22 +1137,14 @@ a cost of the matching path, not a flat per-call overhead.
 \subsection{Cost of bit-coding}
 \label{sec:eval-cost-bit-coding}
 
-For the standard-derivative family, bit-coding is an unqualified win on
-the full S2ELab corpus: \texttt{deriv\_bc}'s mean time ($1.653$\,ms) is
-roughly $4$--$4.5\times$ below either standard variant's, and its peak
-allocation ($5.1$\,MB) is about $114\times$ below theirs ($582.4$\,MB,
-Table~\ref{tab:memory}). The trade-off it makes is that the forward
-pass cannot simplify away redundant branches without losing
-reconstruction information. The \texttt{demo\_simp\_branches} output
-shows this clearly: the branch counts grow as expected but the
-distinctness count stays at 1 after bit stripping, meaning every
-branch is retained because it carries a different bit annotation. The
-retention is not wasted: it is exactly what makes single-pass
-reconstruction possible, and \texttt{deriv\_bc}'s own
-encode/derive/decode split (Section~\ref{sec:eval-corpus-benchmarks})
-shows that decode --- the step that cashes in that retained
-information --- is close to free ($0.005$\,ms mean), so the retention
-is not even an expensive one.
+For the standard-derivative family, bit-coding wins unconditionally.
+\texttt{deriv\_bc}'s mean time (1.653\,ms) is roughly $4$--$4.5\times$
+below either standard variant's, and its peak allocation (5.1\,MB) is
+about $114\times$ below theirs. The trade-off is that the forward pass
+cannot simplify away redundant branches without losing reconstruction
+information. The retention is not wasted: it is exactly what makes
+single-pass reconstruction possible, and \texttt{deriv\_bc}'s decode
+step is close to free (0.005\,ms mean).
 
 %
 %
@@ -1482,90 +1153,35 @@ is not even an expensive one.
 \subsection{Cost of partial derivatives}
 \label{sec:eval-cost-partial-derivatives}
 
-The two partial-derivative parsers are the fastest and most memory-light
-of the five on the full S2ELab corpus, both clearly ahead of either
+The two partial-derivative parsers are the fastest and most
+memory-light on the full S2ELab corpus, clearly ahead of either
 derivative-based variant. They split the residual into a set of states
-rather than combining into one expression, which keeps each state small
-and avoids the alternation growth that the standard derivative parser
-suffers.
+rather than combining into one expression, which keeps each state
+small and avoids the alternation growth the standard derivative
+parser suffers.
 
-Within the pair, bit-coding's advantage is \emph{not} unconditional the
-way it is for the standard-derivative family above, and which variant
-wins on time depends on more than just scale. On the full S2ELab
-corpus, \texttt{pderiv\_std} is marginally ahead of \texttt{pderiv\_bc}
-on every figure measured: mean time ($0.598$\,ms against $0.613$\,ms),
-average bytes ($0.395$\,MB against $0.404$\,MB), and peak bytes
-($2.5$\,MB against $3.8$\,MB) --- at S2ELab's short input lengths,
-\texttt{pderiv\_bc}'s bit-tracking is pure overhead on both axes. At
-Figure~7 scale (Table~\ref{tab:patho-fig7}), the real run splits by
-\emph{row}, not by scale: on P60 (\texttt{(a|b|ab)*} over `a'-repeated
-input), \texttt{pderiv\_std} stays faster than \texttt{pderiv\_bc} at
-every point tested --- $2.72$\,s against $3.26$\,s at 1\,M, $13.68$\,s
-against $16.88$\,s at 5\,M, $27.62$\,s against $33.86$\,s at 10\,M, a
-stable $20$--$23\%$ gap that does not narrow with input length. On P61
-(the same pattern over `ab'-repeated input) the ranking flips entirely:
-\texttt{pderiv\_bc} is faster than \texttt{pderiv\_std} at every point
-tested instead --- $2.35$\,s against $2.50$\,s at 500\,K, $11.96$\,s
-against $12.71$\,s at 2.5\,M, $23.73$\,s against $24.61$\,s at 5\,M, a
-smaller but equally consistent $4$--$6\%$ gap in the opposite direction.
-Peak memory at this scale has not been measured in a dedicated run
-(Table~\ref{tab:patho-fig7}'s caption), so no memory-crossover claim is
-made here; only the time comparison above is from real data. A
-plausible reading, not yet verified against the implementation, is that
-`a'-repeated input keeps more alternative decompositions simultaneously
-live at every step than `ab'-repeated input does against the same
-pattern, and \texttt{pderiv\_bc}'s per-branch bit-tracking cost scales
-with exactly that --- but the honest finding is simply that \emph{which}
-input shape is used changes which variant wins, not only how large the
-gap is, and generalising from one of P60/P61 to ``bit-coding eventually
-wins'' would not have survived checking the other row. Bit-coding's
-cost for the partial-derivative construction is a real, fixed per-step
-overhead; whether it pays for itself depends on the pattern and input
-together, not on scale alone --- unlike the standard-derivative family
-above, where bit-coding wins unconditionally because it removes an
-$O(n)$ liability outright
-rather than trading one small constant for another.
+Within the pair, bit-coding's advantage is not unconditional the way
+it is for the standard-derivative family, and which variant wins
+depends on more than scale. On the full corpus, \texttt{pderiv\_std}
+is marginally ahead on every figure: mean time (0.598 against
+0.613\,ms), average bytes (0.395 against 0.404\,MB), and peak bytes
+(2.5 against 3.8\,MB). At Figure~7 scale, the ranking splits by row.
+On P60 (\texttt{(a|b|ab)*} over `a'-repeated input),
+\texttt{pderiv\_std} stays faster at every point, with a stable
+20--23\% gap that does not narrow with input length. On P61 (the same
+pattern over `ab'-repeated input) the ranking flips:
+\texttt{pderiv\_bc} is faster at every point, with a smaller but
+equally consistent 4--6\% gap. Peak memory at this scale was not
+measured. The finding is that the input shape changes which variant
+wins, not just how large the gap is. Bit-coding's cost for the
+partial-derivative construction is a fixed per-step overhead, and
+whether it pays for itself depends on the pattern and input together,
+not on scale alone.
 
 The price of partial derivatives, independent of which variant, is
-that they produce a non-POSIX parse tree rather than a POSIX one. This
-is a specification difference, not an implementation deficiency, and
-it is the reason the two families are compared separately in
-Section~\ref{sec:eval-agreement}: within each family, the two variants
-must agree, but between families they are allowed to differ.
-
-%
-%
-%
-
-\subsection{When each parser is appropriate}
-
-The four parsers are not interchangeable. Table~\ref{tab:choose-parser}
-summarises the decision.
-
-\begin{table}[ht]
-\centering
-\small
-\begin{tabular}{p{3.6cm}lp{5.3cm}}
-\hline
-Requirement & Parser & Rationale \\
-\hline
-POSIX + long patterns & \texttt{deriv\_bc} & Only POSIX variant with bounded state; wins unconditionally, not just in some regime (Section~\ref{sec:eval-cost-bit-coding}). \\
-POSIX + short/shallow & \texttt{deriv\_std\_loop} & Lowest code complexity; acceptable when input is small. \\
-non-POSIX, default choice & \texttt{pderiv\_std} & Matched or beat \texttt{pderiv\_bc} on every real measurement taken so far --- the full S2ELab corpus and both Figure~7 rows up to 10\,M characters (Section~\ref{sec:eval-cost-partial-derivatives}); simpler code, no bit-tracking to maintain. \\
-non-POSIX, \texttt{pderiv\_bc} worth trying & \texttt{pderiv\_bc} & Beat \texttt{pderiv\_std} on one of the two Figure~7 rows (P61, `ab'-repeated) at every scale tested, never on the other (P60, `a'-repeated) --- which one depends on the input's own structure, not on scale, so this is a profile-and-compare recommendation, not a default. \\
-Formal verification/teaching & \texttt{deriv\_std\_rec} & Closest to the paper's definition. \\
-\hline
-\end{tabular}
-\caption{Parser recommendation by requirement.}
-\label{tab:choose-parser}
-\end{table}
-
-The frontend, not the parser, is the limiting factor for the small
-``other'' share of Chapter~\ref{sec:frontend}'s rejection count
-(Table~\ref{tab:frontend-rejection-causes}): patterns that exceed the
-bound cap of 1000 repetitions, or that mix a bound with a nested
-alternation, are outside the current translation. Raising the cap is a
-per-pattern trade-off, not a parser choice.
+that they produce a non-POSIX tree. This is a specification
+difference, not a deficiency, and it is why the two families are
+compared separately in Section~\ref{sec:eval-agreement}.
 
 %
 %
@@ -1573,93 +1189,29 @@ per-pattern trade-off, not a parser choice.
 
 \subsection{Threats to validity}
 
-Three properties of the setup limit how far the results can be
-generalised.
+\textbf{Corpus scope.} S2ELab is one dataset's own domain and
+convention. A corpus from a different domain might exhibit different
+acceptance rates and timing profiles. The default scope measures only
+the 463 stripped patterns (Section~\ref{sec:eval-anchors}). A
+different, defensible choice (\texttt{BENCH\_MATCH\_INTENT=both}) would
+fold in the remaining 115 patterns and could shift absolute numbers,
+though not the ordering among parsers, which does not depend on which
+patterns are included.
 
-\emph{Corpus scope.} The one real corpus is S2ELab: human-authored
-regular expressions from one dataset's own domain and convention of
-writing a pattern, each already paired with its own author-chosen
-match/non-match examples. A corpus drawn from a different domain, or
-one assembled rather than author-paired with examples, might exhibit
-different acceptance rates and different timing profiles. The default
-scope within S2ELab is also a choice, not the whole dataset: every
-table in this chapter measures only the 463 patterns a real author
-wrapped in \texttt{\^{}...\$} (Section~\ref{sec:eval-anchors}), on the
-grounds that an unwrapped pattern's intended matching scope is
-genuinely ambiguous; a different, defensible choice there
-(\texttt{BENCH\_MATCH\_INTENT=both}) would fold in the remaining 115
-patterns and could shift the absolute numbers, though not the ordering
-among parsers, which does not depend on which patterns are included.
+\textbf{The pathological set.} Each of its 113 rows isolates one
+complexity mechanism at a controlled scale. It does not represent the
+distribution of pattern shapes a real author would write. Most
+categories sweep one parameter in isolation, so a pattern combining
+two stress mechanisms at once is not directly represented.
 
-\emph{The pathological set.} Each of its 113 rows is hand-curated to
-isolate one specific complexity mechanism at a controlled scale
-(Section~\ref{sec:eval-pathological}); it does not claim to represent
-the distribution of pattern shapes any real author would write, only
-to show how each parser's cost grows once that one mechanism is pushed
-past where a real corpus would reliably exercise it. Most categories
-sweep a single parameter in isolation, so a pattern that combines two
-stress mechanisms at once --- deep nesting \emph{and} input length
-\emph{and} ambiguity together, say --- is not directly represented,
-even though each mechanism on its own is.
-
-\emph{Measurement model.} \texttt{bench\_corpus\_memory} and
-\texttt{bench\_pathological\_memory} measure allocation counts, not
-wall-clock memory pressure. On systems with a garbage collector or a
-page cache, the figures would interact with those subsystems in ways
-this evaluation does not model. The evaluator runs on a single
-machine, so the wall-clock figures in Table~\ref{tab:corpus-timing}
-and Table~\ref{tab:patho-fig7} are CPU- and cache-specific. The S2ELab timing and memory tables are drawn from the full corpus, and
-so now is the pathological set's own per-category table
-(Table~\ref{tab:patho-timing-smoke}) and its Figure~7 representatives
-(Table~\ref{tab:patho-fig7}, P60/P61); peak memory at Figure~7 scale
-specifically has not been measured in a dedicated run, so no memory
-claim is made there, only time. The remaining four individually-swept
-representatives (Table~\ref{tab:patho-fig-pending}: \texttt{FIG7C}/P20,
-\texttt{FIG\_A}/P01, \texttt{FIG\_B}/P09, \texttt{FIG\_F}/P25+P27+P28)
-are not yet run at the scale they are configured for, and the numbers
-reported for those rows should be read as pending rather than as a
-claim about their own behaviour until that run lands.
+\textbf{Measurement model.} Memory benches measure allocation counts,
+not wall-clock memory pressure. The evaluator runs on a single
+machine, so the wall-clock figures are CPU- and cache-specific.
+Figure~7 scale peak memory was not measured in a dedicated run, so no
+memory claim is made there. The four individually-swept
+representatives other than P60/P61 are not yet run at the scale they
+are configured for, so no numbers are reported for them.
 
 %
 %
 %
-
-\subsection{Summary}
-
-On both timing and memory, the partial-derivative parsers dominate the
-two standard-derivative parsers by a wide and consistent margin, on
-both the real corpus and the pathological set. Within the
-standard-derivative family, bit-coding dominates unconditionally: it
-removes an $O(n)$ liability, so \texttt{deriv\_bc} is faster and
-lighter than both \texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}
-at every scale measured, and both standard variants fail outright ---
-by two different, independently confirmed mechanisms, stack overflow
-for the recursive variant and heap exhaustion for the iterative one ---
-on every Figure~7-scale input tested, not only on especially large
-ones. Within the partial-derivative family, no single direction holds:
-\texttt{pderiv\_std} is marginally faster and lighter than
-\texttt{pderiv\_bc} on the real corpus's short inputs and on P60 at
-every Figure~7 scale tested up to 10\,M characters, while
-\texttt{pderiv\_bc} is consistently faster on P61 at every scale tested
-instead (Section~\ref{sec:eval-cost-partial-derivatives}) --- the same
-pattern over different input shapes, not a larger-input-wins story.
-The choice of construction (standard vs. partial derivative) matters
-more than the choice of variant (standard vs. bit-coded) in every case
-measured; the choice of variant matters, but which way it cuts for the
-partial-derivative family is not yet predictable from scale alone, and
-neither variant should be assumed to dominate the other without
-measuring the specific pattern and input in question.
-
-All five parsers correctly classify every case in both the full S2ELab
-corpus and the full pathological set, confirmed by a real run of the
-agreement check (Table~\ref{tab:agreement}): 100\% membership agreement
-on both datasets, with zero within-family shape disagreements printed
-by either run. That confirmation came with one real correction along
-the way: the first pathological run flagged a genuine dataset-labeling
-bug in two category-H rows (\texttt{P29}, \texttt{P31}), traced to a
-non-match construction that cannot work against an unbounded-length
-pattern, fixed, and re-verified at 100\% agreement
-(Section~\ref{sec:eval-agreement}'s discussion has the full account).
-The POSIX-vs-non-POSIX \emph{Diff} where it does appear is a
-specification difference rather than an
-implementation bug.
