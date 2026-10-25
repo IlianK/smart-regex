@@ -575,7 +575,7 @@ O(total output size) pass, the left-to-right-via-push construction order
 Because the state set lists configurations in the order the rules generated
 them, and because \texttt{nub\_tree} keeps the first of each duplicate
 residual, selection favours the configuration that committed earliest to the
-leftmost alternative. This is the greedy leftmost policy. Unlike the standard
+leftmost alternative. This is the non-POSIX leftmost policy. Unlike the standard
 derivative parser, there is no separate backward pass here: by the time
 \texttt{select} runs, every configuration's injection is already the full
 composition back to the original expression, so selection only has to apply
@@ -731,11 +731,11 @@ $\varepsilon \cdot (b + \varepsilon)$ is also nullable, and would likewise
 decode to a valid tree, but generation order already placed the first
 configuration ahead of it, and $\mathit{select}$ stops at the first match.
 
-This is the greedy parse tree. The derivative-based parser from
+This is the non-POSIX parse tree. The derivative-based parser from
 Chapter~\ref{sec:derivative-parser} returns $(\mathit{Right}(a,b),
 \mathit{Right}())$ for the same input, the POSIX tree. The two trees agree on
 which word they spell out, but differ on how the input is decomposed: the
-greedy tree commits to the shorter first alternative $a$ in the first factor,
+non-POSIX tree commits to the shorter first alternative $a$ in the first factor,
 while the POSIX tree commits to the longer alternative $ab$.
 
 
@@ -1197,7 +1197,7 @@ Decoding these bits against $r_0$:
 The first $\mathit{false}$ selects the left branch of the first factor's
 alternation, committing to the shorter alternative $a$. The second
 $\mathit{false}$ selects the left branch of the second factor's alternation,
-committing to the shorter alternative $b$. The resulting tree is the greedy
+committing to the shorter alternative $b$. The resulting tree is the non-POSIX
 parse tree, identical to the one produced by the standard partial-derivative
 parser.
 

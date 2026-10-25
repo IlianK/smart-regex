@@ -39,12 +39,12 @@ The run below covers all five sources.
 
 | Source | Files | Extracted | Inputs Provided | Dup | Accepted | Acc% | Rejected | Rej% |
 |---|---|---|---|---|---|---|---|---|
-| snort | 47 | 16774 | 0 | 6042 | 2082 | 34.0 | 8650 | 81.2 |
-| spamassassin | 62 | 549 | 0 | 13 | 155 | 95.7 | 381 | 98.4 |
-| regexlib | 2 | 6506 | 0 | 3055 | 2172 | 52.0 | 1279 | 54.8 |
-| s2-elab | 1 | 762 | 18930 | 7 | 578 | 98.8 | 177 | 100.0 |
-| innovatorved | 1 | 8549 | 0 | 340 | 4803 | 95.6 | 3406 | 96.6 |
-| **total** | **113** | **33140** | **18930** | **10186** | **9230** | **57.4** | **13724** | **80.4** |
+| snort | 47 | 16774 | 0 | 6042 | 2082 | 12.4 | 8650 | 51.6 |
+| spamassassin | 62 | 549 | 0 | 13 | 155 | 28.2 | 381 | 69.4 |
+| regexlib | 2 | 6506 | 0 | 3055 | 2172 | 33.4 | 1279 | 19.7 |
+| s2-elab | 1 | 762 | 18930 | 7 | 578 | 75.9 | 177 | 23.2 |
+| innovatorved | 1 | 8549 | 0 | 340 | 4803 | 56.2 | 3406 | 39.8 |
+| **total** | **113** | **33140** | **18930** | **10186** | **9230** | **27.9** | **13724** | **41.4** |
 
 **Accepted by match-intent reliability.** `UnanchoredAmbiguous` means no anchor, translated as-is. `ExplicitFullMatch` means a top-level `^...$` wrap, anchors stripped. Any other anchor placement is rejected.
 

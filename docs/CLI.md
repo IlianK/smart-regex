@@ -42,7 +42,7 @@ cargo run -- parse "a*" "aaa" --parser deriv_std_rec
 cargo run -- parse "a*" "aaa" --parser deriv_std_loop
 cargo run -- parse "a*" "aaa" --parser deriv_bc
 
-# Partial-derivative parsers compute GREEDY, not POSIX
+# Partial-derivative parsers compute Non-POSIX, not POSIX
 cargo run -- parse "a*" "aaa" --parser pderiv_std
 cargo run -- parse "a*" "aaa" --parser pderiv_bc 
 

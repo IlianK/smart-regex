@@ -158,34 +158,48 @@ Filter the entries file to one `row_id` and `parser`, sort by `n`, and you have 
 
 ### Per-row scaling and Fig 7 sweeps
 
+Each `PATHO_N` list below mixes small points where `deriv_std_rec`/`deriv_std_loop` still complete (confirmed by probing each row's own entries CSV for exactly where `outcome` flips from `measured` to `timed_out`) with the original large/paper-scale points for the other three parsers. That way every single-row run reports a real number for all five parsers, not just the ones fast enough for the paper-scale input.
+
 ```bash
 # Single row's own scaling curve
 PATHO_ROW_ID=P01 PATHO_N=20,50,100,200,500,1000 cargo bench --bench bench_pathological_time
 
-# Fig. 7a reproduction, P60, 'a'-repeated input
-PATHO_ROW_ID=P60 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 \
-  BENCH_RUN_LABEL=FIG7A cargo bench --bench bench_pathological_time
+# Fig. 7a reproduction, P60, 'a'-repeated input. deriv_std measures
+# cleanly through n=1000; times out by n=5000.
+PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
+  cargo bench --bench bench_pathological_time
 
-# Fig. 7b reproduction, P61, 'ab'-repeated input
-PATHO_ROW_ID=P61 PATHO_N=500000,2500000,5000000 BENCH_ENTRY_TIMEOUT_MS=120000 \
-  BENCH_RUN_LABEL=FIG7B cargo bench --bench bench_pathological_time
+# Fig. 7b reproduction, P61, 'ab'-repeated input. Far steeper than P60
+# at small n; deriv_std measures through n=15, times out from n=20.
+PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
+  cargo bench --bench bench_pathological_time
 
-# P20, `(a|b|ab)+`, paper scale, full Fig. 7 story with the + variant
-PATHO_ROW_ID=P20 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 \
-  BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C cargo bench --bench bench_pathological_time
+# P20, `(a|b|ab)+`, paper scale, full Fig. 7 story with the + variant.
+# deriv_std measures through n=16, times out at n=20.
+PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
+  cargo bench --bench bench_pathological_time
 
-# P01, `(a+)+`. Brackets deriv_bc's collapse point
-PATHO_ROW_ID=P01 PATHO_N=10000,30000,50000,200000,1000000 \
+# P01, `(a+)+`. Brackets deriv_bc's collapse point. deriv_std measures
+# through n=20, times out from n=25.
+PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
   BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
   cargo bench --bench bench_pathological_time
 
-# P09, same family as P01, pushed further to find deriv_bc's limit
-PATHO_ROW_ID=P09 PATHO_N=100000,500000,1000000,5000000 \
+# P09, same family as P01, pushed further to find deriv_bc's limit.
+# deriv_std measures through n=25, times out from n=30.
+PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
   cargo bench --bench bench_pathological_time
 
-# P25, P27, P28. Category F. All three together to bracket deriv_bc's collapse
-PATHO_ROW_ID=P25,P27,P28 PATHO_N=5000,10000,30000,50000,200000 \
+# P25, P27, P28. Category F. All three together to bracket deriv_bc's
+# collapse. Not uniform: P25 measures through n=1000, but P27/P28
+# collapse roughly 100x earlier (already timed out by n=10) despite
+# sharing the same category mechanism -- the list below gives both
+# groups their own real points.
+PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
   cargo bench --bench bench_pathological_time
 ```
@@ -201,6 +215,57 @@ cargo bench --bench bench_pathological_memory
 ```
 
 Same dataset, grouping, sweep, `PATHO_*` variables, worker, and timeout and crash accounting as `bench_pathological_time`. Reports `total_bytes`, `avg_bytes`, and `max_peak` instead of durations. Writes `reports/benches/bench_pathological_memory.csv` and `..._entries.csv`, with `total_bytes` and `peak_bytes` in place of the micros columns.
+
+
+### Per-row scaling and Fig 7 sweeps
+
+Same six representatives and the same `PATHO_N` lists as the time section above, so each row's memory curve covers the same small points where `deriv_std_rec`/`deriv_std_loop` complete, plus the large/paper-scale points for the other three parsers.
+
+```bash
+# Single row's own scaling curve
+PATHO_ROW_ID=P01 PATHO_N=20,50,100,200,500,1000 cargo bench --bench bench_pathological_memory
+
+# Fig. 7a reproduction, P60, 'a'-repeated input. deriv_std measures
+# cleanly through n=1000; times out by n=5000.
+PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
+  cargo bench --bench bench_pathological_memory
+
+# Fig. 7b reproduction, P61, 'ab'-repeated input. Far steeper than P60
+# at small n; deriv_std measures through n=15, times out from n=20.
+PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
+  cargo bench --bench bench_pathological_memory
+
+# P20, `(a|b|ab)+`, paper scale, full Fig. 7 story with the + variant.
+# deriv_std measures through n=16, times out at n=20.
+PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
+  cargo bench --bench bench_pathological_memory
+
+# P01, `(a+)+`. Brackets deriv_bc's collapse point. deriv_std measures
+# through n=20, times out from n=25.
+PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
+  BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
+  cargo bench --bench bench_pathological_memory
+
+# P09, same family as P01, pushed further to find deriv_bc's limit.
+# deriv_std measures through n=25, times out from n=30.
+PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
+  cargo bench --bench bench_pathological_memory
+
+# P25, P27, P28. Category F. All three together to bracket deriv_bc's
+# collapse. Not uniform: P25 measures through n=1000, but P27/P28
+# collapse roughly 100x earlier (already timed out by n=10) despite
+# sharing the same category mechanism -- the list below gives both
+# groups their own real points.
+PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
+  BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
+  cargo bench --bench bench_pathological_memory
+```
+
+These are starting points. Raise or lower timeouts and caps once real run costs on the target machine are known.
 
 
 ## bench_pathological_translate

@@ -209,7 +209,7 @@ This is a separate concern from the disambiguation policy the parsers
 apply. A source pattern such as \texttt{(a+ab)(b+\textbackslash
 varepsilon)} admits more than one valid parse tree for the same input,
 and which tree a parser returns is decided by the parser's own policy
-(POSIX leftmost-longest for the derivative-based parsers, greedy
+(POSIX leftmost-longest for the derivative-based parsers, non-POSIX
 leftmost for the partial-derivative ones), not by anything in the
 source quantifier syntax. The \texttt{?} marker is not the mechanism
 by which a PCRE author selects between those policies; it is a hint
