@@ -132,6 +132,14 @@ corpus's true worst case, since the entries likeliest to time out are
 exactly the ones excluded). With `BENCH_SPLIT_OUTCOME=1`, a second
 table splits time by match vs. non-match.
 
+Also writes `..._entries.csv`: one row per individual
+`source,parser,pattern,input,expected_match,outcome,micros,
+encode_micros,derive_micros,decode_micros` measurement, with the
+actual pattern/input text (truncated past 200 characters) -- filter to
+one `pattern` and compare across parsers for that single real
+pattern's own numbers, same role as `bench_pathological_time.rs`'s own
+entries file.
+
 ## `bench_corpus_memory.rs`
 
 ```bash
@@ -146,7 +154,10 @@ a cost dominated by stack depth rather than allocation won't show up.
 Writes `reports/benches/bench_corpus_memory.csv`: `total bytes` (every
 allocation including freed-and-reallocated churn, over `measured`
 entries), `avg/entry`, `max peak` (highest live-byte high-water mark on
-any single entry). The three partial-derivative parsers (`deriv_bc`,
+any single entry). Also writes `..._entries.csv`, one row per
+individual `source,parser,pattern,input,outcome,total_bytes,peak_bytes`
+measurement, same role and convention as `bench_corpus_time.rs`'s own
+entries file above. The three partial-derivative parsers (`deriv_bc`,
 `pderiv_bc`, `pderiv_std`) allocate noticeably less than the two
 standard ones -- `deriv_std` retains its whole derivation sequence,
 `deriv_bc` reassigns one `ARegex` in place.

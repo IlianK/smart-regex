@@ -51,7 +51,13 @@
 //! `avg_bytes`/`max_peak` are actually computed over.
 //!
 //! Writes a CSV summary to `reports/benches/bench_corpus_memory.csv`,
-//! replacing any existing file.
+//! replacing any existing file. Also writes `..._entries.csv`, one row
+//! per individual `source,parser,pattern,input,outcome,total_bytes,
+//! peak_bytes` measurement -- the summary's raw material, with the
+//! actual pattern/input text (truncated past 200 characters), same
+//! convention as `bench_pathological_memory.rs`'s own entries file:
+//! filter to one `pattern` to compare parsers on that single real
+//! pattern, instead of only the whole-corpus aggregate above.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_worker
@@ -304,10 +310,30 @@ struct SummaryRow {
     max_peak: usize,
 }
 
-fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -> Vec<SummaryRow> {
+struct EntryResult {
+    source: &'static str,
+    parser: &'static str,
+    pattern: String,
+    input: String,
+    outcome: &'static str,
+    total_bytes: Option<usize>,
+    peak_bytes: Option<usize>,
+}
+
+fn csv_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
+/// Caps how much of `pattern`/`input` lands in the entries CSV -- same
+/// convention as `bench_pathological_memory.rs`'s own `truncate`.
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() <= n { s.to_string() } else { s.chars().take(n).collect::<String>() + "..." }
+}
+
+fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -> (Vec<SummaryRow>, Vec<EntryResult>) {
     if corpus.is_empty() {
         eprintln!("skip {label}: no entries");
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
     println!("\n{label} ({} entries)", corpus.len());
     println!(
@@ -317,6 +343,7 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
     println!("{:-<16} {:->9} {:->9} {:->7} {:->14} {:->14} {:->14}", "", "", "", "", "", "", "");
 
     let mut rows = Vec::new();
+    let mut entry_rows = Vec::new();
     for (parser_idx, parser_type) in ALL.iter().enumerate() {
         let mut total_sum = 0usize;
         let mut peak_max = 0usize;
@@ -324,23 +351,38 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
         let mut timed_out = 0usize;
         let mut crashed = 0usize;
         for entry in corpus {
-            match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                Outcome::Done { total_bytes, peak_bytes } => {
-                    total_sum += total_bytes;
-                    peak_max = peak_max.max(peak_bytes);
-                    measured += 1;
-                }
-                Outcome::TimedOut => timed_out += 1,
-                Outcome::Crashed(reason) => {
-                    crashed += 1;
-                    eprintln!(
-                        "  crash: {label}/{} pat={:?} in={:?} -- {reason}",
-                        parser_type.name(),
-                        entry.pattern,
-                        entry.input,
-                    );
-                }
-            }
+            let (outcome, total_bytes, peak_bytes) =
+                match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
+                    Outcome::Done { total_bytes, peak_bytes } => {
+                        total_sum += total_bytes;
+                        peak_max = peak_max.max(peak_bytes);
+                        measured += 1;
+                        ("measured", Some(total_bytes), Some(peak_bytes))
+                    }
+                    Outcome::TimedOut => {
+                        timed_out += 1;
+                        ("timed_out", None, None)
+                    }
+                    Outcome::Crashed(reason) => {
+                        crashed += 1;
+                        eprintln!(
+                            "  crash: {label}/{} pat={:?} in={:?} -- {reason}",
+                            parser_type.name(),
+                            entry.pattern,
+                            entry.input,
+                        );
+                        ("crashed", None, None)
+                    }
+                };
+            entry_rows.push(EntryResult {
+                source: label,
+                parser: parser_type.name(),
+                pattern: entry.pattern.clone(),
+                input: entry.input.clone(),
+                outcome,
+                total_bytes,
+                peak_bytes,
+            });
         }
         let avg = if measured > 0 { Some(total_sum / measured) } else { None };
         println!(
@@ -365,7 +407,7 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
             max_peak: peak_max,
         });
     }
-    rows
+    (rows, entry_rows)
 }
 
 // -------------------------------
@@ -393,6 +435,25 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     Ok(())
 }
 
+fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "source,parser,pattern,input,outcome,total_bytes,peak_bytes")?;
+    for r in rows {
+        writeln!(
+            f,
+            "{},{},{},{},{},{},{}",
+            r.source,
+            r.parser,
+            csv_quote(&truncate(&r.pattern, 200)),
+            csv_quote(&truncate(&r.input, 200)),
+            r.outcome,
+            r.total_bytes.map(|v| v.to_string()).unwrap_or_default(),
+            r.peak_bytes.map(|v| v.to_string()).unwrap_or_default(),
+        )?;
+    }
+    Ok(())
+}
+
 fn main() {
     let sel = bench_selection();
     let cap = entry_timeout();
@@ -410,11 +471,17 @@ fn main() {
         eprintln!("could not create {REPORTS_DIR}: {e}");
         return;
     }
-    let path = format!("{REPORTS_DIR}/bench_corpus_memory{}.csv", run_label_suffix());
+    let label = run_label_suffix();
+    let path = format!("{REPORTS_DIR}/bench_corpus_memory{label}.csv");
+    let entries_path = format!("{REPORTS_DIR}/bench_corpus_memory{label}_entries.csv");
 
-    let rows = report("dataset_s2_elab", &corpus, &worker, cap);
+    let (rows, entries) = report("dataset_s2_elab", &corpus, &worker, cap);
     if let Err(e) = write_summary_csv(&path, &rows) {
         eprintln!("could not write {path}: {e}");
     }
+    if let Err(e) = write_entries_csv(&entries_path, &entries) {
+        eprintln!("could not write {entries_path}: {e}");
+    }
     eprintln!("wrote {path}");
+    eprintln!("wrote {entries_path}");
 }

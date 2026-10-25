@@ -62,7 +62,16 @@
 //! Writes a CSV summary to `reports/benches/bench_corpus_time.csv`
 //! (and `..._by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`), replacing
 //! any existing file -- the same "latest run, not a log" convention
-//! `dataset_prepare` uses for `prepared.jsonl`.
+//! `dataset_prepare` uses for `prepared.jsonl`. Also writes
+//! `..._entries.csv`, one row per individual
+//! `source,parser,pattern,input,expected_match,outcome,micros,
+//! encode_micros,derive_micros,decode_micros` measurement -- the
+//! summary's raw material, before it collapses into one mean/median/
+//! p99/max per parser. `pattern`/`input` are the actual text that ran,
+//! truncated past 200 characters, same convention as
+//! `bench_pathological_time.rs`'s own entries file: filter to one
+//! `pattern` and compare across parsers for that single real pattern's
+//! own numbers, instead of only the whole-corpus aggregate above.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_worker
@@ -358,6 +367,31 @@ struct OutcomeRow {
     non_match_s: f64,
 }
 
+struct EntryResult {
+    source: &'static str,
+    parser: &'static str,
+    pattern: String,
+    input: String,
+    expected_match: bool,
+    outcome: &'static str,
+    micros: Option<u64>,
+    encode_micros: Option<u64>,
+    derive_micros: Option<u64>,
+    decode_micros: Option<u64>,
+}
+
+fn csv_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
+/// Caps how much of `pattern`/`input` lands in the entries CSV -- same
+/// convention and reasoning as `bench_pathological_time.rs`'s own
+/// `truncate`: keeps the file usable even if a real corpus pattern or
+/// input happens to be unusually long.
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() <= n { s.to_string() } else { s.chars().take(n).collect::<String>() + "..." }
+}
+
 fn ms(d: Duration) -> f64 {
     d.as_secs_f64() * 1_000.0
 }
@@ -375,14 +409,15 @@ fn report(
     worker: &Path,
     cap: Duration,
     split_outcome: bool,
-) -> (Vec<SummaryRow>, Vec<OutcomeRow>) {
+) -> (Vec<SummaryRow>, Vec<OutcomeRow>, Vec<EntryResult>) {
     if corpus.is_empty() {
         eprintln!("skip {label}: no entries");
-        return (Vec::new(), Vec::new());
+        return (Vec::new(), Vec::new(), Vec::new());
     }
 
     let mut summary_rows = Vec::new();
     let mut outcome_rows = Vec::new();
+    let mut entry_rows = Vec::new();
 
     println!("\n{label} ({} entries)", corpus.len());
     println!(
@@ -403,26 +438,50 @@ fn report(
         let mut crashed = 0usize;
         let start = Instant::now();
         for entry in corpus {
-            match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                Outcome::Done(t) => {
-                    all.push(t);
-                    if entry.expected_match {
-                        matches.push(t.total);
-                    } else {
-                        non_matches.push(t.total);
+            let (outcome, micros, encode_micros, derive_micros, decode_micros) =
+                match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
+                    Outcome::Done(t) => {
+                        all.push(t);
+                        if entry.expected_match {
+                            matches.push(t.total);
+                        } else {
+                            non_matches.push(t.total);
+                        }
+                        (
+                            "measured",
+                            Some(t.total.as_micros() as u64),
+                            Some(t.encode.as_micros() as u64),
+                            Some(t.derive.as_micros() as u64),
+                            Some(t.decode.as_micros() as u64),
+                        )
                     }
-                }
-                Outcome::TimedOut => timed_out += 1,
-                Outcome::Crashed(reason) => {
-                    crashed += 1;
-                    eprintln!(
-                        "  crash: {label}/{} pat={:?} in={:?} -- {reason}",
-                        parser_type.name(),
-                        entry.pattern,
-                        entry.input,
-                    );
-                }
-            }
+                    Outcome::TimedOut => {
+                        timed_out += 1;
+                        ("timed_out", None, None, None, None)
+                    }
+                    Outcome::Crashed(reason) => {
+                        crashed += 1;
+                        eprintln!(
+                            "  crash: {label}/{} pat={:?} in={:?} -- {reason}",
+                            parser_type.name(),
+                            entry.pattern,
+                            entry.input,
+                        );
+                        ("crashed", None, None, None, None)
+                    }
+                };
+            entry_rows.push(EntryResult {
+                source: label,
+                parser: parser_type.name(),
+                pattern: entry.pattern.clone(),
+                input: entry.input.clone(),
+                expected_match: entry.expected_match,
+                outcome,
+                micros,
+                encode_micros,
+                derive_micros,
+                decode_micros,
+            });
         }
         let total = start.elapsed();
 
@@ -510,7 +569,7 @@ fn report(
         }
     }
 
-    (summary_rows, outcome_rows)
+    (summary_rows, outcome_rows, entry_rows)
 }
 
 // -------------------------------
@@ -538,6 +597,28 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
             r.mean_encode_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_derive_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_decode_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+        )?;
+    }
+    Ok(())
+}
+
+fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "source,parser,pattern,input,expected_match,outcome,micros,encode_micros,derive_micros,decode_micros")?;
+    for r in rows {
+        writeln!(
+            f,
+            "{},{},{},{},{},{},{},{},{},{}",
+            r.source,
+            r.parser,
+            csv_quote(&truncate(&r.pattern, 200)),
+            csv_quote(&truncate(&r.input, 200)),
+            r.expected_match,
+            r.outcome,
+            r.micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.encode_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.derive_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.decode_micros.map(|v| v.to_string()).unwrap_or_default(),
         )?;
     }
     Ok(())
@@ -585,8 +666,9 @@ fn main() {
     let label = run_label_suffix();
     let summary_path = format!("{REPORTS_DIR}/bench_corpus_time{label}.csv");
     let outcome_path = format!("{REPORTS_DIR}/bench_corpus_time{label}_by_outcome.csv");
+    let entries_path = format!("{REPORTS_DIR}/bench_corpus_time{label}_entries.csv");
 
-    let (summary, outcome) = report("dataset_s2_elab", &corpus, &worker, cap, split_outcome);
+    let (summary, outcome, entries) = report("dataset_s2_elab", &corpus, &worker, cap, split_outcome);
     if let Err(e) = write_summary_csv(&summary_path, &summary) {
         eprintln!("could not write {summary_path}: {e}");
     }
@@ -595,8 +677,12 @@ fn main() {
             eprintln!("could not write {outcome_path}: {e}");
         }
     }
+    if let Err(e) = write_entries_csv(&entries_path, &entries) {
+        eprintln!("could not write {entries_path}: {e}");
+    }
     eprintln!("wrote {summary_path}");
     if split_outcome {
         eprintln!("wrote {outcome_path}");
     }
+    eprintln!("wrote {entries_path}");
 }
