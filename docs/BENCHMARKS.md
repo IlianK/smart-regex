@@ -53,17 +53,18 @@ Every target reads configuration from the environment. No flags, no CLI argument
 
 Short notes on the more involved variables.
 
-- **`BENCH_SOURCE`.** S2ELab is the only source with real prepared data. The other four accept patterns but have no given-input extraction wired in.
-- **`BENCH_PATTERN_LIMIT`.** Caps distinct patterns for the corpus targets. Caps selected rows before the `n` and `p` sweep for the pathological targets.
-- **`BENCH_MATCH_INTENT`.** `explicit` selects `ExplicitFullMatch` (top-level `^...$`) only. `direct` selects `UnanchoredAmbiguous` only. See [DATASET.md](DATASET.md).
-- **`BENCH_SPLIT_OUTCOME`.** Adds a second table splitting time by match and non-match.
-- **`BENCH_ENTRY_TIMEOUT_MS`.** Per-entry cap. Exceeding it kills the worker process. A killed process reclaims its memory. A thread stopped waiting on does not. Wall-clock cost is roughly `N_timed_out x cap`, because killing itself blocks.
-- **`BENCH_MEM_CAP_MB`.** Sets a per-entry virtual-memory ceiling on the worker, via `setrlimit(RLIMIT_AS, ..)` on Unix. Exceeding it aborts that one process by signal, which the caller reports as `crashed`. No new outcome category. Unset means unbounded, so a single entry can exhaust the whole machine's memory. The OS OOM killer can then pick any process as its victim. A cap below translation plus the worker's own 256 MiB stack thread fails immediately. Too low a cap returns that failure for every entry.
-- **`BENCH_RUN_LABEL`.** Works as a filename suffix everywhere except the two translate aggregate CSVs. Those always use the same filename and are appended rather than overwritten. The label is stored as a `run_label` column on each row. `bench_stack_depth` reads no such variable and always writes `bench_stack_depth.csv`.
-- **`PATHO_ROW_ID`.** `bench_pathological_time` and `memory` only. `bench_pathological_translate` reuses `PATHO_CATEGORY` and `BENCH_PATTERN_LIMIT` but has no row-id filter.
-- **`PATHO_N`.** For `bench_pathological_translate`, only a row whose pattern is itself `n`-templated with no `generator` (category D) responds. Every other row's translated form does not depend on input length.
-- **`PATHO_P`.** Only a `generated_patterns` row with a `generator` responds.
+### Variable notes
 
+- **`BENCH_SOURCE`** — Only S2ELab has prepared input data; other sources accept patterns only.
+- **`BENCH_PATTERN_LIMIT`** — Limits corpus patterns or pathological rows before `n`/`p` sweeps.
+- **`BENCH_MATCH_INTENT`** — `explicit`: anchored `^...$` patterns only. `direct`: `UnanchoredAmbiguous` only. See [DATASET.md](DATASET.md).
+- **`BENCH_SPLIT_OUTCOME`** — Adds separate match/non-match timing tables.
+- **`BENCH_ENTRY_TIMEOUT_MS`** — Per-entry timeout; kills the worker and reclaims its memory. Runtime overhead is roughly `timed_out entries × timeout`.
+- **`BENCH_MEM_CAP_MB`** — Per-worker virtual-memory limit (Unix `RLIMIT_AS`). Exceeding it reports `crashed`. Unset means unlimited, risking system-wide OOM. Too low a cap—including below translation needs plus the worker's 256 MiB stack—can cause every entry to fail.
+- **`BENCH_RUN_LABEL`** — Adds filename suffixes and a `run_label` column, except translation aggregate CSVs, which append to fixed filenames. `bench_stack_depth` ignores it and always writes `bench_stack_depth.csv`.
+- **`PATHO_ROW_ID`** — Filters rows for pathological time/memory benchmarks only, not translation.
+- **`PATHO_N`** — For pathological translation, affects only `n`-templated patterns without a generator (category D).
+- **`PATHO_P`** — Affects only `generated_patterns` rows with a generator.
 If filtering loads nothing, these targets panic naming the active filters.
 
 
@@ -161,44 +162,34 @@ Filter the entries file to one `row_id` and `parser`, sort by `n`, and you have 
 Each `PATHO_N` list below mixes small points where `deriv_std_rec`/`deriv_std_loop` still complete (confirmed by probing each row's own entries CSV for exactly where `outcome` flips from `measured` to `timed_out`) with the original large/paper-scale points for the other three parsers. That way every single-row run reports a real number for all five parsers, not just the ones fast enough for the paper-scale input.
 
 ```bash
-# Single row's own scaling curve
-PATHO_ROW_ID=P01 PATHO_N=20,50,100,200,500,1000 cargo bench --bench bench_pathological_time
+# REPRESENTATIVE PATHOLOGICAL CASES: TIMING
 
-# Fig. 7a reproduction, P60, 'a'-repeated input. deriv_std measures
-# cleanly through n=1000; times out by n=5000.
+# P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_time
 
-# Fig. 7b reproduction, P61, 'ab'-repeated input. Far steeper than P60
-# at small n; deriv_std measures through n=15, times out from n=20.
+# P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_time
 
-# P20, `(a|b|ab)+`, paper scale, full Fig. 7 story with the + variant.
-# deriv_std measures through n=16, times out at n=20.
+# P20 (E): (a|b|ab)+.
 PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
   cargo bench --bench bench_pathological_time
 
-# P01, `(a+)+`. Brackets deriv_bc's collapse point. deriv_std measures
-# through n=20, times out from n=25.
+# P01 (A): (a+)+.
 PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
   BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
   cargo bench --bench bench_pathological_time
 
-# P09, same family as P01, pushed further to find deriv_bc's limit.
-# deriv_std measures through n=25, times out from n=30.
+# P09 (B): (a|aa)+.
 PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
   cargo bench --bench bench_pathological_time
 
-# P25, P27, P28. Category F. All three together to bracket deriv_bc's
-# collapse. Not uniform: P25 measures through n=1000, but P27/P28
-# collapse roughly 100x earlier (already timed out by n=10) despite
-# sharing the same category mechanism -- the list below gives both
-# groups their own real points.
+# P25/P27/P28 (F): (a|b)*c / ([ab]+)*c / ([ab]*)*c.
 PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
   cargo bench --bench bench_pathological_time
@@ -222,44 +213,34 @@ Same dataset, grouping, sweep, `PATHO_*` variables, worker, and timeout and cras
 Same six representatives and the same `PATHO_N` lists as the time section above, so each row's memory curve covers the same small points where `deriv_std_rec`/`deriv_std_loop` complete, plus the large/paper-scale points for the other three parsers.
 
 ```bash
-# Single row's own scaling curve
-PATHO_ROW_ID=P01 PATHO_N=20,50,100,200,500,1000 cargo bench --bench bench_pathological_memory
+# REPRESENTATIVE PATHOLOGICAL CASES: MEMORY
 
-# Fig. 7a reproduction, P60, 'a'-repeated input. deriv_std measures
-# cleanly through n=1000; times out by n=5000.
+# P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_memory
 
-# Fig. 7b reproduction, P61, 'ab'-repeated input. Far steeper than P60
-# at small n; deriv_std measures through n=15, times out from n=20.
+# P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_memory
 
-# P20, `(a|b|ab)+`, paper scale, full Fig. 7 story with the + variant.
-# deriv_std measures through n=16, times out at n=20.
+# P20 (E): (a|b|ab)+.
 PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
   cargo bench --bench bench_pathological_memory
 
-# P01, `(a+)+`. Brackets deriv_bc's collapse point. deriv_std measures
-# through n=20, times out from n=25.
+# P01 (A): (a+)+.
 PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
   BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
   cargo bench --bench bench_pathological_memory
 
-# P09, same family as P01, pushed further to find deriv_bc's limit.
-# deriv_std measures through n=25, times out from n=30.
+# P09 (B): (a|aa)+.
 PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
   cargo bench --bench bench_pathological_memory
 
-# P25, P27, P28. Category F. All three together to bracket deriv_bc's
-# collapse. Not uniform: P25 measures through n=1000, but P27/P28
-# collapse roughly 100x earlier (already timed out by n=10) despite
-# sharing the same category mechanism -- the list below gives both
-# groups their own real points.
+# P25/P27/P28 (F): (a|b)*c / ([ab]+)*c / ([ab]*)*c.
 PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
   cargo bench --bench bench_pathological_memory

@@ -67,70 +67,67 @@ cargo run --release --example demo_parser_agreement
 cargo run --release --example demo_parser_agreement_pathological
 
 
-
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
 
-# Confirmed measurable points plus large-scale targets.
-# P60: (a|b|ab)*, repeated 'a'.
+# P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_time
 
-# P61: (a|b|ab)*, repeated 'ab'.
+# P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_time
 
-# P20: related + variant.
+# P20 (E): (a|b|ab)+.
 PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
   cargo bench --bench bench_pathological_time
 
-# P01: (a+)+.
+# P01 (A): (a+)+.
 PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
   BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
   cargo bench --bench bench_pathological_time
 
-# P09: nested quantifiers, with more headroom.
+# P09 (B): (a|aa)+.
 PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
   cargo bench --bench bench_pathological_time
 
-# P25/P27/P28: alternation-star + literal; P27/P28 grow much faster.
+# P25/P27/P28 (F): (a|b)*c / ([ab]+)*c / ([ab]*)*c.
 PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
   cargo bench --bench bench_pathological_time
 
-
+  
 # REPRESENTATIVE PATHOLOGICAL CASES: MEMORY
 
-# Same six rows, same PATHO_N lists, targeting bench_pathological_memory.
-# P60: (a|b|ab)*, repeated 'a'.
+# P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_memory
 
-# P61: (a|b|ab)*, repeated 'ab'.
+# P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_memory
 
-# P20: related + variant.
+# P20 (E): (a|b|ab)+.
 PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
   cargo bench --bench bench_pathological_memory
 
-# P01: (a+)+.
+# P01 (A): (a+)+.
 PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
   BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
   cargo bench --bench bench_pathological_memory
 
-# P09: nested quantifiers, with more headroom.
+# P09 (B): (a|aa)+.
 PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
   cargo bench --bench bench_pathological_memory
 
-# P25/P27/P28: alternation-star + literal; P27/P28 grow much faster.
+# P25/P27/P28 (F): (a|b)*c / ([ab]+)*c / ([ab]*)*c.
 PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
   cargo bench --bench bench_pathological_memory
