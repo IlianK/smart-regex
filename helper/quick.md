@@ -68,8 +68,7 @@ cargo bench --bench bench_stack_depth
 # PARSER AGREEMENT
 cargo build --release --example demo_parser_agreement_worker
 cargo run --release --example demo_parser_agreement
-cargo run --release --example demo_parser_agreement_pathological
-
+BENCH_MEM_CAP_MB=4096 cargo run --release --example demo_parser_agreement_pathological
 
 
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
