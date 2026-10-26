@@ -215,9 +215,8 @@ Stage & Count \\
 Accepted                                                         & 578 \\
 Usable (at least one match and one non-match survive the label check) & 572 \\
 \hline
-Given examples written to the corpus                             & 13{,}248 \\
+Given examples written to the corpus                             & 13{,}957 \\
 \quad dropped, label disagreed with the translated \texttt{Regex} & 255 \\
-\quad dropped, per-pattern balance (Section~\ref{sec:eval-balance}) & 779 \\
 \hline
 \end{tabular}
 \caption{S2ELab corpus preparation downstream of acceptance.}
@@ -240,7 +239,7 @@ smallest at 3 and 43 patterns.
 \label{sec:eval-pipeline}
 
 \texttt{run\_pipeline} turns the raw S2ELab JSON into the benchmark
-corpus in seven steps.
+corpus in six steps.
 
 \begin{enumerate}
   \item \textbf{Extract.} Each entry's pattern and its author's own
@@ -257,8 +256,6 @@ corpus in seven steps.
   \item \textbf{Check labels.} Every surviving example is re-checked
         against the translated \texttt{Regex}. A disagreement is
         dropped, not corrected.
-  \item \textbf{Balance per pattern.} Described in
-        Section~\ref{sec:eval-balance}.
   \item \textbf{Write.} Each surviving pair becomes one line of
         \texttt{prepared.jsonl}, tagged with its \texttt{MatchIntent}.
 \end{enumerate}
@@ -305,9 +302,6 @@ does not have, and the check keeps it because the author's claim and
 the pattern's own language agree. Whether the pattern encodes a real
 calendar is a question the check does not answer.
 
-\paragraph{Balance.} Truncate the entry's matches and non-matches to
-the shorter side's count.
-
 \paragraph{Write.} The surviving pairs are appended to
 \texttt{prepared.jsonl}.
 
@@ -315,18 +309,15 @@ the shorter side's count.
 %
 %
 
-\subsubsection{Per-pattern balance and macro-averaging}
-\label{sec:eval-balance}
+\subsubsection{Macro-averaging}
+\label{sec:eval-macro-averaging}
 
-For each pattern, the longer list is truncated to the shorter list's
-length, keeping the first examples in their original order. A pattern
-with 40 matches and 2 non-matches therefore contributes 2 of each. A
-pattern is kept only if it has at least one example on each side.
-Truncation is applied only within a pattern. A pattern with 50
-surviving examples on each side contributes all 50, even when another
-pattern in the same corpus contributes only one. Reducing every
-pattern to the corpus-wide minimum would discard most of the corpus
-to equalize against a single outlier.
+Matches and non-matches are not balanced, within a pattern or across
+patterns. A pattern with 40 matches and 2 non-matches contributes all
+42; a pattern is kept only if it has at least one example on each
+side, but otherwise keeps every surviving example it has. A pattern
+with 50 surviving examples contributes all 50, even when another
+pattern in the same corpus contributes only one.
 
 The resulting cross-pattern imbalance is corrected at averaging time.
 Sections~\ref{sec:eval-timing} and~\ref{sec:eval-memory} compute a

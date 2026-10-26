@@ -7,10 +7,8 @@
 //! translated `Regex`; a claim that disagrees is dropped and counted.
 //! A pattern needs at least one match and one non-match left after that
 //! to be usable; below that, it is counted, not dropped. Every usable
-//! pattern is then truncated to its own balanced match/non-match count
-//! -- patterns are not truncated against each other, so a pattern with
-//! more given examples keeps all of them; see `src/data/mod.rs`'s
-//! module doc for why.
+//! pattern's examples are written as given, matches and non-matches
+//! alike, however uneven; see `src/data/mod.rs`'s module doc for why.
 //!
 //! Appends one row per run to `reports/data/dataset_prepare.csv`.
 
@@ -80,7 +78,7 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
             f,
             "files,patterns_extracted,patterns_duplicate,patterns_unusable,patterns_accepted,\
              patterns_explicit_full_match,patterns_unanchored_ambiguous,patterns_usable,\
-             inputs_usable,inputs_label_mismatch,inputs_dropped_for_pattern_balance"
+             inputs_usable,inputs_label_mismatch"
         ) {
             eprintln!("could not write header to {path}: {e}");
             return;
@@ -89,7 +87,7 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
     let files_joined = files.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(";");
     if let Err(e) = writeln!(
         f,
-        "\"{}\",{},{},{},{},{},{},{},{},{},{}",
+        "\"{}\",{},{},{},{},{},{},{},{},{}",
         files_joined,
         report.patterns_extracted,
         report.patterns_duplicate,
@@ -100,7 +98,6 @@ fn append_report_csv(files: &[PathBuf], report: &regex_engine::data::PipelineRep
         report.patterns_usable,
         report.inputs_usable,
         report.inputs_label_mismatch,
-        report.inputs_dropped_for_pattern_balance,
     ) {
         eprintln!("could not append to {path}: {e}");
         return;
@@ -143,12 +140,6 @@ fn print_report(report: &regex_engine::data::PipelineReport) {
         "  patterns usable  {:>7}   of {} accepted  (>= 1 match + >= 1 non-match each)",
         report.patterns_usable, report.patterns_accepted,
     );
-    if report.inputs_dropped_for_pattern_balance > 0 {
-        println!(
-            "  pattern balance  {:>7}   (per-pattern: longer side truncated to the shorter)",
-            report.inputs_dropped_for_pattern_balance,
-        );
-    }
     println!("  inputs written   {:>7}", report.inputs_usable);
 
     println!();

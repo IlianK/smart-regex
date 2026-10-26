@@ -4,23 +4,22 @@
 //! translates, and writes every usable pattern's own given examples,
 //! each checked with one direct `prepare::matches_bounded` call against
 //! its claimed label -- not the deleted generated-candidate verification
-//! machinery, just a boolean agree/disagree check. After that check, the
-//! longer of the surviving match/non-match sides is truncated down to
-//! the shorter side's count, so every usable pattern contributes an
-//! equal number of matches and non-matches -- an imbalanced pattern
-//! would otherwise skew that one pattern's own stats toward whichever
-//! outcome dominates it. Each pattern then keeps its own full balanced
-//! count; patterns are not truncated against each other. (An earlier
-//! version also truncated every pattern down to the dataset-wide
-//! minimum count, so a single thinly-labeled pattern forced every other
-//! pattern down to its level -- on the real S2ELab corpus this meant
-//! almost every pattern lost nearly all its examples. Removed: the
-//! benches that consume this data now avoid the same bias a different
-//! way, by averaging per-pattern rather than per-input, which needs no
-//! input-count truncation at all -- see `bench_corpus_time.rs`'s own
-//! module doc.) `dataset_stats` separately still uses the other four
-//! extractors for raw-corpus diagnostics unrelated to this pipeline,
-//! which is why they still exist in `extract.rs`.
+//! machinery, just a boolean agree/disagree check. Every example that
+//! survives the check is written as given; matches and non-matches are
+//! not balanced against each other, so a pattern with 50 matches and 2
+//! non-matches keeps all 52. (Two earlier versions truncated this down:
+//! one truncated each pattern's longer side to its own shorter side's
+//! count, and before that, one truncated every pattern down to the
+//! dataset-wide minimum count, so a single thinly-labeled pattern forced
+//! every other pattern down to its level -- on the real S2ELab corpus
+//! this meant almost every pattern lost nearly all its examples. Both
+//! were removed: the benches that consume this data avoid the bias
+//! balancing was meant to fix a different way, by averaging per-pattern
+//! rather than per-input, which needs no input-count truncation at all
+//! -- see `bench_corpus_time.rs`'s own module doc.) `dataset_stats`
+//! separately still uses the other four extractors for raw-corpus
+//! diagnostics unrelated to this pipeline, which is why they still exist
+//! in `extract.rs`.
 //! `load_prepared_cases` reads the result back for benchmarks.
 
 use std::collections::HashSet;
@@ -58,11 +57,6 @@ pub struct PipelineReport {
     /// disagreed with the dataset's own claimed label (or the check
     /// couldn't be confirmed within its safety bound).
     pub inputs_label_mismatch: usize,
-    /// Given examples dropped, per pattern, to balance that one
-    /// pattern's own match/non-match counts after the label check above
-    /// -- truncating its longer side down to its shorter side's count.
-    /// Distinct from `inputs_label_mismatch`.
-    pub inputs_dropped_for_pattern_balance: usize,
 }
 
 /// `(text, is_match)` for every given example, unchanged and uncapped.
@@ -86,11 +80,9 @@ fn given_examples(matches: &[String], non_matches: &[String]) -> Vec<(String, bo
 
 /// Extracts S2ELab, translates each distinct pattern, label-checks its
 /// given examples, and writes every usable one to
-/// `<data_root>/s2-elab/prepared.jsonl`, each pattern's own longer side
-/// (matches or non-matches) truncated down to its shorter side so that
-/// one pattern alone is internally balanced. Patterns are not
-/// truncated against each other -- a pattern with 50 given examples
-/// keeps all 50; see the module doc for why.
+/// `<data_root>/s2-elab/prepared.jsonl` as given -- matches and
+/// non-matches are not balanced against each other, however uneven;
+/// see the module doc for why.
 pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<PipelineReport> {
     let mut report = PipelineReport::default();
 
@@ -160,23 +152,21 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
 
         // Preserves `given_examples`'s own order: every match in its
         // original order, then every non-match in its original order.
-        let (mut pattern_matches, mut pattern_non_matches): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
-        for (text, is_match) in examples {
-            if is_match {
-                pattern_matches.push(text);
-            } else {
-                pattern_non_matches.push(text);
+        let (pattern_matches, pattern_non_matches): (Vec<String>, Vec<String>) = {
+            let (mut m, mut n) = (Vec::new(), Vec::new());
+            for (text, is_match) in examples {
+                if is_match {
+                    m.push(text);
+                } else {
+                    n.push(text);
+                }
             }
-        }
+            (m, n)
+        };
 
-        let k_i = pattern_matches.len().min(pattern_non_matches.len());
-        report.inputs_dropped_for_pattern_balance +=
-            (pattern_matches.len() - k_i) + (pattern_non_matches.len() - k_i);
-        if k_i == 0 {
+        if pattern_matches.is_empty() || pattern_non_matches.is_empty() {
             continue;
         }
-        pattern_matches.truncate(k_i);
-        pattern_non_matches.truncate(k_i);
 
         report.patterns_usable += 1;
         let pattern = rule.raw_pattern.clone();
@@ -352,12 +342,12 @@ mod tests {
     }
 
     #[test]
-    fn a_pattern_with_more_matches_than_non_matches_is_truncated_to_the_shorter_side() {
-        let dir = std::env::temp_dir().join(format!("data-pipeline-balance-test-{}", std::process::id()));
+    fn a_pattern_keeps_all_its_given_examples_even_when_uneven() {
+        let dir = std::env::temp_dir().join(format!("data-pipeline-uneven-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let rules_path = dir.join("balance.json");
-        // 3 genuine matches, 1 genuine non-match: k_i == 1, so only the
-        // first match (original order) and the one non-match survive.
+        let rules_path = dir.join("uneven.json");
+        // 3 genuine matches, 1 genuine non-match: no truncation, all 4
+        // survive.
         std::fs::write(
             &rules_path,
             r#"[{"expression": "abc|abd|abe", "matches": ["abc", "abd", "abe"], "non_matches": ["xyz"]}]"#,
@@ -368,46 +358,11 @@ mod tests {
         let report = run_pipeline(&[rules_path], &out_root).unwrap();
 
         assert_eq!(report.patterns_usable, 1);
-        assert_eq!(report.inputs_dropped_for_pattern_balance, 2, "abd and abe dropped to match the 1 non-match");
-        assert_eq!(report.inputs_usable, 2);
+        assert_eq!(report.inputs_usable, 4, "no truncation of the longer side");
 
         let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
-        let kept_match = cases.iter().find(|c| c.expected_match).expect("one match kept");
-        assert_eq!(kept_match.input, "abc", "the first match in original order, not abd or abe");
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn a_thinly_labeled_pattern_does_not_truncate_other_patterns() {
-        let dir = std::env::temp_dir().join(format!("data-pipeline-noglobalbalance-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let rules_path = dir.join("noglobalbalance.json");
-        // "abc|abd|abe" is balanced at k_i == 3 on its own; "xyz" is
-        // balanced at k_i == 1. There is no dataset-wide truncation
-        // anymore, so the first pattern keeps all 3 of its own matches
-        // and non-matches regardless of "xyz" having only 1 of each.
-        std::fs::write(
-            &rules_path,
-            r#"[
-                {"expression": "abc|abd|abe", "matches": ["abc", "abd", "abe"], "non_matches": ["x1", "x2", "x3"]},
-                {"expression": "xyz", "matches": ["xyz"], "non_matches": ["abX"]}
-            ]"#,
-        )
-        .unwrap();
-
-        let out_root = dir.join("processed");
-        let report = run_pipeline(&[rules_path], &out_root).unwrap();
-
-        assert_eq!(report.patterns_usable, 2);
-        assert_eq!(report.inputs_dropped_for_pattern_balance, 0, "both patterns already balanced on their own");
-        assert_eq!(report.inputs_usable, 8, "3+3 from the first pattern, 1+1 from the second -- no cross-pattern truncation");
-
-        let cases = prepare::read_prepared_cases(&out_root.join("s2-elab").join("prepared.jsonl")).unwrap();
-        let first_pattern_cases: Vec<_> = cases.iter().filter(|c| c.pattern == "abc|abd|abe").collect();
-        assert_eq!(first_pattern_cases.len(), 6, "keeps its own full 3 matches + 3 non-matches");
-        let second_pattern_cases: Vec<_> = cases.iter().filter(|c| c.pattern == "xyz").collect();
-        assert_eq!(second_pattern_cases.len(), 2, "its own 1 match + 1 non-match, untouched by the other pattern");
+        let matches: Vec<_> = cases.iter().filter(|c| c.expected_match).collect();
+        assert_eq!(matches.len(), 3, "all 3 matches kept, not truncated to the 1 non-match");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

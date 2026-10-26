@@ -90,9 +90,7 @@ cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 
 Writes `data/processed/s2-elab/prepared.jsonl`, replacing the file.
 
-**Per-pattern balance.** After the label check, each pattern's longer side (matches or non-matches) is truncated to its shorter side's count, keeping the first examples in original order. Fewer than one of each makes the pattern unusable. Patterns are not truncated against each other. A pattern with 50 given examples keeps all 50, even if another pattern has only 1.
-
-Per-pattern balance is local. A single pattern is not balanced against the dataset-wide minimum. `bench_corpus_time.rs` avoids cross-pattern weighting with macro-averaging (see that file's module doc), so it does not need the corpus trimmed to the thinnest pattern.
+**No balancing.** Matches and non-matches are not truncated to equal counts, either within a pattern or across patterns. A pattern with 50 given examples keeps all 50, however uneven its own match/non-match split, and however few examples another pattern has. Fewer than one of each (match and non-match) still makes a pattern unusable, since there is nothing to benchmark otherwise. `bench_corpus_time.rs` avoids the cross-pattern weighting this would otherwise cause with macro-averaging instead (see that file's module doc), rather than trimming the corpus to the thinnest pattern.
 
 **Accounting notes.** A rule byte-identical to an earlier one's raw pattern text is skipped before translation (`patterns_duplicate`). The summary numbers append to `reports/data/dataset_prepare.csv`, one row per run. Re-runs accumulate. Archive or clear the file first when comparing across a schema change.
 
@@ -104,9 +102,8 @@ Per-pattern balance is local. A single pattern is not balanced against the datas
 3. `prepare::core_regex_tagged` parses and translates with two size caps and one narrow anchor recovery. Rejected patterns stop here.
 4. A small dedup helper with positive-wins resolves `matches` and `non_matches` into `(text, is_match)` pairs. Unchanged, uncapped, unsampled.
 5. `prepare::matches_bounded` re-checks each pair against the real `Regex`. A disagreement is dropped (`inputs_label_mismatch`).
-6. Per-pattern balance. The longer side is truncated to the shorter side's count (`inputs_dropped_for_pattern_balance`).
-7. Each surviving pair becomes a `PreparedCase`, written as JSON lines tagged with its `MatchIntent`.
-8. `run_pipeline` drives steps 1 to 7 and returns a `PipelineReport`. `load_prepared_cases` reads the result back for benchmarks.
+6. Each surviving pair becomes a `PreparedCase`, written as JSON lines tagged with its `MatchIntent`.
+7. `run_pipeline` drives steps 1 to 6 and returns a `PipelineReport`. `load_prepared_cases` reads the result back for benchmarks.
 
 
 ### Match-intent
