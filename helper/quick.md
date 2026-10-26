@@ -71,16 +71,17 @@ cargo run --release --example demo_parser_agreement
 cargo run --release --example demo_parser_agreement_pathological
 
 
+
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
 
 # P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_time
 
 # P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_time
 
 # P20 (E): (a|b|ab)+.
@@ -104,16 +105,17 @@ PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200
   cargo bench --bench bench_pathological_time
 
 
+
 # REPRESENTATIVE PATHOLOGICAL CASES: MEMORY
 
 # P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_memory
 
 # P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_memory
 
 # P20 (E): (a|b|ab)+.

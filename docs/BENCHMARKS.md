@@ -166,12 +166,12 @@ Each `PATHO_N` list below mixes small points where `deriv_std_rec`/`deriv_std_lo
 
 # P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_time
 
 # P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_time
 
 # P20 (E): (a|b|ab)+.
@@ -217,12 +217,12 @@ Same six representatives and the same `PATHO_N` lists as the time section above,
 
 # P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7A \
   cargo bench --bench bench_pathological_memory
 
 # P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B \
+  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7B \
   cargo bench --bench bench_pathological_memory
 
 # P20 (E): (a|b|ab)+.
