@@ -1163,35 +1163,6 @@ step is close to free (0.005\,ms mean).
 \subsection{Cost of partial derivatives}
 \label{sec:eval-cost-partial-derivatives}
 
-The two partial-derivative parsers are the fastest and most
-memory-light on the full S2ELab corpus, clearly ahead of either
-derivative-based variant. They split the residual into a set of states
-rather than combining into one expression, which keeps each state
-small and avoids the alternation growth the standard derivative
-parser suffers.
-
-Within the pair, bit-coding's advantage is not unconditional the way
-it is for the standard-derivative family, and which variant wins
-depends on more than scale. On the full corpus, \texttt{pderiv\_std}
-is marginally ahead on every figure: mean time (0.656 against
-0.660\,ms), average bytes (0.395 against 0.404\,MB), and peak bytes
-(2.5 against 3.8\,MB). At Figure~7 scale, the ranking splits by row.
-On P60 (\texttt{(a|b|ab)*} over `a'-repeated input),
-\texttt{pderiv\_std} stays faster at every point, with a stable
-20--23\% gap that does not narrow with input length. On P61 (the same
-pattern over `ab'-repeated input) the ranking flips:
-\texttt{pderiv\_bc} is faster at every point, with a smaller but
-equally consistent 4--6\% gap. Peak memory at this scale was not
-measured. The finding is that the input shape changes which variant
-wins, not just how large the gap is. Bit-coding's cost for the
-partial-derivative construction is a fixed per-step overhead, and
-whether it pays for itself depends on the pattern and input together,
-not on scale alone.
-
-The price of partial derivatives, independent of which variant, is
-that they produce a non-POSIX tree. This is a specification
-difference, not a deficiency, and it is why the two families are
-compared separately in Section~\ref{sec:eval-agreement}.
 
 %
 %
@@ -1202,11 +1173,9 @@ compared separately in Section~\ref{sec:eval-agreement}.
 \textbf{Corpus scope.} S2ELab is one dataset's own domain and
 convention. A corpus from a different domain might exhibit different
 acceptance rates and timing profiles. The default scope measures only
-the 463 stripped patterns (Section~\ref{sec:eval-anchors}). A
-different, defensible choice (\texttt{BENCH\_MATCH\_INTENT=both}) would
-fold in the remaining 115 patterns and could shift absolute numbers,
-though not the ordering among parsers, which does not depend on which
-patterns are included.
+the 463 stripped patterns (Section~\ref{sec:eval-anchors}). 
+
+(\texttt{BENCH\_MATCH\_INTENT=both}) with 115 patterns.
 
 \textbf{The pathological set.} Each of its 113 rows isolates one
 complexity mechanism at a controlled scale. It does not represent the
@@ -1217,10 +1186,7 @@ two stress mechanisms at once is not directly represented.
 \textbf{Measurement model.} Memory benches measure allocation counts,
 not wall-clock memory pressure. The evaluator runs on a single
 machine, so the wall-clock figures are CPU- and cache-specific.
-Figure~7 scale peak memory was not measured in a dedicated run, so no
-memory claim is made there. The four individually-swept
-representatives other than P60/P61 are not yet run at the scale they
-are configured for, so no numbers are reported for them.
+
 
 %
 %
