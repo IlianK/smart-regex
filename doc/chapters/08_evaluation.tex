@@ -231,7 +231,7 @@ breaks the 177 rejections down by cause.
 Table~\ref{tab:corpus-coverage} reports what the pipeline keeps
 downstream of acceptance.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \begin{tabular}{lr}
@@ -250,7 +250,7 @@ Accepted                        & 578 \\
 \label{tab:corpus-acceptance}
 \end{table}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \begin{tabular}{lr}
@@ -274,7 +274,7 @@ Total                                       & 177 \\
 \label{tab:corpus-rejection-causes}
 \end{table}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \begin{tabular}{lr}
@@ -336,7 +336,7 @@ corpus in six steps.
 \subsubsection{Example: S2ELab entry 100}
 \label{sec:eval-worked-pipeline}
 
-\begin{figure}[ht]
+\begin{figure}[H]
 \centering
 \small
 \begin{verbatim}
@@ -406,7 +406,7 @@ that a routine, un-overridden pass crosses from all parsers measuring
 in microseconds to the standard derivative parser timing out, within
 the category's own default points.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -475,7 +475,7 @@ stack overflow (a signal with the Rust runtime's own
 \texttt{"thread 'main' has overflowed its stack"} message) from
 anything else.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \begin{tabular}{llrll}
@@ -540,7 +540,7 @@ Section~\ref{sec:eval-anchors}; every table uses the default
 (\texttt{explicit}, the 463 stripped patterns). \texttt{BENCH\_SPLIT\_OUTCOME}
 prints a second table split by verified outcome.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
@@ -571,7 +571,7 @@ curves alone would predict. \texttt{pderiv\_std} is marginally faster
 than \texttt{pderiv\_bc} on this corpus (0.616\,ms against 0.625\,ms
 mean).
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
@@ -622,7 +622,7 @@ pass per category. \texttt{to\%} is the share of entries that hit the
 mean next to a high timeout share describes the easy entries that
 survived.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -715,14 +715,21 @@ therefore uses the same pattern and scale as Figure~7, with
 \texttt{parseBC}'s prose description, alongside the project's other
 parsers for context.
 
-\begin{figure}[ht]
+Every point in each row's full sweep is plotted, on a log-log axis
+given how many orders of magnitude the sweeps span once the
+transition-zone points of Table~\ref{tab:patho-crash-thresholds} are
+included; a linear axis showing only the three largest points would
+hide the small-$n$ behaviour entirely.
+
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
   height=5cm,
+  xmode=log, ymode=log,
   xlabel={Input length (characters)},
-  ylabel={Wall time (s)},
+  ylabel={Wall time (ms)},
   title={P60: $(a|b|ab)^*$, `a'-repeated},
   title style={font=\small},
   label style={font=\small},
@@ -730,20 +737,15 @@ parsers for context.
   legend style={font=\scriptsize},
   legend pos=north west,
   grid=major,
-  xmin=0, xmax=11000000,
-  ymin=0, ymax=45,
-  xtick={1000000, 5000000, 10000000},
-  xticklabels={1M, 5M, 10M},
-  ytick={0, 10, 20, 30, 40},
 ]
 \addplot[mark=*, thick, blue]
-  coordinates {(1000000,3.75) (5000000,19.28) (10000000,39.55)};
+  coordinates {(10,0.0910) (50,0.2030) (100,0.3700) (500,1.7920) (1000,3.7220) (5000,18.23) (20000,86.44) (100000,369.03) (300000,1157.4) (1000000,3805.8) (5000000,19662.7) (10000000,39458.1)};
 \addlegendentry{\texttt{deriv\_bc}}
 \addplot[mark=square*, thick, red]
-  coordinates {(1000000,3.20) (5000000,16.48) (10000000,33.09)};
+  coordinates {(10,0.0540) (50,0.1660) (100,0.3250) (500,1.7840) (1000,2.9490) (5000,14.12) (20000,52.64) (100000,298.65) (300000,931.83) (1000000,3154.9) (5000000,16379.2) (10000000,33166.0)};
 \addlegendentry{\texttt{pderiv\_bc}}
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(1000000,2.69) (5000000,13.71) (10000000,27.26)};
+  coordinates {(10,0.0480) (50,0.1700) (100,0.3950) (500,1.6570) (1000,3.0920) (5000,13.17) (20000,52.45) (100000,264.39) (300000,788.84) (1000000,2692.6) (5000000,13658.0) (10000000,27095.1)};
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
@@ -754,8 +756,9 @@ parsers for context.
 \begin{axis}[
   width=0.78\textwidth,
   height=5cm,
+  xmode=log, ymode=log,
   xlabel={Input length (characters)},
-  ylabel={Wall time (s)},
+  ylabel={Wall time (ms)},
   title={P61: $(a|b|ab)^*$, `ab'-repeated},
   title style={font=\small},
   label style={font=\small},
@@ -763,38 +766,229 @@ parsers for context.
   legend style={font=\scriptsize},
   legend pos=north west,
   grid=major,
-  xmin=0, xmax=5500000,
-  ymin=0, ymax=32,
-  xtick={500000, 2500000, 5000000},
-  xticklabels={500K, 2.5M, 5M},
-  ytick={0, 10, 20, 30},
 ]
 \addplot[mark=*, thick, blue]
-  coordinates {(500000,2.83) (2500000,14.01) (5000000,28.65)};
+  coordinates {(5,0.0860) (10,0.0950) (15,0.1360) (100,0.7060) (1000,5.8810) (10000,57.98) (100000,570.73) (500000,2940.0) (2500000,14147.1) (5000000,28467.7)};
 \addlegendentry{\texttt{deriv\_bc}}
 \addplot[mark=square*, thick, red]
-  coordinates {(500000,2.32) (2500000,13.80) (5000000,23.62)};
+  coordinates {(5,0.0430) (10,0.0650) (15,0.1090) (100,0.5830) (1000,5.7030) (10000,45.74) (100000,462.90) (500000,2299.9) (2500000,11567.5) (5000000,23439.2)};
 \addlegendentry{\texttt{pderiv\_bc}}
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(500000,2.48) (2500000,12.18) (5000000,24.48)};
+  coordinates {(5,0.0540) (10,0.1090) (15,0.1040) (100,0.5610) (1000,5.0690) (10000,49.41) (100000,485.12) (500000,2472.9) (2500000,12104.1) (5000000,24067.3)};
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
 
 \caption{Wall time at the pattern and scale of
-\citet{sulzmannlu2014}'s Figure~7. \texttt{deriv\_bc} is directly
-comparable to \texttt{parseBC} (their Figures~5 and~6); the narrower
-\texttt{DERIV} implementation the paper actually plots solves an
-easier, submatching-only problem, and \texttt{pderiv\_bc}/
-\texttt{pderiv\_std} are this project's own partial-derivative
-constructions, not benchmarked by either paper. Wall time is the
-match-side entry's own reported \texttt{micros}; the non-match side is
-within a few percent throughout and omitted.
-\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} crash at every
-point tested on both rows, the same input lengths that
-Table~\ref{tab:patho-crash-thresholds} locates precisely for every
-representative row.}
+\citet{sulzmannlu2014}'s Figure~7, every swept $n$ plotted (log-log).
+\texttt{deriv\_bc} is directly comparable to \texttt{parseBC} (their
+Figures~5 and~6); the narrower \texttt{DERIV} implementation the paper
+actually plots solves an easier, submatching-only problem, and
+\texttt{pderiv\_bc}/\texttt{pderiv\_std} are this project's own
+partial-derivative constructions, not benchmarked by either paper.
+Wall time is the match-side entry's own reported \texttt{micros}; the
+non-match side is within a few percent throughout and omitted.
+\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} have no curve to
+plot: Table~\ref{tab:patho-crash-thresholds} locates exactly where
+each crashes on these two rows.}
 \label{fig:patho-fig7}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=5cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (ms)},
+  title={P20: $(a|b|ab)^+$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(5,0.0600) (10,0.1000) (13,0.1150) (16,0.1210) (100,0.5780) (1000,6.8480) (10000,56.31) (100000,565.29) (300000,1659.4) (1000000,5673.5) (5000000,29344.6) (10000000,59480.2)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(5,0.0540) (10,0.0740) (13,0.0990) (16,0.1030) (100,0.7810) (1000,5.2270) (10000,48.13) (100000,459.60) (300000,1374.5) (1000000,4617.5) (5000000,23149.8) (10000000,46212.2)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(5,0.0460) (10,0.0720) (13,0.0910) (16,0.0960) (100,0.6160) (1000,4.8960) (10000,46.87) (100000,491.16) (300000,1450.2) (1000000,4885.8) (5000000,24021.6) (10000000,48028.8)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on P20, every swept $n$ plotted (log-log). Same
+family as Figure~\ref{fig:patho-fig7}, the \texttt{+} variant of the
+same pattern. \texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop} crash
+from $n=100$ on (Table~\ref{tab:patho-crash-thresholds}).}
+\label{fig:patho-p20}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=5cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (ms)},
+  title={P01: $(a+)^+$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(5,0.0230) (10,0.0340) (15,0.0620) (20,0.0970) (50,0.2190) (100,0.3740) (500,2.7920) (1000,8.0600) (2000,25.46) (5000,149.86) (10000,545.85) (30000,4654.3) (50000,12574.9)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(5,0.0260) (10,0.0360) (15,0.0470) (20,0.0640) (50,0.1340) (100,0.2860) (500,1.2690) (1000,2.4180) (2000,4.5630) (5000,14.97) (10000,24.19) (30000,66.19) (50000,108.70) (200000,445.42) (1000000,2213.1)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(5,0.0270) (10,0.0340) (15,0.0390) (20,0.0650) (50,0.1480) (100,0.2820) (500,1.0490) (1000,2.0790) (2000,4.8150) (5000,10.44) (10000,20.27) (30000,62.72) (50000,105.77) (200000,404.76) (1000000,2081.9)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+
+\vspace{0.6em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=5cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (ms)},
+  title={P09: $(a|aa)^+$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(5,0.0460) (10,0.0720) (15,0.1340) (20,0.1350) (25,0.1880) (100,0.5570) (1000,5.6150) (5000,35.15) (10000,49.72) (50000,237.29) (100000,481.21) (500000,2416.3) (1000000,4817.6) (5000000,23937.4)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(5,0.0400) (10,0.0450) (15,0.1030) (20,0.0870) (25,0.0850) (100,0.3630) (1000,2.8630) (5000,11.87) (10000,24.00) (50000,121.44) (100000,243.07) (500000,1205.8) (1000000,2361.7) (5000000,11903.7)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(5,0.0300) (10,0.0380) (15,0.0620) (20,0.0640) (25,0.0750) (100,0.2990) (1000,2.4480) (5000,12.32) (10000,24.37) (50000,117.70) (100000,230.19) (500000,1183.6) (1000000,2394.9) (5000000,11941.5)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on P01 and P09, every swept $n$ plotted (log-log).
+\texttt{deriv\_bc} is the one parser that eventually times out on P01
+too (visible as its line stopping at $n=50{,}000$, short of the
+partial-derivative pair's); on P09 all three survive the whole sweep.
+\texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop} crash from $n=50$
+(P01) and $n=100$ (P09) on.}
+\label{fig:patho-p01-p09}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=4.4cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (ms)},
+  title={P25: $(a|b)^*c$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(1,0.0200) (3,0.0290) (7,0.0470) (10,0.0590) (50,0.4690) (300,5.4470) (1000,45.44) (2000,177.17) (3500,530.23) (5000,1099.8) (10000,4347.7)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(1,0.0140) (3,0.0230) (7,0.0290) (10,0.0390) (50,0.1560) (300,0.9200) (1000,2.8260) (2000,5.6240) (3500,9.3840) (5000,13.65) (10000,26.27) (30000,71.99) (50000,119.21) (200000,474.05)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(1,0.0150) (3,0.0180) (7,0.0260) (10,0.0400) (50,0.1590) (300,0.9720) (1000,2.9040) (2000,6.0030) (3500,9.0440) (5000,12.54) (10000,24.83) (30000,77.72) (50000,122.97) (200000,495.86)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+
+\vspace{0.4em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=4.4cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (ms)},
+  title={P27: $([ab]^+)^*c$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(1,0.0370) (3,0.0710) (7,0.1320) (10,0.2060) (15,0.2810) (20,0.3620) (25,0.5740) (30,0.6880) (40,0.8370) (50,1.3020) (100,2.8980) (1000,108.06) (10000,11580.2)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(1,0.0240) (3,0.0380) (7,0.0940) (10,0.1410) (15,0.1890) (20,0.2510) (25,0.2980) (30,0.3490) (40,0.3830) (50,0.6070) (100,0.9910) (1000,9.2770) (10000,92.70) (30000,284.46) (200000,1913.3)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(1,0.0210) (3,0.0580) (7,0.0960) (10,0.1250) (15,0.1630) (20,0.2250) (25,0.2960) (30,0.3240) (40,0.4870) (50,0.5340) (100,1.1590) (1000,9.3720) (10000,86.19) (30000,258.77) (200000,1737.6)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+
+\vspace{0.4em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=4.4cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Wall time (ms)},
+  title={P28: $([ab]^*)^*c$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=*, thick, blue]
+  coordinates {(1,0.0340) (3,0.0490) (7,0.1170) (10,0.1870) (15,0.2880) (20,0.3890) (25,0.3990) (30,0.6180) (40,0.7340) (50,1.0260) (100,4.4470) (1000,113.54) (10000,12481.4)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(1,0.0240) (3,0.0430) (7,0.0670) (10,0.0910) (15,0.1680) (20,0.1920) (25,0.4000) (30,0.3130) (40,0.4210) (50,0.4980) (100,1.1020) (1000,8.5660) (10000,77.26) (30000,232.66) (200000,1576.0)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(1,0.0320) (3,0.0420) (7,0.0630) (10,0.1110) (15,0.1510) (20,0.2600) (25,0.2600) (30,0.2710) (40,0.4180) (50,0.4670) (100,0.9520) (1000,7.4830) (10000,69.79) (30000,220.61) (200000,1424.2)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on P25/P27/P28, every swept $n$ plotted (log-log).
+All three share \texttt{deriv\_bc} eventually timing out (its line
+stops at $n=10{,}000$ on every row, short of the partial-derivative
+pair's); P27 and P28 additionally show \texttt{deriv\_std\_rec}/
+\texttt{deriv\_std\_loop} crashing already at $n=15$
+(Table~\ref{tab:patho-crash-thresholds}), far earlier than P25's
+$n=3{,}500$.}
+\label{fig:patho-f}
 \end{figure}
 
 \textbf{Where the standard variants actually break.} The sweeps above
@@ -805,7 +999,7 @@ row, the largest swept $n$ both standard variants still complete and
 the smallest swept $n$ both crash at, alongside the largest $n$
 \texttt{deriv\_bc} completes before it times out (not crashes) too.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -887,7 +1081,7 @@ the memory cap removed entirely.
 \subsubsection{S2ELab}
 \label{sec:eval-memory-s2elab}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
@@ -936,7 +1130,7 @@ simplification discussion below.
 For \texttt{deriv\_std} and \texttt{deriv\_bc} the figure is the node
 count of the current residual. For \texttt{pderiv\_std} and
 \texttt{pderiv\_bc} it is the total node count across the frontier.
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
@@ -1014,7 +1208,7 @@ pathological set has no long tail of per-pattern example counts);
 \texttt{to\%} repeats the timeout share from the timing table, since
 the two benches run the same sweep.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -1064,7 +1258,7 @@ timing.
 \subsubsection{Pathological (individual representatives)}
 \label{sec:eval-memory-patho-representatives}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
@@ -1150,7 +1344,7 @@ by itself, once per distinct pattern.
 \subsubsection{S2ELab}
 \label{sec:eval-translate-s2elab}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \small
 \begin{tabular}{lrrrr}
@@ -1176,7 +1370,7 @@ millisecond, so no S2ELab pattern comes close to
 \subsubsection{Pathological (general)}
 \label{sec:eval-translate-pathological}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}
@@ -1291,51 +1485,53 @@ agreement is the membership precondition; shape agreement and
 disagreement are the measured cross-family quantity, over cases where
 both preconditions held.
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrrr}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrrrrrr}
 \hline
-Dataset & Entries & Timed out & Crashed & Match agr. & Shape agr. & Shape disagr. \\
+Dataset & Entries & Timed out & Crashed & Compared & Match agr. & Shape agree & Shape disagree \\
 \hline
-S2ELab (full corpus) & 13\,957 &    89 & 0 & 100.0\% & 99.7\% & 0.3\% \\
-Pathological (total)&    889  &   453 & 1 & 100.0\% & 89.9\% & 10.1\% \\
+S2ELab (full corpus) & 13\,957 &    89 & 0 & 7\,041 & 100.0\% & 7\,020 (99.7\%) & 21 (0.3\%) \\
+Pathological (total) &    889  &   453 & 1 &    207 & 100.0\% &   186 (89.9\%) & 21 (10.1\%) \\
 \hline
 \end{tabular}
 \caption{Parser agreement, measured once per dataset and never pooled.
-S2ELab has 7041 compared cases, of which 21 disagree. The pathological
-set has 207 compared cases, of which 21 disagree. The single crash is
-\texttt{deriv\_std\_rec} stack-overflowing on a 10-million-character
-input in category I, the same failure mode
+\emph{Shape agree}/\emph{Shape disagree} give the raw count of compared
+cases on each side, with the percentage of \emph{Compared} alongside.
+The single crash is \texttt{deriv\_std\_rec} stack-overflowing on a
+10-million-character input in category I, the same failure mode
 Section~\ref{sec:eval-timing-patho-representatives} reports on the
 representative rows, here on a trivial pattern, so it is a property of
 input length alone.}
 \label{tab:agreement}
 \end{table}
 
-\begin{table}[ht]
+\begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{lrrrrrr}
 \hline
-Cat. & Entries & Timed out & Match agr. & Shape agr. & Shape disagr. & Compared \\
+Cat. & Entries & Timed out & Compared & Match agr. & Shape agree & Shape disagree \\
 \hline
-A & 160 & 112 & 100\% & 100\%  &   0\% &  27 \\
-B & 150 &  95 & 100\% &  35.7\% &  64.3\% &  28 \\
-C &  56 &  32 & 100\% & 100\%  &   0\% &  12 \\
-D &  40 &  12 & 100\% & 100\%  &   0\% &  14 \\
-E &  80 &  45 & 100\% &  87.5\% &  12.5\% &  16 \\
-F &  70 &  46 & 100\% &  91.7\% &   8.3\% &  12 \\
-H &  28 &  18 & 100\% & 100\%  &   0\% &   4 \\
-I &  60 &  44 & 100\% & 100\%  &   0\% &   3 \\
-J &  26 &   6 & 100\% & 100\%  &   0\% &  10 \\
-K &  30 &  24 & 100\% & 100\%  &   0\% &   3 \\
-L & 189 &  19 & 100\% & 100\%  &   0\% &  78 \\
+A & 160 & 112 &  27 & 100\% &  27 (100\%)  &  0 (0\%) \\
+B & 150 &  95 &  28 & 100\% &  10 (35.7\%) & 18 (64.3\%) \\
+C &  56 &  32 &  12 & 100\% &  12 (100\%)  &  0 (0\%) \\
+D &  40 &  12 &  14 & 100\% &  14 (100\%)  &  0 (0\%) \\
+E &  80 &  45 &  16 & 100\% &  14 (87.5\%) &  2 (12.5\%) \\
+F &  70 &  46 &  12 & 100\% &  11 (91.7\%) &  1 (8.3\%) \\
+H &  28 &  18 &   4 & 100\% &   4 (100\%)  &  0 (0\%) \\
+I &  60 &  44 &   3 & 100\% &   3 (100\%)  &  0 (0\%) \\
+J &  26 &   6 &  10 & 100\% &  10 (100\%)  &  0 (0\%) \\
+K &  30 &  24 &   3 & 100\% &   3 (100\%)  &  0 (0\%) \\
+L & 189 &  19 &  78 & 100\% &  78 (100\%)  &  0 (0\%) \\
 \hline
 \end{tabular}
-\caption{Pathological-set agreement by category.}
+\caption{Pathological-set agreement by category. \emph{Shape
+agree}/\emph{Shape disagree} give the raw count of \emph{Compared}
+cases on each side, with the percentage alongside.}
 \label{tab:agreement-patho}
 \end{table}
 
@@ -1376,6 +1572,65 @@ since ten \texttt{.*} groups accept the empty string. \texttt{P29}'s
 non-match input was replaced with a fixed 9-character string, one
 short of the ten-group minimum the pattern needs. \texttt{P31}'s was
 removed. Category H now reports 100\%.
+
+\textbf{A concrete S2ELab disagreement.} Table~\ref{tab:agreement}'s
+21 S2ELab disagreements are real patterns, not synthetic ones. The
+shortest to typeset is S2ELab's loosely-formatted-number pattern,
+\verb|^[-+]?([0-9]{1,3}[,]?)?([0-9]{3}[,]?)*[.]?[0-9]*$|, on the input
+\texttt{"9000"}. Figure~\ref{fig:agreement-sample} gives both parsers'
+raw output. Both trees flatten (Section~\ref{sec:eval-translate}'s
+sibling function, \texttt{flatten}, concatenates every \texttt{Char}
+leaf left to right) to the same string, \texttt{"9000"}, confirming
+both really did match the same input -- the disagreement is purely
+about tree shape. The two outputs share an 80-character common prefix
+through the point where the first digit, \texttt{'9'}, is matched by
+\verb|[0-9]{1,3}|'s single mandatory copy; they diverge at that
+group's first \emph{optional} copy. \texttt{posix (bc)} takes
+\texttt{Left(Empty)} there -- declining the two optional copies
+entirely, so the mandatory-copy group matches only \texttt{"9"} -- and
+its one \texttt{Star} with a non-empty list (one element) then
+accounts for \verb|([0-9]{3}[,]?)*| matching exactly one iteration,
+\texttt{"000"}. \texttt{non-posix (pbc)} instead takes both optional
+copies (\texttt{Right(Pair(...))} twice), so the mandatory-copy group
+matches \texttt{"900"}; its corresponding \texttt{Star} is then empty,
+and the one remaining digit, \texttt{"0"}, is caught by the trailing
+\verb|[0-9]*| instead. Same four characters, same pattern, two
+different ways to apportion them across three overlapping quantified
+groups -- exactly the shape ambiguity Section~\ref{sec:eval-agreement}
+measures, now visible on a real corpus entry rather than a
+purpose-built pathological row.
+
+\begin{figure}[H]
+\centering
+\scriptsize
+\begin{verbatim}
+posix (bc) =
+  Pair(Pair(Pair(Pair(Right(Empty),
+    Left(Pair(Pair(Pair(Empty, Right(Char('9'))),
+               Left(Empty)), Right(Empty)))),
+      Star([Pair(Pair(Pair(Pair(Empty, <0>), <0>), <0>),
+                 Right(Empty))])),
+    Right(Empty)), Star([]))
+
+non-posix (pbc) =
+  Pair(Pair(Pair(Pair(Right(Empty),
+    Left(Pair(Pair(Pair(Empty, Right(Char('9'))),
+               Right(Pair(<0>, Right(Pair(<0>, Empty))))),
+          Right(Empty)))),
+      Star([])), Right(Empty)), Star([<0>]))
+\end{verbatim}
+\caption{Raw \texttt{deriv\_bc} (POSIX) and \texttt{pderiv\_bc}
+(non-POSIX) output on S2ELab's
+\texttt{[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching
+\texttt{"9000"} (top-level anchors already stripped per
+Section~\ref{sec:eval-anchors}). \texttt{<0>} abbreviates
+\texttt{Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))},
+the nine-deep injection a \texttt{0} carries from \texttt{[0-9]}'s
+internal 10-leaf alphabet encoding (Section~\ref{sec:frontend-alphabet});
+all four occurrences below are byte-identical to that string, and
+nothing else is altered or omitted.}
+\label{fig:agreement-sample}
+\end{figure}
 
 %
 %

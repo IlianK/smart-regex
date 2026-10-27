@@ -62,60 +62,68 @@
 \citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {subsubsection}{Pathological (individual representatives)}{72}{table.caption.52}\protected@file@percent }
 \newlabel{sec:eval-timing-patho-representatives}{{8.3.2}{72}{Pathological (individual representatives)}{table.caption.52}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8.2}{\ignorespaces Wall time at the pattern and scale of \citet  {sulzmannlu2014}'s Figure~7. \texttt  {deriv\_bc} is directly comparable to \texttt  {parseBC} (their Figures~5 and~6); the narrower \texttt  {DERIV} implementation the paper actually plots solves an easier, submatching-only problem, and \texttt  {pderiv\_bc}/ \texttt  {pderiv\_std} are this project's own partial-derivative constructions, not benchmarked by either paper. Wall time is the match-side entry's own reported \texttt  {micros}; the non-match side is within a few percent throughout and omitted. \texttt  {deriv\_std\_rec} and \texttt  {deriv\_std\_loop} crash at every point tested on both rows, the same input lengths that Table~\ref {tab:patho-crash-thresholds} locates precisely for every representative row.}}{73}{figure.caption.53}\protected@file@percent }
-\newlabel{fig:patho-fig7}{{8.2}{73}{Wall time at the pattern and scale of \citet {sulzmannlu2014}'s Figure~7. \texttt {deriv\_bc} is directly comparable to \texttt {parseBC} (their Figures~5 and~6); the narrower \texttt {DERIV} implementation the paper actually plots solves an easier, submatching-only problem, and \texttt {pderiv\_bc}/ \texttt {pderiv\_std} are this project's own partial-derivative constructions, not benchmarked by either paper. Wall time is the match-side entry's own reported \texttt {micros}; the non-match side is within a few percent throughout and omitted. \texttt {deriv\_std\_rec} and \texttt {deriv\_std\_loop} crash at every point tested on both rows, the same input lengths that Table~\ref {tab:patho-crash-thresholds} locates precisely for every representative row}{figure.caption.53}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.3}Memory}{73}{subsection.8.3.3}\protected@file@percent }
-\newlabel{sec:eval-memory}{{8.3.3}{73}{Memory}{subsection.8.3.3}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.9}{\ignorespaces Match-side crash/timeout thresholds. The standard columns cover both \texttt  {deriv\_std\_rec} and \texttt  {deriv\_std\_loop} together, since they crash at the identical swept $n$ on every one of these eight rows. ``---'' means \texttt  {deriv\_bc} completed every swept $n$ for that row without timing out.}}{74}{table.caption.54}\protected@file@percent }
-\newlabel{tab:patho-crash-thresholds}{{8.9}{74}{Match-side crash/timeout thresholds. The standard columns cover both \texttt {deriv\_std\_rec} and \texttt {deriv\_std\_loop} together, since they crash at the identical swept $n$ on every one of these eight rows. ``---'' means \texttt {deriv\_bc} completed every swept $n$ for that row without timing out}{table.caption.54}{}}
-\@writefile{toc}{\contentsline {subsubsection}{S2ELab}{74}{subsection.8.3.3}\protected@file@percent }
-\newlabel{sec:eval-memory-s2elab}{{8.3.3}{74}{S2ELab}{subsection.8.3.3}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.10}{\ignorespaces Heap allocation over the full default scope (463 patterns, 11\,395 entries), one pass per parser.}}{74}{table.caption.55}\protected@file@percent }
-\newlabel{tab:memory}{{8.10}{74}{Heap allocation over the full default scope (463 patterns, 11\,395 entries), one pass per parser}{table.caption.55}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.11}{\ignorespaces Live-state size per parser at three input lengths.}}{75}{table.caption.56}\protected@file@percent }
-\newlabel{tab:growth}{{8.11}{75}{Live-state size per parser at three input lengths}{table.caption.56}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Pathological (general)}{75}{table.caption.56}\protected@file@percent }
-\newlabel{sec:eval-memory-pathological}{{8.3.3}{75}{Pathological (general)}{table.caption.56}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.12}{\ignorespaces Average total bytes per completed entry (MB) and timeout share, one routine pass per category at each category's default sweep.}}{76}{table.caption.57}\protected@file@percent }
-\newlabel{tab:patho-memory-smoke}{{8.12}{76}{Average total bytes per completed entry (MB) and timeout share, one routine pass per category at each category's default sweep}{table.caption.57}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Pathological (individual representatives)}{76}{table.caption.57}\protected@file@percent }
-\newlabel{sec:eval-memory-patho-representatives}{{8.3.3}{76}{Pathological (individual representatives)}{table.caption.57}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.13}{\ignorespaces Cumulative allocation across each row's full sweep (all swept $n$, match side and non-match side together) for the three representative rows a single table can usefully compare; the remaining five follow the same pattern. \texttt  {deriv\_std\_rec} and \texttt  {deriv\_std\_loop} are reported once per row, since their totals agree to within 0.01\% of each other on every row measured.}}{76}{table.caption.58}\protected@file@percent }
-\newlabel{tab:patho-memory-representatives}{{8.13}{76}{Cumulative allocation across each row's full sweep (all swept $n$, match side and non-match side together) for the three representative rows a single table can usefully compare; the remaining five follow the same pattern. \texttt {deriv\_std\_rec} and \texttt {deriv\_std\_loop} are reported once per row, since their totals agree to within 0.01\% of each other on every row measured}{table.caption.58}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.4}Translate}{77}{subsection.8.3.4}\protected@file@percent }
-\newlabel{sec:eval-translate}{{8.3.4}{77}{Translate}{subsection.8.3.4}{}}
-\@writefile{toc}{\contentsline {subsubsection}{S2ELab}{77}{subsection.8.3.4}\protected@file@percent }
-\newlabel{sec:eval-translate-s2elab}{{8.3.4}{77}{S2ELab}{subsection.8.3.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.14}{\ignorespaces Translation cost per distinct pattern, full default scope.}}{77}{table.caption.59}\protected@file@percent }
-\newlabel{tab:translate-cost}{{8.14}{77}{Translation cost per distinct pattern, full default scope}{table.caption.59}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Pathological (general)}{77}{table.caption.59}\protected@file@percent }
-\newlabel{sec:eval-translate-pathological}{{8.3.4}{77}{Pathological (general)}{table.caption.59}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.15}{\ignorespaces Translation cost over the pathological set's default sweep, with J/K's recalibrated \texttt  {suggested\_p} (see below). \emph  {Rejected} counts rows that hit \texttt  {core\_regex\_tagged}'s 20\,000-node cap at the swept pattern size and translated to nothing.}}{77}{table.caption.60}\protected@file@percent }
-\newlabel{tab:translate-cost-patho}{{8.15}{77}{Translation cost over the pathological set's default sweep, with J/K's recalibrated \texttt {suggested\_p} (see below). \emph {Rejected} counts rows that hit \texttt {core\_regex\_tagged}'s 20\,000-node cap at the swept pattern size and translated to nothing}{table.caption.60}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Pathological (individual representatives)}{78}{table.caption.60}\protected@file@percent }
-\newlabel{sec:eval-translate-patho-representatives}{{8.3.4}{78}{Pathological (individual representatives)}{table.caption.60}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.5}Parse Tree Shape Agreement}{78}{subsection.8.3.5}\protected@file@percent }
-\newlabel{sec:eval-agreement}{{8.3.5}{78}{Parse Tree Shape Agreement}{subsection.8.3.5}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Method}{78}{subsection.8.3.5}\protected@file@percent }
-\newlabel{sec:eval-agreement-method}{{8.3.5}{78}{Method}{subsection.8.3.5}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Results}{78}{subsection.8.3.5}\protected@file@percent }
-\newlabel{sec:eval-agreement-results}{{8.3.5}{78}{Results}{subsection.8.3.5}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.16}{\ignorespaces Parser agreement, measured once per dataset and never pooled. S2ELab has 7041 compared cases, of which 21 disagree. The pathological set has 207 compared cases, of which 21 disagree. The single crash is \texttt  {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone.}}{79}{table.caption.61}\protected@file@percent }
-\newlabel{tab:agreement}{{8.16}{79}{Parser agreement, measured once per dataset and never pooled. S2ELab has 7041 compared cases, of which 21 disagree. The pathological set has 207 compared cases, of which 21 disagree. The single crash is \texttt {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone}{table.caption.61}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.17}{\ignorespaces Pathological-set agreement by category.}}{79}{table.caption.62}\protected@file@percent }
-\newlabel{tab:agreement-patho}{{8.17}{79}{Pathological-set agreement by category}{table.caption.62}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Discussion}{79}{table.caption.62}\protected@file@percent }
-\newlabel{sec:eval-agreement-discussion}{{8.3.5}{79}{Discussion}{table.caption.62}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8.4}Discussion of Results}{80}{section.8.4}\protected@file@percent }
-\newlabel{sec:eval-discussion}{{8.4}{80}{Discussion of Results}{section.8.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.1}Cost of the standard construction}{80}{subsection.8.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.2}Cost of bit-coding}{80}{subsection.8.4.2}\protected@file@percent }
-\newlabel{sec:eval-cost-bit-coding}{{8.4.2}{80}{Cost of bit-coding}{subsection.8.4.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.3}Cost of partial derivatives}{80}{subsection.8.4.3}\protected@file@percent }
-\newlabel{sec:eval-cost-partial-derivatives}{{8.4.3}{80}{Cost of partial derivatives}{subsection.8.4.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.4}Threats to validity}{81}{subsection.8.4.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8.2}{\ignorespaces Wall time at the pattern and scale of \citet  {sulzmannlu2014}'s Figure~7, every swept $n$ plotted (log-log). \texttt  {deriv\_bc} is directly comparable to \texttt  {parseBC} (their Figures~5 and~6); the narrower \texttt  {DERIV} implementation the paper actually plots solves an easier, submatching-only problem, and \texttt  {pderiv\_bc}/\texttt  {pderiv\_std} are this project's own partial-derivative constructions, not benchmarked by either paper. Wall time is the match-side entry's own reported \texttt  {micros}; the non-match side is within a few percent throughout and omitted. \texttt  {deriv\_std\_rec} and \texttt  {deriv\_std\_loop} have no curve to plot: Table~\ref {tab:patho-crash-thresholds} locates exactly where each crashes on these two rows.}}{73}{figure.caption.53}\protected@file@percent }
+\newlabel{fig:patho-fig7}{{8.2}{73}{Wall time at the pattern and scale of \citet {sulzmannlu2014}'s Figure~7, every swept $n$ plotted (log-log). \texttt {deriv\_bc} is directly comparable to \texttt {parseBC} (their Figures~5 and~6); the narrower \texttt {DERIV} implementation the paper actually plots solves an easier, submatching-only problem, and \texttt {pderiv\_bc}/\texttt {pderiv\_std} are this project's own partial-derivative constructions, not benchmarked by either paper. Wall time is the match-side entry's own reported \texttt {micros}; the non-match side is within a few percent throughout and omitted. \texttt {deriv\_std\_rec} and \texttt {deriv\_std\_loop} have no curve to plot: Table~\ref {tab:patho-crash-thresholds} locates exactly where each crashes on these two rows}{figure.caption.53}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8.3}{\ignorespaces Wall time on P20, every swept $n$ plotted (log-log). Same family as Figure~\ref {fig:patho-fig7}, the \texttt  {+} variant of the same pattern. \texttt  {deriv\_std\_rec}/\texttt  {deriv\_std\_loop} crash from $n=100$ on (Table~\ref {tab:patho-crash-thresholds}).}}{73}{figure.caption.54}\protected@file@percent }
+\newlabel{fig:patho-p20}{{8.3}{73}{Wall time on P20, every swept $n$ plotted (log-log). Same family as Figure~\ref {fig:patho-fig7}, the \texttt {+} variant of the same pattern. \texttt {deriv\_std\_rec}/\texttt {deriv\_std\_loop} crash from $n=100$ on (Table~\ref {tab:patho-crash-thresholds})}{figure.caption.54}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8.4}{\ignorespaces Wall time on P01 and P09, every swept $n$ plotted (log-log). \texttt  {deriv\_bc} is the one parser that eventually times out on P01 too (visible as its line stopping at $n=50{,}000$, short of the partial-derivative pair's); on P09 all three survive the whole sweep. \texttt  {deriv\_std\_rec}/\texttt  {deriv\_std\_loop} crash from $n=50$ (P01) and $n=100$ (P09) on.}}{74}{figure.caption.55}\protected@file@percent }
+\newlabel{fig:patho-p01-p09}{{8.4}{74}{Wall time on P01 and P09, every swept $n$ plotted (log-log). \texttt {deriv\_bc} is the one parser that eventually times out on P01 too (visible as its line stopping at $n=50{,}000$, short of the partial-derivative pair's); on P09 all three survive the whole sweep. \texttt {deriv\_std\_rec}/\texttt {deriv\_std\_loop} crash from $n=50$ (P01) and $n=100$ (P09) on}{figure.caption.55}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8.5}{\ignorespaces Wall time on P25/P27/P28, every swept $n$ plotted (log-log). All three share \texttt  {deriv\_bc} eventually timing out (its line stops at $n=10{,}000$ on every row, short of the partial-derivative pair's); P27 and P28 additionally show \texttt  {deriv\_std\_rec}/ \texttt  {deriv\_std\_loop} crashing already at $n=15$ (Table~\ref {tab:patho-crash-thresholds}), far earlier than P25's $n=3{,}500$.}}{75}{figure.caption.56}\protected@file@percent }
+\newlabel{fig:patho-f}{{8.5}{75}{Wall time on P25/P27/P28, every swept $n$ plotted (log-log). All three share \texttt {deriv\_bc} eventually timing out (its line stops at $n=10{,}000$ on every row, short of the partial-derivative pair's); P27 and P28 additionally show \texttt {deriv\_std\_rec}/ \texttt {deriv\_std\_loop} crashing already at $n=15$ (Table~\ref {tab:patho-crash-thresholds}), far earlier than P25's $n=3{,}500$}{figure.caption.56}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.9}{\ignorespaces Match-side crash/timeout thresholds. The standard columns cover both \texttt  {deriv\_std\_rec} and \texttt  {deriv\_std\_loop} together, since they crash at the identical swept $n$ on every one of these eight rows. ``---'' means \texttt  {deriv\_bc} completed every swept $n$ for that row without timing out.}}{76}{table.caption.57}\protected@file@percent }
+\newlabel{tab:patho-crash-thresholds}{{8.9}{76}{Match-side crash/timeout thresholds. The standard columns cover both \texttt {deriv\_std\_rec} and \texttt {deriv\_std\_loop} together, since they crash at the identical swept $n$ on every one of these eight rows. ``---'' means \texttt {deriv\_bc} completed every swept $n$ for that row without timing out}{table.caption.57}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.3}Memory}{76}{subsection.8.3.3}\protected@file@percent }
+\newlabel{sec:eval-memory}{{8.3.3}{76}{Memory}{subsection.8.3.3}{}}
+\@writefile{toc}{\contentsline {subsubsection}{S2ELab}{77}{subsection.8.3.3}\protected@file@percent }
+\newlabel{sec:eval-memory-s2elab}{{8.3.3}{77}{S2ELab}{subsection.8.3.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.10}{\ignorespaces Heap allocation over the full default scope (463 patterns, 11\,395 entries), one pass per parser.}}{77}{table.caption.58}\protected@file@percent }
+\newlabel{tab:memory}{{8.10}{77}{Heap allocation over the full default scope (463 patterns, 11\,395 entries), one pass per parser}{table.caption.58}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.11}{\ignorespaces Live-state size per parser at three input lengths.}}{77}{table.caption.59}\protected@file@percent }
+\newlabel{tab:growth}{{8.11}{77}{Live-state size per parser at three input lengths}{table.caption.59}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Pathological (general)}{78}{table.caption.59}\protected@file@percent }
+\newlabel{sec:eval-memory-pathological}{{8.3.3}{78}{Pathological (general)}{table.caption.59}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.12}{\ignorespaces Average total bytes per completed entry (MB) and timeout share, one routine pass per category at each category's default sweep.}}{78}{table.caption.60}\protected@file@percent }
+\newlabel{tab:patho-memory-smoke}{{8.12}{78}{Average total bytes per completed entry (MB) and timeout share, one routine pass per category at each category's default sweep}{table.caption.60}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Pathological (individual representatives)}{79}{table.caption.60}\protected@file@percent }
+\newlabel{sec:eval-memory-patho-representatives}{{8.3.3}{79}{Pathological (individual representatives)}{table.caption.60}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.13}{\ignorespaces Cumulative allocation across each row's full sweep (all swept $n$, match side and non-match side together) for the three representative rows a single table can usefully compare; the remaining five follow the same pattern. \texttt  {deriv\_std\_rec} and \texttt  {deriv\_std\_loop} are reported once per row, since their totals agree to within 0.01\% of each other on every row measured.}}{79}{table.caption.61}\protected@file@percent }
+\newlabel{tab:patho-memory-representatives}{{8.13}{79}{Cumulative allocation across each row's full sweep (all swept $n$, match side and non-match side together) for the three representative rows a single table can usefully compare; the remaining five follow the same pattern. \texttt {deriv\_std\_rec} and \texttt {deriv\_std\_loop} are reported once per row, since their totals agree to within 0.01\% of each other on every row measured}{table.caption.61}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.4}Translate}{80}{subsection.8.3.4}\protected@file@percent }
+\newlabel{sec:eval-translate}{{8.3.4}{80}{Translate}{subsection.8.3.4}{}}
+\@writefile{toc}{\contentsline {subsubsection}{S2ELab}{80}{subsection.8.3.4}\protected@file@percent }
+\newlabel{sec:eval-translate-s2elab}{{8.3.4}{80}{S2ELab}{subsection.8.3.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.14}{\ignorespaces Translation cost per distinct pattern, full default scope.}}{80}{table.caption.62}\protected@file@percent }
+\newlabel{tab:translate-cost}{{8.14}{80}{Translation cost per distinct pattern, full default scope}{table.caption.62}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Pathological (general)}{80}{table.caption.62}\protected@file@percent }
+\newlabel{sec:eval-translate-pathological}{{8.3.4}{80}{Pathological (general)}{table.caption.62}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.15}{\ignorespaces Translation cost over the pathological set's default sweep, with J/K's recalibrated \texttt  {suggested\_p} (see below). \emph  {Rejected} counts rows that hit \texttt  {core\_regex\_tagged}'s 20\,000-node cap at the swept pattern size and translated to nothing.}}{80}{table.caption.63}\protected@file@percent }
+\newlabel{tab:translate-cost-patho}{{8.15}{80}{Translation cost over the pathological set's default sweep, with J/K's recalibrated \texttt {suggested\_p} (see below). \emph {Rejected} counts rows that hit \texttt {core\_regex\_tagged}'s 20\,000-node cap at the swept pattern size and translated to nothing}{table.caption.63}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Pathological (individual representatives)}{80}{table.caption.63}\protected@file@percent }
+\newlabel{sec:eval-translate-patho-representatives}{{8.3.4}{80}{Pathological (individual representatives)}{table.caption.63}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.5}Parse Tree Shape Agreement}{81}{subsection.8.3.5}\protected@file@percent }
+\newlabel{sec:eval-agreement}{{8.3.5}{81}{Parse Tree Shape Agreement}{subsection.8.3.5}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Method}{81}{subsection.8.3.5}\protected@file@percent }
+\newlabel{sec:eval-agreement-method}{{8.3.5}{81}{Method}{subsection.8.3.5}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Results}{81}{subsection.8.3.5}\protected@file@percent }
+\newlabel{sec:eval-agreement-results}{{8.3.5}{81}{Results}{subsection.8.3.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.16}{\ignorespaces Parser agreement, measured once per dataset and never pooled. \emph  {Shape agree}/\emph  {Shape disagree} give the raw count of compared cases on each side, with the percentage of \emph  {Compared} alongside. The single crash is \texttt  {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone.}}{81}{table.caption.64}\protected@file@percent }
+\newlabel{tab:agreement}{{8.16}{81}{Parser agreement, measured once per dataset and never pooled. \emph {Shape agree}/\emph {Shape disagree} give the raw count of compared cases on each side, with the percentage of \emph {Compared} alongside. The single crash is \texttt {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone}{table.caption.64}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.17}{\ignorespaces Pathological-set agreement by category. \emph  {Shape agree}/\emph  {Shape disagree} give the raw count of \emph  {Compared} cases on each side, with the percentage alongside.}}{82}{table.caption.65}\protected@file@percent }
+\newlabel{tab:agreement-patho}{{8.17}{82}{Pathological-set agreement by category. \emph {Shape agree}/\emph {Shape disagree} give the raw count of \emph {Compared} cases on each side, with the percentage alongside}{table.caption.65}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Discussion}{82}{table.caption.65}\protected@file@percent }
+\newlabel{sec:eval-agreement-discussion}{{8.3.5}{82}{Discussion}{table.caption.65}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8.6}{\ignorespaces Raw \texttt  {deriv\_bc} (POSIX) and \texttt  {pderiv\_bc} (non-POSIX) output on S2ELab's \texttt  {[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching \texttt  {"9000"} (top-level anchors already stripped per Section~\ref {sec:eval-anchors}). \texttt  {<0>} abbreviates \texttt  {Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))}, the nine-deep injection a \texttt  {0} carries from \texttt  {[0-9]}'s internal 10-leaf alphabet encoding (Section~\ref {sec:frontend-alphabet}); all four occurrences below are byte-identical to that string, and nothing else is altered or omitted.}}{83}{figure.caption.66}\protected@file@percent }
+\newlabel{fig:agreement-sample}{{8.6}{83}{Raw \texttt {deriv\_bc} (POSIX) and \texttt {pderiv\_bc} (non-POSIX) output on S2ELab's \texttt {[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching \texttt {"9000"} (top-level anchors already stripped per Section~\ref {sec:eval-anchors}). \texttt {<0>} abbreviates \texttt {Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))}, the nine-deep injection a \texttt {0} carries from \texttt {[0-9]}'s internal 10-leaf alphabet encoding (Section~\ref {sec:frontend-alphabet}); all four occurrences below are byte-identical to that string, and nothing else is altered or omitted}{figure.caption.66}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8.4}Discussion of Results}{83}{section.8.4}\protected@file@percent }
+\newlabel{sec:eval-discussion}{{8.4}{83}{Discussion of Results}{section.8.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.1}Cost of the standard construction}{83}{subsection.8.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.2}Cost of bit-coding}{84}{subsection.8.4.2}\protected@file@percent }
+\newlabel{sec:eval-cost-bit-coding}{{8.4.2}{84}{Cost of bit-coding}{subsection.8.4.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.3}Cost of partial derivatives}{84}{subsection.8.4.3}\protected@file@percent }
+\newlabel{sec:eval-cost-partial-derivatives}{{8.4.3}{84}{Cost of partial derivatives}{subsection.8.4.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.4}Threats to validity}{84}{subsection.8.4.4}\protected@file@percent }
 \@setckpt{chapters/08_evaluation}{
-\setcounter{page}{82}
+\setcounter{page}{86}
 \setcounter{equation}{0}
 \setcounter{enumi}{6}
 \setcounter{enumii}{0}
@@ -130,7 +138,7 @@
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{2}
+\setcounter{figure}{6}
 \setcounter{table}{17}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
