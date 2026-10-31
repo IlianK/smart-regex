@@ -37,10 +37,7 @@ bounded repetition of a shorthand:
 \begin{verbatim}
 Concat [
     Plus(Any(['a', 'b', 'c'])),
-    Concat [
-        Escape('d'),
-        Escape('d')
-    ]
+    Bound(Escape('d'), 2, Some(2))
 ]
 \end{verbatim}
 \caption{The \texttt{ExtPat} produced from
@@ -81,16 +78,18 @@ the remaining 16 come from the two \texttt{[a-c]} expansions, the
 \small
 \centering
 \begin{verbatim}
-Seq(                                             
-   Seq(                                            
-      Alt(a, Alt(b, c)),                           
-      Star(Alt(a, Alt(b, c))))                    
+Seq(
    Seq(
-      Seq(                                          
-      Eps,                                        
-      Alt(0, Alt(1, Alt(2, Alt(3, Alt(4, Alt(5, Alt(6, Alt(7, Alt(8, 9))))))))),
-      Alt(0, Alt(1, Alt(2, Alt(3, Alt(4, Alt(5, Alt(6, Alt(7, Alt(8, 9)))))))))
-   ))
+      Alt(Alt(a, b), c),
+      Star(Alt(Alt(a, b), c))
+   ),
+   Seq(
+      Seq(
+         Eps,
+         Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(0, 1), 2), 3), 4), 5), 6), 7), 8), 9)
+      ),
+      Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(0, 1), 2), 3), 4), 5), 6), 7), 8), 9)
+   )
 )
 \end{verbatim}
 \caption{The full \texttt{Regex} produced by translating
@@ -197,11 +196,15 @@ literal \texttt{a} & \texttt{Char} & \texttt{Lit('a')}
     & \texttt{Group}, \texttt{GroupNonMarking} & body
     & wrapper and name dropped \\
 \texttt{\textbackslash n}, \texttt{\textbackslash t}, \texttt{\textbackslash r}
-    & \texttt{Escape} & \texttt{Lit(ch)} & \\
-\texttt{\textbackslash xHH} & \texttt{Escape} & \texttt{Lit(ch)}
+    & \texttt{Char} & \texttt{Lit(ch)} & \\
+\texttt{\textbackslash xHH} & \texttt{Char} & \texttt{Lit(ch)}
     & one byte \\
-\texttt{\textbackslash 0}--\texttt{\textbackslash 7}
-    & \texttt{Escape} & \texttt{Lit(ch)} & octal, clamped to 255 \\
+\texttt{\textbackslash 0} outside a class
+    & \texttt{Char} & \texttt{Lit(ch)} & octal, clamped to 255;
+      \texttt{\textbackslash 1}--\texttt{\textbackslash 9} rejected as backreference \\
+\texttt{\textbackslash 0}--\texttt{\textbackslash 7} inside \texttt{[...]}
+    & class member & \texttt{Any}/\texttt{NoneOf} member
+    & octal, clamped to 255; unambiguous, no backreference concern \\
 \hline
 \multicolumn{4}{@{}l}{\textit{Quantifier}} \\
 \hline
