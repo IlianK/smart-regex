@@ -194,7 +194,7 @@ literal \texttt{a} & \texttt{Char} & \texttt{Lit('a')}
     & left-folded \\
 \texttt{(...)}, \texttt{(?:...)}, \texttt{(?<n>...)}, \texttt{(?P<n>...)}
     & \texttt{Group}, \texttt{GroupNonMarking} & body
-    & wrapper and name dropped \\
+    & wrapper name dropped \\
 \texttt{\textbackslash n}, \texttt{\textbackslash t}, \texttt{\textbackslash r}
     & \texttt{Char} & \texttt{Lit(ch)} & \\
 \texttt{\textbackslash xHH} & \texttt{Char} & \texttt{Lit(ch)}
@@ -397,6 +397,6 @@ to rejects bounded repetitions whose \texttt{m} or
 \texttt{n} exceeds 1000.
 This limits individual repetitions but not total size, as nested bounds
 and multiple classes can still compound. 
-As will be seen in Chapter~\ref{sec:evaluation}, it is also
+As will be seen in the following chapter, it is also
 necessary to limit the translated \texttt{Regex} to 20{.}000
 nodes and its estimated recursion depth to 2000.
