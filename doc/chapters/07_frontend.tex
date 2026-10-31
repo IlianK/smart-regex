@@ -381,29 +381,21 @@ patterns.}
 \end{table}
 
 \phantomsection\label{sec:frontend-bounds}
-Bounds are another source of growth. Since \texttt{Regex} has
-no direct representation for \texttt{ExtPat::Bound}, a pattern
-\texttt{r\{m,n\}} becomes $m$ exact copies followed by $n-m$
-optional copies. An open upper bound, \texttt{r\{m,\}}, becomes
-$m$ copies followed by a \texttt{Star}. Since both forms clone the
-body, the resulting size grows with the bound.
+Bounds are also a source of growth. \texttt{Regex} has no
+representation for \texttt{ExtPat::Bound}, so \texttt{r\{m,n\}}
+becomes $m$ exact copies plus $n-m$ optional ones, and
+\texttt{r\{m,\}} becomes $m$ copies plus a \texttt{Star}. Both clone
+the body, so size grows with the bound.
 
-However, the implementation must impose limits to keep translated
-patterns manageable. Unrolling clones the body for each repetition,
-and \texttt{translate} itself recurses once per unrolled copy, so an
-unbounded repeat count risks a genuine stack overflow during
-translation alone, independent of how large the resulting pattern is
-or how it is later matched. \texttt{translate} therefore rejects
-bounded repetitions whose \texttt{m} or \texttt{n} exceeds 1{,}000, a
-limit measured, not guessed
-(Section~\ref{sec:eval-translate-depth}), to sit comfortably below the
-point where this specific recursion actually crashes, and well above
-the largest bound any pattern in the S2ELab corpus actually uses.
-This limits individual repetitions but not total size, as nested
-bounds and multiple classes can still compound.
-\texttt{core\_regex\_tagged} therefore also caps the translated
-\texttt{Regex} at 20{,}000 nodes -- comfortably above the largest
-pattern this evaluation ever needed to represent -- and its estimated
-nesting depth at 2{,}000, a second, pre-translation check against the
-same stack-overflow risk. All three numbers, and the measurements
-behind them, are given in Section~\ref{sec:eval-translate-depth}.
+However, the implementation imposes limits to keep translated
+patterns manageable. Unrolling clones the body once per repetition,
+and \texttt{translate} recurses once per unrolled copy, so an
+unbounded repeat count risks a stack overflow during translation
+alone. Bounded repetitions whose \texttt{m} or \texttt{n} exceeds
+1{,}000 are therefore rejected. 
+This limits individual repetitions but not total size, since nested
+bounds and multiple classes compound. Dataset preparation therefore
+caps the translated \texttt{Regex} at 20{,}000 nodes and its estimated
+nesting depth at 2{,}000.
+The measurements taken to justify these limits can be seen in 
+the following evaluation chapter.
