@@ -200,11 +200,10 @@ literal \texttt{a} & \texttt{Char} & \texttt{Lit('a')}
 \texttt{\textbackslash xHH} & \texttt{Char} & \texttt{Lit(ch)}
     & one byte \\
 \texttt{\textbackslash 0} outside a class
-    & \texttt{Char} & \texttt{Lit(ch)} & octal, clamped to 255;
-      \texttt{\textbackslash 1}--\texttt{\textbackslash 9} rejected as backreference \\
+    & \texttt{Char} & \texttt{Lit(ch)} & octal, clamped to 255 \\
 \texttt{\textbackslash 0}--\texttt{\textbackslash 7} inside \texttt{[...]}
     & class member & \texttt{Any}/\texttt{NoneOf} member
-    & octal, clamped to 255; unambiguous, no backreference concern \\
+    & octal, clamped to 255 \\
 \hline
 \multicolumn{4}{@{}l}{\textit{Quantifier}} \\
 \hline
@@ -277,7 +276,7 @@ Construct & Example & Reason \\
 \hline
 \multicolumn{3}{@{}l}{\textit{Rejected at parse}} \\
 \hline
-backreference & \texttt{(a)\textbackslash 1}, \texttt{(?P=n)}
+backreference & \texttt{(a)\textbackslash 1}, \texttt{(?P=n)}, \texttt{\textbackslash 1}--\texttt{\textbackslash 9}
     & not regular, no \texttt{ExtPat} \\
 lookaround & \texttt{(?=}, \texttt{(?!}, \texttt{(?<=}, \texttt{(?<!}
     & not regular, no \texttt{ExtPat} \\
