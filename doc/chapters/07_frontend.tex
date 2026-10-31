@@ -389,14 +389,21 @@ $m$ copies followed by a \texttt{Star}. Since both forms clone the
 body, the resulting size grows with the bound.
 
 However, the implementation must impose limits to keep translated
-patterns manageable.
-Unrolling clones the body for each
-repetition, so large bounds can cause substantial growth.
-This justifies setting a limit in \texttt{translate},
-to rejects bounded repetitions whose \texttt{m} or
-\texttt{n} exceeds 1000.
-This limits individual repetitions but not total size, as nested bounds
-and multiple classes can still compound. 
-As will be seen in the following chapter, it is also
-necessary to limit the translated \texttt{Regex} to 20{.}000
-nodes and its estimated recursion depth to 2000.
+patterns manageable. Unrolling clones the body for each repetition,
+and \texttt{translate} itself recurses once per unrolled copy, so an
+unbounded repeat count risks a genuine stack overflow during
+translation alone, independent of how large the resulting pattern is
+or how it is later matched. \texttt{translate} therefore rejects
+bounded repetitions whose \texttt{m} or \texttt{n} exceeds 1{,}000, a
+limit measured, not guessed
+(Section~\ref{sec:eval-translate-depth}), to sit comfortably below the
+point where this specific recursion actually crashes, and well above
+the largest bound any pattern in the S2ELab corpus actually uses.
+This limits individual repetitions but not total size, as nested
+bounds and multiple classes can still compound.
+\texttt{core\_regex\_tagged} therefore also caps the translated
+\texttt{Regex} at 20{,}000 nodes -- comfortably above the largest
+pattern this evaluation ever needed to represent -- and its estimated
+nesting depth at 2{,}000, a second, pre-translation check against the
+same stack-overflow risk. All three numbers, and the measurements
+behind them, are given in Section~\ref{sec:eval-translate-depth}.
