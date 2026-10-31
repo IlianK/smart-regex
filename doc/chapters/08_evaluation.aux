@@ -100,30 +100,34 @@
 \newlabel{tab:translate-cost-patho}{{8.15}{77}{Translation cost over the pathological set's default sweep, with J/K's recalibrated \texttt {suggested\_p} (see below). \emph {Rejected} counts rows that hit \texttt {core\_regex\_tagged}'s 20\,000-node cap at the swept pattern size and translated to nothing}{table.caption.65}{}}
 \@writefile{toc}{\contentsline {subsubsection}{Pathological (individual representatives)}{77}{table.caption.65}\protected@file@percent }
 \newlabel{sec:eval-translate-patho-representatives}{{8.3.4}{77}{Pathological (individual representatives)}{table.caption.65}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.5}Parse Tree Shape Agreement}{78}{subsection.8.3.5}\protected@file@percent }
-\newlabel{sec:eval-agreement}{{8.3.5}{78}{Parse Tree Shape Agreement}{subsection.8.3.5}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Method}{78}{subsection.8.3.5}\protected@file@percent }
-\newlabel{sec:eval-agreement-method}{{8.3.5}{78}{Method}{subsection.8.3.5}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Results}{78}{subsection.8.3.5}\protected@file@percent }
-\newlabel{sec:eval-agreement-results}{{8.3.5}{78}{Results}{subsection.8.3.5}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.16}{\ignorespaces Parser agreement, measured once per dataset and never pooled. \emph  {Shape agree}/\emph  {Shape disagree} give the raw count of compared cases on each side, with the percentage of \emph  {Compared} alongside. The single crash is \texttt  {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone.}}{78}{table.caption.66}\protected@file@percent }
-\newlabel{tab:agreement}{{8.16}{78}{Parser agreement, measured once per dataset and never pooled. \emph {Shape agree}/\emph {Shape disagree} give the raw count of compared cases on each side, with the percentage of \emph {Compared} alongside. The single crash is \texttt {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone}{table.caption.66}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.17}{\ignorespaces Pathological-set agreement by category. \emph  {Shape agree}/\emph  {Shape disagree} give the raw count of \emph  {Compared} cases on each side, with the percentage alongside.}}{79}{table.caption.67}\protected@file@percent }
-\newlabel{tab:agreement-patho}{{8.17}{79}{Pathological-set agreement by category. \emph {Shape agree}/\emph {Shape disagree} give the raw count of \emph {Compared} cases on each side, with the percentage alongside}{table.caption.67}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Discussion}{79}{table.caption.67}\protected@file@percent }
-\newlabel{sec:eval-agreement-discussion}{{8.3.5}{79}{Discussion}{table.caption.67}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {8.6}{\ignorespaces Raw \texttt  {deriv\_bc} (POSIX) and \texttt  {pderiv\_bc} (non-POSIX) output on S2ELab's \texttt  {[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching \texttt  {"9000"} (top-level anchors already stripped per Section~\ref {sec:eval-anchors}). \texttt  {<0>} abbreviates \texttt  {Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))}, the nine-deep injection a \texttt  {0} carries from \texttt  {[0-9]}'s internal 10-leaf alphabet encoding (Section~\ref {sec:frontend-alphabet}); all four occurrences below are byte-identical to that string, and nothing else is altered or omitted.}}{80}{figure.caption.68}\protected@file@percent }
-\newlabel{fig:agreement-sample}{{8.6}{80}{Raw \texttt {deriv\_bc} (POSIX) and \texttt {pderiv\_bc} (non-POSIX) output on S2ELab's \texttt {[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching \texttt {"9000"} (top-level anchors already stripped per Section~\ref {sec:eval-anchors}). \texttt {<0>} abbreviates \texttt {Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))}, the nine-deep injection a \texttt {0} carries from \texttt {[0-9]}'s internal 10-leaf alphabet encoding (Section~\ref {sec:frontend-alphabet}); all four occurrences below are byte-identical to that string, and nothing else is altered or omitted}{figure.caption.68}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8.4}Discussion of Results}{80}{section.8.4}\protected@file@percent }
-\newlabel{sec:eval-discussion}{{8.4}{80}{Discussion of Results}{section.8.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.1}Cost of the standard construction}{80}{subsection.8.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.2}Cost of bit-coding}{81}{subsection.8.4.2}\protected@file@percent }
-\newlabel{sec:eval-cost-bit-coding}{{8.4.2}{81}{Cost of bit-coding}{subsection.8.4.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.3}Cost of partial derivatives}{81}{subsection.8.4.3}\protected@file@percent }
-\newlabel{sec:eval-cost-partial-derivatives}{{8.4.3}{81}{Cost of partial derivatives}{subsection.8.4.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.4}Threats to validity}{81}{subsection.8.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.5}Translation depth caps}{78}{subsection.8.3.5}\protected@file@percent }
+\newlabel{sec:eval-translate-depth}{{8.3.5}{78}{Translation depth caps}{subsection.8.3.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.16}{\ignorespaces Doubling-search crash points for the two recursive mechanisms behind \texttt  {MAX\_BOUND} and \texttt  {MAX\_CORE\_DEPTH}, each confirmed as a genuine stack overflow (the Rust runtime's own \texttt  {"thread 'main' has overflowed its stack"} message), not a timeout.}}{78}{table.caption.66}\protected@file@percent }
+\newlabel{tab:translate-depth}{{8.16}{78}{Doubling-search crash points for the two recursive mechanisms behind \texttt {MAX\_BOUND} and \texttt {MAX\_CORE\_DEPTH}, each confirmed as a genuine stack overflow (the Rust runtime's own \texttt {"thread 'main' has overflowed its stack"} message), not a timeout}{table.caption.66}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.3.6}Parse Tree Shape Agreement}{79}{subsection.8.3.6}\protected@file@percent }
+\newlabel{sec:eval-agreement}{{8.3.6}{79}{Parse Tree Shape Agreement}{subsection.8.3.6}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Method}{79}{subsection.8.3.6}\protected@file@percent }
+\newlabel{sec:eval-agreement-method}{{8.3.6}{79}{Method}{subsection.8.3.6}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Results}{79}{subsection.8.3.6}\protected@file@percent }
+\newlabel{sec:eval-agreement-results}{{8.3.6}{79}{Results}{subsection.8.3.6}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.17}{\ignorespaces Parser agreement, measured once per dataset and never pooled. \emph  {Shape agree}/\emph  {Shape disagree} give the raw count of compared cases on each side, with the percentage of \emph  {Compared} alongside. The single crash is \texttt  {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone.}}{80}{table.caption.67}\protected@file@percent }
+\newlabel{tab:agreement}{{8.17}{80}{Parser agreement, measured once per dataset and never pooled. \emph {Shape agree}/\emph {Shape disagree} give the raw count of compared cases on each side, with the percentage of \emph {Compared} alongside. The single crash is \texttt {deriv\_std\_rec} stack-overflowing on a 10-million-character input in category I, the same failure mode Section~\ref {sec:eval-timing-patho-representatives} reports on the representative rows, here on a trivial pattern, so it is a property of input length alone}{table.caption.67}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.18}{\ignorespaces Pathological-set agreement by category. \emph  {Shape agree}/\emph  {Shape disagree} give the raw count of \emph  {Compared} cases on each side, with the percentage alongside.}}{80}{table.caption.68}\protected@file@percent }
+\newlabel{tab:agreement-patho}{{8.18}{80}{Pathological-set agreement by category. \emph {Shape agree}/\emph {Shape disagree} give the raw count of \emph {Compared} cases on each side, with the percentage alongside}{table.caption.68}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Discussion}{80}{table.caption.68}\protected@file@percent }
+\newlabel{sec:eval-agreement-discussion}{{8.3.6}{80}{Discussion}{table.caption.68}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8.6}{\ignorespaces Raw \texttt  {deriv\_bc} (POSIX) and \texttt  {pderiv\_bc} (non-POSIX) output on S2ELab's \texttt  {[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching \texttt  {"9000"} (top-level anchors already stripped per Section~\ref {sec:eval-anchors}). \texttt  {<0>} abbreviates \texttt  {Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))}, the nine-deep injection a \texttt  {0} carries from \texttt  {[0-9]}'s internal 10-leaf alphabet encoding (Section~\ref {sec:frontend-alphabet}); all four occurrences below are byte-identical to that string, and nothing else is altered or omitted.}}{81}{figure.caption.69}\protected@file@percent }
+\newlabel{fig:agreement-sample}{{8.6}{81}{Raw \texttt {deriv\_bc} (POSIX) and \texttt {pderiv\_bc} (non-POSIX) output on S2ELab's \texttt {[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching \texttt {"9000"} (top-level anchors already stripped per Section~\ref {sec:eval-anchors}). \texttt {<0>} abbreviates \texttt {Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))}, the nine-deep injection a \texttt {0} carries from \texttt {[0-9]}'s internal 10-leaf alphabet encoding (Section~\ref {sec:frontend-alphabet}); all four occurrences below are byte-identical to that string, and nothing else is altered or omitted}{figure.caption.69}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8.4}Discussion of Results}{81}{section.8.4}\protected@file@percent }
+\newlabel{sec:eval-discussion}{{8.4}{81}{Discussion of Results}{section.8.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.1}Cost of the standard construction}{81}{subsection.8.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.2}Cost of bit-coding}{82}{subsection.8.4.2}\protected@file@percent }
+\newlabel{sec:eval-cost-bit-coding}{{8.4.2}{82}{Cost of bit-coding}{subsection.8.4.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.3}Cost of partial derivatives}{82}{subsection.8.4.3}\protected@file@percent }
+\newlabel{sec:eval-cost-partial-derivatives}{{8.4.3}{82}{Cost of partial derivatives}{subsection.8.4.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.4.4}Threats to validity}{83}{subsection.8.4.4}\protected@file@percent }
 \@setckpt{chapters/08_evaluation}{
-\setcounter{page}{83}
+\setcounter{page}{84}
 \setcounter{equation}{0}
 \setcounter{enumi}{6}
 \setcounter{enumii}{0}
@@ -139,7 +143,7 @@
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
 \setcounter{figure}{6}
-\setcounter{table}{17}
+\setcounter{table}{18}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
 \setcounter{continuedfloat}{0}
@@ -154,6 +158,6 @@
 \setcounter{section@level}{0}
 \setcounter{Item}{6}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{68}
+\setcounter{bookmark@seq@number}{69}
 \setcounter{lstlisting}{0}
 }

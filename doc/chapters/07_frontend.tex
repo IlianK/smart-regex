@@ -381,22 +381,21 @@ patterns.}
 \end{table}
 
 \phantomsection\label{sec:frontend-bounds}
-Bounds are another source of growth. Since \texttt{Regex} has
-no direct representation for \texttt{ExtPat::Bound}, a pattern
-\texttt{r\{m,n\}} becomes $m$ exact copies followed by $n-m$
-optional copies. An open upper bound, \texttt{r\{m,\}}, becomes
-$m$ copies followed by a \texttt{Star}. Since both forms clone the
-body, the resulting size grows with the bound.
+Bounds are also a source of growth. \texttt{Regex} has no
+representation for \texttt{ExtPat::Bound}, so \texttt{r\{m,n\}}
+becomes $m$ exact copies plus $n-m$ optional ones, and
+\texttt{r\{m,\}} becomes $m$ copies plus a \texttt{Star}. Both clone
+the body, so size grows with the bound.
 
-However, the implementation must impose limits to keep translated
-patterns manageable.
-Unrolling clones the body for each
-repetition, so large bounds can cause substantial growth.
-This justifies setting a limit in \texttt{translate},
-to rejects bounded repetitions whose \texttt{m} or
-\texttt{n} exceeds 1000.
-This limits individual repetitions but not total size, as nested bounds
-and multiple classes can still compound. 
-As will be seen in the following chapter, it is also
-necessary to limit the translated \texttt{Regex} to 20{.}000
-nodes and its estimated recursion depth to 2000.
+However, the implementation imposes limits to keep translated
+patterns manageable. Unrolling clones the body once per repetition,
+and \texttt{translate} recurses once per unrolled copy, so an
+unbounded repeat count risks a stack overflow during translation
+alone. Bounded repetitions whose \texttt{m} or \texttt{n} exceeds
+1{,}000 are therefore rejected. 
+This limits individual repetitions but not total size, since nested
+bounds and multiple classes compound. Dataset preparation therefore
+caps the translated \texttt{Regex} at 20{,}000 nodes and its estimated
+nesting depth at 2{,}000.
+The measurements taken to justify these limits can be seen in 
+the following evaluation chapter.

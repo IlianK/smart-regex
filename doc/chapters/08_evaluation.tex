@@ -1436,6 +1436,103 @@ ten million.
 %
 %
 
+\subsection{Translation depth caps}
+\label{sec:eval-translate-depth}
+
+Section~\ref{sec:frontend-bounds} named three fixed limits without
+justifying them: \texttt{translate} refuses any \texttt{\{m,n\}} bound
+whose \texttt{m} or \texttt{n} exceeds 1{,}000 (\texttt{MAX\_BOUND}),
+and \texttt{core\_regex\_tagged} separately refuses a pattern whose
+translated \texttt{Regex} exceeds 20{,}000 nodes
+(\texttt{MAX\_CORE\_NODES}) or whose estimated nesting depth exceeds
+2{,}000 (\texttt{MAX\_CORE\_DEPTH}). This section measures what the
+first and third of those guard against directly, the same way
+Section~\ref{sec:eval-stack-depth} measured \texttt{deriv\_std\_rec}'s
+crash point rather than asserting one.
+
+\texttt{translate} is a plain recursive function (one call per
+\texttt{ExtPat} level), and \texttt{desugar\_bound}'s private
+\texttt{optional\_extra} recurses once per unit of a bound's open part
+(\texttt{n\,-\,m}): an unrolling deep enough risks overflowing
+\texttt{translate}'s own call stack, independent of how the resulting
+pattern is later matched. Unlike every other bench in this chapter,
+which runs on a 256\,MiB custom worker stack
+(Section~\ref{sec:eval-stack-depth}), \texttt{core\_regex\_tagged} runs
+on whatever stack its caller gives it, and
+\texttt{examples/dataset\_prepare.rs} never spawns a custom one -- in
+practice the OS's plain default main-thread stack, 8\,MiB on this
+machine (\texttt{ulimit -s}). \texttt{bench\_translate\_depth} measures
+two mechanisms directly on that same 8\,MiB stack, with the same
+process-isolated doubling sweep as Section~\ref{sec:eval-stack-depth}:
+\texttt{bound\_unroll} reproduces \texttt{optional\_extra}'s exact
+recursive shape (the real, public \texttt{translate} cannot be swept
+past its own \texttt{MAX\_BOUND}, so the identical algorithm is
+reproduced in the worker instead -- see its module doc); \texttt{syntactic\_nesting}
+calls the real, uncapped \texttt{parse\_ext\_pattern}/\texttt{translate}
+pipeline on a pattern with \texttt{n} nested non-capturing groups,
+\texttt{(?:(?:...(?:a)...))}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrll}
+\hline
+Mechanism & Worker stack & Survived up to & Crashed between \\
+\hline
+Bound unrolling (\texttt{optional\_extra}) & 8\,MiB & $N=51{,}200$ & $51{,}200$--$102{,}400$ \\
+Syntactic nesting (\texttt{(?:...)}) & 8\,MiB & $N=6{,}400$ & $6{,}400$--$12{,}800$ \\
+\hline
+\end{tabular}
+\caption{Doubling-search crash points for the two recursive mechanisms
+behind \texttt{MAX\_BOUND} and \texttt{MAX\_CORE\_DEPTH}, each
+confirmed as a genuine stack overflow (the Rust runtime's own
+\texttt{"thread 'main' has overflowed its stack"} message), not a
+timeout.}
+\label{tab:translate-depth}
+\end{table}
+
+Both caps sit comfortably below where their own mechanism actually
+breaks. A single bound's open part is capped at 1{,}000, roughly
+$51\times$ below where \texttt{optional\_extra}'s own recursion starts
+crashing; the estimated nesting depth is capped at 2{,}000, roughly
+$3.2\times$ below where the real, uncapped pipeline crashes on
+deeply-nested syntax. \texttt{prepare.rs}'s own depth estimate for a
+bound (\texttt{estimated\_translated\_depth}) uses \texttt{hi} rather
+than the smaller \texttt{hi\,-\,lo} that \texttt{optional\_extra}
+actually recurses to, so the pre-translation check is itself
+conservative on top of that margin, never under-estimating the real
+risk. (These margins hold for a release build, the only way this
+pipeline is run in practice; a debug build's larger per-call frames
+would crash sooner, at a smaller $N$, in both mechanisms.)
+
+\texttt{MAX\_BOUND} also comfortably covers real use, not just real
+risk: \texttt{demo\_bound\_usage} walks every S2ELab pattern's
+\texttt{ExtPat} and collects every \texttt{Bound} node's own
+\texttt{hi} (or \texttt{lo} if unbounded above) anywhere in it, not
+just at the top level. Of 762 raw patterns (714 parse), 442 contain at
+least one bound, 1{,}769 bound occurrences in total; the largest single
+value found anywhere in the corpus is 67 (median 2, 99th percentile
+16). No S2ELab rule asks for anything within two orders of magnitude of
+the 1{,}000 cap.
+
+\texttt{MAX\_CORE\_NODES} is a different kind of limit: node count has
+no comparable crash cliff the way recursion depth does (cost grows
+smoothly, not in a single catastrophic step), so it is sized by
+coverage instead. Section~\ref{sec:eval-translate-s2elab} already
+reports the figure this leans on: the largest pattern anywhere in
+S2ELab translates to 18{,}707 nodes, so 20{,}000 covers every pattern
+this evaluation needed to represent with headroom to spare, while
+still bounding how much a single malformed or adversarial pattern can
+cost to store and translate.
+
+\texttt{bench\_translate\_depth} and \texttt{demo\_bound\_usage} are
+both runnable directly, the same as every other bench and demo in this
+chapter.
+
+%
+%
+%
+
 \subsection{Parse Tree Shape Agreement}
 \label{sec:eval-agreement}
 
