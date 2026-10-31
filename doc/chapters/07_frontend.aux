@@ -1,46 +1,41 @@
 \relax 
 \providecommand\zref@newlabel[2]{}
 \providecommand\hyper@newdestlabel[2]{}
-\@writefile{toc}{\contentsline {chapter}{\numberline {7}Translation: ExtPat to Regex}{57}{chapter.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {7}Translation}{57}{chapter.7}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{sec:frontend}{{7}{57}{Translation: ExtPat to Regex}{chapter.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.1}A worked example}{57}{section.7.1}\protected@file@percent }
-\newlabel{sec:frontend-worked-example}{{7.1}{57}{A worked example}{section.7.1}{}}
+\newlabel{sec:frontend}{{7}{57}{Translation}{chapter.7}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.1}Parsing: String to ExtPat}{57}{section.7.1}\protected@file@percent }
+\newlabel{sec:string-to-extpat}{{7.1}{57}{Parsing: String to ExtPat}{section.7.1}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {7.1}{\ignorespaces The \texttt  {ExtPat} produced from \texttt  {[a-c]+{\textbackslash }d\{2\}}.}}{57}{figure.caption.38}\protected@file@percent }
 \newlabel{fig:frontend-worked-extpat}{{7.1}{57}{The \texttt {ExtPat} produced from \texttt {[a-c]+{\textbackslash }d\{2\}}}{figure.caption.38}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces The full \texttt  {Regex} produced by translating \texttt  {[a-c]+{\textbackslash }d\{2\}}. 54 nodes, matching the third entry of Table~\ref {tab:translation-sizes}. The two \texttt  {Eps} leaves come from \texttt  {repeat\_exact} seeding its unrolling at \texttt  {Eps}; \texttt  {translate} does not simplify them away.}}{58}{figure.caption.39}\protected@file@percent }
-\newlabel{fig:frontend-worked-regex}{{7.2}{58}{The full \texttt {Regex} produced by translating \texttt {[a-c]+{\textbackslash }d\{2\}}. 54 nodes, matching the third entry of Table~\ref {tab:translation-sizes}. The two \texttt {Eps} leaves come from \texttt {repeat\_exact} seeding its unrolling at \texttt {Eps}; \texttt {translate} does not simplify them away}{figure.caption.39}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.2}Overview}{58}{section.7.2}\protected@file@percent }
-\newlabel{sec:frontend-overview}{{7.2}{58}{Overview}{section.7.2}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {7.3}{\ignorespaces The frontend's three stages. \texttt  {parse\_ext\_pattern} produces \texttt  {ExtPat}. Dashed arrow is the optional flag-rewrite step (\texttt  {i} case-folds, \texttt  {s} keeps newline in \texttt  {.}). \texttt  {translate} turns it into \texttt  {Regex}. Grey text marks each stage's rejection causes.}}{58}{figure.caption.40}\protected@file@percent }
-\newlabel{fig:frontend-pipeline}{{7.3}{58}{The frontend's three stages. \texttt {parse\_ext\_pattern} produces \texttt {ExtPat}. Dashed arrow is the optional flag-rewrite step (\texttt {i} case-folds, \texttt {s} keeps newline in \texttt {.}). \texttt {translate} turns it into \texttt {Regex}. Grey text marks each stage's rejection causes}{figure.caption.40}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.3}The surface AST}{59}{section.7.3}\protected@file@percent }
-\newlabel{sec:frontend-extpat}{{7.3}{59}{The surface AST}{section.7.3}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.4}Parsing: String to ExtPat}{59}{section.7.4}\protected@file@percent }
-\newlabel{sec:frontend-parse}{{7.4}{59}{Parsing: String to ExtPat}{section.7.4}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.4.1}Accepted and rejected surface syntax}{59}{subsection.7.4.1}\protected@file@percent }
-\newlabel{sec:frontend-parse-rejected}{{7.4.1}{59}{Accepted and rejected surface syntax}{subsection.7.4.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.4.2}PCRE flags}{60}{subsection.7.4.2}\protected@file@percent }
-\newlabel{sec:frontend-flags}{{7.4.2}{60}{PCRE flags}{subsection.7.4.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.5}Translation details}{60}{section.7.5}\protected@file@percent }
-\newlabel{sec:frontend-translate}{{7.5}{60}{Translation details}{section.7.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.1}Character classes and the working alphabet}{60}{subsection.7.5.1}\protected@file@percent }
-\newlabel{sec:frontend-alphabet}{{7.5.1}{60}{Character classes and the working alphabet}{subsection.7.5.1}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {7.5.2}Bounds and unrolling}{60}{subsection.7.5.2}\protected@file@percent }
-\newlabel{sec:frontend-bounds}{{7.5.2}{60}{Bounds and unrolling}{subsection.7.5.2}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7.6}Translation Size}{61}{section.7.6}\protected@file@percent }
-\newlabel{sec:frontend-sizes}{{7.6}{61}{Translation Size}{section.7.6}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces Every \texttt  {ExtPat} variant and surface form the frontend recognizes. A named \texttt  {Regex} target means accepted; an em dash means rejected, with the reason in the last column. \texttt  {m}/\texttt  {x} flag rejection is covered separately in Table~\ref {tab:flags}.}}{62}{table.caption.41}\protected@file@percent }
-\newlabel{tab:surface-syntax}{{7.1}{62}{Every \texttt {ExtPat} variant and surface form the frontend recognizes. A named \texttt {Regex} target means accepted; an em dash means rejected, with the reason in the last column. \texttt {m}/\texttt {x} flag rejection is covered separately in Table~\ref {tab:flags}}{table.caption.41}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7.2}{\ignorespaces The three flag groups. An ignored flag leaves the parsed pattern exactly as it would be without the flag.}}{63}{table.caption.42}\protected@file@percent }
-\newlabel{tab:flags}{{7.2}{63}{The three flag groups. An ignored flag leaves the parsed pattern exactly as it would be without the flag}{table.caption.42}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {7.3}{\ignorespaces Translated size in \texttt  {Regex} nodes for representative patterns.}}{63}{table.caption.43}\protected@file@percent }
-\newlabel{tab:translation-sizes}{{7.3}{63}{Translated size in \texttt {Regex} nodes for representative patterns}{table.caption.43}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.2}Translate: ExtPat to Regex}{57}{section.7.2}\protected@file@percent }
+\newlabel{sec:extpat-to-regex}{{7.2}{57}{Translate: ExtPat to Regex}{section.7.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {7.2}{\ignorespaces The full \texttt  {Regex} produced by translating the \texttt  {ExtPat}.}}{58}{figure.caption.39}\protected@file@percent }
+\newlabel{fig:frontend-worked-regex}{{7.2}{58}{The full \texttt {Regex} produced by translating the \texttt {ExtPat}}{figure.caption.39}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.3}The Surface Syntax}{58}{section.7.3}\protected@file@percent }
+\newlabel{sec:surface-syntax}{{7.3}{58}{The Surface Syntax}{section.7.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.1}{\ignorespaces PCRE flags by group. Honoured flags are part of the pattern's meaning and are reproduced by a structural rewrite on \texttt  {ExtPat}. Some flags are rejected outright. Ignored flags choose a buffer region or search position and do not affect the denoted language.}}{58}{table.caption.40}\protected@file@percent }
+\newlabel{tab:flags}{{7.1}{58}{PCRE flags by group. Honoured flags are part of the pattern's meaning and are reproduced by a structural rewrite on \texttt {ExtPat}. Some flags are rejected outright. Ignored flags choose a buffer region or search position and do not affect the denoted language}{table.caption.40}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.1}Accepted Constructs}{59}{subsection.7.3.1}\protected@file@percent }
+\newlabel{sec:frontend-accepted}{{7.3.1}{59}{Accepted Constructs}{subsection.7.3.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.2}{\ignorespaces Surface syntax, grouped by translation mechanism, together with the \texttt  {ExtPat} each produces and the \texttt  {Regex} it translates into. Leaf counts refer to the 98-character alphabet.}}{59}{table.caption.41}\protected@file@percent }
+\newlabel{tab:surface-syntax}{{7.2}{59}{Surface syntax, grouped by translation mechanism, together with the \texttt {ExtPat} each produces and the \texttt {Regex} it translates into. Leaf counts refer to the 98-character alphabet}{table.caption.41}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3.2}Rejected Constructs}{59}{subsection.7.3.2}\protected@file@percent }
+\newlabel{sec:frontend-rejected}{{7.3.2}{59}{Rejected Constructs}{subsection.7.3.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.3}{\ignorespaces Surface forms the parser refuses, grouped by the stage at which refusal happens.}}{59}{table.caption.42}\protected@file@percent }
+\newlabel{tab:surface-rejected}{{7.3}{59}{Surface forms the parser refuses, grouped by the stage at which refusal happens}{table.caption.42}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {7.4}Translation Sizes}{60}{section.7.4}\protected@file@percent }
+\newlabel{sec:frontend-sizes}{{7.4}{60}{Translation Sizes}{section.7.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.4}{\ignorespaces Node counts for alphabet expansion over the 98-character working alphabet.}}{60}{table.caption.43}\protected@file@percent }
+\newlabel{tab:alphabet-expansion-sizes}{{7.4}{60}{Node counts for alphabet expansion over the 98-character working alphabet}{table.caption.43}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {7.5}{\ignorespaces Translated size in \texttt  {Regex} nodes for representative patterns.}}{60}{table.caption.44}\protected@file@percent }
+\newlabel{tab:translation-sizes}{{7.5}{60}{Translated size in \texttt {Regex} nodes for representative patterns}{table.caption.44}{}}
+\newlabel{sec:frontend-bounds}{{7.4}{60}{Translation Sizes}{section*.45}{}}
 \@setckpt{chapters/07_frontend}{
-\setcounter{page}{64}
+\setcounter{page}{61}
 \setcounter{equation}{0}
-\setcounter{enumi}{3}
+\setcounter{enumi}{0}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}
 \setcounter{enumiv}{0}
@@ -48,13 +43,13 @@
 \setcounter{mpfootnote}{0}
 \setcounter{part}{0}
 \setcounter{chapter}{7}
-\setcounter{section}{6}
+\setcounter{section}{4}
 \setcounter{subsection}{0}
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{3}
-\setcounter{table}{3}
+\setcounter{figure}{2}
+\setcounter{table}{5}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
 \setcounter{continuedfloat}{0}
@@ -67,8 +62,8 @@
 \setcounter{mdf@env@ii}{0}
 \setcounter{mdf@zref@counter}{0}
 \setcounter{section@level}{0}
-\setcounter{Item}{3}
+\setcounter{Item}{0}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{54}
+\setcounter{bookmark@seq@number}{50}
 \setcounter{lstlisting}{0}
 }
