@@ -1,153 +1,266 @@
 \chapter{Evaluation}
 \label{sec:evaluation}
 
-This chapter evaluates five parser candidates implemented in
-Chapters~\ref{sec:derivative-parser} and
-\ref{sec:partial-derivative-parser}:
+This chapter evaluates the derivative and partial-derivative parsers developed in
+Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}.
+Using two datasets and a common set of measurement criteria, it compares the
+candidate parsers in terms of stack depth, execution time, memory consumption,
+and translation cost, and assesses how far they agree on membership decisions
+and parse-tree shape. The resulting findings are then interpreted and discussed.
 
+All measurements were taken on an AMD Ryzen~5~5600 six-core processor with
+16\,GB of RAM, running Pop!\_OS 24.04 LTS on an AMD B550 chipset.
+
+%
+%
+%
+
+
+
+\section{Candidates}
+\label{sec:eval-candidates}
+
+All five candidates share one interface:
+\[
+p :: (\mathit{String}, \mathit{Regex}) \to \mathit{Option\langle ParseTree\rangle}.
+\]
+Each takes an input string and a translated \texttt{Regex} and returns either
+a parse tree or no match. Timing, memory, and agreement are all properties of
+calls to this function.
+
+The candidates divide into two families.
+
+\textbf{POSIX family.} These three parsers select the POSIX parse tree.
 \begin{itemize}
-  \item \texttt{deriv\_std\_rec}, the standard derivative parser in
-        its recursive form.
-  \item \texttt{deriv\_std\_loop}, the standard derivative parser in
-        its iterative form.
-  \item \texttt{deriv\_bc}, the bit-coded derivative parser.
-  \item \texttt{pderiv\_std}, the standard partial-derivative parser.
-  \item \texttt{pderiv\_bc}, the bit-coded partial-derivative parser.
+  \item \texttt{deriv\_std\_rec}, the standard derivative parser in recursive
+        form (Section~\ref{sec:deriv-std-parser}).
+  \item \texttt{deriv\_std\_loop}, the standard derivative parser in iterative
+        form, holding the residual sequence in a \texttt{Vec} rather than a call stack.
+  \item \texttt{deriv\_bc}, the bit-coded derivative parser
+        (Section~\ref{sec:deriv-bc-driver}).
 \end{itemize}
 
-Section~\ref{sec:eval-criteria} states what is measured and how.
-Section~\ref{sec:eval-dataset} describes the two data sources.
-Section~\ref{sec:eval-performance} compares the five candidates on
-stack depth, execution time, memory, and translation cost, and
-reports how often the POSIX and non-POSIX parser families agree on
-parse-tree shape. Section~\ref{sec:eval-discussion} interprets the
-results.
+\textbf{Non-POSIX family.} These two parsers select the leftmost parse tree.
+\begin{itemize}
+  \item \texttt{pderiv\_std}, the standard partial-derivative parser
+        (Section~\ref{sec:pderiv-std-parser}).
+  \item \texttt{pderiv\_bc}, the bit-coded partial-derivative parser
+        (Section~\ref{sec:pderiv-bc-parser}).
+\end{itemize}
 
-All measurements were taken on an AMD Ryzen~5~5600
-six-core processor with 16\,GB of RAM, running Pop!\_OS 24.04 LTS on
-an AMD B550 chipset.
+All five parsers must agree on the membership result, so every input must be
+either accepted as a match or rejected as a non-match by all candidates alike.
+They need not, however, agree on the parse-tree shape. Within each family the
+parsers select the same kind of parse tree, meaning POSIX for the POSIX family and
+leftmost for the non-POSIX family and are expected to agree on both
+membership and tree shape. 
+Across the two families, the selected trees may
+differ for ambiguous patterns. 
 
 %
 %
 %
+
 \section{Evaluation Criteria}
 \label{sec:eval-criteria}
 
-Three properties of a corpus make the five parsers cost something.
+The evaluation addresses two aspects: \emph{performance}, how much each
+candidate costs in time, memory, and translation, and \emph{correctness},
+whether the five candidates agree on membership and on parse-tree shape.
 
-\textbf{Input length.} The two standard derivative parsers retain
-every intermediate expression until the backward pass, so their live
-state grows with the number of characters consumed. The bit-coded and
-partial-derivative parsers do not carry that history.
+In addition, stack depth is measured for the recursive and iterative forms of
+the standard derivative parser. These compute identical values but hold the
+residual sequence differently: the recursive form holds it on the call stack,
+the iterative form in a \texttt{Vec}. The measurement is intended to isolate
+the input depth at which the call stack, rather than the derivation itself,
+becomes the limiting factor.
 
-\textbf{Pattern structure.} Translation size and derivative cost scale
-with the pattern's own node count. This splits into two phases the
-evaluation measures separately. \emph{Translation} (PCRE string to
-\texttt{Regex}, measured once per distinct pattern) and the
-\emph{derivative loop} (measured per pattern-input pair). A pattern
-can be cheap to translate and expensive to derive, or the reverse.
-
-\textbf{Ambiguity.} When a single input admits several valid
-decompositions, the parsers keep more state alive and must choose
-among the surviving trees.
-
-A fixed per-call cost is paid once per pattern-input pair regardless
-of length, structure, or ambiguity. It is why the five parsers differ
-even on the corpus's shortest entries.
-
-S2ELab's patterns are short, human-authored rules with modest
-structural complexity and short given inputs, so it exercises all
-three drivers mildly. This is why a second, deliberately extreme
-dataset exists (Section~\ref{sec:eval-pathological}).
+\textbf{Notation.} An \emph{entry} is a pair $(r, w)$ where $r$ is a
+translated \texttt{Regex} and $w$ is an input string. Translation runs once
+per distinct source pattern and is deterministic, so entries that share a
+source pattern share the same $r$.
 
 %
 %
 %
 
-\subsection{What is measured}
-\label{sec:eval-criteria-what}
+\subsection{Timing}
+\label{sec:eval-criteria-timing}
 
-Four quantities are measured, each by its own bench or demo, each
-against both datasets.
+Each entry $(r, w)$ is timed individually in its own worker subprocess. The
+worker reports a wall-clock time around the parser call $p(r, w)$ only.
+Translation is excluded, since $r$ was already constructed before the parser
+runs, and is measured separately. The reported time splits into three phases.
 
 \begin{itemize}
-  \item \textbf{Stack depth.} How deep an input can push
-        \texttt{deriv\_std\_rec}'s call stack and
-        \texttt{deriv\_std\_loop}'s accumulated state before either
-        one fails, isolated from every other cost
-        (Section~\ref{sec:eval-stack-depth}).
-  \item \textbf{Timing.} Wall-clock time per (pattern, input) pair,
-        run once per entry, with no warm-up and no repetition
-        (Section~\ref{sec:eval-timing}).
-  \item \textbf{Memory.} Heap allocation per (pattern, input) pair,
-        measured by a custom global-allocator wrapper
-        (Section~\ref{sec:eval-memory}).
-  \item \textbf{Translate.} The cost of turning a pattern string into
-        a \texttt{Regex}, measured once per distinct pattern, separate
-        from the derivative loop that then runs on it
-        (Section~\ref{sec:eval-translate}).
+  \item \emph{Encode} builds the initial bit-coded or partial-derivative state
+        before any character of $w$ is consumed.
+  \item \emph{Derive} is the character-by-character loop itself.
+  \item \emph{Decode} reconstructs a parse tree from the final state, where
+        one is built at all.
 \end{itemize}
 
-Timing and memory each report mean, median, 99th percentile, and
-maximum. Timing additionally splits its mean into three phases:
-\emph{encode} (building the initial bit-coded or partial-derivative
-state before any character is consumed), \emph{derive} (the
-character-by-character loop itself), and \emph{decode} (reconstructing
-a parse tree from the final state, where one is built at all).
-\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} report their
-entire cost under \emph{derive}, since neither has a separate encode
-or decode step. Memory reports total bytes (every allocation,
-including churn later freed), average bytes per entry, and max peak
-(the highest live-byte high-water mark on any single entry, flat, not
-averaged). The two are deliberately different: total bytes measures
-allocator pressure, max peak measures the actual memory footprint a
-production deployment would see. A parser can have a far higher total
-than another while peaking lower, if it allocates and discards many
-small objects rather than holding one large one.
+The two standard derivative parsers have no encode or decode step, so their
+whole cost lands under \emph{derive}. \texttt{deriv\_bc} and \texttt{pderiv\_bc}
+report all three. The summary tables additionally report a \emph{wall} column,
+which is the bench's own wall clock around the whole per-source loop. It
+includes one process spawn and one pipe round trip per entry, so it is larger
+than the sum of the per-entry parser times and does not equal
+$\mathit{entries} \times \mathit{mean}$. The distribution columns
+(mean, median, 99th percentile, maximum) come from each worker's self-reported
+parser time and are the figures to compare across candidates.
 
 %
 %
 %
 
-\subsection{How it is measured}
-\label{sec:eval-criteria-how}
+\subsection{Memory}
+\label{sec:eval-criteria-memory}
 
-Every timing and memory bench runs each (pattern, input) pair in its
-own worker subprocess, isolated from the bench harness and from every
-other entry. Two independent limits apply per entry.
-\texttt{BENCH\_ENTRY\_TIMEOUT\_MS} is a wall-clock deadline; exceeding
-it is recorded as \emph{timed out}, not a crash. A separate memory
-ceiling (\texttt{BENCH\_MEM\_CAP\_MB}), enforced via a
-\texttt{setrlimit(RLIMIT\_AS, ...)} call on the worker, bounds how much
-address space a single entry may claim; exceeding it kills the worker
-and is recorded as \emph{crashed}. Without this cap, an unbounded
-entry risks the OS out-of-memory killer picking an arbitrary victim
-process rather than the one actually responsible. A crashed worker's
-exit is detected as a signal-terminated process with no exit code;
-the harness does not yet distinguish a genuine stack overflow from a
-worker killed by the memory cap, so a \emph{crashed} entry's recorded
-reason should be read as ``the worker was killed by a signal,'' not
-necessarily ``the worker overflowed its stack''
-(Section~\ref{sec:eval-stack-depth} isolates the one measurement where
-that distinction is made directly, by removing the memory cap
-entirely).
+Each worker replaces its system allocator with a counting wrapper that sees
+every allocation and free. Three figures are reported per candidate across the
+set of entries it ran.
 
-\textbf{Macro-averaging.} Matches and non-matches are not balanced,
-within a pattern or across patterns (Section~\ref{sec:eval-s2elab}): a
-pattern with 40 matches and 2 non-matches contributes all 42, and a
-pattern with 50 surviving examples contributes all 50, even when
-another pattern in the same corpus contributes only one. The
-resulting cross-pattern imbalance is corrected at averaging time.
-Every S2ELab mean in this chapter is a macro-average, not a flat
-average over every measured entry: each pattern's own mean is
-computed first, then those per-pattern means are averaged together,
-unweighted, so every pattern contributes once regardless of its own
-example count. Median, 99th percentile, and maximum remain computed
-over individual inputs, since they describe the cost of the single
-worst input rather than of a typical pattern. The pathological set's
-own tables need no such correction, since each of its categories is
-already a small, individually-authored set of rows rather than a
-corpus with a long tail.
+\begin{itemize}
+  \item \emph{Total bytes} sums every allocation across the whole sweep,
+        including churn. It measures allocator pressure.
+  \item \emph{Average bytes per entry} divides the total by the entries that
+        completed. Also allocator pressure.
+  \item \emph{Max peak} is the highest live-byte high-water mark on any single
+        entry, flat, not averaged. It measures the actual memory footprint a
+        deployment would see.
+\end{itemize}
+
+Total and average can diverge sharply from peak. A parser that allocates and
+discards many small objects has a high total and a low peak. A parser that
+holds one large object has a moderate total and a high peak. Both figures are
+reported so the two costs can be told apart. The counting wrapper sees heap
+traffic only. Each worker's call-thread stack is invisible to it, so an entry
+dominated by recursion depth rather than allocation would under-report here.
+The stack-depth measurement below is what covers that case.
+
+%
+%
+%
+
+\subsection{Translation}
+\label{sec:eval-criteria-translation}
+
+Translation cost depends on the source pattern only, not on $w$. It is
+measured once per distinct pattern rather than once per entry, which would
+re-measure the same $r$ construction once per $w$ that shares it. The frontend
+enforces its own depth and node caps before the expensive translation step
+runs, so a translation measurement cannot hang or allocate unboundedly the way
+a parser call can. Translation is therefore measured in-process, with a fresh
+counting baseline per pattern, and no process isolation. Time is measured
+around the translation call itself. A per-pattern panic guard stands in for
+crash containment. The absence of a timeout follows from the frontend's own
+caps. A pattern that would time out a parser entry is rejected by the frontend
+before translation runs.
+
+%
+%
+%
+
+\subsection{Stack Depth}
+\label{sec:eval-criteria-stack-depth}
+
+The main timing and memory benches run every candidate on a custom 256\,MiB
+worker stack, generous enough that call-stack depth never becomes the limiting
+factor. That is deliberate. It removes a platform artifact from the timing and
+memory figures. It also hides the one cost that distinguishes the two standard
+derivative parsers, which compute the same values by different control-flow
+shapes, one with a recursive call per character consumed and the other with an
+explicit loop. The stack-depth measurement isolates that difference directly.
+It runs \texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} side by side on
+the operating system's plain default thread stack, with no memory cap, and
+doubles the input length per probe until the worker crashes, exceeds a
+per-probe wall-clock cap of fifteen seconds, or reaches a fixed sweep limit.
+The result is how far each one can push the input before the call stack, rather
+than the derivation itself, becomes the limiting factor. The same
+doubling-search mechanism, run under an explicit 8\,MiB stack matching a stock
+Linux default, probes the two recursive mechanisms behind the frontend's
+translation limits.
+
+%
+%
+%
+
+\subsection{Parse Agreement}
+\label{sec:eval-criteria-agreement}
+
+Both parts of the correctness question are evaluated over the set of entries
+$(r, w, e)$ that carry an expected label. Membership agreement holds when a
+candidate $p$ satisfies $p(r, w) = \mathit{Some}(v)$ exactly when
+$e = \mathit{true}$. A candidate that disagrees is a correctness bug. Shape
+agreement applies to a matching entry, with $e = \mathit{true}$ and every
+candidate returning a tree. Within each family the parsers are intended to
+agree on every entry. Across families they may or may not agree, since the
+POSIX and non-POSIX policies can select different valid trees. Shape agreement
+measures how often they do. Every prepared entry $(r, w, e)$ is run through
+all five candidates, each in its own subprocess with a two-second wall-clock
+timeout. Timeouts and crashes are counted separately from shape outcomes, so
+neither contaminates the agreement fraction.
+
+%
+%
+%
+
+\subsection{Isolation, limits, and averaging}
+\label{sec:eval-criteria-isolation}
+
+Every timing and memory bench runs each entry $(r, w)$ in its own worker
+subprocess. The subprocess model exists because a call that hangs or crashes
+must be reclaimed completely. A worker process can be killed and its memory
+returned to the operating system. A thread cannot be killed in stable Rust, so
+a hung thread keeps running and allocating in the background. Earlier versions
+of this work measured on threads and reached an out-of-memory kill of the
+whole bench on a single pathological entry, because one abandoned call's own
+growth was enough on its own.
+
+Three outcomes are possible per entry.
+
+\begin{itemize}
+  \item \emph{Measured} means the worker exited zero and reported a result
+        line.
+  \item \emph{Timed out} means the worker exceeded the per-entry wall-clock
+        deadline, two seconds by default, and was killed by the parent.
+  \item \emph{Crashed} means the worker exited non-zero or was killed by a
+        signal. A stack overflow or an out-of-memory kill inside the worker
+        both appear here.
+\end{itemize}
+
+Two independent limits bound each entry. The wall-clock deadline is two
+seconds by default. The memory ceiling is unset by default, enforced inside
+the worker as a limit on its own address space. Exceeding the memory cap
+aborts the worker by signal, which the parent records as \emph{crashed}. The
+distinction between \emph{timed out} and \emph{crashed} matters because the
+two failure modes have different causes. A timeout means the computation ran
+too long. A crash usually means it ran out of a resource. \emph{Measured},
+\emph{timed out}, and \emph{crashed} are counted separately in every summary
+table. A \emph{timed out} or \emph{crashed} entry contributes nothing to the
+mean, median, 99th percentile, maximum, total bytes, average bytes, or peak
+columns, so those columns describe only the entries that completed.
+
+The custom worker stack of 256\,MiB, mentioned in
+Section~\ref{sec:eval-criteria-stack-depth}, is what removes the platform's
+default stack limit from the timing and memory figures. Every candidate
+recurses over the pattern structure, and a deeply nested pattern can overflow
+the platform default stack well short of any interesting input length. The
+256\,MiB stack makes the timing and memory figures report the cost of the
+parser, not the cost of the platform's stack limit. The custom stack is
+invisible to the counting wrapper.
+
+\textbf{Macro-averaging.} The S2ELab corpus is unbalanced in two ways,
+described in Section~\ref{sec:eval-s2elab}. Patterns carry different numbers
+of provided inputs, and within one pattern the match and non-match sides are
+not balanced. Every mean in this chapter is therefore a macro-average over
+patterns. Each pattern's own mean is computed first, then those per-pattern
+means are averaged together, unweighted. A pattern with 200 entries and a
+pattern with 2 contribute equally. The median, 99th percentile, and maximum
+stay pooled over individual entries, since they describe the cost of the
+single worst entry, not of a typical pattern. The synthetic set needs no such
+correction, since each category is a small, individually-authored set of rows.
 
 %
 %
