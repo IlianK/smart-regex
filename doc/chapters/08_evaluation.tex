@@ -1392,6 +1392,16 @@ points, for the reasons in the text.}
 \label{tab:translate-caps}
 \end{table}
 
+Measuring the syntactic-nesting row exposed a real gap in the depth
+estimate: a non-capturing group previously added nothing to the count, so
+deep grouping was not actually caught before translation, regardless of how
+deeply nested it was. Fixed to add one level per group, the same way other
+wrapping constructs already do. The fix changes no outcome on real data:
+\texttt{dataset\_prepare} on the S2ELab corpus gives the same 578 accepted,
+572 usable, 13\,957-input corpus before and after, since no real rule nests
+groups anywhere near this depth; only a synthetic pattern built to exploit
+the gap is affected.
+
 The caps sit far below the crash points, and the gap is deliberate. The crash
 test measures one bound's open part on a trivial one-node body, whereas a real
 pattern can nest bounds, so the effective recursion multiplies, and it can
@@ -1405,10 +1415,11 @@ Real usage is far below either cap in any case. Of the 762 authored patterns,
 bound value anywhere in the corpus is 67, with median 2 and 99th percentile
 16. No real-corpus rule comes close to the bound cap.
 
-The third cap, the node cap, is set empirically rather than from a crash
-point, since node count has no comparable recursion cliff. The largest
-real-corpus pattern translates to 18\,707 nodes, so the 20\,000 cap covers
-every pattern this evaluation needed to represent with headroom to spare.
+The third cap, the node cap, is sized differently: node count has no
+comparable recursion cliff to check against, so it is set by coverage
+instead. The largest real-corpus pattern translates to 18\,707 nodes, so the
+20\,000 cap covers every pattern this evaluation needed to represent with
+headroom to spare.
 
 %
 %
