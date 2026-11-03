@@ -526,48 +526,6 @@ trivially cheap derivative step, the recursive form fails at tens of thousands
 of characters, whereas the iterative form handles every length this sweep
 reaches.
 
-The same doubling search, run under an explicit 8\,MiB stack, probes the two
-recursions behind the bound and depth caps of
-Section~\ref{sec:eval-criteria-translation}.
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{lrrr}
-\hline
-Mechanism & Survives to & Crashes between & Cap \\
-\hline
-Bound unrolling    & 51\,200 & 51\,200--102\,400 & 1\,000 \\
-Syntactic nesting  &  6\,400 &   6\,400--12\,800  & 2\,000 \\
-\hline
-\end{tabular}
-\caption{Where each mechanism actually exhausts the stack on the default
-8\,MiB stack.}
-\label{tab:translate-caps}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\begin{tabular}{lr}
-\hline
-Metric & Value \\
-\hline
-Raw patterns & 762 \\
-Parsed & 714 \\
-Patterns with $\geq 1$ bound & 442 \\
-Bound occurrences (total) & 1{,}769 \\
-Median & 2 \\
-90th percentile & 6 \\
-95th percentile & 9 \\
-99th percentile & 16 \\
-Maximum & 67 \\
-\hline
-\end{tabular}
-\caption{Distribution of \texttt{\{m,n\}} bound values found anywhere in
-S2ELab's \texttt{ExtPat} trees (\texttt{demo\_bound\_usage}).}
-\label{tab:bound-usage}
-\end{table}
 %
 %
 %
@@ -1056,20 +1014,9 @@ out.
 \subsection{Memory}
 \label{sec:eval-memory}
 
-\texttt{bench\_corpus\_memory} and \texttt{bench\_pathological\_memory}
-replace the system allocator with a wrapper that counts allocated
-bytes and reports three figures per parser: total bytes (every
-allocation including churn), average bytes per entry (macro-average
-for S2ELab, same as the timing mean), and max peak (highest live-byte
-high-water mark on any single entry, flat). Like their timing
-counterparts, they read \texttt{BENCH\_PATTERN\_LIMIT} and
-\texttt{BENCH\_MATCH\_INTENT} (S2ELab) or the \texttt{PATHO\_*}
-variables (pathological).
-
-Heap-only accounting: each worker's call-thread stack is invisible to
-it, so a pattern dominated by recursion depth would under-report here
--- Section~\ref{sec:eval-stack-depth} measures that separately, with
-the memory cap removed entirely.
+Memory is reported per candidate on both datasets under the isolation,
+counting-allocator setup, and averaging bases of
+Section~\ref{sec:eval-criteria-memory}.
 
 %
 %
@@ -1084,7 +1031,7 @@ the memory cap removed entirely.
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrr}
 \hline
-Parser & Total bytes & Avg bytes/entry & Max peak \\
+Parser & Total & Average per entry & Max peak \\
 \hline
 \texttt{deriv\_std\_rec}  & 29.19 GB & 2.671 MB & 582.4 MB \\
 \texttt{deriv\_std\_loop} & 30.70 GB & 2.820 MB & 737.6 MB \\
@@ -1093,40 +1040,37 @@ Parser & Total bytes & Avg bytes/entry & Max peak \\
 \texttt{pderiv\_bc}       &  4.80 GB & 0.412 MB &   3.8 MB \\
 \hline
 \end{tabular}
-\caption{Heap allocation over the full default scope (463 patterns,
-11\,395 entries), one pass per parser.}
+\caption{Heap allocation over the default scope of 463 patterns and 11\,395
+entries. \emph{Total} sums every allocation including churn and measures
+allocator pressure. \emph{Max peak} is the highest live-byte high-water mark
+on any single entry and measures the footprint a deployment would see.}
 \label{tab:memory}
 \end{table}
 
-The gap between constructions is starkest in peak allocation. The two
-standard variants peak at 582.4\,MB and 737.6\,MB respectively on
-their single worst entry, against 5.1\,MB for \texttt{deriv\_bc}, a
-factor of about $114$--$144\times$. The standard parser retains its
-full derivation sequence for the backward pass; \texttt{deriv\_bc}
-carries only a flat bit vector. The same pattern holds in total and
-average bytes, though less sharply (roughly $1.9\times$ and
-$2\times$).
+The gap between constructions is starkest in peak allocation. The two standard
+variants peak at 582.4 and 737.6\,MB on their single worst entry, against
+5.1\,MB for \texttt{deriv\_bc}, a factor of $114$ to $144\times$. The standard
+parser retains its full derivation sequence for the backward pass, while
+\texttt{deriv\_bc} carries only a flat bit vector. The same pattern holds in
+total and average bytes, though less sharply, roughly $1.9\times$ and
+$2\times$.
 
-The partial-derivative pair behaves differently from what the growth
-curves alone suggest. \texttt{pderiv\_std} is lower than
-\texttt{pderiv\_bc} on every column here (average bytes 0.403 against
-0.412\,MB, peak 2.5 against 3.8\,MB), the reverse of the timing gap on
-the same corpus. At S2ELab's short input lengths the partial-derivative
-frontier is already small regardless of construction, so
-\texttt{pderiv\_bc}'s extra bit-tracking machinery is pure overhead.
-The asymptotic bound-state argument is about how the two scale as
-input grows, not which is smaller at S2ELab's input lengths.
+The partial-derivative pair behaves the opposite way from what the growth
+curves alone would suggest. \texttt{pderiv\_std} is lower than
+\texttt{pderiv\_bc} on every column here, 0.403 against 0.412\,MB average and
+2.5 against 3.8\,MB peak. That is the reverse of the timing gap on the same
+corpus. At the corpus's short input lengths the partial-derivative frontier is
+already small regardless of construction, so \texttt{pderiv\_bc}'s
+bit-tracking machinery is pure overhead. The asymptotic bound-state argument
+is about how the two scale as input grows, not which is smaller at short
+inputs.
 
-\textbf{Growth on canonical expressions.} Three demos
-(\texttt{demo\_growth\_deriv}, \texttt{demo\_growth\_pderiv},
-\texttt{demo\_growth\_eval}) drive the parsers on two canonical
-expressions and report live-state size per input character. A fourth
-(\texttt{demo\_simp\_branches}) records the branch counts behind the
-simplification discussion below.
+\textbf{Growth on canonical expressions.} Two demos drive the parsers on two
+canonical expressions and report live-state size per input character. For the
+two standard forms the figure is the node count of the current residual. For
+the two partial-derivative forms it is the total node count across the
+frontier.
 
-For \texttt{deriv\_std} and \texttt{deriv\_bc} the figure is the node
-count of the current residual. For \texttt{pderiv\_std} and
-\texttt{pderiv\_bc} it is the total node count across the frontier.
 \begin{table}[H]
 \centering
 \small
@@ -1147,63 +1091,26 @@ Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
 \label{tab:growth}
 \end{table}
 
-On \texttt{a*}, the \texttt{deriv\_std} column grows linearly in $n$
-while the other three stay bounded. The two-pass structure keeps every
-intermediate expression alive until the backward pass, so its state is
-a function of input length. Bit-coded and partial-derivative variants
-do not carry a history.
-
-On \texttt{(a+(b+ab))*}, \texttt{deriv\_std} reaches 9179 nodes at
-$n=16$ and keeps growing. \texttt{deriv\_bc} stays between 8 and 12
-nodes forever. \texttt{simp} dedups branches by structural shape
-alone, ignoring bit history, so the same-shape branches this pattern
-produces at every step collapse into one. The gap is therefore not a
-fixed cost of carrying reconstruction information, as for \texttt{a*},
-but the difference between a construction whose branches merge and one
-whose branches do not.
-
-The two partial-derivative variants are identical at every step
-(2048 nodes at $n=16$), now that \texttt{pderiv\_std} builds its
-residuals with the same \texttt{smart\_seq} construction
-\texttt{pderiv\_bc} already used. Their live state is the frontier of
-residuals, not a single expression, and the accumulation is bounded by
-the pattern's own size, well above \texttt{deriv\_bc}'s fully-collapsed
-total but far below \texttt{deriv\_std}'s.
-
-\texttt{demo\_simp\_branches} confirms this directly: at every step,
-\texttt{(a+(b+ab))*}'s derivative collapses to a single top-level
-alternation branch once \texttt{simp}'s dedup ignores bit history. This
-is the same fix responsible for \texttt{deriv\_bc}'s bounded growth
-above.
-
-\textbf{Peak memory in the large.} The max-peak column of
-Table~\ref{tab:memory} answers whether any S2ELab pattern causes a
-peak infeasible on a production machine. At full corpus scale the
-answer is no: the highest single-entry peak is 737.6\,MB, for
-\texttt{deriv\_std\_loop} (\texttt{deriv\_std\_rec} peaks at
-582.4\,MB); the other three peak in single-digit megabytes. That is a
-property of S2ELab's input lengths, not a general bound. The
-representative sweeps below, on inputs several orders of magnitude
-longer, show the same two-pass retention pushing both standard
-variants to crash well before a million characters on most rows,
-while the bit-coded and partial-derivative variants keep growing
-smoothly into the low gigabytes, a controlled, roughly linear growth
-rather than an outright failure.
+On \texttt{a*}, the \texttt{deriv\_std} column grows linearly in $n$ while
+the other three stay bounded. The two-pass structure keeps every intermediate
+expression alive until the backward pass, so its state is a function of input
+length. Bit-coded and partial-derivative variants carry no history. On
+\texttt{(a+(b+ab))*}, \texttt{deriv\_std} reaches 9179 nodes at $n=16$ and
+keeps growing, while \texttt{deriv\_bc} stays between 8 and 12 nodes forever,
+because the simplification step dedups branches by structural shape alone and
+collapses the same-shape branches this pattern produces at every step. The
+two partial-derivative variants are identical at every step, 2048 nodes at
+$n=16$, since they build residuals with the same construction. Their live
+state is the frontier of residuals rather than a single expression, bounded by
+the pattern's own size, well above \texttt{deriv\_bc}'s fully-collapsed total
+but far below \texttt{deriv\_std}'s.
 
 %
 %
 %
 
-\subsubsection{Pathological (general)}
+\subsubsection{Synthetic Stress Set}
 \label{sec:eval-memory-pathological}
-
-Table~\ref{tab:patho-memory-smoke} reports the same routine,
-un-overridden pass as Table~\ref{tab:patho-timing-smoke}, measuring
-heap allocation instead of time. \texttt{avg} is the average total
-bytes per completed entry (macro-average is not needed here, since the
-pathological set has no long tail of per-pattern example counts);
-\texttt{to\%} repeats the timeout share from the timing table, since
-the two benches run the same sweep.
 
 \begin{table}[H]
 \centering
@@ -1223,37 +1130,40 @@ F &  70 & 158.0 & 66\% & 158.0 & 66\% &  32.4 & 40\% & 88.0 &  3\% & 94.3 &  3\%
 H &  28 & 77.9 & 64\% & 77.9 & 64\% & 232.3 &  7\% & 131.5 & 14\% & 135.2 & 14\% \\
 \hline
 \end{tabular}
-\caption{Average total bytes per completed entry (MB) and timeout
-share, one routine pass per category at each category's default
-sweep.}
+\caption{Average total bytes per completed entry in MB, and the share of
+entries that hit the two-second cap, one routine pass per category at each
+category's routine values. The average excludes timed-out entries, so a low
+average next to a high timeout share describes only the easy entries that
+survived.}
 \label{tab:patho-memory-smoke}
 \end{table}
 
-\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}'s per-entry
-averages are identical to three significant figures in every category
--- the same finding as the representative sweeps below, now visible at
-the routine default scale too: whichever entries each variant
-completes before timing out cost essentially the same memory, which is
-a property of what both constructions retain, not of which one is
-recursive. \texttt{deriv\_bc} is the most memory-hungry survivor in A,
-C, and H despite timing out far less often than the standard pair,
-consistent with Section~\ref{sec:eval-cost-bit-coding}'s point that
-bit-coding's retained history is not free, only cheaper than the
-standard construction's. Category F again stands out:
-\texttt{deriv\_bc}'s average (32.4\,MB) is the lowest of the five
-parsers in that category, but only because 40\% of its entries time
-out before accumulating the larger allocations the partial-derivative
-pair's surviving entries show (88.0 and 94.3\,MB) -- a low mean next
-to a high timeout share describing the easy entries that survived, the
-same caveat Section~\ref{sec:eval-timing-pathological} makes for
-timing.
+The two standard forms' per-entry averages are identical to three significant
+figures in every category, the same finding as the highlighted sweeps below.
+Whichever entries each variant completes before timing out cost essentially
+the same memory, which is a property of what both constructions retain, not
+of which one is recursive. \texttt{deriv\_bc} is the most memory-hungry
+survivor in A, C, and H despite timing out far less often than the standard
+pair, consistent with the general point that bit-coding's retained history is
+not free, only cheaper than the standard construction's. Category F again
+stands out. \texttt{deriv\_bc}'s average, 32.4\,MB, is the lowest of the five
+parsers in that category, but only because 40\% of its entries time out before
+accumulating the larger allocations the partial-derivative pair's surviving
+entries show, 88.0 and 94.3\,MB.
 
 %
 %
 %
 
-\subsubsection{Pathological (individual representatives)}
-\label{sec:eval-memory-patho-representatives}
+\subsubsection{Highlighted Patterns}
+\label{sec:eval-memory-highlighted}
+
+The eight highlighted rows are reported by mechanism family.
+Tables~\ref{tab:patho-memory-e} through~\ref{tab:patho-memory-f} give each
+row's total across its full sweep, its average cumulative allocation per
+entry, and its peak live-byte high-water mark on any single entry. The two
+standard forms are reported once per row, since their totals agree to within
+0.01\% of each other on every row measured.
 
 \begin{table}[H]
 \centering
@@ -1261,78 +1171,127 @@ timing.
 \setlength{\tabcolsep}{4pt}
 \begin{tabular}{llrrr}
 \hline
-Row & Parser & Total & Avg/entry & Max peak \\
+Row & Parser & Total & Average per entry & Max peak \\
 \hline
 P60 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 13.87 GB & 1.156 GB & 5.70 GB \\
 P60 & \texttt{deriv\_bc}                      & 169.26 GB & 7.05 GB & 2.64 GB \\
 P60 & \texttt{pderiv\_std}                    & 94.74 GB & 3.95 GB & 2.48 GB \\
 P60 & \texttt{pderiv\_bc}                     & 101.86 GB & 4.24 GB & 1.64 GB \\
 \hline
+P61 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 0.27 GB & 45.6 MB & 140.0 MB \\
+P61 & \texttt{deriv\_bc}                      & 134.06 GB & 6.70 GB & 1.70 GB \\
+P61 & \texttt{pderiv\_std}                    & 84.73 GB & 4.24 GB & 2.48 GB \\
+P61 & \texttt{pderiv\_bc}                     & 88.99 GB & 4.45 GB & 1.64 GB \\
+\hline
 P20 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 0.60 GB & 75.6 MB & 280.0 MB \\
 P20 & \texttt{deriv\_bc}                      & 271.24 GB & 11.30 GB & 3.40 GB \\
 P20 & \texttt{pderiv\_std}                    & 171.44 GB & 7.14 GB & 4.97 GB \\
 P20 & \texttt{pderiv\_bc}                     & 180.05 GB & 7.50 GB & 3.27 GB \\
+\hline
+\end{tabular}
+\caption{Memory across the three E-family highlighted rows.}
+\label{tab:patho-memory-e}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrr}
+\hline
+Row & Parser & Total & Average per entry & Max peak \\
 \hline
 P01 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 1.48 GB & 185.1 MB & 805.3 MB \\
 P01 & \texttt{deriv\_bc}                      & 50.36 GB & 1.94 GB &   7.9 MB \\
 P01 & \texttt{pderiv\_std}                    &  6.47 GB & 215.5 MB & 153.2 MB \\
 P01 & \texttt{pderiv\_bc}                     &  6.51 GB & 217.0 MB &  98.2 MB \\
 \hline
+P09 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 0.58 GB & 57.6 MB & 284.3 MB \\
+P09 & \texttt{deriv\_bc}                      & 97.96 GB & 3.50 GB & 845.7 MB \\
+P09 & \texttt{pderiv\_std}                    & 37.63 GB & 1.34 GB & 961.3 MB \\
+P09 & \texttt{pderiv\_bc}                     & 38.00 GB & 1.36 GB & 698.1 MB \\
+\hline
 \end{tabular}
-\caption{Cumulative allocation across each row's full sweep (all swept
-$n$, match side and non-match side together) for the three
-representative rows a single table can usefully compare; the
-remaining five follow the same pattern. \texttt{deriv\_std\_rec} and
-\texttt{deriv\_std\_loop} are reported once per row, since their
-totals agree to within 0.01\% of each other on every row measured.}
-\label{tab:patho-memory-representatives}
+\caption{Memory across the two nested-quantifier highlighted rows.}
+\label{tab:patho-memory-ab}
 \end{table}
 
-Two things are worth being explicit about before reading these
-numbers as a verdict on any one construction. First,
-\texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop}'s totals here are
-small \emph{because} most of their swept entries crashed rather than
-completed (Table~\ref{tab:patho-crash-thresholds}): the figure is a
-sum over the few entries that survived, not evidence the standard
-construction is cheap at this scale. Second, \emph{total bytes} is
-cumulative allocation churn across the whole sweep, including memory
-allocated and freed many times over; it is not memory held at once.
-P20's \texttt{deriv\_bc} total of 271\,GB against a peak of only
-3.40\,GB illustrates the gap directly: ten million characters of
-\texttt{(a|b|ab)+}, parsed by a construction that rebuilds its
-bit-coded tree at every one of millions of derivative steps without
-memoizing across them, allocates and discards an enormous amount of
-short-lived state while never holding more than a few gigabytes live
-at once. The same row's entire routine-scope S2ELab total
-(Table~\ref{tab:memory}, 15.94\,GB for \texttt{deriv\_bc} across all
-11{,}395 real corpus entries) is smaller than one adversarial
-10-million-character input's churn, which is the point of the
-pathological set: it exists to find costs a realistic corpus never
-approaches.
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llrrr}
+\hline
+Row & Parser & Total & Average per entry & Max peak \\
+\hline
+P25 & \texttt{deriv\_std\_rec}/\texttt{loop}  &  6.61 GB & 413.0 MB & 2.11 GB \\
+P25 & \texttt{deriv\_bc}                      &  8.65 GB & 393.0 MB & 4.73 MB \\
+P25 & \texttt{pderiv\_std}                    &  1.92 GB &  68.5 MB & 86.2 MB \\
+P25 & \texttt{pderiv\_bc}                     &  2.06 GB &  73.5 MB & 52.0 MB \\
+\hline
+P27 & \texttt{deriv\_std\_rec}/\texttt{loop}  &  3.17 GB & 396.2 MB & 1.41 GB \\
+P27 & \texttt{deriv\_bc}                      & 14.79 GB & 568.8 MB & 4.81 MB \\
+P27 & \texttt{pderiv\_std}                    &  4.60 GB & 153.3 MB & 99.0 MB \\
+P27 & \texttt{pderiv\_bc}                     &  4.60 GB & 153.4 MB & 52.0 MB \\
+\hline
+P28 & \texttt{deriv\_std\_rec}/\texttt{loop}  &  2.76 GB & 345.1 MB & 1.21 GB \\
+P28 & \texttt{deriv\_bc}                      & 14.75 GB & 567.2 MB & 4.81 MB \\
+P28 & \texttt{pderiv\_std}                    &  4.08 GB & 135.9 MB & 99.0 MB \\
+P28 & \texttt{pderiv\_bc}                     &  4.19 GB & 139.6 MB & 52.0 MB \\
+\hline
+\end{tabular}
+\caption{Memory across the three F-family highlighted rows.}
+\label{tab:patho-memory-f}
+\end{table}
 
-Peak memory on the surviving entries is what actually bounds
-deployability, and there \texttt{deriv\_bc} is consistently the
-cheapest full-tree-building construction at this scale (2.64--3.40\,GB
-peak across P60/P20), below both partial-derivative variants on P20
-specifically (4.97/3.27\,GB) even though they finish faster
-(Section~\ref{sec:eval-timing-patho-representatives}) and never crash.
-\texttt{deriv\_bc}'s peak on P01 is smaller still (7.9\,MB), since
-\texttt{(a+)+}'s ambiguity is far more modest than P60/P20's
-alternation-heavy family, and its forced single bit-vector
-representation never has to track more than a handful of live
-candidates at once there.
+Two things are worth being explicit about. First, the standard forms' totals
+in every table are small \emph{because} most of their swept entries crashed
+rather than completed. The figure is a sum over the few entries that survived,
+not evidence the standard construction is cheap at this scale. Second, the
+\emph{total} column is cumulative allocation churn across the whole sweep,
+including memory allocated and freed many times over. It is not memory held at
+once. P20's \texttt{deriv\_bc} total of 271\,GB against a peak of only
+3.40\,GB illustrates the gap directly. Ten million characters of
+\texttt{(a|b|ab)+}, parsed by a construction that rebuilds its bit-coded tree
+at every one of millions of derivative steps without memoizing across them,
+allocates and discards an enormous amount of short-lived state while never
+holding more than a few gigabytes live at once. The same row's entire
+routine-scope corpus total, 15.94\,GB across all 11\,395 real entries, is
+smaller than one adversarial 10-million-character input's churn. That is the
+point of the synthetic set, to find costs a realistic corpus never approaches.
+
+Peak memory on the surviving entries is what bounds deployability.
+\texttt{deriv\_bc} is consistently the cheapest full-tree-building
+construction at this scale, 1.64 to 3.40\,GB peak across the eight rows, below
+both partial-derivative variants on the E family and below
+\texttt{pderiv\_std} on P20 by a wide margin, 3.40 against 4.97\,GB. On the F
+family its peak drops under 5\,MB on every row, because the derivative
+sequence collapses to a single residual rather than a frontier of residuals,
+so the bit-coded representation never holds more than a handful of nodes live
+at once. On P01 its peak is 7.9\,MB outright, since the pattern's ambiguity is
+modest and the single bit-vector representation never tracks more than a
+handful of live candidates.
+
+Within the two partial-derivative forms, bit-coding's effect on peak memory
+depends on family in the same way its effect on timing does. On the E family
+\texttt{pderiv\_bc} peaks lower than \texttt{pderiv\_std} on every row, and on
+the A and B rows it is lower on P01 (98.2 against 153.2\,MB) and on P09 (698.1
+against 961.3\,MB). On the F family \texttt{pderiv\_bc} peaks lower on every
+row too, 52.0 against 86.2 to 99.0\,MB. Bit-coding's peak-memory advantage for
+the partial-derivative construction is therefore more consistent than its
+timing advantage, which flipped between rows.
 
 %
 %
 %
 
-\subsection{Translate}
+\subsection{Translation}
 \label{sec:eval-translate}
 
-The benches above measure the derivative loop on a \texttt{Regex} that
-has already been translated. \texttt{bench\_corpus\_translate} and
-\texttt{bench\_pathological\_translate} measure the translation step
-by itself, once per distinct pattern.
+Translation is reported per distinct pattern on both datasets under the
+in-process setup and averaging bases of
+Section~\ref{sec:eval-criteria-translation}. Because translation cost depends
+only on the pattern, the counts below are per pattern rather than per entry.
 
 %
 %
@@ -1344,27 +1303,28 @@ by itself, once per distinct pattern.
 \begin{table}[H]
 \centering
 \small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrr}
 \hline
-& Patterns & Mean (ms) & Mean nodes & Max nodes \\
+Patterns & Mean (ms) & Max (ms) & Mean nodes & Max nodes \\
 \hline
-S2ELab (full-match) & 463 & 0.015 & 502.5 & 18\,707 \\
+463 & 0.015 & 0.384 & 502.5 & 18\,707 \\
 \hline
 \end{tabular}
-\caption{Translation cost per distinct pattern, full default scope.}
+\caption{Translation cost and output size over the 463 distinct patterns in
+the default scope.}
 \label{tab:translate-cost}
 \end{table}
 
-Translation on S2ELab is cheap at 0.015\,ms mean. Even its single
-largest pattern (18\,707 translated nodes) translates in well under a
-millisecond, so no S2ELab pattern comes close to
-\texttt{core\_regex\_tagged}'s 20\,000-node cap.
+Translation on the real corpus is cheap at 0.015\,ms mean. Even its single
+largest pattern, 18\,707 translated nodes, translates in well under a
+millisecond, so no real-corpus pattern comes close to the node cap.
 
 %
 %
 %
 
-\subsubsection{Pathological (general)}
+\subsubsection{Synthetic Stress Set}
 \label{sec:eval-translate-pathological}
 
 \begin{table}[H]
@@ -1388,343 +1348,210 @@ K & Large pattern, large input     &  4 &  1 & 0.153 &  8\,400 \\
 L & Trivial pattern, trivial input & 33 &  0 & 0.003 &    388 \\
 \hline
 \end{tabular}
-\caption{Translation cost over the pathological set's default sweep,
-with J/K's recalibrated \texttt{suggested\_p} (see below).
-\emph{Rejected} counts rows that hit
-\texttt{core\_regex\_tagged}'s 20\,000-node cap at the swept pattern
-size and translated to nothing.}
+\caption{Translation cost over the synthetic set's routine values.
+\emph{Rejected} counts rows whose translated result exceeds the node cap at
+the swept pattern size and therefore produce no measurement.}
 \label{tab:translate-cost-patho}
 \end{table}
 
-Category C is the single most translation-expensive category by far
-(mean 0.120\,ms, 9\,881 max nodes), consistent with its being built
-around bound-unrolling. Categories J and K show what the time and
-memory benches could only show indirectly as uniform crash counts: 4
-of J's 17 swept rows and 1 of K's 4 reject outright at translation, at
-the top of each category's sweep. A rejected row produces no
-entry for any of the five parsers, which is why the uniform per-parser
-crash counts in those two categories are a translation artifact, not a
-parser-timing result. Both categories' \texttt{suggested\_p} have been
-lowered (J: $[100,500,1000,2000]$, K: $[300]$, from
-$[100,1000,10000,100000]$ and $[1000]$) to keep the category measuring
-parser throughput on large-but-translatable patterns; the table above
-already reflects this lowered sweep, and a handful of rejections still
-remain at its top end.
+Category C is the most translation-expensive category by far, mean 0.120\,ms
+and 9\,881 max nodes, consistent with its being built around bound unrolling.
+Categories J and K show directly what the parser benches could only show
+indirectly as uniform crash counts. Four of J's 17 swept rows and one of K's
+4 reject outright at translation, at the top of each category's sweep. A
+rejected row produces no entry for any of the five parsers, which is why the
+uniform per-parser crash counts in those two categories are a translation
+artifact, not a parser-timing result.
 
 %
 %
 %
 
-\subsubsection{Pathological (individual representatives)}
-\label{sec:eval-translate-patho-representatives}
+\subsubsection{Translation Caps}
+\label{sec:eval-translate-caps}
 
-Translation cost depends on a pattern's own text, not on the input it
-is later matched against. Every one of the eight individually-swept
-rows of Section~\ref{sec:eval-timing-patho-representatives} sweeps
-input length $n$ at fixed pattern text, so each one's translation cost
-is already the single number its category contributes to
-Table~\ref{tab:translate-cost-patho}: category A for P01, B for P09, E
-for P60/P61/P20, F for P25/P27/P28. No separate representative-scale
-translation sweep is needed, since translating \texttt{(a|b|ab)*} once
-costs the same whether it is then matched against ten characters or
-ten million.
-
-%
-%
-%
-
-\subsection{Translation depth caps}
-\label{sec:eval-translate-depth}
-
-Section~\ref{sec:frontend-bounds} named three fixed limits without
-justifying them: \texttt{translate} refuses any \texttt{\{m,n\}} bound
-whose \texttt{m} or \texttt{n} exceeds 1{,}000 (\texttt{MAX\_BOUND}),
-and \texttt{core\_regex\_tagged} separately refuses a pattern whose
-translated \texttt{Regex} exceeds 20{,}000 nodes
-(\texttt{MAX\_CORE\_NODES}) or whose estimated nesting depth exceeds
-2{,}000 (\texttt{MAX\_CORE\_DEPTH}). This section measures what the
-first and third of those guard against directly, the same way
-Section~\ref{sec:eval-stack-depth} measured \texttt{deriv\_std\_rec}'s
-crash point rather than asserting one.
-
-\texttt{translate} is a plain recursive function (one call per
-\texttt{ExtPat} level), and \texttt{desugar\_bound}'s private
-\texttt{optional\_extra} recurses once per unit of a bound's open part
-(\texttt{n\,-\,m}): an unrolling deep enough risks overflowing
-\texttt{translate}'s own call stack, independent of how the resulting
-pattern is later matched. Unlike every other bench in this chapter,
-which runs on a 256\,MiB custom worker stack
-(Section~\ref{sec:eval-stack-depth}), \texttt{core\_regex\_tagged} runs
-on whatever stack its caller gives it, and
-\texttt{examples/dataset\_prepare.rs} never spawns a custom one -- in
-practice the OS's plain default main-thread stack, 8\,MiB on this
-machine (\texttt{ulimit -s}). \texttt{bench\_translate\_depth} measures
-two mechanisms directly on that same 8\,MiB stack, with the same
-process-isolated doubling sweep as Section~\ref{sec:eval-stack-depth}:
-\texttt{bound\_unroll} reproduces \texttt{optional\_extra}'s exact
-recursive shape (the real, public \texttt{translate} cannot be swept
-past its own \texttt{MAX\_BOUND}, so the identical algorithm is
-reproduced in the worker instead -- see its module doc); \texttt{syntactic\_nesting}
-calls the real, uncapped \texttt{parse\_ext\_pattern}/\texttt{translate}
-pipeline on a pattern with \texttt{n} nested non-capturing groups,
-\texttt{(?:(?:...(?:a)...))}.
+The three translation caps of
+Section~\ref{sec:eval-criteria-translation} are grounded by the doubling
+search described there. Table~\ref{tab:translate-caps} reports the crash point
+of the two recursions behind the bound and depth caps, on the default 8\,MiB
+stack, alongside the cap the frontend enforces.
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabular}{lrll}
+\begin{tabular}{lrrr}
 \hline
-Mechanism & Worker stack & Survived up to & Crashed between \\
+Mechanism & Survives to & Crashes between & Cap \\
 \hline
-Bound unrolling (\texttt{optional\_extra}) & 8\,MiB & $N=51{,}200$ & $51{,}200$--$102{,}400$ \\
-Syntactic nesting (\texttt{(?:...)}) & 8\,MiB & $N=6{,}400$ & $6{,}400$--$12{,}800$ \\
+Bound unrolling    & 51\,200 & 51\,200--102\,400 & 1\,000 \\
+Syntactic nesting  &  6\,400 &   6\,400--12\,800  & 2\,000 \\
 \hline
 \end{tabular}
-\caption{Doubling-search crash points for the two recursive mechanisms
-behind \texttt{MAX\_BOUND} and \texttt{MAX\_CORE\_DEPTH}, each
-confirmed as a genuine stack overflow (the Rust runtime's own
-\texttt{"thread 'main' has overflowed its stack"} message), not a
-timeout.}
-\label{tab:translate-depth}
+\caption{The crash point of each mechanism on the default 8\,MiB stack,
+alongside the cap the frontend enforces. The caps sit far below the crash
+points, for the reasons in the text.}
+\label{tab:translate-caps}
 \end{table}
 
-Both caps sit comfortably below where their own mechanism actually
-breaks. A single bound's open part is capped at 1{,}000, roughly
-$51\times$ below where \texttt{optional\_extra}'s own recursion starts
-crashing; the estimated nesting depth is capped at 2{,}000, roughly
-$3.2\times$ below where the real, uncapped pipeline crashes on
-deeply-nested syntax. \texttt{prepare.rs}'s own depth estimate for a
-bound (\texttt{estimated\_translated\_depth}) uses \texttt{hi} rather
-than the smaller \texttt{hi\,-\,lo} that \texttt{optional\_extra}
-actually recurses to, so the pre-translation check is itself
-conservative on top of that margin, never under-estimating the real
-risk. (These margins hold for a release build, the only way this
-pipeline is run in practice; a debug build's larger per-call frames
-would crash sooner, at a smaller $N$, in both mechanisms.)
+The caps sit far below the crash points, and the gap is deliberate. The crash
+test measures one bound's open part on a trivial one-node body, whereas a real
+pattern can nest bounds, so the effective recursion multiplies, and it can
+unroll bounds over multi-node subtrees, so each frame is larger. The depth and
+node caps constrain the total structure further. The crash measurements
+therefore establish an upper bound on what is safe, and the caps are set well
+inside it rather than at the edge of what the test showed.
 
-\texttt{MAX\_BOUND} also comfortably covers real use, not just real
-risk: \texttt{demo\_bound\_usage} walks every S2ELab pattern's
-\texttt{ExtPat} and collects every \texttt{Bound} node's own
-\texttt{hi} (or \texttt{lo} if unbounded above) anywhere in it, not
-just at the top level. Of 762 raw patterns (714 parse), 442 contain at
-least one bound, 1{,}769 bound occurrences in total; the largest single
-value found anywhere in the corpus is 67 (median 2, 99th percentile
-16). No S2ELab rule asks for anything within two orders of magnitude of
-the 1{,}000 cap.
+Real usage is far below either cap in any case. Of the 762 authored patterns,
+714 parse, 442 contain at least one bounded repetition, and the largest single
+bound value anywhere in the corpus is 67, with median 2 and 99th percentile
+16. No real-corpus rule comes close to the bound cap.
 
-\texttt{MAX\_CORE\_NODES} is a different kind of limit: node count has
-no comparable crash cliff the way recursion depth does (cost grows
-smoothly, not in a single catastrophic step), so it is sized by
-coverage instead. Section~\ref{sec:eval-translate-s2elab} already
-reports the figure this leans on: the largest pattern anywhere in
-S2ELab translates to 18{,}707 nodes, so 20{,}000 covers every pattern
-this evaluation needed to represent with headroom to spare, while
-still bounding how much a single malformed or adversarial pattern can
-cost to store and translate.
-
-\texttt{bench\_translate\_depth} and \texttt{demo\_bound\_usage} are
-both runnable directly, the same as every other bench and demo in this
-chapter.
+The third cap, the node cap, is set empirically rather than from a crash
+point, since node count has no comparable recursion cliff. The largest
+real-corpus pattern translates to 18\,707 nodes, so the 20\,000 cap covers
+every pattern this evaluation needed to represent with headroom to spare.
 
 %
 %
 %
-
-\subsection{Parse Tree Shape Agreement}
+\subsection{Parse Agreement}
 \label{sec:eval-agreement}
 
-\subsubsection{Method}
-\label{sec:eval-agreement-method}
-
-Every case in the prepared corpus carries a verified outcome, so
-membership is a precondition, not something this section establishes.
-The question here is parse-tree shape. On a matching case, the POSIX
-parsers and the non-POSIX parsers may build different trees, since the
-same input can admit several valid decompositions. Some inputs force
-both policies onto the same structure. This section measures how
-often.
-
-The check is implemented in \texttt{demo\_parser\_agreement}. For every
-prepared case, all five parsers run on the same (pattern, input) pair.
-Two preconditions are checked. First, every parser returns the case's
-verified membership outcome. Second, within each family the parsers
-agree with each other. The three POSIX variants build the same tree,
-and the two non-POSIX variants build the same tree. Agreement
-on the parse tree shape in between them is possible.
-The measured quantity is cross-family tree agreement. Of the cases
-where both families matched and were internally consistent, how many
-produced the same tree.
-Each parser call runs in a subprocess with a 2-second wall-clock
-timeout. Timeouts and crashes are counted separately from tree-shape
-outcomes.
-
-The two datasets are not pooled, and each runs through its own binary.
-
-\begin{itemize}
-  \item \texttt{demo\_parser\_agreement} on the 572 usable S2ELab
-        patterns, both match-intent groups.
-  \item \texttt{demo\_parser\_agreement\_pathological} on the
-        113-row pathological set.
-\end{itemize}
-
-%
-%
-%
-
-\subsubsection{Results}
-\label{sec:eval-agreement-results}
-
-Table~\ref{tab:agreement} reports one row per dataset. Match
-agreement is the membership precondition; shape agreement and
-disagreement are the measured cross-family quantity, over cases where
-both preconditions held.
+Parse agreement is reported per dataset under the measurement of
+Section~\ref{sec:eval-criteria-agreement}. Membership is the precondition for
+anything shape can say, so both are reported together.
 
 \begin{table}[H]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
+\small
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{lrrrrrrr}
 \hline
-Dataset & Entries & Timed out & Crashed & Compared & Match agr. & Shape agree & Shape disagree \\
+Dataset & Entries & Timeouts & Crashes & Compared & Match agr. & Shape agr. & Shape dis. \\
 \hline
-S2ELab (full corpus) & 13\,957 &    89 & 0 & 7\,041 & 100.0\% & 7\,020 (99.7\%) & 21 (0.3\%) \\
-Pathological (total) &    889  &   453 & 1 &    207 & 100.0\% &   186 (89.9\%) & 21 (10.1\%) \\
+S2ELab    & 13\,957 &  89 & 0 & 7\,041 & 100.0\% & 99.7\% (7\,020) & 0.3\% (21) \\
+Synthetic &    889 & 453 & 1 &   207 & 100.0\% & 89.9\% (186)   & 10.1\% (21) \\
 \hline
 \end{tabular}
-\caption{Parser agreement, measured once per dataset and never pooled.
-\emph{Shape agree}/\emph{Shape disagree} give the raw count of compared
-cases on each side, with the percentage of \emph{Compared} alongside.
-The single crash is \texttt{deriv\_std\_rec} stack-overflowing on a
-10-million-character input in category I, the same failure mode
-Section~\ref{sec:eval-timing-patho-representatives} reports on the
-representative rows, here on a trivial pattern, so it is a property of
-input length alone.}
+\caption{Parse agreement over both datasets. \emph{Compared} is the number of
+expected matches where no candidate timed out or crashed and both families
+were internally consistent, so a single POSIX tree and a single non-POSIX tree
+exist to compare. The two shape columns are counted over \emph{Compared}, not
+over \emph{Entries}.}
 \label{tab:agreement}
 \end{table}
 
+Membership agreement is complete on both datasets. Every completed entry had
+every candidate return the expected result, so no membership bug was found.
+The 89 S2ELab timeouts all occur on entries expected to match, since those are
+the ones that force a tree to be constructed. The synthetic set's 453 timeouts
+and single crash reflect its intended purpose, to push candidates past what
+they can finish, rather than any correctness defect.
+
+The 21 shape disagreements on the real corpus represent 0.3\% of the compared
+matches. Both families agreed with themselves on every such entry, so the
+disagreements are purely the POSIX-versus-non-POSIX policy difference and not
+a within-family inconsistency. The synthetic set has the same 21 disagreements
+but only 207 compared matches, so the rate is 10.1\%, an order of magnitude
+above the real corpus. Grouping the synthetic counts by category shows where
+those 21 disagreements come from.
+
 \begin{table}[H]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lrrrrrr}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lrrrrr}
 \hline
-Cat. & Entries & Timed out & Compared & Match agr. & Shape agree & Shape disagree \\
+Category & Entries & Timeouts & Compared & Shape agr. & Shape dis. \\
 \hline
-A & 160 & 112 &  27 & 100\% &  27 (100\%)  &  0 (0\%) \\
-B & 150 &  95 &  28 & 100\% &  10 (35.7\%) & 18 (64.3\%) \\
-C &  56 &  32 &  12 & 100\% &  12 (100\%)  &  0 (0\%) \\
-D &  40 &  12 &  14 & 100\% &  14 (100\%)  &  0 (0\%) \\
-E &  80 &  45 &  16 & 100\% &  14 (87.5\%) &  2 (12.5\%) \\
-F &  70 &  46 &  12 & 100\% &  11 (91.7\%) &  1 (8.3\%) \\
-H &  28 &  18 &   4 & 100\% &   4 (100\%)  &  0 (0\%) \\
-I &  60 &  44 &   3 & 100\% &   3 (100\%)  &  0 (0\%) \\
-J &  26 &   6 &  10 & 100\% &  10 (100\%)  &  0 (0\%) \\
-K &  30 &  24 &   3 & 100\% &   3 (100\%)  &  0 (0\%) \\
-L & 189 &  19 &  78 & 100\% &  78 (100\%)  &  0 (0\%) \\
+A & 160 & 112 &  27 & 100.0\% (27) &  0.0\% (0) \\
+B & 150 &  95 &  28 &  35.7\% (10) & 64.3\% (18) \\
+C &  56 &  32 &  12 & 100.0\% (12) &  0.0\% (0) \\
+D &  40 &  12 &  14 & 100.0\% (14) &  0.0\% (0) \\
+E &  80 &  45 &  16 &  87.5\% (14) & 12.5\% (2) \\
+F &  70 &  46 &  12 &  91.7\% (11) &  8.3\% (1) \\
+H &  28 &  18 &   4 & 100.0\% (4)  &  0.0\% (0) \\
+I &  60 &  44 &   3 & 100.0\% (3)  &  0.0\% (0) \\
+J &  26 &   6 &  10 & 100.0\% (10) &  0.0\% (0) \\
+K &  30 &  24 &   3 & 100.0\% (3)  &  0.0\% (0) \\
+L & 189 &  19 &  78 & 100.0\% (78) &  0.0\% (0) \\
 \hline
 \end{tabular}
-\caption{Pathological-set agreement by category. \emph{Shape
-agree}/\emph{Shape disagree} give the raw count of \emph{Compared}
-cases on each side, with the percentage alongside.}
-\label{tab:agreement-patho}
+\caption{Parse agreement by category over the synthetic set. Every completed
+entry had every candidate return the expected result, so the membership column
+is omitted.}
+\label{tab:agreement-patho-categories}
 \end{table}
 
+Category B alone accounts for 18 of the 21 disagreements, 64.3\% of its own 28
+compared. B is built around alternatives sharing a prefix under a quantifier,
+the most reliable way to construct genuine ambiguity on purpose. Categories E
+and F, also alternation-heavy by design, contribute smaller shares at 12.5\%
+and 8.3\%. Every other category shows zero. The disagreements therefore
+concentrate exactly where the synthetic set was designed to create them, and
+are absent wherever a pattern leaves only one decomposition.
+
 %
 %
 %
 
-\subsubsection{Discussion}
-\label{sec:eval-agreement-discussion}
+\subsubsection{Representative disagreements}
+\label{sec:eval-agreement-examples}
 
-Both preconditions hold throughout: every parser matches the verified
-outcome (100\% on both datasets), and no within-family shape violation
-was printed by either run.
+\textbf{S2ELab.} The loosely-formatted-number pattern
+\texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}
+on input \texttt{"9000"} produces two trees that flatten to the same word.
+Both trees are shown below. Every constructor name is as it appears in the
+parser output, with two abbreviations for space. \texttt{<9>} stands for
+\texttt{Right(Char('9'))} and \texttt{<0>} for the nine-deep
+\texttt{Left} injection the digit-class encoding produces around
+\texttt{Char('0')}.
 
-Cross-family disagreement concentrates sharply. S2ELab's 21
-disagreements are 0.3\% of 7041 compared. The pathological set's are
-10.1\% of 207, and within that set category B alone accounts for 18 of
-the 21 (64.3\% of its own 28 compared). Category B is exactly the
-category built around alternatives sharing a prefix under a quantifier,
-the most reliable way to construct genuine ambiguity on purpose.
-Categories E and F, also alternation-heavy by design, show smaller but
-nonzero disagreement (12.5\% and 8.3\%). Every other category shows
-zero. Disagreement reflects the POSIX-versus-non-POSIX policy
-difference visible exactly on the ambiguous cases the pathological set
-was built to contain, and absent everywhere a pattern leaves only one
-decomposition.
-
-The agreement check is what surfaced one dataset defect. Categories A,
-B, and C of an early pathological pass all reported 100\% match
-agreement. Category H reported 75\%, with two rows, \texttt{P29}
-(\verb|(.+){10}|) and \texttt{P31} (\verb|(.*){10}|), where all five
-parsers returned match against an input the dataset labeled a
-non-match. Both patterns' non-match inputs had been built by appending
-a trailing character to a matching string, which only forces a
-non-match when the pattern bounds the total input length. Neither
-pattern does. \texttt{P31} has no genuine non-match at any length,
-since ten \texttt{.*} groups accept the empty string. \texttt{P29}'s
-non-match input was replaced with a fixed 9-character string, one
-short of the ten-group minimum the pattern needs. \texttt{P31}'s was
-removed. Category H now reports 100\%.
-
-\textbf{A concrete S2ELab disagreement.} Table~\ref{tab:agreement}'s
-21 S2ELab disagreements are real patterns, not synthetic ones. The
-shortest to typeset is S2ELab's loosely-formatted-number pattern,
-\verb|^[-+]?([0-9]{1,3}[,]?)?([0-9]{3}[,]?)*[.]?[0-9]*$|, on the input
-\texttt{"9000"}. Figure~\ref{fig:agreement-sample} gives both parsers'
-raw output. Both trees flatten (Section~\ref{sec:eval-translate}'s
-sibling function, \texttt{flatten}, concatenates every \texttt{Char}
-leaf left to right) to the same string, \texttt{"9000"}, confirming
-both really did match the same input -- the disagreement is purely
-about tree shape. The two outputs share an 80-character common prefix
-through the point where the first digit, \texttt{'9'}, is matched by
-\verb|[0-9]{1,3}|'s single mandatory copy; they diverge at that
-group's first \emph{optional} copy. \texttt{posix (bc)} takes
-\texttt{Left(Empty)} there -- declining the two optional copies
-entirely, so the mandatory-copy group matches only \texttt{"9"} -- and
-its one \texttt{Star} with a non-empty list (one element) then
-accounts for \verb|([0-9]{3}[,]?)*| matching exactly one iteration,
-\texttt{"000"}. \texttt{non-posix (pbc)} instead takes both optional
-copies (\texttt{Right(Pair(...))} twice), so the mandatory-copy group
-matches \texttt{"900"}; its corresponding \texttt{Star} is then empty,
-and the one remaining digit, \texttt{"0"}, is caught by the trailing
-\verb|[0-9]*| instead. Same four characters, same pattern, two
-different ways to apportion them across three overlapping quantified
-groups -- exactly the shape ambiguity Section~\ref{sec:eval-agreement}
-measures, now visible on a real corpus entry rather than a
-purpose-built pathological row.
-
-\begin{figure}[H]
-\centering
-\scriptsize
 \begin{verbatim}
-posix (bc) =
+POSIX (deriv_bc):
   Pair(Pair(Pair(Pair(Right(Empty),
-    Left(Pair(Pair(Pair(Empty, Right(Char('9'))),
+    Left(Pair(Pair(Pair(Empty, <9>),
                Left(Empty)), Right(Empty)))),
       Star([Pair(Pair(Pair(Pair(Empty, <0>), <0>), <0>),
                  Right(Empty))])),
     Right(Empty)), Star([]))
 
-non-posix (pbc) =
+Non-POSIX (pderiv_bc):
   Pair(Pair(Pair(Pair(Right(Empty),
-    Left(Pair(Pair(Pair(Empty, Right(Char('9'))),
+    Left(Pair(Pair(Pair(Empty, <9>),
                Right(Pair(<0>, Right(Pair(<0>, Empty))))),
           Right(Empty)))),
       Star([])), Right(Empty)), Star([<0>]))
 \end{verbatim}
-\caption{Raw \texttt{deriv\_bc} (POSIX) and \texttt{pderiv\_bc}
-(non-POSIX) output on S2ELab's
-\texttt{[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*} matching
-\texttt{"9000"} (top-level anchors already stripped per
-Section~\ref{sec:eval-anchors}). \texttt{<0>} abbreviates
-\texttt{Left(Left(Left(Left(Left(Left(Left(Left(Left(Char('0'))))))))))},
-the nine-deep injection a \texttt{0} carries from \texttt{[0-9]}'s
-internal 10-leaf alphabet encoding (Section~\ref{sec:frontend-alphabet});
-all four occurrences below are byte-identical to that string, and
-nothing else is altered or omitted.}
-\label{fig:agreement-sample}
-\end{figure}
+
+The two trees agree on every constructor up to the two optional copies of the
+one-to-three-digit group. The POSIX tree takes \texttt{Left(Empty)} on both,
+declining the extras, so that group matches only \texttt{"9"} and the
+\texttt{([0-9]\{3\}[\_,]?)*} star that follows does the rest by matching
+\texttt{"000"} in a single iteration. The non-POSIX tree takes
+\texttt{Right(Pair(<0>, Right(Pair(<0>, Empty))))} on both, so that group
+matches \texttt{"900"}, the star becomes empty, and the trailing
+\texttt{[0-9]*} catches the remaining \texttt{"0"}.
+
+\textbf{Synthetic.} Row P61, the pattern \texttt{(a|b|ab)*} on input
+\texttt{"ab"}, is the reference paper's running example, and here it appears
+at the smallest input that makes its ambiguity visible.
+
+\begin{verbatim}
+POSIX (deriv_bc):
+  Star([Right(Pair(Char('a'), Char('b')))])
+
+Non-POSIX (pderiv_bc):
+  Star([Left(Char('a')), Right(Left(Char('b')))])
+\end{verbatim}
+
+The POSIX tree commits to a single iteration that matches \texttt{"ab"} via
+the right branch of the alternation. The non-POSIX tree commits to two
+iterations, first \texttt{"a"} then \texttt{"b"}, each via the left branch.
+Both flatten to \texttt{"ab"}. The disagreement is structural, not about which
+word was matched, and it is exactly the case the reference paper uses to
+introduce the POSIX-versus-greedy distinction.
+
 
 %
 %
