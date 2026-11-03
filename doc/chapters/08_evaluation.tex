@@ -19,9 +19,9 @@ All measurements were taken on an AMD Ryzen~5~5600 six-core processor with
 \section{Candidates}
 \label{sec:eval-candidates}
 
-All five candidates share the same interface. Each takes an input
-string and a translated \texttt{Regex} and returns either a parse
-tree or no match:
+All five candidates share the same interface. Each parser candidate,
+denoted by $p$, takes an input string and a translated \texttt{Regex}
+and returns either a \texttt{ParseTree} or no match:
 \[
 p :: (\mathit{String}, \mathit{Regex}) \to
      \mathit{Option\langle ParseTree\rangle}.
@@ -195,8 +195,7 @@ a worker subprocess, because the frontend enforces three resource limits:
 \end{itemize}
 
 Together the three ensure a translation measurement cannot hang or allocate
-unboundedly the way a parser call can. The node cap is set empirically, large
-enough to cover the node counts exercised by the benchmark suite.
+unboundedly the way a parser call can.
 
 Translation cost is characterised by four measurements:
 
