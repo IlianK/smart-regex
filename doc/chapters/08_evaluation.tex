@@ -304,7 +304,7 @@ drawn from two datasets, as shown in the following Table~\ref{tab:dataset-summar
 Dataset & Authored & Duplicate & Rejected & Accepted & Unanchored & Fully-Anchored & Inputs \\
 \hline
 S2ELab     & 762 & 7 & 177 & 578 & 115 & 463 & 11\,395 \\
-Synthetic  & 113 & 0 &   0 & 113 &   0 & 113 &    889 \\
+Synthetic  & 113 & 0 &   0 & 113 &   0 & 113 &    887 \\
 \hline
 \end{tabular}
 \caption{Benchmark scope. \emph{Authored} = \emph{Duplicate} + \emph{Rejected}
@@ -419,6 +419,12 @@ E36 ($p=1000$)  & $p$ & 1000-way word alternation & \texttt{w000001}            
 and sweeps $n$. Row E36 sweeps $p$, so the pattern grows while the input stays fixed.}
 \label{tab:sweep-samples}
 \end{table}
+
+Each row's ID carries a letter marking which half of the dataset defines it,
+independent of the A--L category below: \texttt{P} for the hand-authored
+pathological patterns proper, \texttt{E} for the baseline-and-edge-case
+patterns, including the handful, like \texttt{E36}, generated from a
+template by substituting $p$.
 
 Most rows follow the P01 shape, sweeping $n$ over repeated characters. A
 smaller number follow the E36 shape, sweeping $p$ by substituting into the
@@ -653,12 +659,12 @@ suffer from that shape as much as the standard partial derivative does.
 %
 %
 
-\subsubsection{Highlighted Patterns}
-\label{sec:eval-timing-highlighted}
+\subsubsection{Representative Patterns}
+\label{sec:eval-timing-representative}
 
 Eight rows are swept individually past their category's routine values, into
 the millions of characters or thousands of pattern repetitions. These are the
-highlighted patterns. The first establishes the method, and the remaining
+representative patterns. The first establishes the method, and the remaining
 seven follow in the same form.
 
 \textbf{The method-establishing pattern.} Figure~\ref{fig:patho-fig7a} plots
@@ -706,7 +712,7 @@ plotted point.}
 \end{figure}
 
 \textbf{Where the standard variants break.}
-Table~\ref{tab:patho-crash-thresholds} reports, for each highlighted row, the
+Table~\ref{tab:patho-crash-thresholds} reports, for each representative row, the
 largest swept $n$ both standard variants still complete, the smallest swept
 $n$ at which both crash, and the largest $n$ \texttt{deriv\_bc} completes
 before it times out.
@@ -997,7 +1003,7 @@ already at $n=15$, far earlier than P25's $n=3\,500$.}
 \label{fig:patho-f}
 \end{figure}
 
-\textbf{The overall picture.} Across the eight highlighted rows the standard
+\textbf{The overall picture.} Across the eight representative rows the standard
 variants crash first everywhere, between $n=15$ and $n=5\,000$, and never
 complete a full sweep. \texttt{deriv\_bc} completes every swept length on six
 of the eight rows, from thousands of characters past the crash point on P27
@@ -1139,7 +1145,7 @@ survived.}
 \end{table}
 
 The two standard forms' per-entry averages are identical to three significant
-figures in every category, the same finding as the highlighted sweeps below.
+figures in every category, the same finding as the representative sweeps below.
 Whichever entries each variant completes before timing out cost essentially
 the same memory, which is a property of what both constructions retain, not
 of which one is recursive. \texttt{deriv\_bc} is the most memory-hungry
@@ -1155,10 +1161,10 @@ entries show, 88.0 and 94.3\,MB.
 %
 %
 
-\subsubsection{Highlighted Patterns}
-\label{sec:eval-memory-highlighted}
+\subsubsection{Representative Patterns}
+\label{sec:eval-memory-representative}
 
-The eight highlighted rows are reported by mechanism family.
+The eight representative rows are reported by mechanism family.
 Tables~\ref{tab:patho-memory-e} through~\ref{tab:patho-memory-f} give each
 row's total across its full sweep, its average cumulative allocation per
 entry, and its peak live-byte high-water mark on any single entry. The two
@@ -1189,7 +1195,7 @@ P20 & \texttt{pderiv\_std}                    & 171.44 GB & 7.14 GB & 4.97 GB \\
 P20 & \texttt{pderiv\_bc}                     & 180.05 GB & 7.50 GB & 3.27 GB \\
 \hline
 \end{tabular}
-\caption{Memory across the three E-family highlighted rows.}
+\caption{Memory across the three E-family representative rows.}
 \label{tab:patho-memory-e}
 \end{table}
 
@@ -1212,7 +1218,7 @@ P09 & \texttt{pderiv\_std}                    & 37.63 GB & 1.34 GB & 961.3 MB \\
 P09 & \texttt{pderiv\_bc}                     & 38.00 GB & 1.36 GB & 698.1 MB \\
 \hline
 \end{tabular}
-\caption{Memory across the two nested-quantifier highlighted rows.}
+\caption{Memory across the two nested-quantifier representative rows.}
 \label{tab:patho-memory-ab}
 \end{table}
 
@@ -1240,7 +1246,7 @@ P28 & \texttt{pderiv\_std}                    &  4.08 GB & 135.9 MB & 99.0 MB \\
 P28 & \texttt{pderiv\_bc}                     &  4.19 GB & 139.6 MB & 52.0 MB \\
 \hline
 \end{tabular}
-\caption{Memory across the three F-family highlighted rows.}
+\caption{Memory across the three F-family representative rows.}
 \label{tab:patho-memory-f}
 \end{table}
 
@@ -1394,14 +1400,20 @@ points, for the reasons in the text.}
 \end{table}
 
 Measuring the syntactic-nesting row exposed a real gap in the depth
-estimate: a non-capturing group previously added nothing to the count, so
-deep grouping was not actually caught before translation, regardless of how
-deeply nested it was. Fixed to add one level per group, the same way other
-wrapping constructs already do. The fix changes no outcome on real data:
-\texttt{dataset\_prepare} on the S2ELab corpus gives the same 578 accepted,
-572 usable, 13\,957-input corpus before and after, since no real rule nests
-groups anywhere near this depth; only a synthetic pattern built to exploit
-the gap is affected.
+estimate: a group, capturing or not, previously added nothing to the count,
+so deep grouping was not actually caught before translation, regardless of
+how deeply nested it was. Fixed to add one level per group, the same way
+other wrapping constructs already do. The fix changes no outcome on the real
+corpus: \texttt{dataset\_prepare} on the S2ELab corpus gives the same 578
+accepted, 572 usable, 13\,957-input corpus before and after, since no real
+rule nests groups anywhere near this depth. The synthetic set is not immune, though:
+category J's E39 row sweeps a pattern of $p$ sequential capturing groups,
+using the category's own $p \in \{100, 500, 1000, 2000\}$ since the row
+defines no sweep of its own. The fix raises the estimate enough that
+$p=1000$ now also exceeds the depth cap and is rejected before translation
+-- previously only $p=2000$ was, already flagged as borderline when that
+sweep was chosen -- two fewer entries than before the fix
+(Section~\ref{sec:eval-agreement}).
 
 The caps sit far below the crash points, and the gap is deliberate. The crash
 test measures one bound's open part on a trivial one-node body, whereas a real
@@ -1443,8 +1455,8 @@ by Timing and Memory (Section~\ref{sec:eval-s2elab}), not the full
 \hline
 Dataset & Entries & Timeouts & Crashes & Compared & Match agr. & Shape agr. & Shape dis. \\
 \hline
-S2ELab    & 11\,395 &  86 & 0 & 5\,785 & 100.0\% & 99.8\% (5\,771) & 0.2\% (14) \\
-Synthetic &    889 & 453 & 1 &   207 & 100.0\% & 89.9\% (186)   & 10.1\% (21) \\
+S2ELab    & 11\,395 &  73 & 0 & 5\,798 & 100.0\% & 99.8\% (5\,784) & 0.2\% (14) \\
+Synthetic &    887 & 451 & 1 &   207 & 100.0\% & 89.9\% (186)   & 10.1\% (21) \\
 \hline
 \end{tabular}
 \caption{Parse agreement over both datasets. \emph{Compared} is the number of
@@ -1457,9 +1469,9 @@ over \emph{Entries}.}
 
 Membership agreement is complete on both datasets. Every completed entry had
 every candidate return the expected result, so no membership bug was found,
-and neither are the timeouts: the 86 S2ELab timeouts are real patterns too
+and neither are the timeouts: the 73 S2ELab timeouts are real patterns too
 costly for the slower candidates within the budget, while the synthetic
-set's 453 timeouts and single crash are deliberately engineered for the same
+set's 451 timeouts and single crash are deliberately engineered for the same
 purpose, to push candidates past what they can finish.
 
 The 14 shape disagreements on the real corpus represent 0.2\% of the compared
@@ -1472,28 +1484,29 @@ disagreements come from.
 
 \begin{table}[H]
 \centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrr}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{llrrrrr}
 \hline
-Category & Entries & Timeouts & Compared & Shape agr. & Shape dis. \\
+Category & Pattern & Entries & Timeouts & Compared & Shape agr. & Shape dis. \\
 \hline
-A & 160 & 112 &  27 & 100.0\% (27) &  0.0\% (0) \\
-B & 150 &  95 &  28 &  35.7\% (10) & 64.3\% (18) \\
-C &  56 &  32 &  12 & 100.0\% (12) &  0.0\% (0) \\
-D &  40 &  12 &  14 & 100.0\% (14) &  0.0\% (0) \\
-E &  80 &  45 &  16 &  87.5\% (14) & 12.5\% (2) \\
-F &  70 &  46 &  12 &  91.7\% (11) &  8.3\% (1) \\
-H &  28 &  18 &   4 & 100.0\% (4)  &  0.0\% (0) \\
-I &  60 &  44 &   3 & 100.0\% (3)  &  0.0\% (0) \\
-J &  26 &   6 &  10 & 100.0\% (10) &  0.0\% (0) \\
-K &  30 &  24 &   3 & 100.0\% (3)  &  0.0\% (0) \\
-L & 189 &  19 &  78 & 100.0\% (78) &  0.0\% (0) \\
+A & \texttt{(a+)+}                                        & 160 & 112 &  27 & 100.0\% (27) &  0.0\% (0) \\
+B & \texttt{(a|aa)+}                                       & 150 &  95 &  28 &  35.7\% (10) & 64.3\% (18) \\
+C & \texttt{(.*a)\{1,10\}}                                 &  56 &  32 &  12 & 100.0\% (12) &  0.0\% (0) \\
+D & \texttt{(a?)\{N\}a\{N\}}                                &  40 &  12 &  14 & 100.0\% (14) &  0.0\% (0) \\
+E & \texttt{(a|b|ab)+}                                     &  80 &  45 &  16 &  87.5\% (14) & 12.5\% (2) \\
+F & \texttt{([ab]+)*c}                                     &  70 &  46 &  12 &  91.7\% (11) &  8.3\% (1) \\
+H & \texttt{(\textbackslash w+\textbackslash s\{0,1\})*}   &  28 &  18 &   4 & 100.0\% (4)  &  0.0\% (0) \\
+I & \texttt{a+}                                            &  60 &  44 &   3 & 100.0\% (3)  &  0.0\% (0) \\
+J & \texttt{(?:a\{1,10\})\{1,100\}}                         &  24 &   4 &  10 & 100.0\% (10) &  0.0\% (0) \\
+K & \texttt{(?:ab|cd|ef|gh)+}                              &  30 &  24 &   3 & 100.0\% (3)  &  0.0\% (0) \\
+L & \texttt{[a-z]+}                                        & 189 &  19 &  78 & 100.0\% (78) &  0.0\% (0) \\
 \hline
 \end{tabular}
-\caption{Parse agreement by category over the synthetic set. Every completed
-entry had every candidate return the expected result, so the membership column
-is omitted.}
+\caption{Parse agreement by category over the synthetic set. \emph{Pattern}
+is one representative row per category; Table~\ref{tab:patho-categories}
+names the mechanism each category stresses. Every completed entry had every
+candidate return the expected result, so the membership column is omitted.}
 \label{tab:agreement-patho-categories}
 \end{table}
 
@@ -1514,13 +1527,16 @@ are absent wherever a pattern leaves only one decomposition.
 
 \textbf{S2ELab.} The loosely-formatted-number pattern
 \texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}
-on input \texttt{"9000"} produces two trees that flatten to the same word.
-Both trees are shown below. Every constructor name is as it appears in the
-parser output, with two abbreviations for space. \texttt{<9>} stands for
-\texttt{Right(Char('9'))} and \texttt{<0>} for the nine-deep
-\texttt{Left} injection the digit-class encoding produces around
+on input \texttt{"9000"} produces two trees that flatten to the same word,
+shown in Figure~\ref{fig:agreement-s2elab-trees}. Every constructor name is
+as it appears in the parser output, with two abbreviations for space.
+\texttt{<9>} stands for \texttt{Right(Char('9'))} and \texttt{<0>} for the
+nine-deep \texttt{Left} injection the digit-class encoding produces around
 \texttt{Char('0')}.
 
+\begin{figure}[H]
+\centering
+\small
 \begin{verbatim}
 POSIX (deriv_bc):
   Pair(Pair(Pair(Pair(Right(Empty),
@@ -1537,6 +1553,11 @@ Non-POSIX (pderiv_bc):
           Right(Empty)))),
       Star([])), Right(Empty)), Star([<0>]))
 \end{verbatim}
+\caption{The two parse trees for the loosely-formatted-number pattern on
+\texttt{"9000"}: the POSIX tree (\texttt{deriv\_bc}) against the non-POSIX
+tree (\texttt{pderiv\_bc}).}
+\label{fig:agreement-s2elab-trees}
+\end{figure}
 
 The two trees agree on every constructor up to the two optional copies of the
 one-to-three-digit group. The POSIX tree takes \texttt{Left(Empty)} on both,
@@ -1549,8 +1570,12 @@ matches \texttt{"900"}, the star becomes empty, and the trailing
 
 \textbf{Synthetic.} Row P61, the pattern \texttt{(a|b|ab)*} on input
 \texttt{"ab"}, is the reference paper's running example, and here it appears
-at the smallest input that makes its ambiguity visible.
+at the smallest input that makes its ambiguity visible, shown in
+Figure~\ref{fig:agreement-synthetic-trees}.
 
+\begin{figure}[H]
+\centering
+\small
 \begin{verbatim}
 POSIX (deriv_bc):
   Star([Right(Pair(Char('a'), Char('b')))])
@@ -1558,6 +1583,10 @@ POSIX (deriv_bc):
 Non-POSIX (pderiv_bc):
   Star([Left(Char('a')), Right(Left(Char('b')))])
 \end{verbatim}
+\caption{The two parse trees for \texttt{(a|b|ab)*} on \texttt{"ab"}, the
+reference paper's running example of POSIX-versus-greedy disagreement.}
+\label{fig:agreement-synthetic-trees}
+\end{figure}
 
 The POSIX tree commits to a single iteration that matches \texttt{"ab"} via
 the right branch of the alternation. The non-POSIX tree commits to two
@@ -1627,7 +1656,7 @@ The representative sweeps push this further: \texttt{deriv\_bc}
 survives every swept input length on six of the eight representative
 rows where both standard variants crash outright, at scales ranging
 from thousands of characters past the crash point (P27/P28) to ten
-million (P60, P20). Section~\ref{sec:eval-memory-highlighted}'s
+million (P60, P20). Section~\ref{sec:eval-memory-representative}'s
 caveat applies directly here: \texttt{deriv\_bc}'s cumulative
 allocation at that scale is large (up to 271\,GB of total churn on
 P20's full sweep), but its peak live footprint stays in the low
