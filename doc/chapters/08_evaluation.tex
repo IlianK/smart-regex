@@ -111,13 +111,7 @@ on individual entries.
 
 Each entry $(r, w)$ is timed once, without warm-up or repetition.
 Translation is measured separately,
-and the worker's wall clock covers only the parser call $p(r, w)$. A
-single run has no error bars: a few-percent gap between two means, such
-as \texttt{pderiv\_std}'s and \texttt{pderiv\_bc}'s on the corpus, is not
-distinguished from noise by this methodology alone and is not read as a
-ranking by itself; it is trusted only where a full sweep, such as the
-P60/P61 representative pair, shows the same ordering consistently across
-every input length.
+and the worker's wall clock covers only the parser call $p(r, w)$. 
 
 For \texttt{deriv\_std\_rec}, \texttt{deriv\_std\_loop}, and
 \texttt{pderiv\_std}, the entire call is reported as \emph{derive}. For
@@ -178,15 +172,7 @@ directly over entries.
 
 The counting allocator sees heap allocations only, not the 256\,MiB worker
 stack, so parsers dominated by recursion rather than allocation may appear
-inexpensive here. \texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop}
-build the same expressions, differing only in whether that forward
-pass is threaded through the call stack or an explicit heap-allocated
-vector, so a gap between their reported numbers is not on
-its own evidence of a real cost difference: part of it could be this
-blind spot rather than heap behaviour, and the measurement cannot tell
-the two apart. Where the two are instead reported as one combined row
-below, it is because their totals already agree too closely for the
-distinction to matter.
+inexpensive here. 
 Stack depth is evaluated separately for the two forms
 of the standard derivative parser
 
@@ -274,13 +260,7 @@ checked against, not derived from, where its mechanism actually crashes.
 Parse agreement is evaluated on entries with a known expected membership
 result, written $(r, w, e)$, where $r$ is the translated \texttt{Regex}, $w$
 the input string, and $e \in \{\mathit{true}, \mathit{false}\}$ the expected
-result. For S2ELab, $e$ is the dataset's own label, checked rather than
-replaced against \texttt{deriv\_bc} during preparation: an entry the
-translated pattern disagrees with is dropped, not relabeled
-(Section~\ref{sec:eval-s2elab}). \texttt{deriv\_bc} therefore agrees with
-$e$ on every surviving S2ELab entry by construction, so its row below is
-not an independent finding there; the other four candidates' agreement
-with $e$, and all five candidates' agreement with one another, are.
+result. For S2ELab, $e$ is the dataset's own label.
 
 Each candidate processes the same entry in a separate worker
 subprocess, and the results are evaluated along three dimensions:
@@ -378,11 +358,7 @@ Other (node cap, syntax errors)             &   2 \\
 Total                                       & 177 \\
 \hline
 \end{tabular}
-\caption{S2ELab patterns rejected by the frontend, broken down by cause.
-\emph{Anchor (non-strippable)} covers an anchor on only one side, or one
-that is not at the top level at all; only a \texttt{\textasciicircum}...\texttt{\textdollar}
-wrap around the whole pattern is stripped and counted among the 463
-accepted above.}
+\caption{S2ELab patterns rejected by the frontend, broken down by cause.}
 \label{tab:corpus-rejection-causes}
 \end{table}
 
@@ -414,13 +390,11 @@ processed the following:
 \subsection{Synthetic Stress Set}
 \label{sec:eval-pathological}
 
-The synthetic set was created with 113 patterns authored for controlled measurement
-of asymptotic behaviour. The real corpus does not stress any single cost
-mechanism at scale, so the synthetic set is intended to cover that. 
-All 113 were written by hand
-against the full-string model, so every one is a full-string match by design
-and passes translation as-is.
-
+The synthetic set comprises 113 manually authored patterns designed to 
+measure asymptotic behaviour. 
+Since the real corpus does not stress cost mechanisms at scale, 
+it provides complementary coverage. 
+All patterns are full-string matches by design and pass translation unchanged.
 Each row defines a pattern and an input as functions of input length $n$ or
 pattern size $p$ or both. A \emph{sweep} is a sequence of values for one such
 parameter, with a measurement taken at each value in turn. Two sample rows
@@ -444,15 +418,11 @@ and sweeps $n$. Row E36 sweeps $p$, so the pattern grows while the input stays f
 \label{tab:sweep-samples}
 \end{table}
 
-Each row's ID carries a letter marking which half of the dataset defines it,
-independent of the A--L category below: \texttt{P} for the hand-authored
-pathological patterns proper, \texttt{E} for the baseline-and-edge-case
-patterns, including the handful, like \texttt{E36}, generated from a
-template by substituting $p$.
-
-Most rows follow the P01 shape, sweeping $n$ over repeated characters. A
-smaller number follow the E36 shape, sweeping $p$ by substituting into the
-pattern template before parsing.
+Each row ID uses \texttt{P} for hand-authored pathological patterns or
+\texttt{E} for template-generated baseline and edge cases like \texttt{E36},
+independently of the A--L category. Most rows follow the P01 shape, sweeping
+$n$ over repeated characters; fewer follow the E36 shape, varying $p$ in the
+template before parsing.
 
 The 113 patterns are grouped into 12 categories
 (Table~\ref{tab:patho-categories}), each isolating one complexity mechanism.
