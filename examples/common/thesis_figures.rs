@@ -201,11 +201,18 @@ pub fn series_frontier_std(r: &Regex, input: &str) -> Vec<(usize, usize)> {
     out
 }
 
-/// Total `size_regex` summed across every strand in a `pderiv_bc`
-/// frontier, per step.
+/// Total `size_regex` summed across every *distinct* strand in a
+/// `pderiv_bc` frontier, per step, deduplicated the same way
+/// `pderiv_bc::parse::step_frontier` deduplicates its own live frontier
+/// (`nub2`: keep the first occurrence of each structurally distinct
+/// residual, drop the rest). Earlier versions of this function summed
+/// over the raw, un-deduplicated expansion instead, which does not
+/// correspond to what the real parser ever holds live and grows far
+/// faster than the pattern's own size -- this one does what the parser
+/// does.
 /// Comparable to `series_bitcoded_simplified`'s single-tree size, since
-/// a partial-derivative parser's live state is the whole frontier, not
-/// any one strand.
+/// a partial-derivative parser's live state is the whole (deduplicated)
+/// frontier, not any one strand.
 pub fn series_frontier_total_size(r: &Regex, input: &str) -> Vec<usize> {
     let mut frontier: Vec<Regex> = vec![r.clone()];
     let mut out = vec![size_regex(r)];
@@ -214,13 +221,22 @@ pub fn series_frontier_total_size(r: &Regex, input: &str) -> Vec<usize> {
         for res in &frontier {
             next.extend(pderiv_bc(res, c).into_iter().map(|(r, _)| r));
         }
-        frontier = next;
+        let mut distinct: Vec<Regex> = Vec::new();
+        for res in next {
+            if !distinct.contains(&res) {
+                distinct.push(res);
+            }
+        }
+        frontier = distinct;
         out.push(frontier.iter().map(size_regex).sum());
     }
     out
 }
 
-/// `series_frontier_total_size`'s standard (non-bit-coded) counterpart.
+/// `series_frontier_total_size`'s standard (non-bit-coded) counterpart,
+/// deduplicated the same way `pderiv_std::parse::step_frontier`
+/// deduplicates its own live frontier (`nub_tree`, the same first-seen
+/// rule as `nub2`).
 pub fn series_frontier_std_total_size(r: &Regex, input: &str) -> Vec<usize> {
     let mut frontier: Vec<Regex> = vec![r.clone()];
     let mut out = vec![size_regex(r)];
@@ -229,7 +245,13 @@ pub fn series_frontier_std_total_size(r: &Regex, input: &str) -> Vec<usize> {
         for res in &frontier {
             next.extend(pderiv_tree_residuals(res, c));
         }
-        frontier = next;
+        let mut distinct: Vec<Regex> = Vec::new();
+        for res in next {
+            if !distinct.contains(&res) {
+                distinct.push(res);
+            }
+        }
+        frontier = distinct;
         out.push(frontier.iter().map(size_regex).sum());
     }
     out

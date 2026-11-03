@@ -1075,7 +1075,8 @@ inputs.
 canonical expressions and report live-state size per input character. For the
 two standard forms the figure is the node count of the current residual. For
 the two partial-derivative forms it is the total node count across the
-frontier.
+frontier, after deduplicating repeated residuals the same way the parser's
+own frontier-stepping does.
 
 \begin{table}[H]
 \centering
@@ -1089,8 +1090,8 @@ Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
 \hline
 \texttt{deriv\_std}  & 4 & 39 & 79 &   16 &  539 & 9179 \\
 \texttt{deriv\_bc}   & 2 &  2 &  2 &   12 &    8 &    8 \\
-\texttt{pderiv\_std} & 2 &  2 &  2 &   18 &  128 & 2048 \\
-\texttt{pderiv\_bc}  & 2 &  2 &  2 &   18 &  128 & 2048 \\
+\texttt{pderiv\_std} & 2 &  2 &  2 &   18 &    8 &    8 \\
+\texttt{pderiv\_bc}  & 2 &  2 &  2 &   18 &    8 &    8 \\
 \hline
 \end{tabular}
 \caption{Live-state size per parser at three input lengths.}
@@ -1105,11 +1106,13 @@ length. Bit-coded and partial-derivative variants carry no history. On
 keeps growing, while \texttt{deriv\_bc} stays between 8 and 12 nodes forever,
 because the simplification step dedups branches by structural shape alone and
 collapses the same-shape branches this pattern produces at every step. The
-two partial-derivative variants are identical at every step, 2048 nodes at
-$n=16$, since they build residuals with the same construction. Their live
-state is the frontier of residuals rather than a single expression, bounded by
-the pattern's own size, well above \texttt{deriv\_bc}'s fully-collapsed total
-but far below \texttt{deriv\_std}'s.
+two partial-derivative variants are identical to each other at every step,
+since they build residuals with the same construction, but neither is
+itself constant: both oscillate between 8 and 18 nodes rather than growing
+with $n$. Their live state is the deduplicated frontier of distinct
+residuals rather than a single expression, bounded by the pattern's own
+size in the same small range as \texttt{deriv\_bc}'s fully-collapsed
+total, and far below \texttt{deriv\_std}'s unbounded growth.
 
 %
 %
