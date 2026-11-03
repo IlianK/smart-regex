@@ -72,9 +72,12 @@ The resulting \texttt{Regex} has 54 nodes
 account for 38 of them, 20 digit leaves and 18 \texttt{Alt} nodes, and
 the remaining 16 come from the two \texttt{[a-c]} expansions, the
 \texttt{Plus} rewrite, the unrolling, and the surrounding
-\texttt{Seq} nodes. The figure abbreviates each digit expansion as
-\texttt{D}: the same nine-deep, left-nested \texttt{Alt} chain over
-\texttt{0}--\texttt{9} both times it appears.
+\texttt{Seq} nodes. Both digit expansions are the same nine-deep,
+left-nested \texttt{Alt} chain over \texttt{0}--\texttt{9}, abbreviated
+\texttt{D} in the figure below:
+\begin{center}
+\texttt{D = Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(0, 1), 2), 3), 4), 5), 6), 7), 8), 9)}
+\end{center}
 
 \begin{figure}[ht]
 \small
