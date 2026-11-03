@@ -1439,3 +1439,12 @@ confirming the parse.
 The bit-coded construction produces the same tree as the direct
 construction, but stores only $\mathit{ri}_2$, a single expression
 bounded by the pattern instead of one residual per character.
+That bound is on the live expression's size, not on total memory: each
+node's bit-sequence is itself built by the persistent, \texttt{Rc}-backed
+cons list of Section~\ref{sec:annotated-expressions}, so holding one
+bounded expression across an $n$-character run still allocates
+cumulatively in $n$, it just never holds more than one expression's worth
+at once. Chapter~\ref{sec:evaluation}'s \emph{total} and \emph{max peak}
+columns for \texttt{deriv\_bc} separate exactly this: a peak bounded by
+the pattern next to a total that still grows with how much input it
+consumed.

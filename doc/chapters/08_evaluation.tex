@@ -110,8 +110,14 @@ on individual entries.
 \label{sec:eval-criteria-timing}
 
 Each entry $(r, w)$ is timed once, without warm-up or repetition.
-Translation is measured separately, 
-and the worker's wall clock covers only the parser call $p(r, w)$.
+Translation is measured separately,
+and the worker's wall clock covers only the parser call $p(r, w)$. A
+single run has no error bars: a few-percent gap between two means, such
+as \texttt{pderiv\_std}'s and \texttt{pderiv\_bc}'s on the corpus, is not
+distinguished from noise by this methodology alone and is not read as a
+ranking by itself; it is trusted only where a full sweep, such as the
+P60/P61 representative pair, shows the same ordering consistently across
+every input length.
 
 For \texttt{deriv\_std\_rec}, \texttt{deriv\_std\_loop}, and
 \texttt{pderiv\_std}, the entire call is reported as \emph{derive}. For
@@ -172,8 +178,16 @@ directly over entries.
 
 The counting allocator sees heap allocations only, not the 256\,MiB worker
 stack, so parsers dominated by recursion rather than allocation may appear
-inexpensive here. 
-Stack depth is evaluated separately for the two forms 
+inexpensive here. \texttt{deriv\_std\_rec}/\texttt{deriv\_std\_loop}
+build the same expressions, differing only in whether that forward
+pass is threaded through the call stack or an explicit heap-allocated
+vector, so a gap between their reported numbers is not on
+its own evidence of a real cost difference: part of it could be this
+blind spot rather than heap behaviour, and the measurement cannot tell
+the two apart. Where the two are instead reported as one combined row
+below, it is because their totals already agree too closely for the
+distinction to matter.
+Stack depth is evaluated separately for the two forms
 of the standard derivative parser
 
 %
@@ -260,7 +274,13 @@ checked against, not derived from, where its mechanism actually crashes.
 Parse agreement is evaluated on entries with a known expected membership
 result, written $(r, w, e)$, where $r$ is the translated \texttt{Regex}, $w$
 the input string, and $e \in \{\mathit{true}, \mathit{false}\}$ the expected
-result. 
+result. For S2ELab, $e$ is the dataset's own label, checked rather than
+replaced against \texttt{deriv\_bc} during preparation: an entry the
+translated pattern disagrees with is dropped, not relabeled
+(Section~\ref{sec:eval-s2elab}). \texttt{deriv\_bc} therefore agrees with
+$e$ on every surviving S2ELab entry by construction, so its row below is
+not an independent finding there; the other four candidates' agreement
+with $e$, and all five candidates' agreement with one another, are.
 
 Each candidate processes the same entry in a separate worker
 subprocess, and the results are evaluated along three dimensions:
@@ -358,7 +378,11 @@ Other (node cap, syntax errors)             &   2 \\
 Total                                       & 177 \\
 \hline
 \end{tabular}
-\caption{S2ELab patterns rejected by the frontend, broken down by cause.}
+\caption{S2ELab patterns rejected by the frontend, broken down by cause.
+\emph{Anchor (non-strippable)} covers an anchor on only one side, or one
+that is not at the top level at all; only a \texttt{\textasciicircum}...\texttt{\textdollar}
+wrap around the whole pattern is stripped and counted among the 463
+accepted above.}
 \label{tab:corpus-rejection-causes}
 \end{table}
 
@@ -601,9 +625,12 @@ Every parser's total is dominated by the matching side, by roughly $3\times$
 to $8\times$ depending on the parser, since a non-match can be rejected early
 while a match forces the parser to construct a tree.
 \texttt{deriv\_std\_loop}'s match-side total of 70.782\,s sits measurably
-below \texttt{deriv\_std\_rec}'s 74.725\,s, while their non-match totals are
-almost identical. The recursion-versus-iteration difference is therefore a
-cost of the matching path specifically.
+below \texttt{deriv\_std\_rec}'s 74.725\,s, on two entries fewer (5\,799
+against 5\,797, since each variant times out on a slightly different
+set), while their non-match totals are almost identical. The
+recursion-versus-iteration difference is therefore a cost of the
+matching path specifically; a multi-second gap over thousands of
+entries is not sensitive to which two entries differ between the sets.
 
 %
 %
@@ -631,10 +658,11 @@ H &  28 & 225.5 & 64\% & 224.2 & 64\% & 266.7 &  7\% & 214.9 & 14\% & 213.7 & 14
 \hline
 \end{tabular}
 \caption{Mean per-entry time in ms over completed entries, and the share of
-entries that hit the two-second cap, one routine pass per category at each
-category's routine values. The mean column excludes timed-out entries, so a
-low mean next to a high timeout share describes only the easy entries that
-survived.}
+entries that hit the two-second cap, one routine pass per category: every
+row swept once across the category's own default $n$ list, not the
+extended range the eight representative rows below are pushed to. The
+mean column excludes timed-out entries, so a low mean next to a high
+timeout share describes only the easy entries that survived.}
 \label{tab:patho-timing-smoke}
 \end{table}
 
@@ -644,9 +672,11 @@ partial-derivative variants stay under 5\%. Category F is the routine category
 where \texttt{deriv\_bc} itself times out at a real rate, 40\% against under
 4\% for the partial-derivative pair, and is calibrated to show the F-family
 mechanism defeating bit-coding. Category C's timeout rate is close to uniform
-across all five parsers, consistent with C's cost being dominated by bound
-unrolling at translation time, a cost every parser pays identically before its
-derivative loop runs.
+across all five parsers, consistent with C's cost coming from bound
+unrolling producing a large translated \texttt{Regex} in the first place:
+every parser then pays cost proportional to that size during its own
+timed loop, not from translation itself leaking into the measurement,
+which Section~\ref{sec:eval-criteria-timing} excludes by construction.
 
 Category H is the one category where the ranking inverts.
 \texttt{deriv\_bc} times out less often at 7\% than either
@@ -665,7 +695,11 @@ suffer from that shape as much as the standard partial derivative does.
 Eight rows are swept individually past their category's routine values, into
 the millions of characters or thousands of pattern repetitions. These are the
 representative patterns. The first establishes the method, and the remaining
-seven follow in the same form.
+seven follow in the same form. Reaching those scales needs more time per
+entry than the 2\,s default, so each row's sweep raises the per-entry
+deadline to a budget generous enough for its own largest point to finish,
+from 30\,s to 120\,s depending on the row, rather than letting the
+deadline itself become the thing that stops the sweep.
 
 \textbf{The method-establishing pattern.} Figure~\ref{fig:patho-fig7a} plots
 wall time against input length for \texttt{(a|b|ab)*} on \texttt{a} repeated
@@ -744,8 +778,9 @@ completed every swept $n$ without timing out.}
 \end{table}
 
 The two standard variants crash, not time out, at every threshold. Both hit
-the memory cap before the wall-clock cap, at the same swept $n$ on every row,
-with near-identical total and average allocation up to that point. Recursion
+the 8\,192\,MB memory cap before the wall-clock cap, at the same swept $n$ on
+every row, with near-identical total and average allocation up to that
+point. Recursion
 depth is therefore not the mechanism here. The stack-depth comparison of
 Section~\ref{sec:eval-stack-depth} showed the two variants diverge sharply on
 stack depth alone, with the iterative form surviving 32 times further
@@ -1049,7 +1084,9 @@ Parser & Total & Average per entry & Max peak \\
 \caption{Heap allocation over the default scope of 463 patterns and 11\,395
 entries. \emph{Total} sums every allocation including churn and measures
 allocator pressure. \emph{Max peak} is the highest live-byte high-water mark
-on any single entry and measures the footprint a deployment would see.}
+on any single entry and measures the footprint a deployment would see.
+Timed-out entries are excluded from both, so both are lower bounds on the
+standard variants' true footprint.}
 \label{tab:memory}
 \end{table}
 
@@ -1198,7 +1235,9 @@ P20 & \texttt{pderiv\_std}                    & 171.44 GB & 7.14 GB & 4.97 GB \\
 P20 & \texttt{pderiv\_bc}                     & 180.05 GB & 7.50 GB & 3.27 GB \\
 \hline
 \end{tabular}
-\caption{Memory across the three E-family representative rows.}
+\caption{Memory across the three E-family representative rows. \emph{Total}
+and \emph{Max peak} are as in Table~\ref{tab:memory}: churn versus
+live footprint, not two readings of the same quantity.}
 \label{tab:patho-memory-e}
 \end{table}
 
@@ -1221,7 +1260,9 @@ P09 & \texttt{pderiv\_std}                    & 37.63 GB & 1.34 GB & 961.3 MB \\
 P09 & \texttt{pderiv\_bc}                     & 38.00 GB & 1.36 GB & 698.1 MB \\
 \hline
 \end{tabular}
-\caption{Memory across the two nested-quantifier representative rows.}
+\caption{Memory across the two nested-quantifier representative rows.
+\emph{Total} and \emph{Max peak} are as in Table~\ref{tab:memory}: churn
+versus live footprint, not two readings of the same quantity.}
 \label{tab:patho-memory-ab}
 \end{table}
 
@@ -1249,7 +1290,9 @@ P28 & \texttt{pderiv\_std}                    &  4.08 GB & 135.9 MB & 99.0 MB \\
 P28 & \texttt{pderiv\_bc}                     &  4.19 GB & 139.6 MB & 52.0 MB \\
 \hline
 \end{tabular}
-\caption{Memory across the three F-family representative rows.}
+\caption{Memory across the three F-family representative rows. \emph{Total}
+and \emph{Max peak} are as in Table~\ref{tab:memory}: churn versus
+live footprint, not two readings of the same quantity.}
 \label{tab:patho-memory-f}
 \end{table}
 
@@ -1269,7 +1312,12 @@ routine-scope corpus total, 15.94\,GB across all 11\,395 real entries, is
 smaller than one adversarial 10-million-character input's churn. That is the
 point of the synthetic set, to find costs a realistic corpus never approaches.
 
-Peak memory on the surviving entries is what bounds deployability.
+Peak memory on the surviving entries is what bounds deployability, but
+only among constructions that survived to a comparable input length: the
+standard pair's own peaks, reached at $n$ in the tens to thousands before
+they crash, are not comparable to the other three constructions' peaks at
+$n$ in the millions, so they are left out of the comparisons below for
+that reason, the same restriction already applied to totals above.
 \texttt{deriv\_bc} is consistently the cheapest full-tree-building
 construction at this scale, 1.64 to 3.40\,GB peak across the eight rows, below
 both partial-derivative variants on the E family and below
@@ -1427,9 +1475,13 @@ therefore establish an upper bound on what is safe, and the caps are set well
 inside it rather than at the edge of what the test showed.
 
 Real usage is far below either cap in any case. Of the 762 authored patterns,
-714 parse, 442 contain at least one bounded repetition, and the largest single
-bound value anywhere in the corpus is 67, with median 2 and 99th percentile
-16. No real-corpus rule comes close to the bound cap.
+714 parse under the frontend's grammar alone, counted before deduplication
+and independently of anchor-shape, translation, or cap checks, so this figure
+is a weaker and earlier filter than Table~\ref{tab:dataset-summary}'s 578
+accepted rather than something that should net against it. Of the 714, 442
+contain at least one bounded repetition, and the largest single bound value
+anywhere in the corpus is 67, with median 2 and 99th percentile 16. No
+real-corpus rule comes close to the bound cap.
 
 The third cap, the node cap, is sized differently: node count has no
 comparable recursion cliff to check against, so it is set by coverage
@@ -1625,7 +1677,10 @@ On the full corpus the two standard variants are close in mean time
 (7.718\,ms against 7.430\,ms) but the outcome split shows where the
 difference lives. On matching entries, \texttt{deriv\_std\_loop}'s
 total (70.782\,s) is measurably below \texttt{deriv\_std\_rec}'s
-(74.725\,s), while their non-match totals are almost the same. The
+(74.725\,s, on 5\,797 against 5\,799 entries), while their non-match
+totals are almost the same. A multi-second gap over thousands of
+entries is not sensitive to which two entries differ between the sets.
+The
 recursion-versus-iteration difference is specifically a cost of the
 matching path, confirmed directly at Figure~7 scale and beyond
 (Table~\ref{tab:patho-crash-thresholds}): the two variants crash at
@@ -1728,6 +1783,20 @@ complexity mechanism at a controlled scale. It does not represent the
 distribution of pattern shapes a real author would write. Most
 categories sweep one parameter in isolation, so a pattern combining
 two stress mechanisms at once is not directly represented.
+
+\textbf{Agreement subset.} \emph{Compared} is restricted to expected
+matches where every candidate completed and both families were
+internally consistent. For S2ELab this excludes only about 1\% of
+matches (71 of 5\,869); for the synthetic set it excludes about half
+(237 of 444), consistent with that set's own purpose of pushing
+candidates past what they can finish. Where exclusion and genuine
+ambiguity share a cause, the measured disagreement rate understates the
+true rate among the excluded entries; that link is plausible for the
+alternation-heavy categories specifically, whose shared-prefix structure
+(Section~\ref{sec:eval-agreement}) drives both combinatorial cost and
+ambiguity together, but not for a category like I, where timeouts come
+from input length alone and no shape disagreement is structurally
+possible.
 
 \textbf{Measurement model.} Memory benches measure allocation counts,
 not wall-clock memory pressure. The evaluator runs on a single

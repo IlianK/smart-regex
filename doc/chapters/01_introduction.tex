@@ -111,10 +111,12 @@ The following contributions are being made:
   parsing constructions in Rust, including direct and bit-coded variants.
   The implementations are based on the constructions described in the
   literature and the corresponding Haskell material, resulting in four
-  parser variants in total.
+  parser variants in total. The direct derivative-based parser is further
+  implemented in both a recursive and an iterative form, evaluated as two
+  separate candidates, for five candidates measured overall.
 
   \item \textbf{Empirical evaluation of the parser variants.}
-  The four implementations are evaluated with respect to execution time
+  The five resulting candidates are evaluated with respect to execution time
   and memory consumption using synthetic benchmarks and a corpus of
   real-world regular expressions from Snort/Suricata, SpamAssassin, and
   RegexLib.
@@ -161,8 +163,8 @@ external AST and their translation into the internal representation used
 by the parsers.
 
 \item \textbf{Chapter~\ref{sec:evaluation} - Evaluation.}
-This chapter evaluates the four parser variants with respect to execution
-time, memory consumption, and correctness. The evaluation uses synthetic
+This chapter evaluates the five resulting candidates with respect to
+execution time, memory consumption, and correctness. The evaluation uses synthetic
 benchmarks and a corpus of real-world regular expressions.
 It also examines optimization challenges and the insights gained from the
 evaluation.
