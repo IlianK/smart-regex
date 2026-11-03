@@ -98,7 +98,7 @@ sizes are reached.
 The larger stack is intended to prevent failures that reflect stack space
 rather than the parser.
 
-Each timing and memory run produces two putputs. A summary table of aggregate
+Each timing and memory run produces two outputs. A summary table of aggregate
 candidate measurements and a per-entry file for comparing candidates
 on individual entries.
 
@@ -243,11 +243,12 @@ bracket means derivation cost limited it first. The latter are kept as negative
 controls, identifying patterns whose derivation becomes prohibitively expensive
 before their stack does.
 
-The same doubling search also sets the other two translation caps, the
-\emph{bound cap} and the \emph{depth cap}, on an explicit 8\,MiB stack matching
-the Linux default. Bound unrolling recurses once per unit of a bound's open
-part, syntactic nesting once per level of \texttt{(?:...)} grouping, so each cap
-is placed where its mechanism exhausts that stack.
+The same doubling search also checks the other two translation caps, the
+\emph{bound cap} and the \emph{depth cap}, against where their own mechanism
+exhausts an explicit 8\,MiB stack matching the Linux default. Bound unrolling
+recurses once per unit of a bound's open part, syntactic nesting once per
+level of \texttt{(?:...)} grouping; each cap was chosen independently and is
+checked against, not derived from, where its mechanism actually crashes.
 
 %
 %
@@ -563,9 +564,9 @@ so those columns are lower bounds on the standard variants' true cost.}
 \label{tab:corpus-timing}
 \end{table}
 
-The two standard variants are the slowest by a wide margin, roughly $4$ to
-$12\times$ the mean of \texttt{deriv\_bc} and over an order of magnitude past
-both partial-derivative variants. That gap is measured before the 72 and 74
+The two standard variants are the slowest by a wide margin, roughly
+$4$--$4.5\times$ the mean of \texttt{deriv\_bc} and over an order of
+magnitude past both partial-derivative variants. That gap is measured before the 72 and 74
 entries each times out on, so the true gap is larger. Within the two faster
 groups, \texttt{pderiv\_std} is marginally faster than \texttt{pderiv\_bc} on
 this corpus, 0.616 against 0.625\,ms mean.
@@ -741,7 +742,7 @@ the memory cap before the wall-clock cap, at the same swept $n$ on every row,
 with near-identical total and average allocation up to that point. Recursion
 depth is therefore not the mechanism here. The stack-depth comparison of
 Section~\ref{sec:eval-stack-depth} showed the two variants diverge sharply on
-stack depth alone, with the iterative form surviving over sixty times further
+stack depth alone, with the iterative form surviving 32 times further
 than the recursive form. If these crashes were call-stack depth, the two
 variants would not die at the same input length. They do, so the mechanism is
 the shared two-pass retention of every intermediate derivative, not the
@@ -1429,7 +1430,10 @@ headroom to spare.
 
 Parse agreement is reported per dataset under the measurement of
 Section~\ref{sec:eval-criteria-agreement}. Membership is the precondition for
-anything shape can say, so both are reported together.
+anything shape can say, so both are reported together. S2ELab's entry count
+below, 11\,395, is the same 463-pattern, full-match-only default scope used
+by Timing and Memory (Section~\ref{sec:eval-s2elab}), not the full
+572-pattern, 13\,957-input prepared corpus.
 
 \begin{table}[H]
 \centering
@@ -1439,7 +1443,7 @@ anything shape can say, so both are reported together.
 \hline
 Dataset & Entries & Timeouts & Crashes & Compared & Match agr. & Shape agr. & Shape dis. \\
 \hline
-S2ELab    & 13\,957 &  89 & 0 & 7\,041 & 100.0\% & 99.7\% (7\,020) & 0.3\% (21) \\
+S2ELab    & 11\,395 &  86 & 0 & 5\,785 & 100.0\% & 99.8\% (5\,771) & 0.2\% (14) \\
 Synthetic &    889 & 453 & 1 &   207 & 100.0\% & 89.9\% (186)   & 10.1\% (21) \\
 \hline
 \end{tabular}
@@ -1452,19 +1456,19 @@ over \emph{Entries}.}
 \end{table}
 
 Membership agreement is complete on both datasets. Every completed entry had
-every candidate return the expected result, so no membership bug was found.
-The 89 S2ELab timeouts all occur on entries expected to match, since those are
-the ones that force a tree to be constructed. The synthetic set's 453 timeouts
-and single crash reflect its intended purpose, to push candidates past what
-they can finish, rather than any correctness defect.
+every candidate return the expected result, so no membership bug was found,
+and neither are the timeouts: the 86 S2ELab timeouts are real patterns too
+costly for the slower candidates within the budget, while the synthetic
+set's 453 timeouts and single crash are deliberately engineered for the same
+purpose, to push candidates past what they can finish.
 
-The 21 shape disagreements on the real corpus represent 0.3\% of the compared
+The 14 shape disagreements on the real corpus represent 0.2\% of the compared
 matches. Both families agreed with themselves on every such entry, so the
 disagreements are purely the POSIX-versus-non-POSIX policy difference and not
-a within-family inconsistency. The synthetic set has the same 21 disagreements
-but only 207 compared matches, so the rate is 10.1\%, an order of magnitude
-above the real corpus. Grouping the synthetic counts by category shows where
-those 21 disagreements come from.
+a within-family inconsistency. The synthetic set's 21 disagreements, out of
+only 207 compared matches, put its rate at 10.1\%, roughly $42\times$ the real
+corpus's rate. Grouping the synthetic counts by category shows where those 21
+disagreements come from.
 
 \begin{table}[H]
 \centering
@@ -1596,7 +1600,7 @@ representative row, which rules out recursion depth as the mechanism
 there and leaves the two-pass retention both variants share as the
 only remaining explanation. Stack depth specifically is where the two
 variants do diverge sharply (Section~\ref{sec:eval-stack-depth}):
-\texttt{deriv\_std\_loop} survives over sixty times further than
+\texttt{deriv\_std\_loop} survives 32 times further than
 \texttt{deriv\_std\_rec} on a pattern engineered to isolate that one
 cost alone, with the memory cap removed. The two findings are not in
 tension. They describe two different failure modes, and which one a
@@ -1623,13 +1627,13 @@ The representative sweeps push this further: \texttt{deriv\_bc}
 survives every swept input length on six of the eight representative
 rows where both standard variants crash outright, at scales ranging
 from thousands of characters past the crash point (P27/P28) to ten
-million (P60, P20). Section~\ref{sec:eval-memory-patho-representatives}'s
+million (P60, P20). Section~\ref{sec:eval-memory-highlighted}'s
 caveat applies directly here: \texttt{deriv\_bc}'s cumulative
 allocation at that scale is large (up to 271\,GB of total churn on
 P20's full sweep), but its peak live footprint stays in the low
 gigabytes throughout, the distinction between allocator pressure and
 actual memory held that motivates reporting both figures separately
-(Section~\ref{sec:eval-criteria-what}).
+(Section~\ref{sec:eval-criteria-memory}).
 
 %
 %
@@ -1678,12 +1682,12 @@ compared separately in Section~\ref{sec:eval-agreement}.
 
 \textbf{Corpus scope.} S2ELab is one dataset's own domain and
 convention. A corpus from a different domain might exhibit different
-acceptance rates and timing profiles. The default scope measures only
-the 463 stripped patterns (Section~\ref{sec:eval-anchors}). A
+acceptance rates and timing profiles. Timing, Memory, and Parse Agreement
+all default to the 463 stripped patterns (Section~\ref{sec:eval-s2elab}). A
 different, defensible choice (\texttt{BENCH\_MATCH\_INTENT=both}) would
-fold in the remaining 115 patterns and could shift absolute numbers,
-though not the ordering among parsers, which does not depend on which
-patterns are included.
+fold in the remaining 115 patterns and could shift absolute numbers, though
+not the ordering among parsers, which does not depend on which patterns are
+included.
 
 \textbf{The pathological set.} Each of its 113 rows isolates one
 complexity mechanism at a controlled scale. It does not represent the
@@ -1696,7 +1700,7 @@ not wall-clock memory pressure. The evaluator runs on a single
 machine, so the wall-clock figures are CPU- and cache-specific. A
 \emph{crashed} entry's recorded reason is ``killed by signal,'' not a
 confirmed diagnosis of stack overflow specifically
-(Section~\ref{sec:eval-criteria-how}); Section~\ref{sec:eval-stack-depth}
+(Section~\ref{sec:eval-criteria-setup}); Section~\ref{sec:eval-stack-depth}
 is the one measurement in this chapter that removes the memory cap and
 so can attribute a crash to stack overflow directly, and it is the
 basis for the claim, elsewhere in this chapter, that the
