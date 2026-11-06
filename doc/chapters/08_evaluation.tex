@@ -359,6 +359,7 @@ are summarised in Table~\ref{tab:corpus-rejection-causes}.
 \begin{table}[H]
 \centering
 \small
+\resizebox{10.84cm}{!}{%
 \begin{tabular}{lr}
 \hline
 Cause & S2ELab patterns \\
@@ -371,7 +372,7 @@ Other (node cap, syntax errors)             &   2 \\
 \hline
 Total                                       & 177 \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{S2ELab patterns rejected by the frontend, broken down by cause.}
 \label{tab:corpus-rejection-causes}
 \end{table}
@@ -416,6 +417,7 @@ illustrates the two types of sweep.
 \begin{table}[H]
 \centering
 \small
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{llll}
 \hline
 Row & Swept parameter & Resulting pattern & Resulting input \\
@@ -425,7 +427,7 @@ P01 ($n=1000$)  & $n$ & \texttt{(a+)+}          & \texttt{a} repeated 1000 times
 E36 ($p=100$)   & $p$ & 100-way word alternation & \texttt{w000001}             \\
 E36 ($p=1000$)  & $p$ & 1000-way word alternation & \texttt{w000001}            \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{Two sample rows at two sweep values each. Row P01 fixes the pattern
 and sweeps $n$. Row E36 sweeps $p$, so the pattern grows while the input stays fixed.}
 \label{tab:sweep-samples}
@@ -570,6 +572,7 @@ Section~\ref{sec:eval-criteria-timing}.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
+\resizebox{13.65cm}{!}{%
 \begin{tabular}{lrrrr}
 \hline
 Parser & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
@@ -580,7 +583,7 @@ Parser & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \texttt{pderiv\_std}      &  0 & 0.699 & 0.108 &   104.844 \\
 \texttt{pderiv\_bc}       &  0 & 0.625 & 0.100 &   100.320 \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{Corpus timing over the default scope of 463 patterns and 11\,395
 entries per parser. Timeouts are excluded from the mean, median, and maximum,
 so those columns are lower bounds on the standard variants' true cost.}
@@ -634,6 +637,7 @@ between recursion and iteration mainly affects the matching path.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
+\resizebox{12.34cm}{!}{%
 \begin{tabular}{llrrrrrrrrrr}
 \hline
 & & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
@@ -647,7 +651,7 @@ E &  80 & 299.1 & 56\% & 404.6 & 53\% &  76.6 &  0\% &  62.7 &  0\% &  57.4 &  0
 F &  70 & 385.8 & 66\% & 383.4 & 66\% &  42.3 & 40\% &  99.6 &  3\% & 103.2 &  3\% \\
 H &  28 & 226.3 & 64\% & 225.9 & 64\% & 263.8 &  7\% & 233.5 & 14\% & 214.4 & 14\% \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{Mean per-entry time in ms over completed entries, and the share of
 entries that hit the two-second cap, one routine pass per category: every
 row swept once across the category's own default $n$ list, not the
@@ -1096,6 +1100,7 @@ own frontier-stepping does.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
+\resizebox{10.2cm}{!}{%
 \begin{tabular}{lrrrrrr}
 \hline
 & \multicolumn{3}{c}{$a^*$ on $a^n$} & \multicolumn{3}{c}{$(a{+}(b{+}ab))^*$ on $(ab)^n$} \\
@@ -1107,7 +1112,7 @@ Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
 \texttt{pderiv\_std} & 2 &  2 &  2 &   18 &    8 &    8 \\
 \texttt{pderiv\_bc}  & 2 &  2 &  2 &   18 &    8 &    8 \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{Live-state size per parser at three input lengths.}
 \label{tab:growth}
 \end{table}
@@ -1134,6 +1139,7 @@ distinct residuals, rather than a single expression.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
+\resizebox{12.21cm}{!}{%
 \begin{tabular}{llrrrrrrrrrr}
 \hline
 & & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
@@ -1147,7 +1153,7 @@ E &  80 & 119.7 & 56\% & 174.7 & 53\% & 111.4 &  0\% & 64.9 &  0\% & 62.4 &  0\%
 F &  70 & 159.6 & 66\% & 159.6 & 66\% &  32.4 & 40\% & 92.1 &  3\% & 97.0 &  3\% \\
 H &  28 & 81.7 & 64\% & 81.8 & 64\% & 232.3 &  7\% & 148.2 & 14\% & 135.2 & 14\% \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{Average total bytes per completed entry in MB, and the share of
 entries that hit the two-second cap, one routine pass per category at each
 category's routine values. The average excludes timed-out entries, so a low
@@ -1326,13 +1332,14 @@ per entry.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
+\resizebox{11.44cm}{!}{%
 \begin{tabular}{lrrrr}
 \hline
 Patterns & Mean (ms) & Max (ms) & Mean nodes & Max nodes \\
 \hline
 463 & 0.016 & 0.402 & 502.5 & 18\,707 \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{Translation cost and output size over the 463 distinct patterns in
 the default scope.}
 \label{tab:translate-cost}
@@ -1398,6 +1405,7 @@ caps on the default 8\,MiB stack, alongside the enforced caps.
 \begin{table}[H]
 \centering
 \small
+\resizebox{12.1cm}{!}{%
 \begin{tabular}{lrrr}
 \hline
 Mechanism & Survives to & Crashes between & Cap \\
@@ -1405,7 +1413,7 @@ Mechanism & Survives to & Crashes between & Cap \\
 Bound unrolling    & 51\,200 & 51\,200--102\,400 & 1\,000 \\
 Syntactic nesting  &  6\,400 &   6\,400--12\,800  & 2\,000 \\
 \hline
-\end{tabular}
+\end{tabular}}
 \caption{The crash point of each mechanism on the default 8\,MiB stack,
 alongside the cap the frontend enforces. The caps sit far below the crash
 points, for the reasons in the text.}
