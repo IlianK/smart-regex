@@ -1616,8 +1616,8 @@ their state grows linearly with $n$, while the other three variants
 remain bounded in the measured range.
 
 On the full corpus, the standard variants have similar mean times
-(7.718\,ms and 7.430\,ms), but their matching totals differ.
-\texttt{deriv\_std\_loop} takes 70.782\,s, compared with 74.725\,s
+(7.534\,ms and 7.388\,ms), but their matching totals differ.
+\texttt{deriv\_std\_loop} takes 70.510\,s, compared with 72.829\,s
 for \texttt{deriv\_std\_rec}. Their non-match totals are almost
 identical, suggesting that iteration mainly reduces the cost of
 matching. On the representative rows, both variants reach the
@@ -1638,7 +1638,7 @@ derivation cost or stack depth grows first.
 
 For the standard-derivative family, bit-coding performs better on
 the measured corpus. \texttt{deriv\_bc} has a mean time of
-1.699\,ms, roughly $4$--$4.5\times$ below the standard variants,
+1.688\,ms, roughly $4$--$4.5\times$ below the standard variants,
 and a peak allocation of 5.1\,MB, about $114$--$144\times$ lower.
 Its forward pass retains information needed for single-pass
 reconstruction rather than simplifying every redundant branch.
@@ -1665,13 +1665,14 @@ memory on the S2ELab corpus. They represent the residual as a set
 of states rather than one combined expression, limiting the
 alternation growth seen in the standard derivative parser.
 
-Within the pair, bit-coding does not always improve performance.
-On the full corpus, \texttt{pderiv\_std} is marginally faster
-(0.616 against 0.625\,ms mean) and uses slightly less memory
-(0.403 against 0.412\,MB average and 2.5 against 3.8\,MB peak).
-The ranking changes on the representative rows. \texttt{pderiv\_std}
-is faster on P60, while \texttt{pderiv\_bc} is faster on P61 and
-P20. On P20, it also has the lower peak allocation
+Within the pair, bit-coding does not consistently help or hurt.
+On the full corpus, \texttt{pderiv\_bc} is marginally faster
+(0.625 against \texttt{pderiv\_std}'s 0.699\,ms mean) and has a
+lower average allocation (0.412 against 0.472\,MB), though
+\texttt{pderiv\_std} still has the lower peak (2.5 against
+3.8\,MB). The ranking changes again on the representative rows.
+\texttt{pderiv\_std} is faster on P60, while \texttt{pderiv\_bc} is
+faster on P61 and P20. On P20, it also has the lower peak allocation
 (3.27 against 4.97\,GB). The results suggest that the relative
 cost of bit-coding depends on the pattern and input, not only
 on input length.
