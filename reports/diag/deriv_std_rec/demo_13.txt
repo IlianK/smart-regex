@@ -1,7 +1,7 @@
 -------------------------------====
 REGEX ENGINE DEBUG REPORT
 -------------------------------====
-Timestamp:            2026-10-26 17:11:26
+Timestamp:            2026-11-06 03:34:57
 Mode:                 POSIX Standard (recursive parser)
 Regex:                (ca+a+b)*
 Input:                "aabcba"
@@ -10,7 +10,7 @@ Policy:               POSIX
 -------------------------------====
 TIMING
 -------------------------------====
-Parse time:           0.063ms
+Parse time:           0.074ms
 Expressions stored:   7 (r0 → r1 → r2 → r3 → r4 → r5 → r6)
 -------------------------------====
 FORWARD PASS (Derivatives)
@@ -68,12 +68,12 @@ nullable(r6) = false → no parse tree exists for full input
 PARTIAL RECOVERY
 -------------------------------====
 Last nullable derivative: r3 = Alt(Seq(Alt(Seq(Phi, Lit('a')), Alt(Phi, Phi)), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))), Alt(Seq(Alt(Seq(Phi, Lit('a')), Alt(Phi, Phi)), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b'))))), Seq(Alt(Seq(Phi, Lit('a')), Alt(Phi, Eps)), Star(Alt(Seq(Lit('c'), Lit('a')), Alt(Lit('a'), Lit('b')))))))  (after position 3)
-mkEps(r3) → [Right Left a, Right Left a, Right Right b]
+mkEps(r3) → [Right Right b, Right Left a, Right Left a]
 
 Partial backward pass (positions 1–3 only):
 
-Partial parse tree:   [Right Left a, Right Left a, Right Right b]
-Partial match:        "aab"
+Partial parse tree:   [Right Right b, Right Left a, Right Left a]
+Partial match:        "baa"
 -------------------------------====
 ERROR SUMMARY
 -------------------------------====
