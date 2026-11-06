@@ -4,9 +4,8 @@
 This chapter evaluates the derivative and partial-derivative parsers developed in
 Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}.
 Using two datasets and a common set of criteria, it compares the candidates in
-terms of stack depth, execution time, memory consumption, and translation cost.
+terms of execution time, memory consumption, and translation cost.
 It also assesses their agreement on membership decisions and parse-tree shape.
-The results are then interpreted and discussed.
 
 All measurements were taken on an AMD Ryzen~5~5600 six-core processor with
 16\,GB of RAM, running Pop!\_OS 24.04 LTS on an AMD B550 chipset.
@@ -19,30 +18,30 @@ All measurements were taken on an AMD Ryzen~5~5600 six-core processor with
 \section{Candidates}
 \label{sec:eval-candidates}
 
-All five candidates share the same interface. A parser $p$ takes an input
-string and a translated \texttt{Regex}, and returns either a
-\texttt{ParseTree} or no match:
+A candidate is a parser $p$ that takes an 
+input \texttt{String} $w$ and a translated \texttt{Regex} $r$, 
+and returns either a \texttt{ParseTree} $pt$ or no match.
+Such an input pair $(w, r)$ is called an \emph{entry}.
+All candidates share the same interface:
 \[
 p :: (\mathit{String}, \mathit{Regex}) \to
      \mathit{Option\langle ParseTree\rangle}.
 \]
 
-An input pair $(w, r)$ is called an \emph{entry}, where $w$ is the input
-string and $r$ is the translated \texttt{Regex}. The candidates are divided
-into two families according to how they select a parse tree.
+Candidates are classified into
+two families by their disambiguation strategy.
 
-\textbf{POSIX family.} These three parsers select the POSIX parse tree.
+
+\textbf{POSIX family.}
 \begin{itemize}
   \item \texttt{deriv\_std\_rec}, the recursive standard derivative parser
         (Section~\ref{sec:deriv-std-parser}).
-  \item \texttt{deriv\_std\_loop}, the iterative standard derivative parser,
-        which stores the residual sequence in a \texttt{Vec} instead of the
-        call stack.
+  \item \texttt{deriv\_std\_loop}, the iterative standard derivative parser
   \item \texttt{deriv\_bc}, the bit-coded derivative parser
         (Section~\ref{sec:deriv-bc-driver}).
 \end{itemize}
 
-\textbf{Non-POSIX family.} These two parsers select the leftmost parse tree.
+\textbf{Non-POSIX family.} 
 \begin{itemize}
   \item \texttt{pderiv\_std}, the standard partial-derivative parser
         (Section~\ref{sec:pderiv-std-parser}).
@@ -50,12 +49,21 @@ into two families according to how they select a parse tree.
         (Section~\ref{sec:pderiv-bc-parser}).
 \end{itemize}
 
-All five parsers are expected to agree on membership. In other words,
-they must either all accept an entry or all reject it. Their parse trees
-need not always have the same shape. Within each family, however, the
-parsers are expected to agree on both membership and tree shape because
-they implement the same parse-tree selection strategy. Between the two
-families, the selected trees may differ for ambiguous patterns.
+All five parsers are expected to agree on membership,
+so given an entry, they must either all accept it or all reject it.
+They are also expected to agree on parse-tree shape \emph{within}
+each family, because the parsers of one family share the same
+disambiguation policy and differ only in how they compute and
+reconstruct the tree. 
+
+For the POSIX family this means the parsers must return the same POSIX parse tree
+and the non-POSIX family parsers must return the same leftmost parse tree. 
+
+Across families, agreement is
+not required. Since the two families implement different
+disambiguation strategies, they may select different parse trees for
+the same entry even when they agree on membership, as
+Chapter~\ref{sec:matching-vs-parsing} shows.
 
 %
 %
@@ -77,17 +85,18 @@ membership decisions and parse-tree shapes.
 \label{sec:eval-criteria-setup}
 
 Each entry is evaluated in its own worker subprocess for timing, memory,
-stack-depth, and parse-agreement measurements. This allows the evaluator
-to terminate calls that hang or crash and reclaim their memory. Stable Rust
-does not provide a way to terminate an individual thread.
+stack-depth, and parse-agreement measurements. 
+Stable Rust has no safe way to forcibly terminate a thread, so one that has
+not returned, whether from exponential derivation or from allocating towards
+the memory cap, cannot be stopped from outside. A subprocess can be killed
+unconditionally, and the operating system reclaims its memory.
 
 \begin{itemize}
-  \item \emph{Measured}: the worker exited with status zero and reported a
-        result line.
-  \item \emph{Timed out}: the worker exceeded the per-entry wall-clock
-        deadline, which is two seconds by default, and was killed by the parent.
-  \item \emph{Crashed}: the worker exited with a non-zero status or was killed
-        by a signal, including stack overflows and out-of-memory kills
+  \item \emph{Measured}: the worker exited zero and reported a result line.
+  \item \emph{Timed out}: the worker exceeded the default per-entry timeout
+        (2\,s) and was killed.
+  \item \emph{Crashed}: the worker exited non-zero or was killed by a
+        signal, including stack overflows and out-of-memory kills
         when the memory ceiling is enabled.
 \end{itemize}
 
@@ -98,9 +107,9 @@ sizes are reached.
 The larger stack reduces the risk of measuring stack exhaustion instead parser
 performance.
 
-Each timing and memory run produces two outputs. A summary
-table of aggregate measurements for each candidate and a
-per-entry file to compare on individual entries.
+Each timing and memory run produces two outputs: 1) A summary
+table of aggregate measurements for each candidate; 
+2) A per-entry file to compare on individual entries.
 
 %
 %
