@@ -68,7 +68,10 @@ pub struct PreparedCase {
     pub source: SourceKind,
     pub pattern: String,
     pub input: String,
-    /// The dataset author's own label; never independently re-checked.
+    /// Independently re-checked against the translated `Regex` via
+    /// `prepare::matches_bounded` before this case is ever written; a
+    /// given example whose claimed label disagreed was dropped upstream
+    /// (see `data::mod::run_pipeline`), not kept here.
     pub expected_match: bool,
     /// See `MatchIntent`.
     pub match_intent: MatchIntent,
