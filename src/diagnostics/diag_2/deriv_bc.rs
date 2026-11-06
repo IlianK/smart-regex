@@ -45,8 +45,10 @@ pub fn run(regex_str: &str, r: &Regex, input: &str) {
             println!("Match:  false");
             println!("Time:   {:.3}ms", elapsed.as_secs_f64() * 1000.0);
             println!(
-                "Steps:  {} derivative steps computed ({} successful, 1 failed)",
-                trace.bit_steps.len(), successful
+                "Steps:  {} derivative steps computed ({} successful, {} failed)",
+                trace.bit_steps.len(),
+                successful,
+                trace.bit_steps.len().saturating_sub(successful)
             );
 
             println!("{}", error_report(input, r));

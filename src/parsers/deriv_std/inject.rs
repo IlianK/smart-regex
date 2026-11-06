@@ -18,11 +18,23 @@ pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
             match v {
                 ParseTree::Pair(v1, vs) => {
                     let v1_inj = inject(r1, l, *v1);
-                    let mut iterations = vec![v1_inj];
-                    if let ParseTree::Star(rest) = *vs {
-                        iterations.extend(rest);
+                    // `rest.push`, not `vec![v1_inj].extend(rest)`: this
+                    // call's character is chronologically earlier than
+                    // whatever `rest` already holds (injection unwinds
+                    // backward), so appending leaves `rest` in reverse
+                    // temporal order until a single O(total size)
+                    // `reverse_stars` pass corrects it once at the top
+                    // level (see parse.rs). The old `extend` rebuilt the
+                    // whole vec from scratch every step -- O(current
+                    // length) per call, O(n^2) total over an
+                    // n-iteration star match.
+                    match *vs {
+                        ParseTree::Star(mut rest) => {
+                            rest.push(v1_inj);
+                            ParseTree::Star(rest)
+                        }
+                        other => panic!("inject on Star: expected Star tail, got {:?}", other),
                     }
-                    ParseTree::Star(iterations)
                 }
                 _ => panic!("inject on Star: expected Pair, got {:?}", v),
             }

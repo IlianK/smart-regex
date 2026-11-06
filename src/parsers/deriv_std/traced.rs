@@ -7,6 +7,7 @@ use crate::regex::deriv::deriv;
 use crate::regex::nullable::nullable;
 use crate::regex::mk_eps::mk_eps;
 use crate::parsers::deriv_std::inject::inject;
+use crate::parsers::deriv_std::parse::reverse_stars;
 use crate::trace::{DerivStep, InjectStep, MkEpsResult, ParseTrace};
 
 
@@ -52,7 +53,7 @@ pub fn parse_recursive_traced(input: &str, r: &Regex) -> (Option<ParseTree>, Par
                 inject_steps:  Some(inject_steps),
                 last_nullable_idx,
             };
-            (Some(tree), trace)
+            (Some(reverse_stars(tree)), trace)
         }
     }
 }
@@ -103,12 +104,17 @@ fn parse_recursive_traced_helper(
     let before_inject = subtree.clone();
     let injected = inject(r, c, subtree);
 
+    // `injected` stays in inject.rs's internal (reverse-until-the-end)
+    // Star order so the next, shallower inject call sees the tail
+    // shape it expects -- see reverse_stars's doc comment in parse.rs.
+    // The recorded before/after are display-only, so reverse them here
+    // for a human-readable trace without disturbing `injected` itself.
     // Push in unwind order (deepest/last position first); caller reverses to get forward order
     inject_steps.push(InjectStep {
         position:  pos + 1,
         character: c,
-        before:    before_inject,
-        after:     injected.clone(),
+        before:    reverse_stars(before_inject),
+        after:     reverse_stars(injected.clone()),
     });
 
     Some((injected, inject_steps, mke))
@@ -175,11 +181,14 @@ pub fn parse_loop_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTra
     for i in (0..n).rev() {
         let before = tree.clone();
         tree = inject(&expressions[i], chars[i], tree);
+        // `tree` stays in inject.rs's internal (reverse-until-the-end)
+        // Star order between steps -- see reverse_stars's doc comment
+        // in parse.rs. The recorded before/after are display-only.
         inject_steps.push(InjectStep {
             position:  i + 1,
             character: chars[i],
-            before,
-            after: tree.clone(),
+            before: reverse_stars(before),
+            after: reverse_stars(tree.clone()),
         });
     }
 
@@ -194,7 +203,7 @@ pub fn parse_loop_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTra
         last_nullable_idx,
     };
 
-    (Some(tree), trace)
+    (Some(reverse_stars(tree)), trace)
 }
 
 
