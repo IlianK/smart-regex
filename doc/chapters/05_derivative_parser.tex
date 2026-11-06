@@ -306,9 +306,13 @@ pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
         },
         Regex::Star(r1) => match v {
             ParseTree::Pair(v1, vs) => {
-                let mut it = vec![inject(r1, l, *v1)];
-                if let ParseTree::Star(rest) = *vs { it.extend(rest); }
-                ParseTree::Star(it)
+                let v1 = inject(r1, l, *v1);
+                match *vs {
+                    ParseTree::Star(mut rest) => {
+                        rest.push(v1); ParseTree::Star(rest)
+                    }
+                    o => panic!("inject/Star: want Star, got {:?}", o),
+                }
             }
             _ => panic!("inject/Star: want Pair"),
         },
@@ -350,9 +354,9 @@ expression that produced it. Under an alternation, \texttt{Left} selects the
 left disjunct, while under a nullable concatenation it indicates that the
 derivative continued inside the left operand. The \texttt{Lit} arm
 reconstructs a leaf after asserting that the consumed character matches,
-and the \texttt{Star} arm inverts $(\mathsf{I}_{*})$, reinserting the
-character into the current iteration and prepending it to the remaining
-ones.
+and the \texttt{Star} arm inverts $(\mathsf{I}_{*})$ by reinserting the
+character into the current iteration and appending it to the tail built
+so far.
 
 The expression \texttt{r} is borrowed and read only, while the tree
 \texttt{v} is consumed and decomposed. In the concatenation arms where the
@@ -365,8 +369,21 @@ the forward pass produced no tree for that half of the pair.
 Calling \texttt{nullable(r1)} in the \texttt{Seq} arm recomputes a decision
 the forward pass already made when it chose between
 $\mathsf{D}_{\mathrm{seq}}$ and $\mathsf{D}_{\mathrm{seq}}^{\,n}$. However, carrying
-this as a flag at every step would require additional storage, 
+this as a flag at every step would require additional storage,
 while \texttt{nullable} is cheap to evaluate on demand.
+
+Appending rather than prepending makes each injection step cost $O(1)$
+amortized instead of copying the tail's current length, but it leaves a
+\texttt{Star}'s iterations in the reverse of their chronological order
+until a single corrective pass restores it. \texttt{reverse\_stars} makes
+this pass once, after the whole backward walk completes, walking the
+finished tree and reversing every \texttt{Star}'s items exactly once; both
+parser entry points apply it to their result before returning. This keeps
+the whole backward pass $O(n)$: prepending at every step, as
+\eqref{eq:inj} suggests literally, would instead copy the already-built
+tail on each call, the same $O(n^2)$ cost the persistent \texttt{Bits}
+representation avoids for the bit-coded parser's annotations
+(\S\ref{sec:aregex-type}).
 
 %
 
@@ -396,7 +413,9 @@ Figure~\ref{fig:deriv-std-drivers-rust} implements~\eqref{eq:std-driver}.
 The forward loop fills the \texttt{Vec} \texttt{expressions} with
 $r_0, \ldots, r_n$, the nullability check returns early if $r_n$ is not
 nullable, and the backward loop walks the vector in reverse, applying
-\texttt{inject} to each residual and its character.
+\texttt{inject} to each residual and its character, before
+\texttt{reverse\_stars} restores left-to-right order once
+(\S\ref{sec:inject-impl}).
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -412,7 +431,7 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree>{
     for i in (0..chars.len()).rev() {
         tree = inject(&expressions[i], chars[i], tree);
     }
-    Some(tree)
+    Some(reverse_stars(tree))
 }
 \end{verbatim}
 \caption{\texttt{parse\_deriv\_std\_loop}: the standard parser.}
@@ -1137,6 +1156,102 @@ $\mathsf{B}_{*}$.}
 %
 %
 
+\subsection{Simplification}
+\label{sec:simp}
+
+$\mathit{simp}$, from \citep[Fig.~6]{sulzmannlu2014}, keeps the annotated
+expression's size bounded as derivation proceeds: it discards dead
+($\emptyset$) branches, collapses an $\varepsilon$ operand out of a
+concatenation, and removes duplicate alternation branches, fusing
+(\S\ref{sec:fuse}) each removed node's bits onto whatever replaces it. A
+single bottom-up pass does not always reach a fixpoint -- collapsing a
+branch at one level can expose a new collapse at the level above -- so
+$\mathit{simp}$ re-applies itself until the shape stops changing.
+
+%
+
+\paragraph{In Rust.}
+\label{sec:simp-impl}
+Figure~\ref{fig:simp-rust} shows \texttt{simp\_once}'s \texttt{Seq} and
+\texttt{Alt} cases, the two that do real work; \texttt{Phi}, \texttt{Eps},
+and \texttt{Lit} are already simplified, and \texttt{Star} only recurses
+into its body. \texttt{simp} is the fixpoint loop around it.
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn simp(ri: ARegex) -> ARegex {
+    let mut cur = ri;
+    loop {
+        let next = simp_once(cur.clone());
+        if same_shape(&next, &cur) { return next; }
+        cur = next;
+    }
+}
+
+fn simp_once(ri: ARegex) -> ARegex {
+    match ri {
+        ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => ri,
+
+        ARegex::Seq(bs, r1, r2) => {
+            let (r1s, r2s) = (simp_once(*r1), simp_once(*r2));
+            if is_phi(&r1s) || is_phi(&r2s) { return ARegex::Phi; }
+            if let ARegex::Eps(bs2) = r1s {
+                return fuse_bits(&bs, fuse_bits(&bs2, r2s));  // eps.r -> r
+            }
+            if let ARegex::Eps(bs2) = &r2s {
+                if bs2.is_empty() { return fuse_bits(&bs, r1s); } // r.eps -> r
+            }
+            ARegex::Seq(bs, Box::new(r1s), Box::new(r2s))
+        }
+
+        ARegex::Alt(bs, r1, r2) => {
+            // flatten nested Alt, drop dead branches, dedup by shape
+            let mut branches: Vec<ARegex> = collect_alt_branches(*r1, *r2)
+                .into_iter().map(simp_once).filter(|b| !is_phi(b)).collect();
+            dedup_first(&mut branches);
+            match branches.len() {
+                0 => ARegex::Phi,
+                1 => fuse_bits(&bs, branches.remove(0)),
+                _ => fuse_bits(&bs, fold_alt(branches)),
+            }
+        }
+
+        ARegex::Star(bs, r) => ARegex::Star(bs, Box::new(simp_once(*r))),
+    }
+}
+\end{verbatim}
+\caption{\texttt{simp} and \texttt{simp\_once}: the fixpoint loop and its two
+non-trivial cases. \texttt{collect\_alt\_branches}, \texttt{dedup\_first},
+and \texttt{fold\_alt} implement flattening, deduplication, and rebuilding
+an $n$-ary alternation, omitted here for space; each does no more than its
+name says. \texttt{fuse\_bits} is \texttt{fuse}'s (\S\ref{sec:fuse})
+counterpart for the native \texttt{Bits} type, avoiding a conversion back
+to a slice that would force the entire accumulated history to be
+materialized.}
+\label{fig:simp-rust}
+\end{figure}
+
+The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot
+\varepsilon = r$, but asymmetrically: the right-hand collapse only fires
+when $r_2$'s own bits are empty, since $\mathit{mkEpsBC}$ concatenates
+bits left to right, so fusing $r_2$'s bits onto $r_1$ the same way the left
+case does would place them before $r_1$'s own bits instead of after.
+\texttt{same\_shape}, used by both the fixpoint check and
+\texttt{dedup\_first}, compares expressions while ignoring their bit
+annotations: two branches denoting the same future language collapse into
+one even if they recorded different choices so far, the same exclusion
+the reference's $\mathit{nub2}$ makes and that
+\S\ref{sec:pderiv-bc-state-set} relies on for the bit-coded
+partial-derivative parser. Comparing by shape alone also keeps the
+fixpoint check itself cheap: the derived structural equality would
+otherwise force a full bit-list materialization at every node on every
+iteration, reintroducing the $O(n^2)$ cost \texttt{Bits}
+(\S\ref{sec:aregex-type}) exists to avoid.
+
+%
+%
+%
+
 \subsection{Decoding Bits}
 \label{sec:decode}
 
@@ -1300,19 +1415,30 @@ Figure~\ref{fig:deriv-bc-loop-rust} implements~\eqref{eq:bitcoded-driver}.
 \begin{figure}[H]
 \small
 \begin{verbatim}
+fn derive_and_simplify(ri: ARegex, chars: &[char]) -> ARegex {
+    let mut cur = ri;
+    for &l in chars { cur = simp(deriv_bc(cur, l)); }
+    cur
+}
+
 pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
-    let mut ri = internalize(r);
-    for l in input.chars() { ri = simp(deriv_bc(ri, l)); }
-    if !nullable_bc(&ri) { return None; }
-    Some(decode(r, &mk_eps_bc(&ri)))
+    let ri = internalize(r);
+    let chars: Vec<char> = input.chars().collect();
+    let final_ri = derive_and_simplify(ri, &chars);
+    if !nullable_bc(&final_ri) { return None; }
+    Some(decode(r, &mk_eps_bc(&final_ri)))
 }
 \end{verbatim}
-\caption{\texttt{parse\_bitcoded\_loop}: the bit-coded parser implementation.}
+\caption{\texttt{parse\_bitcoded\_loop}: the bit-coded parser's driver.
+\texttt{derive\_and\_simplify} is factored out because the
+recursive entry point (\S\ref{sec:deriv-std-parser}'s counterpart for this
+parser) shares the same per-character stepping and differs only in how
+it reaches \texttt{ri} in the first place.}
 \label{fig:deriv-bc-loop-rust}
 \end{figure}
 
 The loop matches the three cases of~\eqref{eq:bitcoded-driver} one for
-one. \texttt{internalize} initialises \texttt{ri}, the \texttt{for} loop
+one. \texttt{internalize} initialises \texttt{ri}, \texttt{derive\_and\_simplify}
 applies \texttt{simp(deriv\_bc(ri, l))} to each character and the
 nullability check gates the final \texttt{decode(mk\_eps\_bc(ri))}.
 
