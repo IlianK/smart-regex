@@ -34,4 +34,21 @@ fn main() {
     println!("\\addplot coordinates {{{}}};", coords(&strands));
     println!("% distinct residuals among them");
     println!("\\addplot coordinates {{{}}};", coords(&distinct));
+
+    // The thesis's growth table (tab:growth) reports a different metric for
+    // these two parsers than the strands/distinct counts above: the total
+    // *node count* summed across the deduplicated frontier, not the number
+    // of strands in it. series_frontier_total_size/_std_total_size already
+    // exist for exactly this; this demo just hadn't been calling them.
+    let total_bc = series_frontier_total_size(&expr_paper_r2(), &"ab".repeat(16));
+    let total_std = series_frontier_std_total_size(&expr_paper_r2(), &"ab".repeat(16));
+    println!("\n-- prose claims --");
+    println!(
+        "pderiv_bc total node count at n=1,8,16 = {}, {}, {}  (text says 18, 8, 8)",
+        total_bc[1], total_bc[8], total_bc[16]
+    );
+    println!(
+        "pderiv_std total node count at n=1,8,16 = {}, {}, {}  (text says 18, 8, 8)",
+        total_std[1], total_std[8], total_std[16]
+    );
 }

@@ -7,8 +7,16 @@
 //!
 //! A plain reporting binary rather than a Criterion target.
 //! Criterion's model assumes a cheap closure measured many times; a
-//! corpus pass takes seconds to hours per parser, so its statistics
-//! would report sample-count variance, not corpus-scale performance.
+//! full corpus pass (five parsers, 11,395 entries each) takes on the
+//! order of ten minutes -- confirmed from this repository's own
+//! wall_s columns, not an estimate -- and the full benchmark suite
+//! this file is one part of (corpus + pathological sweeps + the eight
+//! representative-pattern curves) takes on the order of a couple of
+//! hours. Repeating that 10-30x for Criterion-style confidence
+//! intervals would turn a run that already needs to be left overnight
+//! into one spanning days, and the statistics produced would describe
+//! how much this harness's own wall-clock time varies run to run, not
+//! a property of the parser being measured.
 //!
 //! Every entry runs in its own worker *process* (`bench_worker`,
 //! shared with `bench_corpus_memory`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
