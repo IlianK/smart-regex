@@ -88,7 +88,7 @@ Each entry is evaluated in its own worker subprocess for timing, memory,
 stack-depth, and parse-agreement measurements. 
 Stable Rust has no safe way to forcibly terminate a thread, so one that has
 not returned, whether from exponential derivation or from allocating towards
-the memory cap, cannot be stopped from outside. A subprocess can be killed
+the memory cap, cannot be stopped from outside. In contrast, a subprocess can be killed
 unconditionally, and the operating system reclaims its memory.
 
 \begin{itemize}
