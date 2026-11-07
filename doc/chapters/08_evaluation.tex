@@ -75,7 +75,7 @@ Chapter~\ref{sec:matching-vs-parsing} shows.
 The evaluation considers two aspects of the candidates. The first is
 \emph{performance}, measured in terms of execution time, memory consumption,
 and translation cost. The second is \emph{correctness}, assessed by comparing
-membership decisions and parse-tree shapes.
+membership and parse-tree selection by their disambiguation policies.
 
 %
 %
@@ -159,32 +159,29 @@ candidates.
 \subsection{Memory}
 \label{sec:eval-criteria-memory}
 
-Memory is measured using a counting allocator inside each worker.
-The allocator baseline is recorded immediately before the parser call,
-so the measurements include only allocations made during $p(r, w)$.
-Three measures are reported:
+Memory is measured with a counting allocator in each worker, baselined
+immediately before the parser call so that only allocations made during
+$p(r, w)$ are counted. The allocator tracks a running sum of requested
+bytes and a running count of live bytes. Two measures are reported:
 
 \begin{itemize}
-    \item \emph{Total bytes}: all memory allocated during the call, including
-          allocations later freed.
-    \item \emph{Average bytes}: total allocated bytes divided by the number
-          of completed entries.
-    \item \emph{Max peak}: the highest number of live allocated bytes reached
-          during a single call.
+  \item \emph{Max live peak}: the maximum of the live-byte counter within
+        a call. This is the deployment-relevant footprint: it bounds the
+        heap a single call requires.
+  \item \emph{Total allocated}: the sum of requested bytes over the call,
+        including memory later freed. It is not a footprint, but a proxy
+        for allocator pressure and a secondary explanation of timing.
 \end{itemize}
 
-Total allocation and peak memory can differ substantially. Many small,
-short-lived allocations can produce a high total but a low peak. Conversely,
-a large allocation that remains live can produce a high peak without a
-similarly high total. Reporting both measures therefore distinguishes
-allocation activity from peak memory use. Average bytes use the same
-averaging method as the timing mean. Total bytes and peak values are
-aggregated directly over entries.
+Since total is cumulative and peak is instantaneous, total can exceed
+peak within a single row; this is expected, not an error. Peak is
+compared only across rows that reached comparable input lengths, and
+total only across rows that completed comparable work.
 
-The counting allocator records heap allocations but does not include the
-256\,MiB worker stack. A parser that uses substantial stack space but makes
-few heap allocations may therefore appear inexpensive in these measurements.
-Stack depth is evaluated separately for the two standard derivative parsers.
+The allocator excludes the 256\,MiB worker stack, so a parser that uses
+substantial stack but few heap allocations may appear inexpensive here.
+Stack depth is evaluated separately for the two standard derivative
+parsers.
 
 %
 %
@@ -1050,23 +1047,26 @@ Section~\ref{sec:eval-criteria-memory}.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrr}
+\begin{tabular*}{11.44cm}{@{\extracolsep{\fill}} lrr}
 \hline
-Parser & Total & Average per entry & Max peak \\
+Parser & Total allocated & Max live peak \\
 \hline
-\texttt{deriv\_std\_rec}  & 29.19 GB & 2.671 MB & 582.4 MB \\
-\texttt{deriv\_std\_loop} & 30.70 GB & 2.820 MB & 737.6 MB \\
-\texttt{deriv\_bc}        & 15.94 GB & 1.372 MB &   5.1 MB \\
-\texttt{pderiv\_std}      &  5.52 GB & 0.472 MB &   2.5 MB \\
-\texttt{pderiv\_bc}       &  4.80 GB & 0.412 MB &   3.8 MB \\
+\texttt{deriv\_std\_rec}  & 29.19 GB & 582.4 MB \\
+\texttt{deriv\_std\_loop} & 30.70 GB & 737.6 MB \\
+\texttt{deriv\_bc}        & 15.94 GB &   5.1 MB \\
+\texttt{pderiv\_std}      &  5.52 GB &   2.5 MB \\
+\texttt{pderiv\_bc}       &  4.80 GB &   3.8 MB \\
 \hline
-\end{tabular}
-\caption{Heap allocation over the default scope of 463 patterns and 11\,395
-entries. \emph{Total} sums every allocation including churn and measures
-allocator pressure. \emph{Max peak} is the highest live-byte high-water mark
-on any single entry and measures the footprint a deployment would see.
-Timed-out entries are excluded from both, so both are lower bounds on the
-standard variants' true footprint.}
+\end{tabular*}
+\caption{Heap allocation over the default scope of 463 patterns and
+11\,395 entries. \emph{Total allocated} counts every allocation,
+including memory later freed, and measures allocator pressure.
+\emph{Max live peak} is the highest live-byte high-water mark within a
+single call and measures the footprint a deployment would see. The two
+are different quantities: total is cumulative and can exceed the live
+peak, because freed memory is counted in the former but not the latter.
+Timed-out entries are excluded from both, so both are lower bounds on
+the standard variants' true footprint.}
 \label{tab:memory}
 \end{table}
 
@@ -1074,14 +1074,13 @@ The largest difference is in peak allocation. The standard variants
 reach 582.4 and 737.6\,MB, compared with 5.1\,MB for
 \texttt{deriv\_bc}, a factor of $114$--$144$. The standard parser
 retains its derivation sequence for the backward pass, whereas
-\texttt{deriv\_bc} stores a flat bit vector. The differences in total
-and average allocation are smaller, at roughly $1.9\times$ and $2\times$.
+\texttt{deriv\_bc} stores a flat bit vector. The difference in total
+allocation is smaller, at roughly $1.9$--$2\times$.
 
 The partial-derivative pair shows a different result from the growth
-curves. \texttt{pderiv\_std} uses less memory in every column, with
-0.403 against 0.412\,MB average and 2.5 against 3.8\,MB peak. This
-reverses their timing ranking on the same corpus. At these input
-lengths, the frontier is already small, so bit-tracking adds overhead.
+curves. \texttt{pderiv\_std} has the lower peak (2.5 against 3.8\,MB),
+reversing the pair's timing ranking on the same corpus. At these input
+lengths the frontier is already small, so bit-tracking adds overhead.
 The growth argument concerns how the variants scale, not which uses
 less memory on short inputs.
 
@@ -1134,41 +1133,38 @@ distinct residuals, rather than a single expression.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular*}{12.21cm}{@{\extracolsep{\fill}} llrrrrrrrrrr}
+\begin{tabular*}{10.5cm}{@{\extracolsep{\fill}} llrrrrrrrrrr}
 \hline
 & & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
-Cat. & Entries & avg MB & to\% & avg MB & to\% & avg MB & to\% & avg MB & to\% & avg MB & to\% \\
+Cat. & Entries & to\% & peak MB & to\% & peak MB & to\% & peak MB & to\% & peak MB & to\% & peak MB \\
 \hline
-A & 160 & 77.9 & 70\% & 93.7 & 69\% & 196.0 &  1\% & 17.7 &  0\% & 15.2 &  0\% \\
-B & 150 & 64.6 & 63\% & 64.6 & 63\% &  98.1 &  4\% & 56.9 &  1\% & 74.9 &  0\% \\
-C &  56 & 34.7 & 57\% & 34.7 & 57\% & 152.9 & 25\% & 148.7 & 18\% & 130.7 & 18\% \\
-D &  40 & 100.7 & 20\% & 100.7 & 20\% &  83.6 &  0\% & 136.3 & 15\% & 121.5 & 15\% \\
-E &  80 & 119.7 & 56\% & 174.7 & 53\% & 111.4 &  0\% & 64.9 &  0\% & 62.4 &  0\% \\
-F &  70 & 159.6 & 66\% & 159.6 & 66\% &  32.4 & 40\% & 92.1 &  3\% & 97.0 &  3\% \\
-H &  28 & 81.7 & 64\% & 81.8 & 64\% & 232.3 &  7\% & 148.2 & 14\% & 135.2 & 14\% \\
+A & 160 & 70\% & 74.3 & 69\% & 74.3 &  1\% & 186.9 &  0\% & 15.5 &  0\% & 14.5 \\
+B & 150 & 63\% & 61.8 & 63\% & 61.8 &  4\% &  93.6 &  1\% & 70.5 &  0\% & 71.5 \\
+C &  56 & 57\% & 33.1 & 57\% & 33.1 & 25\% & 145.8 & 18\% & 122.9 & 18\% & 139.9 \\
+D &  40 & 20\% & 96.0 & 20\% & 96.0 &  0\% &  79.7 & 15\% & 121.6 & 15\% & 115.8 \\
+E &  80 & 56\% & 114.8 & 53\% & 114.8 &  0\% & 106.3 &  0\% & 60.1 &  0\% & 59.5 \\
+F &  70 & 66\% & 158.0 & 66\% & 158.0 & 40\% &  32.4 &  3\% & 88.0 &  3\% & 94.3 \\
+H &  28 & 64\% & 77.9 & 64\% & 77.9 &  7\% & 232.3 & 14\% & 131.5 & 14\% & 135.2 \\
 \hline
 \end{tabular*}
-\caption{Average total bytes per completed entry in MB, and the share of
-entries that hit the two-second cap, one routine pass per category at each
-category's routine values. The average excludes timed-out entries, so a low
-average next to a high timeout share describes only the easy entries that
-survived.}
+\caption{Peak live MB per completed entry, and the share of entries
+that hit the two-second cap, over one routine pass per category at each
+category's routine values. Peak is the live-byte high-water mark within
+a call, the footprint measure defined in
+Section~\ref{sec:eval-criteria-memory}. Timed-out entries are excluded,
+so a low peak next to a high timeout share describes only the easy
+entries that survived. Cumulative allocation for the representative
+rows is given in Tables~\ref{tab:patho-memory-e}--\ref{tab:patho-memory-f}.}
 \label{tab:patho-memory-smoke}
 \end{table}
 
-The standard variants have near-identical per-entry averages in most
-categories, consistent with similar allocation costs regardless of
-control flow. In A and E, where most entries time out, the surviving
-few diverge more (A: 77.9 against 93.7\,MB; E: 119.7 against
-174.7\,MB) -- with only a small, timeout-boundary-sensitive subset of
-entries completing, a small difference in exactly when each variant
-crosses the cap can change which entries survive to be averaged.
-\texttt{deriv\_bc} has the highest average among the surviving
-parsers in A, C, and H, showing that its retained history still has
-a cost. In F, its average is lowest at 32.4\,MB, but 40\% of its
-entries time out. This makes the average difficult to compare with
-the partial-derivative variants, which average 92.1 and 97.0\,MB
-over their completed entries.
+The standard variants have near-identical peak allocation in most
+categories, consistent with similar live-state costs regardless of
+control flow. \texttt{deriv\_bc} has the highest peak among the
+surviving parsers in A, C, and H, showing that its retained history
+still has a cost. In F, its peak is the lowest at 32.4\,MB, but 40\%
+of its entries time out, so this figure describes only the easy
+entries it completed.
 
 %
 %
@@ -1188,29 +1184,32 @@ standard forms are reported once per row, since their totals agree to within
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrrr}
+\begin{tabular}{llrr}
 \hline
-Row & Parser & Total & Average per entry & Max peak \\
+Row & Parser & Max input length & Max live peak \\
 \hline
-P60 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 13.56 GB & 1.130 GB & 5.70 GB \\
-P60 & \texttt{deriv\_bc}                      & 169.26 GB & 7.05 GB & 2.64 GB \\
-P60 & \texttt{pderiv\_std}                    & 94.74 GB & 3.95 GB & 2.48 GB \\
-P60 & \texttt{pderiv\_bc}                     & 101.86 GB & 4.24 GB & 1.64 GB \\
+P60 & \texttt{deriv\_std\_rec}/\texttt{loop}  &      5\,000 & 5.70 GB \\
+P60 & \texttt{deriv\_bc}                      & 10\,000\,000 & 2.64 GB \\
+P60 & \texttt{pderiv\_std}                    & 10\,000\,000 & 2.48 GB \\
+P60 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 1.64 GB \\
 \hline
-P61 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 0.27 GB & 45.6 MB & 140.0 MB \\
-P61 & \texttt{deriv\_bc}                      & 134.06 GB & 6.70 GB & 1.70 GB \\
-P61 & \texttt{pderiv\_std}                    & 84.73 GB & 4.24 GB & 2.48 GB \\
-P61 & \texttt{pderiv\_bc}                     & 88.99 GB & 4.45 GB & 1.64 GB \\
+P61 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 140.0 MB \\
+P61 & \texttt{deriv\_bc}                      &  5\,000\,000 & 1.70 GB \\
+P61 & \texttt{pderiv\_std}                    &  5\,000\,000 & 2.48 GB \\
+P61 & \texttt{pderiv\_bc}                     &  5\,000\,000 & 1.64 GB \\
 \hline
-P20 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 0.60 GB & 75.6 MB & 280.0 MB \\
-P20 & \texttt{deriv\_bc}                      & 271.24 GB & 11.30 GB & 3.40 GB \\
-P20 & \texttt{pderiv\_std}                    & 171.44 GB & 7.14 GB & 4.97 GB \\
-P20 & \texttt{pderiv\_bc}                     & 180.05 GB & 7.50 GB & 3.27 GB \\
+P20 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         16 & 280.0 MB \\
+P20 & \texttt{deriv\_bc}                      & 10\,000\,000 & 3.40 GB \\
+P20 & \texttt{pderiv\_std}                    & 10\,000\,000 & 4.97 GB \\
+P20 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 3.27 GB \\
 \hline
 \end{tabular}
-\caption{Memory across the three E-family representative rows. \emph{Total}
-and \emph{Max peak} are as in Table~\ref{tab:memory}: churn versus
-live footprint, not two readings of the same quantity.}
+\caption{Peak live memory across the three E-family representative rows,
+against the largest swept input length each parser completed. Peak is
+the live high-water mark within a single call. The standard variants
+complete only the smallest swept inputs, so their peak is not directly
+comparable with the survivors' peaks and is excluded from the comparison
+in the text.}
 \label{tab:patho-memory-e}
 \end{table}
 
@@ -1218,24 +1217,24 @@ live footprint, not two readings of the same quantity.}
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrrr}
+\begin{tabular}{llrr}
 \hline
-Row & Parser & Total & Average per entry & Max peak \\
+Row & Parser & Max input length & Max live peak \\
 \hline
-P01 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 1.48 GB & 185.1 MB & 805.3 MB \\
-P01 & \texttt{deriv\_bc}                      & 50.36 GB & 1.94 GB &   7.9 MB \\
-P01 & \texttt{pderiv\_std}                    &  6.47 GB & 215.5 MB & 153.2 MB \\
-P01 & \texttt{pderiv\_bc}                     &  6.51 GB & 217.0 MB &  98.2 MB \\
+P01 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         20 & 805.3 MB \\
+P01 & \texttt{deriv\_bc}                      &     50\,000 &   7.9 MB \\
+P01 & \texttt{pderiv\_std}                    & 10\,000\,000 & 153.2 MB \\
+P01 & \texttt{pderiv\_bc}                     & 10\,000\,000 &  98.2 MB \\
 \hline
-P09 & \texttt{deriv\_std\_rec}/\texttt{loop}  & 0.58 GB & 57.6 MB & 284.3 MB \\
-P09 & \texttt{deriv\_bc}                      & 97.96 GB & 3.50 GB & 845.7 MB \\
-P09 & \texttt{pderiv\_std}                    & 37.63 GB & 1.34 GB & 961.3 MB \\
-P09 & \texttt{pderiv\_bc}                     & 38.00 GB & 1.36 GB & 698.1 MB \\
+P09 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         25 & 284.3 MB \\
+P09 & \texttt{deriv\_bc}                      &  5\,000\,000 & 845.7 MB \\
+P09 & \texttt{pderiv\_std}                    &  5\,000\,000 & 961.3 MB \\
+P09 & \texttt{pderiv\_bc}                     &  5\,000\,000 & 698.1 MB \\
 \hline
 \end{tabular}
-\caption{Memory across the two nested-quantifier representative rows.
-\emph{Total} and \emph{Max peak} are as in Table~\ref{tab:memory}: churn
-versus live footprint, not two readings of the same quantity.}
+\caption{Peak live memory across the two nested-quantifier representative
+rows, against the largest swept input length each parser completed.
+\emph{Max live peak} is the live high-water mark within a single call.}
 \label{tab:patho-memory-ab}
 \end{table}
 
@@ -1243,57 +1242,44 @@ versus live footprint, not two readings of the same quantity.}
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrrr}
+\begin{tabular}{llrr}
 \hline
-Row & Parser & Total & Average per entry & Max peak \\
+Row & Parser & Max input length & Max live peak \\
 \hline
-P25 & \texttt{deriv\_std\_rec}/\texttt{loop}  &  6.36 GB & 397.7 MB & 2.11 GB \\
-P25 & \texttt{deriv\_bc}                      &  8.65 GB & 393.0 MB & 4.73 MB \\
-P25 & \texttt{pderiv\_std}                    &  1.92 GB &  68.5 MB & 86.2 MB \\
-P25 & \texttt{pderiv\_bc}                     &  2.06 GB &  73.5 MB & 52.0 MB \\
+P25 & \texttt{deriv\_std\_rec}/\texttt{loop}  &      3\,500 & 2.11 GB \\
+P25 & \texttt{deriv\_bc}                      &     10\,000 & 4.73 MB \\
+P25 & \texttt{pderiv\_std}                    &    200\,000 & 86.2 MB \\
+P25 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
-P27 & \texttt{deriv\_std\_rec}/\texttt{loop}  &  3.17 GB & 396.2 MB & 1.41 GB \\
-P27 & \texttt{deriv\_bc}                      & 14.79 GB & 568.8 MB & 4.81 MB \\
-P27 & \texttt{pderiv\_std}                    &  4.60 GB & 153.3 MB & 99.0 MB \\
-P27 & \texttt{pderiv\_bc}                     &  4.60 GB & 153.4 MB & 52.0 MB \\
+P27 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 1.41 GB \\
+P27 & \texttt{deriv\_bc}                      &     10\,000 & 4.81 MB \\
+P27 & \texttt{pderiv\_std}                    &    200\,000 & 99.0 MB \\
+P27 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
-P28 & \texttt{deriv\_std\_rec}/\texttt{loop}  &  2.76 GB & 345.1 MB & 1.21 GB \\
-P28 & \texttt{deriv\_bc}                      & 14.75 GB & 567.2 MB & 4.81 MB \\
-P28 & \texttt{pderiv\_std}                    &  4.08 GB & 135.9 MB & 99.0 MB \\
-P28 & \texttt{pderiv\_bc}                     &  4.19 GB & 139.6 MB & 52.0 MB \\
+P28 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 1.21 GB \\
+P28 & \texttt{deriv\_bc}                      &     10\,000 & 4.81 MB \\
+P28 & \texttt{pderiv\_std}                    &    200\,000 & 99.0 MB \\
+P28 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
 \end{tabular}
-\caption{Memory across the three F-family representative rows. \emph{Total}
-and \emph{Max peak} are as in Table~\ref{tab:memory}: churn versus
-live footprint, not two readings of the same quantity.}
+\caption{Peak live memory across the three F-family representative rows,
+against the largest swept input length each parser completed.
+\emph{Max live peak} is the live high-water mark within a single call.}
 \label{tab:patho-memory-f}
 \end{table}
 
-The standard variants' low totals reflect the fact that most swept
-entries crash before completion. These totals cover only the entries
-that finish and do not show that the construction is cheap. The
-\emph{*total*} column measures cumulative allocation, including
-memory later freed, rather than memory held at once. P20 illustrates
-the difference: \texttt{deriv\_bc} allocates 271\,GB cumulatively,
-but its peak is 3.40\,GB. This reflects repeated allocation and
-release of short-lived state during the sweep. Its cumulative
-allocation also exceeds the 15.94\,GB measured across all 11\,395
-real-corpus entries, showing how the synthetic set exposes costs
-that the real corpus does not.
+The tables report peak live memory against the input length each
+parser actually completed. The standard variants fail at lengths in
+the tens to thousands, while the other three reach millions, so the
+standard variants' peaks are not directly comparable with the
+survivors' and are excluded from the comparisons below.
 
-Peak allocation is most useful for comparing constructions that
-complete comparable input lengths. The standard variants fail at
-lengths in the tens to thousands, while the other three reach
-millions. Their peak values are therefore not directly comparable
-and are excluded from the comparisons below.
-\texttt{deriv\_bc} has the lowest peak allocation among the
-full-tree-building constructions on these comparable sweeps,
-ranging from 1.64 to 3.40\,GB across the E-family rows. It also
-uses less peak allocation than \texttt{pderiv\_std} on P20
-(3.40 against 4.97\,GB). On the F family, its peak stays below
-5\,MB because the derivative sequence collapses to a single
-residual. P01 also has a low peak of 7.9\,MB, consistent with
-its relatively small set of live candidates.
+Among the survivors, \texttt{deriv\_bc} has the lowest peak on the
+E-family rows, 1.64--2.64\,GB at ten million characters, and is
+lower than \texttt{pderiv\_std} on P20 (3.40 against 4.97\,GB). On
+the F family its peak stays below 5\,MB because the derivative
+sequence collapses to a single residual. P01 also has a low peak of
+7.9\,MB, consistent with its relatively small set of live candidates.
 
 Within the partial-derivative pair, bit-coding reduces peak
 allocation on every representative row. This holds across the E
@@ -1301,6 +1287,13 @@ and F families and on P01 and P09. On the F family, for example,
 \texttt{pderiv\_bc} peaks at 52.0\,MB, compared with 86.2--99.0\,MB
 for \texttt{pderiv\_std}. Its memory advantage is therefore more
 consistent than its timing advantage.
+
+Cumulative allocation is a separate matter. On P20, \texttt{deriv\_bc}
+allocates 271\,GB in total over the sweep while holding at most
+3.40\,GB live, because short-lived state is allocated and released at
+every step. This total exceeds the 15.94\,GB allocated across all
+11\,395 real-corpus entries, showing the scale the synthetic set
+reaches; it is allocator churn, not a footprint.
 
 %
 %
