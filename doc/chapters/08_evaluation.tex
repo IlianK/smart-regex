@@ -649,12 +649,12 @@ H &  28 & 226.3 & 64\% & 225.9 & 64\% & 263.8 &  7\% & 233.5 & 14\% & 214.4 & 14
 \hline
 \end{tabular*}
 \caption{Mean per-entry time in ms over completed entries, and the share of
-entries that hit the two-second cap, one routine pass per category: every
+entries that hit the two-second cap, one baseline pass per category: every
 row swept once across the category's own default $n$ list, not the
 extended range the eight representative rows below are pushed to. The
 mean column excludes timed-out entries, so a low mean next to a high
 timeout share describes only the easy entries that survived.}
-\label{tab:patho-timing-routine}
+\label{tab:patho-timing-baseline}
 \end{table}
 
 Categories A, B, and E (Table~\ref{tab:patho-categories}) behave as
@@ -687,12 +687,15 @@ outperform the partial-derivative variants in this category.
 \subsubsection{Representative Patterns}
 \label{sec:eval-timing-representative}
 
-Eight representative rows are swept beyond their routine values, reaching
-millions of characters or thousands of pattern repetitions. The first
-illustrates the method, which is then applied to the remaining rows.
-Because these inputs exceed the default 2\,s budget, each sweep uses a
-row-specific deadline of 30--120\,s, allowing its largest point to finish
-without the timeout setting ending the sweep.
+Eight rows are swept beyond their baseline values, reaching millions of
+characters or thousands of pattern repetitions. The choice of rows, their
+sweep points, and their per-row deadline and memory cap were made
+empirically and adjusted over development as each row's actual cost became
+clear, rather than derived from a fixed rule. The first illustrates the
+method, which is then applied to the remaining rows. Because these inputs
+exceed the default 2\,s budget, each sweep uses a row-specific deadline of
+30--120\,s, allowing its largest point to finish without the timeout
+setting ending the sweep.
 
 \textbf{The method-establishing pattern.} Figure~\ref{fig:patho-fig7a}
 plots wall time against input length for \texttt{(a|b|ab)\*} on
@@ -778,7 +781,8 @@ further when stack depth is isolated.
 
 \textbf{The E family.} Figure~\ref{fig:patho-fig7bc} plots the two
 remaining prefix-overlap rows. P61 uses P60's expression on
-\texttt{ab}-repeated input, while P20 replaces the star with a plus.
+\texttt{ab}-repeated input, reproducing Figure~7(b) of the reference
+paper, while P20 replaces the star with a plus.
 The standard variants fail at small input lengths, while the other
 three show roughly linear growth. The ranking within this group varies
 by row. \texttt{pderiv\_std} is fastest on P60, whereas
@@ -1151,14 +1155,14 @@ H &  28 & 64\% & 77.9 & 64\% & 77.9 &  7\% & 232.3 & 14\% & 131.5 & 14\% & 135.2
 \hline
 \end{tabular*}
 \caption{Peak live MB per completed entry, and the share of entries
-that hit the two-second cap, over one routine pass per category at each
-category's routine values. Peak is the live-byte high-water mark within
+that hit the two-second cap, over one baseline pass per category at each
+category's baseline values. Peak is the live-byte high-water mark within
 a call, the footprint measure defined in
 Section~\ref{sec:eval-criteria-memory}. Timed-out entries are excluded,
 so a low peak next to a high timeout share describes only the easy
 entries that survived. Cumulative allocation for the representative
 rows is given in Tables~\ref{tab:patho-memory-e}--\ref{tab:patho-memory-f}.}
-\label{tab:patho-memory-routine}
+\label{tab:patho-memory-baseline}
 \end{table}
 
 The standard variants have near-identical peak allocation in most
@@ -1367,7 +1371,7 @@ K & Large pattern, large input     &  4 &  1 & 0.099 &  8\,400 \\
 L & Trivial pattern, trivial input & 33 &  0 & 0.002 &    388 \\
 \hline
 \end{tabular*}
-\caption{Translation cost over the synthetic set's routine values.
+\caption{Translation cost over the synthetic set's baseline values.
 \emph{Rejected} counts rows whose translated result exceeds the node cap at
 the swept pattern size and therefore produce no measurement.}
 \label{tab:translate-cost-patho}
