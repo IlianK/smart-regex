@@ -86,10 +86,12 @@ membership and parse-tree selection.
 
 Each entry is evaluated in its own worker subprocess for timing, memory,
 stack-depth, and parse-agreement measurements. 
-Stable Rust has no safe way to forcibly terminate a thread, so one that has
-not returned, whether from exponential derivation or from allocating towards
-the memory cap, cannot be stopped from outside. In contrast, a subprocess can be killed
-unconditionally, and the operating system reclaims its memory.
+Stable Rust has no safe way to forcibly terminate a thread~\citep{rust-thread-joinhandle},
+so one that has not returned, whether from exponential derivation or from
+allocating towards the memory cap, cannot be stopped from outside. In
+contrast, a subprocess can be killed
+unconditionally~\citep{rust-process-child,linux-signal-man}, and the
+operating system reclaims its memory.
 
 \begin{itemize}
   \item \emph{Measured}: the worker exited zero and reported a result line.
