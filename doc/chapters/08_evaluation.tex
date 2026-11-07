@@ -18,13 +18,13 @@ All measurements were taken on an AMD Ryzen~5~5600 six-core processor with
 \section{Candidates}
 \label{sec:eval-candidates}
 
-A candidate is a parser $p$ that takes an 
-input \texttt{String} $w$ and a translated \texttt{Regex} $r$, 
+A candidate is a parser $p$ that takes a translated \texttt{Regex} $r$
+and an input \texttt{String} $w$, 
 and returns either a \texttt{ParseTree} $pt$ or no match.
-Such an input pair $(w, r)$ is called an \emph{entry}.
+Such an input pair $(r, w)$ is called an \emph{entry}.
 All candidates share the same interface:
 \[
-p :: (\mathit{String}, \mathit{Regex}) \to
+p :: (\mathit{Regex}, \mathit{String}) \to
      \mathit{Option\langle ParseTree\rangle}.
 \]
 
@@ -84,14 +84,13 @@ membership and parse-tree selection.
 \subsection{Measurement Setup}
 \label{sec:eval-criteria-setup}
 
-Each entry is evaluated in its own worker subprocess for timing, memory,
-stack-depth, and parse-agreement measurements. 
-Stable Rust has no safe way to forcibly terminate a thread~\citep{rust-thread-joinhandle},
-so one that has not returned, whether from exponential derivation or from
-allocating towards the memory cap, cannot be stopped from outside. In
-contrast, a subprocess can be killed
-unconditionally~\citep{rust-process-child,linux-signal-man}, and the
-operating system reclaims its memory.
+Each entry runs in its own worker subprocess for timing, memory,
+stack-depth, and parse-agreement measurements. Stable Rust has no safe
+way to forcibly terminate a thread~\citep{rust-thread-joinhandle}, so one
+that has not returned, e.g. from exponential derivation or from
+allocating towards the memory cap, cannot be stopped. A
+subprocess, by contrast, can be killed unconditionally, and the operating
+system reclaims its memory.
 
 \begin{itemize}
   \item \emph{Measured}: the worker exited zero and reported a result line.
@@ -102,16 +101,15 @@ operating system reclaims its memory.
         when the memory ceiling is enabled.
 \end{itemize}
 
-For timing, memory, and parse-agreement measurements, each worker uses a
-custom 256\,MiB stack. All candidates recurse over the pattern structure,
-so the default stack overflows on deeply nested patterns before the measured input
-sizes are reached.  
-The larger stack reduces the risk of measuring stack exhaustion instead parser
-performance.
+For timing, memory, and parse-agreement measurements, each worker runs on
+a custom 256\,MiB stack, since all candidates recurse over the pattern
+structure and the default stack overflows before the measured input sizes
+are reached. This stack is a fixed allowance and not part of the measured
+footprint. The measurements record heap allocations only.
 
-Each timing and memory run produces two outputs: (1) a summary
-table of aggregate measurements for each candidate;
-(2) a per-entry file to compare on individual entries.
+A timing and memory run produces two outputs per candidate and dataset: (1) a summary
+table of aggregate measurements; (2) a per-entry file
+to compare individual entries.
 
 %
 %
@@ -123,30 +121,29 @@ table of aggregate measurements for each candidate;
 Each entry $(r, w)$ is timed once, without warm-up run or repeated
 measurements. Translation is measured separately, so the wall-clock
 time covers only the parser call $p(r, w)$.
-
 For \texttt{deriv\_std\_rec}, \texttt{deriv\_std\_loop}, and
-\texttt{pderiv\_std}, the entire parser call is reported as \emph{derive}.
+\texttt{pderiv\_std}, the entire parser call is reported as \emph{Derive}.
 For \texttt{deriv\_bc} and \texttt{pderiv\_bc}, the call is split into
 three: \emph{Encode} constructs the initial annotated state before
-any character of $w$ is consumed. \emph{Derive} processes the input one
-character at a time. \emph{Decode} converts the final bit-string into a
-\texttt{ParseTree}.
+any character of $w$ is consumed, \emph{Derive} processes the input one
+character at a time and \emph{Decode} converts the final bit-string into a
+parse tree.
 
-Timing results use four statistics, aggregated differently for the two datasets:
+Timing results show four statistics, aggregated differently for the two datasets:
 
 \begin{itemize}
   \item \emph{Mean} is a macro-average over patterns of the real corpus, so
-        a pattern with 200 entries and one with 2 contribute equally,
-        and a flat mean for the synthetic set.
-  \item \emph{Median}, \emph{99th percentile}, and \emph{maximum} are pooled
-        over individual entries and describe the single worst entry rather
-        than a typical pattern.
+        a pattern with 10 entries and one with 2 contribute equally,
+        a flat mean is used for the synthetic set.
+\item \emph{Median}, \emph{99th percentile}, and \emph{maximum} are pooled
+      over individual entries rather than averaged per pattern. The median
+      describes a typical entry, the 99th percentile the tail of the entry
+      distribution, and the maximum the single worst entry.
 \end{itemize}
 
 All four statistics represent lower bounds on the corresponding
 execution times, since timed-out and crashed entries are excluded
 rather than counted at their timeout values.
-
 A separate \emph{wall} column measures the benchmark's entire loop over one
 source pattern. It therefore exceeds $\mathit{entries} \times \mathit{mean}$ by
 the per-entry process-spawn and pipe-round-trip overhead excluded from the
@@ -164,29 +161,32 @@ candidates.
 Memory is measured with a counting allocator in each worker, baselined
 immediately before the parser call so that only allocations made during
 $p(r, w)$ are counted. The allocator tracks a running sum of requested
-bytes and a running count of live bytes. Two measures are reported:
+bytes and a running count of live bytes:
 
 \begin{itemize}
-  \item \emph{Max live peak}: the maximum of the live-byte counter within
-        a call. This is the deployment-relevant footprint: it bounds the
-        heap a single call requires.
+  \item \emph{Max live peak}: the highest value of the live-byte counter
+        within a call. It bounds the heap a single call requires, and is
+        the measure that determines whether a parser can run at a given
+        input length within a fixed memory budget.
   \item \emph{Total allocated}: the sum of requested bytes over the call,
         including memory later freed. It is not a footprint, but a proxy
-        for allocator pressure and a secondary explanation of timing.
+        for allocator pressure and a secondary explanation of timing, since
+        a parser that allocates and frees frequently pays a cost even when
+        its peak stays low.
 \end{itemize}
 
-Total always meets or exceeds peak: total sums every allocation made
-during the call, live or already freed, while peak counts only what is
-live at one instant. The two are equal only when nothing is freed before
-the call ends; any allocate-then-free churn pushes total above peak,
-which is expected, not an error. Peak is compared only across rows that
-reached comparable input lengths, and total only across rows that
-completed comparable work.
+Total allocation counts memory freed during the call, so it is always at
+least as large as peak. Because peak grows with
+the input a run processes and total with the work it performs, each is
+compared only where those are comparable: peak across rows that reached
+comparable input lengths, 
+total across rows that completed comparable work.
 
-The allocator excludes the 256\,MiB worker stack, so a parser that uses
-substantial stack but few heap allocations may appear inexpensive here.
-Stack depth is evaluated separately for the two standard derivative
-parsers.
+The allocator sees heap allocations only, not the worker stack
+(Section~\ref{sec:eval-criteria-setup}). A parser that uses substantial
+stack but few heap allocations may appear inexpensive in these
+measurements. Stack depth is evaluated separately for the two standard
+derivative parsers.
 
 %
 %
