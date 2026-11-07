@@ -107,9 +107,9 @@ sizes are reached.
 The larger stack reduces the risk of measuring stack exhaustion instead parser
 performance.
 
-Each timing and memory run produces two outputs: 1) A summary
-table of aggregate measurements for each candidate; 
-2) A per-entry file to compare on individual entries.
+Each timing and memory run produces two outputs: (1) a summary
+table of aggregate measurements for each candidate;
+(2) a per-entry file to compare on individual entries.
 
 %
 %
@@ -312,14 +312,14 @@ input string $w$. Table~\ref{tab:dataset-summary} summarises their contents.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrrrr}
 \hline
 Dataset & Authored & Duplicate & Rejected & Accepted & Unanchored & Fully-Anchored & Inputs \\
 \hline
 S2ELab     & 762 & 7 & 177 & 578 & 115 & 463 & 11\,395 \\
 Synthetic  & 113 & 0 &   0 & 113 &   0 & 113 &    887 \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Benchmark scope. \emph{Authored} = \emph{Duplicate} + \emph{Rejected}
 + \emph{Accepted}, and \emph{Accepted} = \emph{Full-Anchored} + \emph{Unanchored}.
 Only the \emph{Full-Anchored} patterns are benchmarked after stripping, and the
@@ -356,7 +356,7 @@ are summarised in Table~\ref{tab:corpus-rejection-causes}.
 \begin{table}[H]
 \centering
 \small
-\begin{tabular*}{15.7cm}{@{\extracolsep{\fill}} lr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lr}
 \hline
 Cause & S2ELab patterns \\
 \hline
@@ -567,7 +567,7 @@ Section~\ref{sec:eval-criteria-timing}.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{13.65cm}{@{\extracolsep{\fill}} lrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
 Parser & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
@@ -595,7 +595,7 @@ pair, \texttt{pderiv\_bc} is marginally faster, at 0.625 against
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
 Parser & Matches & Match time (s) & Non-matches & Non-match time (s) \\
 \hline
@@ -605,7 +605,7 @@ Parser & Matches & Match time (s) & Non-matches & Non-match time (s) \\
 \texttt{pderiv\_std}      & 5\,869 &   6.442 & 5\,526 &  1.760 \\
 \texttt{pderiv\_bc}       & 5\,869 &   5.778 & 5\,526 &  1.538 \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Total wall time by verified outcome, same run as
 Table~\ref{tab:corpus-timing}.}
 \label{tab:corpus-timing-outcome}
@@ -631,7 +631,7 @@ between recursion and iteration mainly affects the matching path.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular*}{13.65cm}{@{\extracolsep{\fill}} llrrrrrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrrrrrrr}
 \hline
 & & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
 Cat. & Entries & mean & to\% & mean & to\% & mean & to\% & mean & to\% & mean & to\% \\
@@ -691,7 +691,7 @@ Because these inputs exceed the default 2\,s budget, each sweep uses a
 row-specific deadline of 30--120\,s, allowing its largest point to finish
 without the timeout setting ending the sweep.
 
-\textbf{**The method-establishing pattern.**} Figure~\ref{fig:patho-fig7a}
+\textbf{The method-establishing pattern.} Figure~\ref{fig:patho-fig7a}
 plots wall time against input length for \texttt{(a|b|ab)\*} on
 \texttt{a} repeated $n$ times, reproducing Figure~7(a) of the reference
 paper. The three surviving parsers show roughly linear growth on the
@@ -743,7 +743,7 @@ before it times out.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{ll rr rr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} ll rr rr}
 \hline
 & & \multicolumn{2}{c}{Standard (\texttt{rec} \& \texttt{loop})} & \multicolumn{2}{c}{\texttt{deriv\_bc}} \\
 Row & Pattern & Last OK & First crash & Last OK & First timeout \\
@@ -757,7 +757,7 @@ P25 & \texttt{(a|b)*c}                          &       2\,000 &      3\,500 &  
 P27 & \texttt{([ab]+)*c}                        &          10 &          15 &      10\,000 &     30\,000 \\
 P28 & \texttt{([ab]*)*c}                        &          10 &          15 &      10\,000 &     30\,000 \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Match-side crash and timeout thresholds. The standard columns cover
 both \texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}, since both crash
 at the identical swept $n$ on every row. A dash means \texttt{deriv\_bc}
@@ -773,7 +773,7 @@ The separate stack-depth test in Section~\ref{sec:eval-stack-depth}
 supports this distinction, since the iterative form survives 32 times
 further when stack depth is isolated.
 
-\textbf{**The E family.**} Figure~\ref{fig:patho-fig7bc} plots the two
+\textbf{The E family.} Figure~\ref{fig:patho-fig7bc} plots the two
 remaining prefix-overlap rows. P61 uses P60's expression on
 \texttt{ab}-repeated input, while P20 replaces the star with a plus.
 The standard variants fail at small input lengths, while the other
@@ -845,7 +845,7 @@ lower-peak than \texttt{pderiv\_std}.}
 \label{fig:patho-fig7bc}
 \end{figure}
 
-\textbf{**Nested quantifiers.**} Figure~\ref{fig:patho-p01-p09} plots
+\textbf{Nested quantifiers.} Figure~\ref{fig:patho-p01-p09} plots
 the two nested-quantifier rows. P01 is \texttt{(a+)+}, while P09 is
 its overlapping-alternation analogue, \texttt{(a|aa)+}. The standard
 variants crash at $n=50$ and $n=100$, respectively, earlier than on
@@ -917,7 +917,7 @@ $n=50$ on P01 and from $n=100$ on P09.}
 \label{fig:patho-p01-p09}
 \end{figure}
 
-\textbf{**The F family.**} Figure~\ref{fig:patho-f} plots three
+\textbf{The F family.} Figure~\ref{fig:patho-f} plots three
 alternation-star-then-literal rows of the form \texttt{(alt)\*c},
 where the final literal fails late. \texttt{deriv\_bc} times out at
 $n=10\,000$ on all three rows, while the standard variants crash at
@@ -1018,7 +1018,7 @@ already at $n=15$, far earlier than P25's $n=3\,500$.}
 \label{fig:patho-f}
 \end{figure}
 
-\textbf{**The overall picture.**} The standard variants crash first on
+\textbf{The overall picture.} The standard variants crash first on
 all eight rows, between $n=15$ and $n=5\,000$, and complete no full
 sweep. \texttt{deriv\_bc} completes six sweeps, reaching up to ten
 million characters on P60 and P20. It times out on P01 and the F
@@ -1047,7 +1047,7 @@ Section~\ref{sec:eval-criteria-memory}.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{11.44cm}{@{\extracolsep{\fill}} lrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrr}
 \hline
 Parser & Total allocated & Max live peak \\
 \hline
@@ -1095,7 +1095,7 @@ own frontier-stepping does.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{10.2cm}{@{\extracolsep{\fill}} lrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrrr}
 \hline
 & \multicolumn{3}{c}{$a^*$ on $a^n$} & \multicolumn{3}{c}{$(a{+}(b{+}ab))^*$ on $(ab)^n$} \\
 \cline{2-4}\cline{5-7}
@@ -1133,7 +1133,7 @@ distinct residuals, rather than a single expression.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular*}{10.5cm}{@{\extracolsep{\fill}} llrrrrrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrrrrrrr}
 \hline
 & & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
 Cat. & Entries & to\% & peak MB & to\% & peak MB & to\% & peak MB & to\% & peak MB & to\% & peak MB \\
@@ -1175,16 +1175,16 @@ entries it completed.
 
 The eight representative rows are reported by mechanism family.
 Tables~\ref{tab:patho-memory-e} through~\ref{tab:patho-memory-f} give each
-row's total across its full sweep, its average cumulative allocation per
-entry, and its peak live-byte high-water mark on any single entry. The two
-standard forms are reported once per row, since their totals agree to within
-0.01\% of each other on every row measured.
+row's peak live-byte high-water mark on any single entry, against the
+largest swept input length the parser completed. The two standard forms are
+reported once per row, since their peaks agree to within 0.01\% of each
+other on every row measured.
 
 \begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrr}
 \hline
 Row & Parser & Max input length & Max live peak \\
 \hline
@@ -1203,7 +1203,7 @@ P20 & \texttt{deriv\_bc}                      & 10\,000\,000 & 3.40 GB \\
 P20 & \texttt{pderiv\_std}                    & 10\,000\,000 & 4.97 GB \\
 P20 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 3.27 GB \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Peak live memory across the three E-family representative rows,
 against the largest swept input length each parser completed. Peak is
 the live high-water mark within a single call. The standard variants
@@ -1217,21 +1217,21 @@ in the text.}
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrr}
 \hline
 Row & Parser & Max input length & Max live peak \\
 \hline
 P01 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         20 & 805.3 MB \\
 P01 & \texttt{deriv\_bc}                      &     50\,000 &   7.9 MB \\
-P01 & \texttt{pderiv\_std}                    & 10\,000\,000 & 153.2 MB \\
-P01 & \texttt{pderiv\_bc}                     & 10\,000\,000 &  98.2 MB \\
+P01 & \texttt{pderiv\_std}                    &  1\,000\,000 & 153.2 MB \\
+P01 & \texttt{pderiv\_bc}                     &  1\,000\,000 &  98.2 MB \\
 \hline
 P09 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         25 & 284.3 MB \\
 P09 & \texttt{deriv\_bc}                      &  5\,000\,000 & 845.7 MB \\
 P09 & \texttt{pderiv\_std}                    &  5\,000\,000 & 961.3 MB \\
 P09 & \texttt{pderiv\_bc}                     &  5\,000\,000 & 698.1 MB \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Peak live memory across the two nested-quantifier representative
 rows, against the largest swept input length each parser completed.
 \emph{Max live peak} is the live high-water mark within a single call.}
@@ -1242,26 +1242,26 @@ rows, against the largest swept input length each parser completed.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrr}
 \hline
 Row & Parser & Max input length & Max live peak \\
 \hline
-P25 & \texttt{deriv\_std\_rec}/\texttt{loop}  &      3\,500 & 2.11 GB \\
+P25 & \texttt{deriv\_std\_rec}/\texttt{loop}  &      2\,000 & 2.11 GB \\
 P25 & \texttt{deriv\_bc}                      &     10\,000 & 4.73 MB \\
 P25 & \texttt{pderiv\_std}                    &    200\,000 & 86.2 MB \\
 P25 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
-P27 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 1.41 GB \\
+P27 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         10 & 1.41 GB \\
 P27 & \texttt{deriv\_bc}                      &     10\,000 & 4.81 MB \\
 P27 & \texttt{pderiv\_std}                    &    200\,000 & 99.0 MB \\
 P27 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
-P28 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 1.21 GB \\
+P28 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         10 & 1.21 GB \\
 P28 & \texttt{deriv\_bc}                      &     10\,000 & 4.81 MB \\
 P28 & \texttt{pderiv\_std}                    &    200\,000 & 99.0 MB \\
 P28 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Peak live memory across the three F-family representative rows,
 against the largest swept input length each parser completed.
 \emph{Max live peak} is the live high-water mark within a single call.}
@@ -1319,7 +1319,7 @@ per entry.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{11.44cm}{@{\extracolsep{\fill}} lrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
 Patterns & Mean (ms) & Max (ms) & Mean nodes & Max nodes \\
 \hline
@@ -1347,7 +1347,7 @@ the 20\,000-node cap.
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{llrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrr}
 \hline
 Cat. & Name & Rows swept & Rejected & Mean (ms) & Max nodes \\
 \hline
@@ -1363,7 +1363,7 @@ J & Large pattern, trivial input   & 17 &  5 & 0.294 & 15\,999 \\
 K & Large pattern, large input     &  4 &  1 & 0.099 &  8\,400 \\
 L & Trivial pattern, trivial input & 33 &  0 & 0.002 &    388 \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Translation cost over the synthetic set's routine values.
 \emph{Rejected} counts rows whose translated result exceeds the node cap at
 the swept pattern size and therefore produce no measurement.}
@@ -1391,7 +1391,7 @@ caps on the default 8\,MiB stack, alongside the enforced caps.
 \begin{table}[H]
 \centering
 \small
-\begin{tabular*}{15.58cm}{@{\extracolsep{\fill}} lrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrr}
 \hline
 Mechanism & Survives to & Crashes between & Cap \\
 \hline
@@ -1454,14 +1454,14 @@ full-match-only scope as Timing and Memory
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lrrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrrrr}
 \hline
 Dataset & Entries & Timeouts & Crashes & Compared & Match agr. & Shape agr. & Shape dis. \\
 \hline
 S2ELab    & 11\,395 &  73 & 0 & 5\,798 & 100.0\% & 99.8\% (5\,784) & 0.2\% (14) \\
 Synthetic &    887 & 450 & 1 &   208 & 100.0\% & 89.9\% (187)   & 10.1\% (21) \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Parse agreement over both datasets. \emph{Compared} is the number of
 expected matches where no candidate timed out or crashed and both families
 were internally consistent, so a single POSIX tree and a single non-POSIX tree
@@ -1487,7 +1487,7 @@ occur.
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{llrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrr}
 \hline
 Category & Pattern & Entries & Timeouts & Compared & Shape agr. & Shape dis. \\
 \hline
@@ -1503,7 +1503,7 @@ J & \texttt{(?:a\{1,10\})\{1,100\}}                         &  24 &   4 &  10 & 
 K & \texttt{(?:ab|cd|ef|gh)+}                              &  30 &  24 &   3 & 100.0\% (3)  &  0.0\% (0) \\
 L & \texttt{[a-z]+}                                        & 189 &  19 &  78 & 100.0\% (78) &  0.0\% (0) \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{Parse agreement by category over the synthetic set. \emph{Pattern}
 is one representative row per category; Table~\ref{tab:patho-categories}
 names the mechanism each category stresses. Every completed entry had every
@@ -1669,10 +1669,10 @@ alternation growth seen in the standard derivative parser.
 
 Within the pair, bit-coding does not consistently help or hurt.
 On the full corpus, \texttt{pderiv\_bc} is marginally faster
-(0.625 against \texttt{pderiv\_std}'s 0.699\,ms mean) and has a
-lower average allocation (0.412 against 0.472\,MB), though
-\texttt{pderiv\_std} still has the lower peak (2.5 against
-3.8\,MB). The ranking changes again on the representative rows.
+(0.625 against \texttt{pderiv\_std}'s 0.699\,ms mean) and has
+lower total allocation (4.80 against \texttt{pderiv\_std}'s
+5.52\,GB), though \texttt{pderiv\_std} still has the lower peak
+(2.5 against 3.8\,MB). The ranking changes again on the representative rows.
 \texttt{pderiv\_std} is faster on P60, while \texttt{pderiv\_bc} is
 faster on P61 and P20. On P20, it also has the lower peak allocation
 (3.27 against 4.97\,GB). The results suggest that the relative
@@ -1690,7 +1690,7 @@ Section~\ref{sec:eval-agreement}.
 
 \subsection{Threats to validity}
 
-\textbf{**Corpus scope.**} S2ELab represents one domain and its
+\textbf{Corpus scope.} S2ELab represents one domain and its
 conventions. Other corpora may have different acceptance rates and
 timing profiles. Timing, Memory, and Parse Agreement use the
 463-pattern default scope (Section~\ref{sec:eval-s2elab}).
@@ -1698,12 +1698,12 @@ Including the remaining 115 patterns with
 \texttt{BENCH\_MATCH\_INTENT=both} could change the absolute
 results and potentially the ranking of candidates.
 
-\textbf{**The synthetic set.**} Its 113 rows isolate individual
+\textbf{The synthetic set.} Its 113 rows isolate individual
 complexity mechanisms at controlled scales rather than representing
 patterns written by typical users. Most categories vary one parameter
 at a time, so combinations of stress mechanisms are not directly tested.
 
-\textbf{**Agreement subset.**} The \emph{*Compared*} subset includes
+\textbf{Agreement subset.} The \emph{Compared} subset includes
 expected matches completed by every candidate, with both families
 internally consistent. It excludes 71 of 5\,869 S2ELab matches
 (about 1\%) and 237 of 444 synthetic matches (about 53\%).
@@ -1713,10 +1713,10 @@ more ambiguity because shared prefixes can increase both derivation
 cost and the number of possible parses. This need not apply to
 categories such as I, where timeouts arise from input length alone.
 
-\textbf{**Measurement model.**} The memory benchmarks measure heap
+\textbf{Measurement model.} The memory benchmarks measure heap
 allocations, not total process memory. Timing results are specific
 to the machine used and may vary with its CPU and cache. A recorded
-\emph{*crash*} means that the process was killed by a signal, not
+\emph{crash} means that the process was killed by a signal, not
 that stack overflow was confirmed
 (Section~\ref{sec:eval-criteria-setup}). The separate stack-depth
 test removes the memory cap and provides direct evidence of stack
