@@ -316,10 +316,10 @@ different trees (\emph{shape disagree}).
 \section{Datasets}
 \label{sec:eval-dataset}
 
-The evaluation uses two datasets: 
-One real corpus of human-authored patterns called S2ELab, 
-and one synthetic set of manually authored patterns designed to stress the parsers. 
-Their scope and composition are summarized in Table~\ref{tab:dataset-summary}.
+The evaluation uses two datasets (Table~\ref{tab:dataset-summary}): 
+S2ELab, a corpus of human-authored
+patterns, and a synthetic set of manually authored patterns designed to
+stress the parsers.
 
 \begin{table}[H]
 \centering
@@ -348,7 +348,7 @@ Only the \emph{Full-Anchored} patterns are benchmarked after stripping, and the
 \label{sec:eval-s2elab}
 
 The dataset by \citet{s2elab-regexeval-dataset} contains 762 human-authored
-patterns. Each pattern has a natural-language description and labeled
+patterns. Each pattern has a natural-language description and lists of labeled
 matching and non-matching inputs. The number of each varies per pattern,
 so the corpus is not balanced between the two.
 The source patterns conventionally use \texttt{\textasciicircum} and
@@ -356,13 +356,69 @@ The source patterns conventionally use \texttt{\textasciicircum} and
 surrounded by these anchors requires a full-string match, whereas a pattern
 without them can match a substring. As described in
 Section~\ref{sec:frontend-rejected}, the frontend does not support anchors.
-However, fully anchored patterns can still be used by stripping the anchors.
+However, fully anchored patterns can still be used by stripping them.
 Since the parsers perform full-string matching, the stripped pattern accepts
 exactly the inputs intended by the original anchored pattern.
-Thus the benchmarks only use the 463 fully anchored patterns 
-after stripping their anchors and the 115 unanchored patterns are excluded.
-177 patterns are rejected by the frontend with their rejection 
-causes summarised in Table~\ref{tab:corpus-rejection-causes}.
+Figure~\ref{fig:s2elab-pipeline} shows this in the translation stage,
+as part of the data preparation that turns one example pattern into an $entry$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  stage/.style={draw, rounded corners=2pt, minimum height=7mm,
+                font=\footnotesize, align=center, inner sep=3pt},
+  data/.style={font=\scriptsize, align=left, inner sep=1pt,
+               anchor=north},
+  >=stealth,
+  node distance=2mm,
+]
+\node[stage, text width=4.4cm]  (extract)               {Extract};
+\node[stage, text width=2.45cm] (dedup)   [right=of extract] {Deduplicate};
+\node[stage, text width=2.5cm]  (trans)   [right=of dedup]   {Translate};
+\node[stage, text width=1.8cm]  (check)   [right=of trans]   {Check};
+\node[stage, text width=1.6cm]  (write)   [right=of check]   {Write};
+
+\draw[->] (extract) -- (dedup);
+\draw[->] (dedup)   -- (trans);
+\draw[->] (trans)   -- (check);
+\draw[->] (check)   -- (write);
+
+\node[data, text width=4.4cm] at (extract.south)
+  {$p := $ \texttt{\textasciicircum\textbackslash d\{1,2\}\textbackslash/\textbackslash d\{1,2\}\textbackslash/\textbackslash d\{4\}\textdollar}\\[2pt]
+   $w_1 :=$ \texttt{["55/5/3434"]}\\[2pt]
+   $w_2 :=$ \texttt{["1/1/01"]}};
+\node[data, text width=2.45cm] at (dedup.south)
+  {$\mathit{dedup}(p, [w_1], [w_2])$\\[2pt]
+   \textrightarrow{} kept};
+\node[data, text width=2.5cm] at (trans.south)
+  {$r := \mathit{strip}(p, [\texttt{\textasciicircum}, \texttt{\textdollar}])$};
+\node[data, text width=1.8cm] at (check.south)
+  {$\mathit{parse}(r, w_1)$\\
+   $= \text{true}$ \checkmark\\[2pt]
+   $\mathit{parse}(r, w_2)$\\
+   $= \text{false}$ \checkmark};
+\node[data, text width=1.6cm] at (write.south)
+  {$(r, w_1, \text{true})$\\[2pt]
+   $(r, w_2, \text{false})$};
+\end{tikzpicture}
+\caption{The S2ELab preparation pipeline. Extraction keeps the pattern
+$p$ with its match list $[w_1]$ and non-match list $[w_2]$;
+$\mathit{dedup}$ drops byte-identical patterns and inputs;
+$\mathit{strip}(p,[\texttt{\textasciicircum},\texttt{\textdollar}])$
+yields the translated \texttt{Regex} $r$. The check calls
+$\mathit{parse}(r,w)$ on each input and keeps the pair only when the
+verdict agrees with its label (\checkmark), validating the pattern's own
+semantics rather than real-world correctness: \texttt{"55/5/3434"} is
+accepted because the pattern checks digit counts, not value ranges.
+Surviving triples are exactly the defined entries $(r,w,e)$ 
+with $e \in \{\mathit{true}, \mathit{false}\}$.}
+\label{fig:s2elab-pipeline}
+\end{figure}
+
+The benchmarks only use the 463 fully anchored patterns after
+stripping, excluding the 115 unanchored ones, while 177 are
+rejected, with the causes summarised in
+Table~\ref{tab:corpus-rejection-causes}.
 
 \begin{table}[H]
 \centering
@@ -383,61 +439,6 @@ Total                                       & 177 \\
 \caption{S2ELab patterns rejected by the frontend, broken down by cause.}
 \label{tab:corpus-rejection-causes}
 \end{table}
-
-%
-%
-%
-
-\paragraph{Pipeline.}
-Figure~\ref{fig:s2elab-pipeline} shows the five stages of dataset preperation. 
-Extraction keeps the pattern with its match and non-match lists, 
-deduplication drops duplicates, and translation strips anchors. 
-The check stage re-evaluates
-every input against the translation and keeps a pair only if label and
-translation agree, validating the pattern's own semantics rather than
-real-world correctness; a date pattern may accept
-\texttt{"11/31/2002"} because its day group allows \texttt{31}
-regardless of month. The surviving pairs are written to the corpus.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-  stage/.style={draw, rounded corners=2pt, minimum height=7mm,
-                font=\footnotesize, inner xsep=5pt, text width=2.4cm,
-                align=center},
-  data/.style={font=\scriptsize, align=left, text width=7.4cm,
-               inner sep=2pt},
-  >=stealth,
-]
-\node[stage] (extract) at (0,0)   {Extract};
-\node[stage] (dedup)   at (0,-1.4) {Deduplicate};
-\node[stage] (trans)   at (0,-2.8) {Translate};
-\node[stage] (check)   at (0,-4.2) {Check labels};
-\node[stage] (write)   at (0,-5.6) {Write};
-
-\draw[->] (extract) -- (dedup);
-\draw[->] (dedup)   -- (trans);
-\draw[->] (trans)   -- (check);
-\draw[->] (check)   -- (write);
-
-\node[data, right=4mm of extract]
-  {pattern \texttt{\textasciicircum(0[1-9]|1[0-2])\textbackslash/...\textdollar},
-   \\ with its match and non-match lists};
-\node[data, right=4mm of dedup]
-  {Check if this pattern and inputs are byte-distinct};
-\node[data, right=4mm of trans]
-  {Strip anchors and translate the remainder to a \texttt{Regex}};
-\node[data, right=4mm of check]
-  {\texttt{"11/31/2002"}: computed match, label match \checkmark\\
-   \texttt{"13/01/2020"}: computed no-match, label no-match \checkmark\\
-  };
-\node[data, right=4mm of write]
-  {\texttt{(Regex, "11/31/2002", true)}, \\ \texttt{(Regex, "13/01/2020", false)}, \ldots};
-\end{tikzpicture}
-\caption{The S2ELab dataset preparation pipeline, tracing a date pattern
-and two pßinputs.}
-\label{fig:s2elab-pipeline}
-\end{figure}
 
 %
 %
@@ -561,13 +562,13 @@ seven each stress one cost mechanism.}
 \label{sec:eval-performance}
 
 This section compares the candidates on both datasets in terms of 
-stack depth (\ref{sec:eval-stack-depth}), 
 execution time (\ref{sec:eval-timing}), 
 memory use (\ref{sec:eval-memory}), and 
 translation cost (\ref{sec:eval-translate}). 
 Each subsection presents the real-corpus results first, 
 followed by the synthetic results and 
 some representative patterns with their individual measurements.
+The test on stack depth (\ref{sec:eval-stack-depth}) precedes these measurements.
 
 %
 %
@@ -655,8 +656,8 @@ presented later in Section~\ref{sec:eval-memory}
 \subsection{Timing}
 \label{sec:eval-timing}
 
-This section reports per-candidate timing on the real corpus and the
-synthetic set, under the isolation, phase split, and averaging described
+This section reports the per-candidate timing on the real corpus and the
+synthetic set, under the isolation, timing phase split, and averaging described
 in Section~\ref{sec:eval-criteria-timing}.
 
 %
@@ -682,16 +683,14 @@ Parser & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
 \end{tabular*}
 \caption{Corpus timing over the default scope of 463 patterns and 11\,395
-entries per parser. Timeouts are excluded from the mean, median, and
-maximum, so those columns are lower bounds on the standard variants' true
-cost.}
+entries per parser.}
 \label{tab:corpus-timing}
 \end{table}
 
 The standard variants are substantially slower, with mean times roughly
 $4$--$4.5\times$ that of \texttt{deriv\_bc} and more than ten times those
 of the partial-derivative variants. The gap is wider than the means
-suggest, because 72 and 74 entries time out on the standard variants and
+suggest, because the 72 and 74 entries time out on the standard variants and
 are excluded from their means, while neither bit-coded nor either
 partial-derivative variant times out at all. 
 On the mean, the ranking is
