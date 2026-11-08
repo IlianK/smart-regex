@@ -102,10 +102,10 @@ system reclaims its memory.
 \end{itemize}
 
 For timing, memory, and parse-agreement measurements, each worker runs on
-a custom 256\,MiB stack, since all candidates recurse over the pattern
-structure and the default stack overflows before the measured input sizes
-are reached. This stack is a fixed allowance and not part of the measured
-footprint. The measurements record heap allocations only.
+a custom 256\,MiB stack: all candidates recurse over the pattern
+structure, and on deeply nested patterns the default stack would overflow
+before the measured input sizes are reached. This stack is a fixed
+allowance and not part of the measured footprint.
 
 A timing and memory run produces two outputs per candidate and dataset: (1) a summary
 table of aggregate measurements; (2) a per-entry file
@@ -183,7 +183,7 @@ comparable input lengths,
 total across rows that completed comparable work.
 
 The allocator sees heap allocations only, not the worker stack
-(Section~\ref{sec:eval-criteria-setup}). A parser that uses substantial
+(Section~\ref{sec:eval-criteria-setup}), so a parser that uses substantial
 stack but few heap allocations may appear inexpensive in these
 measurements. Stack depth is evaluated separately for the two standard
 derivative parsers.
@@ -195,9 +195,10 @@ derivative parsers.
 \subsection{Translation}
 \label{sec:eval-criteria-translation}
 
-Translation cost depends only on the source pattern. Each distinct pattern is
-therefore translated once, rather than once for every entry. Translation runs
-in the main process because the frontend enforces three resource limits.
+Translation depends only on the source pattern and is independent of the
+input, so each distinct pattern is translated once rather than once per
+entry. Translation runs in the main process because the frontend enforces
+the three following resource limits:
 
 \begin{itemize}
   \item \emph{Bound cap}: bounds the numeric value of any repetition bound.
@@ -206,8 +207,11 @@ in the main process because the frontend enforces three resource limits.
   \item \emph{Node cap}: bounds the node count of the result.
 \end{itemize}
 
-Together, these limits prevent translation from hanging or allocating
-unbounded amounts of memory, as can happen during a parser call.
+The caps reject a pattern before translation would recurse too deeply or
+unroll too large a result, so translation itself is always bounded in
+time and memory. A parser call has no such protection. It can run until
+the timeout or the memory cap kills it, which is why the caps are checked
+at translation and the timeout is enforced per entry.
 
 Translation cost is measured using four quantities:
 
@@ -224,7 +228,7 @@ The counting allocator is reset before each translation and read immediately
 after the call returns. This excludes subsequent node counting and debug
 rendering from the measurement. Mean, median, 99th percentile, and maximum
 are calculated directly over patterns. Since each pattern contributes one
-measurement, no macro-averaging is needed. Rejected or panicked patterns
+measurement, no macro-averaging is needed. Rejected patterns
 produce no measurement, so the reported statistics are lower bounds.
 
 %
@@ -234,38 +238,38 @@ produce no measurement, so the reported statistics are lower bounds.
 \subsection{Stack Depth}
 \label{sec:eval-criteria-stack-depth}
 
-\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} compute identical results
-but store the residual sequence differently. 
-The recursive implementation
-uses one call-stack frame per input character, while the iterative one stores
-the sequence in a \texttt{Vec}.
-To compare their stack requirements, both use the operating system's default
-thread stack, with no memory cap.
+\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} compute identical
+results but store the residual sequence differently. The recursive
+implementation uses one call-stack frame per input character, the
+iterative one a \texttt{Vec}. Stack depth is measured to establish which
+of the two exhausts the stack first, and at what input length. Both use
+the operating system's default thread stack, which is 8\,MiB on Linux.
 
 The maximum surviving input length is estimated using a doubling search.
 Starting from a small input, the length is doubled after each successful
-probe until the worker fails to complete. Each probe runs in its own
-subprocess, so a stack overflow terminates only that process. The timeout
-for each probe is increased from the default two seconds to fifteen seconds.
-This gives slow derivatives more time to exhaust the stack. Since no memory
-cap is applied, a worker killed by a signal is likely to have suffered a
-stack overflow rather than an out-of-memory kill.
+probe until the worker fails to complete. The timeout for each probe is
+increased from the default $2\,\mathrm{s}$ to $15\,\mathrm{s}$, to give
+slow derivatives time to exhaust the stack and cause a stack overflow.
+A worker can also be killed by an
+out-of-memory condition when a heap cap is set, as described in
+Section~\ref{sec:eval-criteria-setup},
+but for this measurement no heap cap is applied, so a
+signal kill is more likely to be a stack overflow than an out-of-memory
+kill.
 
-The search produces a bracket between the last input length that completed
-and the first that did not, together with the outcome of the latter probe.
-A survived-to-crash result indicates that stack exhaustion limited the input
-length. A survived-to-timeout result indicates that derivation became too
-expensive before the stack was exhausted. These timeout cases are retained
-as negative controls because they identify patterns for which derivation
-cost, rather than stack depth, is the limiting factor.
+The search brackets the last length that completed against the first
+that did not. A crash means stack exhaustion limited the input, a timeout
+means derivation became too expensive first. The timeouts are kept as
+negative controls for patterns where derivation cost, not stack depth,
+is limiting.
 
-The same doubling search is used to check the other two translation caps,
-the \emph{bound cap} and the \emph{depth cap}. Each is compared with the
-input size at which its corresponding mechanism exhausts an explicit
-8\,MiB stack, matching the Linux default. Bound unrolling recurses once
-for each unit in a bound's open part, while syntactic nesting recurses once
-for each level of \texttt{(?:...)} grouping. The caps were chosen independently
-and are checked against these crash points rather than derived from them.
+The same doubling search is used to check the two translation caps, the
+\emph{bound cap} and the \emph{depth cap}. For the bound cap, the bound
+value is doubled until translation of the bound exhausts the stack. 
+For the depth cap, the nesting depth of \texttt{(?:...)} groups is doubled
+until translation exhausts the stack. Bound unrolling recurses once for
+each unit in a bound's open part, while syntactic nesting recurses once
+for each level of grouping.
 
 %
 %
@@ -277,31 +281,33 @@ and are checked against these crash points rather than derived from them.
 Parse agreement is evaluated on entries with a known expected membership
 result. Each entry is written as $(r, w, e)$, where $r$ is the translated
 \texttt{Regex}, $w$ is the input string, and
-$e \in \{\mathit{true}, \mathit{false}\}$ is the expected result. For S2ELab,
-it is taken from the dataset's label.
+$e \in \{\mathit{true}, \mathit{false}\}$ is the expected match result.
+No expected parse tree is provided.
 
-Each candidate processes the same entry in a separate worker
-subprocess, and the results are evaluated along three dimensions:
-
+Each candidate processes the same entry, and records:
 \begin{itemize}
-    \item \emph{Timeout or crash}: recorded if a candidate exceeds the default
-          2\,s deadline or its worker is killed by a signal.
-    \item \emph{Membership}: each candidate's result against $e$. Any
-          disagreement is a bug.
-    \item \emph{Shape}: compared only when $e = \mathit{true}$ and all
-          candidates return a parse tree. The three POSIX parsers must agree
-          with one another, as must the two non-POSIX parsers. Agreement
-          across the two families is assessed separately but not required.
+  \item \emph{Timeout or crash}: if the candidate exceeded the timeout
+         or was killed by a signal.
+  \item \emph{Membership}: a candidate's decision on ($e = \mathit{true}$)  
+        or no-match ($e = \mathit{false}$)
+  \item \emph{Parse tree}: the parse tree a candidate returned, when $e = \mathit{true}$.
 \end{itemize}
 
-The summary reports how many entries were evaluated and how the candidates
-performed on membership and parse-tree agreement. For each dataset, it
-separates entries that timed out or crashed from those that could be compared.
-It also reports \emph{match agreement}, the number of entries on which every
-candidate returned the expected membership result. Among these successful
-matches, \emph{shape agree} counts entries where the two families select
-the same tree, while \emph{shape disagree} counts entries where they select
-different trees.
+A timeout or crash removes the candidate from the comparison for that
+entry. Membership is compared across all candidates. 
+Any disagreement with $e$ is a bug. 
+Parse trees are compared only when $e = \mathit{true}$
+and all candidates returned one. 
+Agreement is required within each family, 
+whose parsers share a disambiguation policy.
+Across families it
+is reported but not required, since the two policies may differ.
+
+Thus the summary reports how many entries were evaluated and, for each
+dataset, how many timed out or crashed, how many every candidate
+classified correctly (\emph{match agreement}), and of those, how many
+the two families parsed to the same tree (\emph{shape agree}) or to
+different trees (\emph{shape disagree}).
 
 %
 %
@@ -310,8 +316,10 @@ different trees.
 \section{Dataset Preparation}
 \label{sec:eval-dataset}
 
-The evaluation uses two datasets. Each entry pairs a pattern $r$ with an
-input string $w$. Table~\ref{tab:dataset-summary} summarises their contents.
+The evaluation uses two datasets: 
+One real corpus of human-authored patterns, 
+and one synthetic set of manually authored patterns designed to stress the parsers. 
+Their scope and composition are summarized in Table~\ref{tab:dataset-summary}.
 
 \begin{table}[H]
 \centering
@@ -340,10 +348,10 @@ Only the \emph{Full-Anchored} patterns are benchmarked after stripping, and the
 \label{sec:eval-s2elab}
 
 The dataset by \citet{s2elab-regexeval-dataset} contains 762 human-authored
-patterns. Each pattern has a natural-language description and labelled
+patterns. Each pattern has a natural-language description and labeled
 matching and non-matching inputs.
 
-The source patterns use \texttt{\textasciicircum} and
+The source patterns conventionally use \texttt{\textasciicircum} and
 \texttt{\textdollar} as beginning- and end-of-input anchors. A pattern
 surrounded by these anchors requires a full-string match, whereas a pattern
 without them can match a substring. As described in
@@ -352,11 +360,10 @@ However, fully anchored patterns can still be used by stripping the anchors.
 Since the parsers perform full-string matching, the stripped pattern accepts
 exactly the inputs intended by the original anchored pattern.
 
-The benchmarks use the 463 fully anchored patterns after stripping their
-anchors. The 115 unanchored patterns are excluded because they allow
-substring matches, whereas the parsers evaluate full-string matches only.
-The frontend rejects the remaining 177 patterns. Their rejection causes
-are summarised in Table~\ref{tab:corpus-rejection-causes}.
+Thus the benchmarks only use the 463 fully anchored patterns 
+after stripping their anchors and the 115 unanchored patterns are excluded.
+177 patterns are rejected by the frontend with their rejection 
+causes summarised in Table~\ref{tab:corpus-rejection-causes}.
 
 \begin{table}[H]
 \centering
@@ -408,40 +415,50 @@ processed the following:
 
 The synthetic set contains 113 manually authored patterns designed to
 investigate how parser costs grow with input length and pattern size.
-It complements the real corpus, which does not exercise these cost mechanisms
-at comparable scales. All patterns are intended for full-string matching.
-Each row defines a pattern and an input in terms of the input length $n$,
-the pattern size $p$, or both. A \emph{sweep} varies one of these parameters
-and records a measurement at each value. Table~\ref{tab:sweep-samples}
-illustrates the two types of sweep.
+It complements the real corpus, which does not exercise these cost
+mechanisms at comparable scales. All patterns are intended for full-string
+matching. Each row defines a base pattern and a base input in terms of the
+input length $n$, the pattern size $p$, or both, and a \emph{sweep} varies
+one of these parameters over a range of values, recording a measurement at
+each. 
+
+A row of type \texttt{P} fixes the pattern and grows $n$, so its
+sweep measures how cost scales with input size. A row of type \texttt{E}
+fixes the input and grows $p$, so its sweep measures how cost scales with
+pattern size. Table~\ref{tab:sweep-samples} shows one row of each type at
+two sweep values.
 
 \begin{table}[H]
 \centering
 \small
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llll}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llllll}
 \hline
-Row & Swept parameter & Resulting pattern & Resulting input \\
+Row & Swept & Fixed & Description & Pattern & Input \\
 \hline
-P01 ($n=10$)    & $n$ & \texttt{(a+)+}          & \texttt{a} repeated 10 times  \\
-P01 ($n=1000$)  & $n$ & \texttt{(a+)+}          & \texttt{a} repeated 1000 times \\
-E36 ($p=100$)   & $p$ & 100-way word alternation & \texttt{w000001}             \\
-E36 ($p=1000$)  & $p$ & 1000-way word alternation & \texttt{w000001}            \\
+P01 & $n = 10$   & --- & \texttt{a} repeated 10x
+    & \texttt{(a+)+}
+    & $[\,\texttt{a}^{10}\,]$ \\
+P01 & $n = 1000$ & --- & \texttt{a} repeated 1000x
+    & \texttt{(a+)+}
+    & $[\,\texttt{a}^{1000}\,]$ \\
+E36 & $p = 100$  & $n = 20$ & 100-way word Alt
+    & \texttt{(?:w000001|\ldots|w000100)+}
+    & $[\,\texttt{w000001}^{20}\,]$ \\
+E36 & $p = 1000$ & $n = 20$ & 1000-way word Alt
+    & \texttt{(?:w000001|\ldots|w001000)+}
+    & $[\,\texttt{w000001}^{20}\,]$ \\
 \hline
 \end{tabular*}
-\caption{Two sample rows at two sweep values each. Row P01 fixes the pattern
-and sweeps $n$. Row E36 sweeps $p$, so the pattern grows while the input stays fixed.}
+\caption{Two rows at two sweep values each. P01 fixes the pattern and
+sweeps $n$, so the input grows. E36 fixes $n = 20$ and sweeps $p$, so the
+alternation width grows while the input is the same string repeated 20
+times.}
 \label{tab:sweep-samples}
 \end{table}
 
-Row identifiers beginning with \texttt{P} refer to manually authored
-pathological patterns, while \texttt{E} refer to
-template-generated baseline and edge cases. These
-are independent of the A--L category labels. Most rows follow
-the P01 structure, where $n$ is varied by repeating input characters,
-while the rest follow the E36 structure, where $p$ is varied to change
-the size of the generated pattern.
-The 113 patterns are grouped into categories according to the complexity
-mechanism they are designed to test (Table~\ref{tab:patho-categories}).
+The 113 patterns are also grouped into categories according 
+to the complexity mechanism they are designed to test 
+(Table~\ref{tab:patho-categories}).
 Each category uses its own sweep range, chosen so that the measured cost
 typically increases from microseconds to a timeout or crash.
 
@@ -451,34 +468,58 @@ typically increases from microseconds to a timeout or crash.
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.1}
 \begin{tabularx}{\textwidth}{l
-    >{\raggedright\arraybackslash}p{3cm}
+    >{\raggedright\arraybackslash}p{5cm}
     >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}p{2.8cm}
+    >{\raggedright\arraybackslash}p{3cm}
     r}
 \hline
-Cat. & Name & Mechanism & Example & Patterns \\
+Cat. & Name & Mechanism & Example & Count \\
 \hline
-A & Nested quantifiers & Quantified group inside another quantifier & \texttt{(a+)+} & 16 \\
-B & Overlapping alternation & Alternatives sharing a prefix under a quantifier & \texttt{(a|aa)+} & 15 \\
-C & Bounded rep over star & Bounded repetition wrapping a star or plus body, unrolled at translate time & \texttt{(.*a)\{1,10\}} & 7 \\
-D & Anchored-failure style & Must fully consume input, near-miss tail forces full enumeration & \texttt{(a?)\{3\}a\{3\}} & 4 \\
-E & Prefix-overlap alternation & One alternative is a strict prefix of another & \texttt{(a|b|ab)*} & 8 \\
-F & Alternation-star + literal & Alternation star or plus then a literal that fails late & \texttt{(a|b)*c} & 7 \\
-H & Many adjacent stars/groups & Product of unbounded groups in sequence & \texttt{(.+)(.+)\ldots} & 4 \\
-I & Trivial pattern, large input & Simple pattern, very long input & \texttt{a+} & 10 \\
-J & Large pattern, trivial input & Thousands of literals or groups, short input & 100-way word alt. & 5 \\
-K & Large pattern, large input & Both axes at once & 1000-way word alt. & 4 \\
-L & Trivial pattern, trivial input & Baseline, sanity check & \texttt{x} & 33 \\
+A & Nested quantifiers
+    & Quantifier inside a quantifier
+    & \texttt{(a+)+} & 16 \\
+B & Overlapping alternation
+    & Shared-prefix alternatives under a quantifier
+    & \texttt{(a|aa)+} & 15 \\
+C & Bounded rep over star
+    & Bounded repetition of a star, unrolled
+    & \texttt{(.*a)\{1,10\}} & 7 \\
+D & Full-consume near-miss
+    & Near-matching tail forces full enumeration
+    & \texttt{(a?)\{3\}a\{3\}} & 4 \\
+E & Prefix-overlap alternation
+    & One alternative is a strict prefix of another
+    & \texttt{(a|b|ab)*} & 8 \\
+F & Star then failing literal
+    & Trailing literal fails only at the last character
+    & \texttt{(a|b)*c} & 7 \\
+H & Adjacent unbounded groups
+    & Consecutive unbounded groups multiply split points
+    & \texttt{(.+)(.+)\ldots} & 4 \\
+I & Long input, simple pattern
+    & Per-character cost on a very long input
+    & \texttt{a+} & 10 \\
+J & Large pattern, short input
+    & Per-node cost of a very large pattern
+    & 100-way word alt. & 5 \\
+K & Large pattern, large input
+    & Per-node and per-character cost together
+    & 1000-way word alt. & 4 \\
+L & Trivial pattern, trivial input
+    & Baseline for the other categories
+    & \texttt{x} & 33 \\
 \hline
 Total & & & & 113 \\
 \hline
 \end{tabularx}
 \caption{The synthetic-set categories. Categories I, J, K, and L form a
-$2\times 2$ matrix of pattern size against input size. The remaining seven
-categories stress a genuine blow-up mechanism.}
+$2\times 2$ matrix of pattern size against input size; the remaining
+seven each stress one cost mechanism.}
 \label{tab:patho-categories}
 \end{table}
 
+%
+%
 %
 %
 %
@@ -486,10 +527,14 @@ categories stress a genuine blow-up mechanism.}
 \section{Performance Analysis}
 \label{sec:eval-performance}
 
-This section compares the candidates on both datasets in terms of stack
-depth, execution time, memory use, and translation cost. Each subsection
-presents the real-corpus results first, followed by the synthetic results
-and any extreme cases.
+This section compares the candidates on both datasets in terms of 
+stack depth (\ref{sec:eval-stack-depth}), 
+execution time (\ref{sec:eval-timing}), 
+memory use (\ref{sec:eval-memory}), and 
+translation cost (\ref{sec:eval-translate}). 
+Each subsection presents the real-corpus results first, 
+followed by the synthetic results and 
+some representative patterns with their individual measurements.
 
 %
 %
@@ -499,56 +544,70 @@ and any extreme cases.
 \label{sec:eval-stack-depth}
 
 The recursive and iterative forms run on the operating system's default
-stack, without a memory cap, using the doubling search of
+stack of 8\,MB, without a memory cap, using the doubling search described in
 Section~\ref{sec:eval-criteria-stack-depth}. Both rows use \texttt{a}
 repeated $n$ times, with $n$ increasing across the sweep.
 
 \begin{table}[H]
 \centering
 \small
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lllrrll}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llllrrl}
 \hline
 Row & Pattern & Derivative step & Parser & Last $n$ & Outcome & Elapsed \\
 \hline
 P01 & \texttt{(a+)+} & expensive (nested quantifier)
     & \texttt{rec}  & 16          & timeout & 15.906\,s \\
-P01 & \texttt{(a+)+} & expensive (nested quantifier)
-    & \texttt{loop} & 16          & timeout & 15.941\,s \\
-P30 & \texttt{(\textbackslash w+)(\textbackslash w+)\ldots} (10) & moderate (product of stars)
-    & \texttt{rec}  & 64          & timeout & 21.428\,s \\
-P30 & \texttt{(\textbackslash w+)(\textbackslash w+)\ldots} (10) & moderate (product of stars)
-    & \texttt{loop} & 64          & timeout & 20.395\,s \\
-E51 & \texttt{x}     & cheap (fixed residual)
-    & \texttt{rec}  & 32\,768     & crash   & 1.270\,s \\
-E51 & \texttt{x}     & cheap (fixed residual)
-    & \texttt{loop} & 1\,048\,576 & cap     & 0.159\,s \\
+    & & & \texttt{loop} & 16          & timeout & 15.941\,s \\
 \hline
-\end{tabular}
-\caption{Doubling-search stack-depth results. \emph{Derivative step}
-categorizes the pattern's derivative cost. P30 is ten adjacent
-\texttt{(\textbackslash w+)} groups, a milder, polynomial-cost counterpart
-to P01's near-exponential one. \emph{Outcome}
-reports what stopped the sweep: \emph{timeout} at the 15\,s per-probe cap,
-\emph{crash} on a stack overflow, or \emph{cap} on reaching the sweep maximum
-without failing.}
+P30 & \texttt{(\textbackslash w+)(\textbackslash w+)}\ldots & moderate (product of stars)
+    & \texttt{rec}  & 64          & timeout & 21.428\,s \\
+    & & & \texttt{loop} & 64          & timeout & 20.395\,s \\
+\hline
+E51 & \texttt{x} & cheap (fixed residual)
+    & \texttt{rec}  & 32\,768     & crash   & 1.270\,s \\
+    & & & \texttt{loop} & 1\,048\,576 & cap     & 0.159\,s \\
+\hline
+\end{tabular*}
+\caption{Doubling-search stack-depth results, one group per pattern with
+the recursive (\texttt{rec}) and iterative (\texttt{loop}) parsers. 
+\emph{Derivative step} categorizes the pattern's
+derivative cost. P30 is ten adjacent \texttt{(\textbackslash w+)} groups.
+\emph{Outcome} reports what stopped the sweep: \emph{timeout} at the
+15\,s per-probe cap, \emph{crash} on a stack overflow, or \emph{cap} on
+reaching the sweep maximum without failing.}
 \label{tab:stack-depth}
 \end{table}
 
-P01 is a second negative control. Its nested quantifier makes each
-derivative step expensive, so both forms reach the 15\,s timeout at
-$n=16$, before stack depth becomes limiting. This shows that stack
-exhaustion is observable only when derivation remains cheap.
+Here, P01 and P30 are used as negative controls, 
+since on both the derivative step is
+expensive enough that the 15\,s timeout fires before the stack is
+reached, at $n=16$ and $n=64$ respectively. P01 fails first because its
+nested quantifier makes each derivative step near-exponential. 
+P30 fails later because ten adjacent \texttt{(\textbackslash w+)} 
+groups produce a product of stars whose cost grows polynomially rather than
+exponentially. In both cases the timeout, not the stack, ends the sweep.
+Whatever the stack could hold, the input never grows far enough to fill
+it. Stack exhaustion is therefore observable only when derivation stays
+cheap enough for input length to outgrow derivation cost.
 
-E51 provides this case. Every entry mismatches on the first character,
-leaving a tiny, fixed residual. The recursive form crashes from stack
-overflow between $32\,768$ and $65\,536$ characters. The iterative form
-reaches the $2\,000\,000$ sweep cap without failing, so its upper bound
-is set by the sweep rather than a parser limit.
+E51 shows this case. The pattern is a single literal, and every entry
+mismatches on its first character, so the residual stays tiny and never
+grows with the input. The derivative step is constant-cost, and the only
+thing that grows is the number of steps, which is the input length. The
+recursive form keeps one call frame per character for the whole input, so
+its depth grows with $n$ until it crashes between $32\,768$ and $65\,536$
+characters. The iterative form stores the same sequence in a \texttt{Vec},
+so its depth stays constant regardless of $n$, and reaches the
+$2\,000\,000$ sweep cap without failing. 
 
-The iterative form is therefore preferable. Even with a cheap derivative
-step, the recursive form fails at tens of thousands of characters, while
-the iterative form reaches the full sweep limit.
+The iterative form is therefore preferable even with a cheap derivative
+step. Both forms compute identical results and differ only in where the
+residual sequence is stored, so any difference in outcome is attributable
+to stack depth alone. The recursive form fails at tens of thousands of
+characters, a length a single realistic match can easily reach. The
+iterative form completes every length the sweep covers, and would have
+continued past the cap.
 
 %
 %
