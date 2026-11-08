@@ -606,9 +606,14 @@ stops only by the 15\,s timeout ending the sweep.
 The comparison is therefore not a contest the iterative form wins on
 stack usage, since it has no stack growth to measure, by construction.
 This measurement establishes the input length at which the stack becomes
-the binding constraint for the recursive form.
-The iterative form is therefore preferable even where the derivative step
-is cheap.
+the binding constraint for the recursive form. On crash resistance the
+iterative form is therefore preferable even where the derivative step is
+cheap, since it has no stack-depth limit within the sweep range.
+Whether it is preferable overall depends on which cost matters more 
+for a given input, 
+which will be examined further through the memory measurements 
+presented later in Section~\ref{sec:eval-memory}
+
 
 %
 %
