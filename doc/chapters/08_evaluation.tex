@@ -708,18 +708,21 @@ marginally faster, at 0.625 against \texttt{pderiv\_std}'s 0.699\,ms.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l
+    rrr rrr}
 \hline
-Parser & Matches & Match time (s) & Non-matches & Non-match time (s) \\
+& \multicolumn{3}{c}{Matches} & \multicolumn{3}{c}{Non-matches} \\
+\cline{2-4}\cline{5-7}
+Parser & Total & Timeout & Time (s) & Total & Timeout & Time (s) \\
 \hline
-\texttt{deriv\_std\_rec}  & 5\,797 &  72.829 & 5\,524 &  9.534 \\
-\texttt{deriv\_std\_loop} & 5\,799 &  70.510 & 5\,524 &  9.759 \\
-\texttt{deriv\_bc}        & 5\,869 &  14.521 & 5\,526 &  5.053 \\
-\texttt{pderiv\_std}      & 5\,869 &   6.442 & 5\,526 &  1.760 \\
-\texttt{pderiv\_bc}       & 5\,869 &   5.778 & 5\,526 &  1.538 \\
+\texttt{deriv\_std\_rec}  & 5\,797 & 72 &  72.829 & 5\,524 & 2 &  9.534 \\
+\texttt{deriv\_std\_loop} & 5\,799 & 70 &  70.510 & 5\,524 & 2 &  9.759 \\
+\texttt{deriv\_bc}        & 5\,869 &  0 &  14.521 & 5\,526 & 0 &  5.053 \\
+\texttt{pderiv\_std}      & 5\,869 &  0 &   6.442 & 5\,526 & 0 &  1.760 \\
+\texttt{pderiv\_bc}       & 5\,869 &  0 &   5.778 & 5\,526 & 0 &  1.538 \\
 \hline
 \end{tabular*}
-\caption{Total wall time by verified outcome, same run as
+\caption{Total wall time by verified outcome on the same run as
 Table~\ref{tab:corpus-timing}.}
 \label{tab:corpus-timing-outcome}
 \end{table}
@@ -732,15 +735,15 @@ the whole input and construct a tree. The
 gap is largest for the two standard variants and smallest for the
 bit-coded pair, which is consistent with the standard construction
 spending most of its time on the matching path, where it retains the
-derivation sequence for the backward pass. On matches,
-\texttt{deriv\_std\_loop} takes 70.510\,s against the recursive
-variant's 72.829\,s; their non-match times are almost identical
-(9.759 against 9.534\,s), so the difference between the two forms is
-confined to the matching path. That is the expected place for it to
-appear, since the backward pass only runs when there is a tree to
-reconstruct. The totals cover slightly different entry sets, because
-each variant times out on a different set, so the per-entry gap is
-larger than the difference between these totals suggests.
+derivation sequence for the backward pass. 
+
+On matches, \texttt{deriv\_std\_loop} takes 70.510\,s against the
+recursive variant's 72.829\,s; their non-match times are almost
+identical (9.759 against 9.534\,s), so the difference between the two
+forms is confined to the matching path, the only place the backward
+pass runs. The totals cover slightly different entry sets, and almost
+all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
+70 of \texttt{deriv\_std\_loop}'s 72, against none for the other three.
 
 %
 %
