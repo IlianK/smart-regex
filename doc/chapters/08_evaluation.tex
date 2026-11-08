@@ -546,7 +546,7 @@ some representative patterns with their individual measurements.
 The recursive and iterative forms run on the operating system's default
 stack of 8\,MB, without a memory cap, using the doubling search described in
 Section~\ref{sec:eval-criteria-stack-depth}. Both rows use \texttt{a}
-repeated $n$ times, with $n$ increasing across the sweep.
+repeated $n$ times as the input, with $n$ increasing across the sweep.
 
 \begin{table}[H]
 \centering
@@ -571,45 +571,44 @@ E51 & \texttt{x} & cheap (fixed residual)
 \end{tabular*}
 \caption{Doubling-search stack-depth results, one group per pattern with
 the recursive (\texttt{rec}) and iterative (\texttt{loop}) parsers.
-\emph{Derivative step} categorizes the pattern's
-derivative cost. P30 is ten adjacent \texttt{(\textbackslash w+)} groups.
-\emph{Outcome} reports what stopped the sweep: \emph{timeout} at the
-15\,s per-probe cap, or \emph{crash} on a stack overflow.}
+\emph{Derivative step} categorizes the pattern's derivative cost. P30 is
+ten adjacent \texttt{(\textbackslash w+)} groups. \emph{Outcome} reports
+what stopped the sweep: \emph{timeout} at the 15\,s per-probe cap, or
+\emph{crash} on a stack overflow. \emph{Elapsed} is the cumulative time
+taken for the whole sweep.}
 \label{tab:stack-depth}
 \end{table}
 
-Here, P01 and P30 are used as negative controls, 
-since on both the derivative step is
-expensive enough that the 15\,s timeout fires before the stack is
-reached, at $n=16$ and $n=64$ respectively. P01 fails first because its
-nested quantifier makes each derivative step near-exponential. 
-P30 fails later because ten adjacent \texttt{(\textbackslash w+)} 
-groups produce a product of stars whose cost grows polynomially rather than
-exponentially. In both cases the timeout, not the stack, ends the sweep.
-Whatever the stack could hold, the input never grows far enough to fill
-it. Stack exhaustion is therefore observable only when derivation stays
-cheap enough for input length to outgrow derivation cost.
+P01 and P30 are negative controls. On both, the derivative step is
+expensive enough that the 15\,s timeout fires before either form reaches
+its limit, at $n=16$ and $n=64$ respectively. P01 fails first because
+its nested quantifier makes each derivative step near-exponential. P30
+fails later because ten adjacent \texttt{(\textbackslash w+)} groups
+produce a product of stars whose cost grows polynomially. 
+In both cases the timeout, not the stack, ends
+the sweep, so the input never grows far enough to expose a stack
+ceiling. Their role is to rule out the reading that a stack limit would
+have been reached at small $n$ on any pattern.
 
-E51 shows this case. The pattern is a single literal, and every entry
-mismatches on its first character, so the residual stays tiny and never
-grows with the input. The derivative step is constant-cost, and the only
-thing that grows is the number of steps, which is the input length. The
-recursive form keeps one call frame per character for the whole input, so
-its depth grows with $n$ until it crashes between $32\,768$ and $65\,536$
-characters. The iterative form stores the same sequence in a \texttt{Vec},
-so its depth stays constant regardless of $n$, and never crashes: pushed
-well past the original sweep range, it survives up to $536\,870\,912$
-characters and only stops there because the $15\,$s per-probe timeout
-catches up with its $O(n)$ cost, not because of a stack or memory
-failure.
+E51 isolates the stack. The pattern is the single literal \texttt{x},
+which cannot match an input of \texttt{a}s, so every entry mismatches on
+its first character and the residual stays tiny.
+The derivative step therefore does not grow with the input. 
+Both forms must keep all $n$
+intermediate derivatives alive between the forward and backward passes
+and differ only in where that sequence lives. The recursive parser keeps
+it implicitly, one derivative per stack frame, so the call stack grows
+with the input until it crashes between $32\,768$ and $65\,536$
+characters. The iterative form keeps the same sequence explicitly, in a
+heap-allocated \texttt{Vec}. It reaches $536\,870\,912$ characters and
+stops only by the 15\,s timeout ending the sweep.
 
-The iterative form is therefore preferable even with a cheap derivative
-step. Both forms compute identical results and differ only in where the
-residual sequence is stored, so any difference in outcome is attributable
-to stack depth alone. The recursive form fails at tens of thousands of
-characters, a length a single realistic match can easily reach. The
-iterative form survives $16\,384\times$ further before anything stops
-it, and what stops it there is wall-clock time, not its stack.
+The comparison is therefore not a contest the iterative form wins on
+stack usage, since it has no stack growth to measure, by construction.
+This measurement establishes the input length at which the stack becomes
+the binding constraint for the recursive form.
+The iterative form is therefore preferable even where the derivative step
+is cheap.
 
 %
 %
