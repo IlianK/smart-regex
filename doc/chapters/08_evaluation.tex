@@ -566,16 +566,15 @@ P30 & \texttt{(\textbackslash w+)(\textbackslash w+)}\ldots & moderate (product 
 \hline
 E51 & \texttt{x} & cheap (fixed residual)
     & \texttt{rec}  & 32\,768     & crash   & 1.270\,s \\
-    & & & \texttt{loop} & 1\,048\,576 & cap     & 0.159\,s \\
+    & & & \texttt{loop} & 536\,870\,912 & timeout & 42.987\,s \\
 \hline
 \end{tabular*}
 \caption{Doubling-search stack-depth results, one group per pattern with
-the recursive (\texttt{rec}) and iterative (\texttt{loop}) parsers. 
+the recursive (\texttt{rec}) and iterative (\texttt{loop}) parsers.
 \emph{Derivative step} categorizes the pattern's
 derivative cost. P30 is ten adjacent \texttt{(\textbackslash w+)} groups.
 \emph{Outcome} reports what stopped the sweep: \emph{timeout} at the
-15\,s per-probe cap, \emph{crash} on a stack overflow, or \emph{cap} on
-reaching the sweep maximum without failing.}
+15\,s per-probe cap, or \emph{crash} on a stack overflow.}
 \label{tab:stack-depth}
 \end{table}
 
@@ -598,16 +597,19 @@ thing that grows is the number of steps, which is the input length. The
 recursive form keeps one call frame per character for the whole input, so
 its depth grows with $n$ until it crashes between $32\,768$ and $65\,536$
 characters. The iterative form stores the same sequence in a \texttt{Vec},
-so its depth stays constant regardless of $n$, and reaches the
-$2\,000\,000$ sweep cap without failing. 
+so its depth stays constant regardless of $n$, and never crashes: pushed
+well past the original sweep range, it survives up to $536\,870\,912$
+characters and only stops there because the $15\,$s per-probe timeout
+catches up with its $O(n)$ cost, not because of a stack or memory
+failure.
 
 The iterative form is therefore preferable even with a cheap derivative
 step. Both forms compute identical results and differ only in where the
 residual sequence is stored, so any difference in outcome is attributable
 to stack depth alone. The recursive form fails at tens of thousands of
 characters, a length a single realistic match can easily reach. The
-iterative form completes every length the sweep covers, and would have
-continued past the cap.
+iterative form survives $16\,384\times$ further before anything stops
+it, and what stops it there is wall-clock time, not its stack.
 
 %
 %
