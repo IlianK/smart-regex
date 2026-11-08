@@ -313,11 +313,11 @@ different trees (\emph{shape disagree}).
 %
 %
 
-\section{Dataset Preparation}
+\section{Datasets}
 \label{sec:eval-dataset}
 
 The evaluation uses two datasets: 
-One real corpus of human-authored patterns, 
+One real corpus of human-authored patterns called S2ELab, 
 and one synthetic set of manually authored patterns designed to stress the parsers. 
 Their scope and composition are summarized in Table~\ref{tab:dataset-summary}.
 
@@ -349,8 +349,8 @@ Only the \emph{Full-Anchored} patterns are benchmarked after stripping, and the
 
 The dataset by \citet{s2elab-regexeval-dataset} contains 762 human-authored
 patterns. Each pattern has a natural-language description and labeled
-matching and non-matching inputs.
-
+matching and non-matching inputs. The number of each varies per pattern,
+so the corpus is not balanced between the two.
 The source patterns conventionally use \texttt{\textasciicircum} and
 \texttt{\textdollar} as beginning- and end-of-input anchors. A pattern
 surrounded by these anchors requires a full-string match, whereas a pattern
@@ -359,7 +359,6 @@ Section~\ref{sec:frontend-rejected}, the frontend does not support anchors.
 However, fully anchored patterns can still be used by stripping the anchors.
 Since the parsers perform full-string matching, the stripped pattern accepts
 exactly the inputs intended by the original anchored pattern.
-
 Thus the benchmarks only use the 463 fully anchored patterns 
 after stripping their anchors and the 115 unanchored patterns are excluded.
 177 patterns are rejected by the frontend with their rejection 
@@ -389,22 +388,56 @@ Total                                       & 177 \\
 %
 %
 
-\paragraph{Pipeline.} A date pattern like
-\texttt{\textasciicircum(0[1-9]|1[0-2])\textbackslash/...\textdollar} is
-processed the following:
-\begin{enumerate}
-  \item \textbf{Extract.} The pattern is kept with the match
-        and non-match lists.
-  \item \textbf{Deduplicate.} The pattern is byte-distinct and no input string
-        appears double.
-  \item \textbf{Translate.} The anchors are stripped and the remainder is
-        checked to translate.
-  \item \textbf{Check labels.} Each input string is checked against the translated
-        pattern. The input string \texttt{"11/31/2002"} is accepted because the day group allows
-        \texttt{31} regardless of month, validating the pattern's semantics,
-        not real-world correctness.
-  \item \textbf{Write.} The surviving pairs are written to the corpus.
-\end{enumerate}
+\paragraph{Pipeline.}
+Figure~\ref{fig:s2elab-pipeline} shows the five stages of dataset preperation. 
+Extraction keeps the pattern with its match and non-match lists, 
+deduplication drops duplicates, and translation strips anchors. 
+The check stage re-evaluates
+every input against the translation and keeps a pair only if label and
+translation agree, validating the pattern's own semantics rather than
+real-world correctness; a date pattern may accept
+\texttt{"11/31/2002"} because its day group allows \texttt{31}
+regardless of month. The surviving pairs are written to the corpus.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  stage/.style={draw, rounded corners=2pt, minimum height=7mm,
+                font=\footnotesize, inner xsep=5pt, text width=2.4cm,
+                align=center},
+  data/.style={font=\scriptsize, align=left, text width=7.4cm,
+               inner sep=2pt},
+  >=stealth,
+]
+\node[stage] (extract) at (0,0)   {Extract};
+\node[stage] (dedup)   at (0,-1.4) {Deduplicate};
+\node[stage] (trans)   at (0,-2.8) {Translate};
+\node[stage] (check)   at (0,-4.2) {Check labels};
+\node[stage] (write)   at (0,-5.6) {Write};
+
+\draw[->] (extract) -- (dedup);
+\draw[->] (dedup)   -- (trans);
+\draw[->] (trans)   -- (check);
+\draw[->] (check)   -- (write);
+
+\node[data, right=4mm of extract]
+  {pattern \texttt{\textasciicircum(0[1-9]|1[0-2])\textbackslash/...\textdollar},
+   \\ with its match and non-match lists};
+\node[data, right=4mm of dedup]
+  {Check if this pattern and inputs are byte-distinct};
+\node[data, right=4mm of trans]
+  {Strip anchors and translate the remainder to a \texttt{Regex}};
+\node[data, right=4mm of check]
+  {\texttt{"11/31/2002"}: computed match, label match \checkmark\\
+   \texttt{"13/01/2020"}: computed no-match, label no-match \checkmark\\
+  };
+\node[data, right=4mm of write]
+  {\texttt{(Regex, "11/31/2002", true)}, \\ \texttt{(Regex, "13/01/2020", false)}, \ldots};
+\end{tikzpicture}
+\caption{The S2ELab dataset preparation pipeline, tracing a date pattern
+and two pßinputs.}
+\label{fig:s2elab-pipeline}
+\end{figure}
 
 %
 %
@@ -622,9 +655,9 @@ presented later in Section~\ref{sec:eval-memory}
 \subsection{Timing}
 \label{sec:eval-timing}
 
-Timing is reported per candidate on both datasets, using the isolation,
-phase split, and averaging method described in
-Section~\ref{sec:eval-criteria-timing}.
+This section reports per-candidate timing on the real corpus and the
+synthetic set, under the isolation, phase split, and averaging described
+in Section~\ref{sec:eval-criteria-timing}.
 
 %
 %
@@ -649,17 +682,28 @@ Parser & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
 \end{tabular*}
 \caption{Corpus timing over the default scope of 463 patterns and 11\,395
-entries per parser. Timeouts are excluded from the mean, median, and maximum,
-so those columns are lower bounds on the standard variants' true cost.}
+entries per parser. Timeouts are excluded from the mean, median, and
+maximum, so those columns are lower bounds on the standard variants' true
+cost.}
 \label{tab:corpus-timing}
 \end{table}
 
 The standard variants are substantially slower, with mean times roughly
 $4$--$4.5\times$ that of \texttt{deriv\_bc} and more than ten times those
-of the partial-derivative variants. Since 72 and 74 entries time out,
-the reported means understate this gap. Within the partial-derivative
-pair, \texttt{pderiv\_bc} is marginally faster, at 0.625 against
-\texttt{pderiv\_std}'s 0.699\,ms.
+of the partial-derivative variants. The gap is wider than the means
+suggest, because 72 and 74 entries time out on the standard variants and
+are excluded from their means, while neither bit-coded nor either
+partial-derivative variant times out at all. 
+On the mean, the ranking is
+\texttt{pderiv\_bc}, \texttt{pderiv\_std}, \texttt{deriv\_bc}, then the
+two standard variants, so the partial-derivative pair is fastest overall.
+On the median, \texttt{deriv\_bc} is slower than both partial-derivative
+variants but faster than either standard variant, and its maximum is
+between the two groups. 
+This shows, that bit-coding helps the standard construction
+enormously but does not bring it to partial-derivative cost on typical
+entries. Within the partial-derivative pair, \texttt{pderiv\_bc} is
+marginally faster, at 0.625 against \texttt{pderiv\_std}'s 0.699\,ms.
 
 \begin{table}[H]
 \centering
@@ -682,13 +726,22 @@ Table~\ref{tab:corpus-timing}.}
 \end{table}
 
 For every parser, matching entries take roughly $3$--$8\times$ as much
-total time as non-matches. Non-matches can be rejected early, whereas
-matches require the parser to construct a tree.
-On matches, \texttt{deriv\_std\_loop} takes 70.510\,s, below the
-recursive variant's 72.829\,s. The totals cover slightly different
-entries because each variant times out on a different set. Their
-non-match times are almost identical, suggesting that the difference
-between recursion and iteration mainly affects the matching path.
+total time as non-matches. The asymmetry is expected. 
+A non-match can be rejected as soon as any character fails to match, 
+whereas a match requires the parser to consume 
+the whole input and construct a tree. The
+gap is largest for the two standard variants and smallest for the
+bit-coded pair, which is consistent with the standard construction
+spending most of its time on the matching path, where it retains the
+derivation sequence for the backward pass. On matches,
+\texttt{deriv\_std\_loop} takes 70.510\,s against the recursive
+variant's 72.829\,s; their non-match times are almost identical
+(9.759 against 9.534\,s), so the difference between the two forms is
+confined to the matching path. That is the expected place for it to
+appear, since the backward pass only runs when there is a tree to
+reconstruct. The totals cover slightly different entry sets, because
+each variant times out on a different set, so the per-entry gap is
+larger than the difference between these totals suggests.
 
 %
 %
