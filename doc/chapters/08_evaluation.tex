@@ -751,31 +751,222 @@ all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
 \subsubsection{Synthetic Stress Set}
 \label{sec:eval-timing-pathological}
 
+The eleven categories (Table~\ref{tab:patho-categories}) are each swept
+once at their own default $n$ list. Tables~\ref{tab:patho-timing-cat-A}--%
+\ref{tab:patho-timing-cat-L} report all five parsers per category, so that
+parsers compare directly within a fixed category. \emph{Timed out} counts
+entries whose parser call exceeded the two-second budget; \emph{Crashed}
+counts any other non-zero worker exit, most commonly the translated
+pattern hitting \texttt{core\_regex}'s own depth/node cap before a parser
+call begins. \emph{Mean}/\emph{Median}/\emph{Max} exclude both.
+%
 \begin{table}[H]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrrrrrrr}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
 \hline
-& & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
-Cat. & Entries & mean & to\% & mean & to\% & mean & to\% & mean & to\% & mean & to\% \\
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
-A & 160 & 219.8 & 69\% & 220.5 & 69\% & 158.8 &  1\% &  18.7 &  0\% &  15.3 &  0\% \\
-B & 150 & 163.6 & 63\% & 163.2 & 63\% &  96.9 &  4\% &  76.6 &  1\% &  94.8 &  0\% \\
-C &  56 &  87.1 & 57\% &  90.9 & 57\% & 234.4 & 25\% & 234.7 & 18\% & 216.5 & 18\% \\
-D &  40 & 243.9 & 20\% & 244.8 & 20\% & 136.7 &  0\% & 214.4 & 15\% & 193.3 & 15\% \\
-E &  80 & 299.1 & 56\% & 404.6 & 53\% &  76.6 &  0\% &  62.7 &  0\% &  57.4 &  0\% \\
-F &  70 & 385.8 & 66\% & 383.4 & 66\% &  42.3 & 40\% &  99.6 &  3\% & 103.2 &  3\% \\
-H &  28 & 226.3 & 64\% & 225.9 & 64\% & 263.8 &  7\% & 233.5 & 14\% & 214.4 & 14\% \\
+\texttt{deriv\_std\_rec} & 111 & 0 & 214.90 & 3.70 & 1\,828.71 \\
+\texttt{deriv\_std\_loop} & 111 & 0 & 216.25 & 3.58 & 1\,879.54 \\
+\texttt{deriv\_bc} & 2 & 0 & 157.27 & 0.29 & 1\,737.26 \\
+\texttt{pderiv\_bc} & 0 & 0 & 15.27 & 0.24 & 803.41 \\
+\texttt{pderiv\_std} & 0 & 0 & 18.63 & 0.24 & 1\,276.42 \\
 \hline
 \end{tabular*}
-\caption{Mean per-entry time in ms over completed entries, and the share of
-entries that hit the two-second cap, one baseline pass per category: every
-row swept once across the category's own default $n$ list, not the
-extended range the eight representative rows below are pushed to. The
-mean column excludes timed-out entries, so a low mean next to a high
-timeout share describes only the easy entries that survived.}
-\label{tab:patho-timing-baseline}
+\caption{Category A (\emph{Nested quantifiers}), $n=160$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-A}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 95 & 0 & 161.43 & 27.51 & 1\,481.46 \\
+\texttt{deriv\_std\_loop} & 95 & 0 & 160.11 & 25.73 & 1\,488.19 \\
+\texttt{deriv\_bc} & 6 & 0 & 96.58 & 2.95 & 1\,459.29 \\
+\texttt{pderiv\_bc} & 0 & 0 & 94.33 & 1.89 & 1\,636.99 \\
+\texttt{pderiv\_std} & 2 & 0 & 76.04 & 1.86 & 1\,711.91 \\
+\hline
+\end{tabular*}
+\caption{Category B (\emph{Overlapping alternation}), $n=150$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-B}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 32 & 0 & 86.33 & 3.62 & 843.04 \\
+\texttt{deriv\_std\_loop} & 32 & 0 & 85.86 & 3.86 & 831.32 \\
+\texttt{deriv\_bc} & 14 & 0 & 228.73 & 47.51 & 1\,149.12 \\
+\texttt{pderiv\_bc} & 10 & 0 & 216.37 & 31.25 & 846.27 \\
+\texttt{pderiv\_std} & 10 & 0 & 234.90 & 34.03 & 881.80 \\
+\hline
+\end{tabular*}
+\caption{Category C (\emph{Bounded repetition over star}), $n=56$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-C}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 8 & 0 & 245.83 & 43.16 & 1\,770.13 \\
+\texttt{deriv\_std\_loop} & 8 & 0 & 245.44 & 42.65 & 1\,784.83 \\
+\texttt{deriv\_bc} & 0 & 0 & 138.07 & 14.78 & 1\,461.16 \\
+\texttt{pderiv\_bc} & 6 & 0 & 190.91 & 46.25 & 837.08 \\
+\texttt{pderiv\_std} & 6 & 0 & 212.65 & 43.62 & 928.24 \\
+\hline
+\end{tabular*}
+\caption{Category D (\emph{Anchored-failure style}), $n=40$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-D}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 45 & 0 & 296.78 & 10.80 & 1\,790.84 \\
+\texttt{deriv\_std\_loop} & 42 & 0 & 393.84 & 12.87 & 1\,868.69 \\
+\texttt{deriv\_bc} & 0 & 0 & 78.14 & 4.77 & 1\,265.09 \\
+\texttt{pderiv\_bc} & 0 & 0 & 57.07 & 3.10 & 953.83 \\
+\texttt{pderiv\_std} & 0 & 0 & 62.28 & 3.12 & 1\,151.41 \\
+\hline
+\end{tabular*}
+\caption{Category E (\emph{Prefix-overlap alternation}), $n=80$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-E}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 46 & 0 & 382.18 & 16.03 & 1\,689.86 \\
+\texttt{deriv\_std\_loop} & 46 & 0 & 380.47 & 14.64 & 1\,670.68 \\
+\texttt{deriv\_bc} & 28 & 0 & 42.59 & 2.41 & 420.71 \\
+\texttt{pderiv\_bc} & 2 & 0 & 103.08 & 8.01 & 1\,681.91 \\
+\texttt{pderiv\_std} & 2 & 0 & 100.32 & 6.75 & 1\,702.89 \\
+\hline
+\end{tabular*}
+\caption{Category F (\emph{Alternation-star + literal}), $n=70$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-F}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 18 & 0 & 224.19 & 14.12 & 1\,182.88 \\
+\texttt{deriv\_std\_loop} & 18 & 0 & 224.30 & 15.01 & 1\,178.46 \\
+\texttt{deriv\_bc} & 2 & 0 & 258.02 & 75.26 & 1\,675.36 \\
+\texttt{pderiv\_bc} & 4 & 0 & 212.35 & 44.70 & 1\,917.12 \\
+\texttt{pderiv\_std} & 4 & 0 & 232.96 & 47.96 & 1\,981.61 \\
+\hline
+\end{tabular*}
+\caption{Category H (\emph{Many adjacent stars/groups}), $n=28$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-H}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 44 & 1 & 126.03 & 0.57 & 1\,613.18 \\
+\texttt{deriv\_std\_loop} & 44 & 0 & 232.31 & 0.54 & 1\,927.88 \\
+\texttt{deriv\_bc} & 19 & 0 & 462.19 & 142.23 & 1\,889.89 \\
+\texttt{pderiv\_bc} & 18 & 0 & 232.19 & 106.81 & 1\,731.73 \\
+\texttt{pderiv\_std} & 18 & 0 & 280.94 & 131.14 & 1\,708.77 \\
+\hline
+\end{tabular*}
+\caption{Category I (\emph{Trivial pattern, large input}), $n=60$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-I}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 3 & 10 & 161.48 & 4.88 & 1\,704.85 \\
+\texttt{deriv\_std\_loop} & 2 & 10 & 235.94 & 6.53 & 1\,767.72 \\
+\texttt{deriv\_bc} & 2 & 10 & 179.85 & 17.80 & 1\,555.27 \\
+\texttt{pderiv\_bc} & 4 & 10 & 209.77 & 63.59 & 1\,294.06 \\
+\texttt{pderiv\_std} & 4 & 10 & 244.74 & 70.80 & 1\,612.40 \\
+\hline
+\end{tabular*}
+\caption{Category J (\emph{Large pattern, trivial input}), $n=34$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-J}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 24 & 10 & 352.48 & 402.89 & 626.53 \\
+\texttt{deriv\_std\_loop} & 24 & 10 & 326.28 & 352.32 & 536.02 \\
+\texttt{deriv\_bc} & 12 & 10 & 183.13 & 56.87 & 827.57 \\
+\texttt{pderiv\_bc} & 10 & 10 & 179.75 & 33.61 & 1\,177.06 \\
+\texttt{pderiv\_std} & 11 & 10 & 200.47 & 38.47 & 1\,923.37 \\
+\hline
+\end{tabular*}
+\caption{Category K (\emph{Large pattern, large input}), $n=40$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-K}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\hline
+Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+\texttt{deriv\_std\_rec} & 20 & 0 & 64.02 & 0.09 & 1\,850.29 \\
+\texttt{deriv\_std\_loop} & 19 & 0 & 66.26 & 0.13 & 1\,797.90 \\
+\texttt{deriv\_bc} & 0 & 0 & 4.48 & 0.08 & 97.19 \\
+\texttt{pderiv\_bc} & 0 & 0 & 2.09 & 0.03 & 48.39 \\
+\texttt{pderiv\_std} & 0 & 0 & 2.04 & 0.03 & 41.25 \\
+\hline
+\end{tabular*}
+\caption{Category L (\emph{Trivial pattern, trivial input}), $n=195$ entries: per-parser timing over the synthetic set's default sweep.}
+\label{tab:patho-timing-cat-L}
 \end{table}
 
 Categories A, B, and E (Table~\ref{tab:patho-categories}) behave as
@@ -800,6 +991,20 @@ on 7\% of entries, compared with 14\% for each partial-derivative
 variant. H places several unbounded groups adjacently rather than
 nesting them. This shape may explain why bit-coded derivatives
 outperform the partial-derivative variants in this category.
+
+Categories I, J, K, and L form a $2\times2$ matrix of pattern size
+against input size (Table~\ref{tab:patho-categories}). L, trivial in
+both, is uniformly cheap: both bit-coded and both partial-derivative
+parsers never time out, and even the standard variants stay under
+67\,ms mean. I holds the pattern trivial and grows only the input;
+every parser still times out on close to a third of its entries or
+more, consistent with a floor set by input length alone once the
+pattern itself stops being the bottleneck. J and K instead grow the
+pattern, and both show ten crashes identical across all five parsers
+at every affected row, confirming the crash happens during
+translation, before any parser-specific derivation begins; the
+remaining entries then split by timeout much as the pattern-size-only
+categories above would predict.
 
 %
 %
@@ -861,34 +1066,39 @@ plotted point.}
 \end{figure}
 
 \textbf{Where the standard variants break.}
-Table~\ref{tab:patho-crash-thresholds} reports, for each representative row, the
-largest swept $n$ both standard variants still complete, the smallest swept
-$n$ at which both crash, and the largest $n$ \texttt{deriv\_bc} completes
-before it times out.
+Table~\ref{tab:patho-crash-thresholds} reports, for each representative row,
+the largest swept $n$ each parser family still completes and, where
+applicable, the smallest swept $n$ at which it fails: both standard
+variants crash identically, while \texttt{deriv\_bc} and the
+partial-derivative pair instead run until they time out.
 
 \begin{table}[H]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} ll rr rr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} ll rr rr rr}
 \hline
-& & \multicolumn{2}{c}{Standard (\texttt{rec} \& \texttt{loop})} & \multicolumn{2}{c}{\texttt{deriv\_bc}} \\
-Row & Pattern & Last OK & First crash & Last OK & First timeout \\
+& & \multicolumn{2}{c}{Standard (\texttt{rec} \& \texttt{loop})} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv} (\texttt{std} \& \texttt{bc})} \\
+Row & Pattern & Last OK & First crash & Last OK & First timeout & Last OK & First timeout \\
 \hline
-P60 & \texttt{(a|b|ab)*}, \texttt{a} repeated   &      5\,000 &     20\,000 &  10\,000\,000 & --- \\
-P61 & \texttt{(a|b|ab)*}, \texttt{ab} repeated  &          15 &         100 &   5\,000\,000 & --- \\
-P20 & \texttt{(a|b|ab)+}                        &          16 &         100 &  10\,000\,000 & --- \\
-P01 & \texttt{(a+)+}                            &          20 &          50 &      50\,000 &    200\,000 \\
-P09 & \texttt{(a|aa)+}                          &          25 &         100 &   5\,000\,000 & --- \\
-P25 & \texttt{(a|b)*c}                          &       2\,000 &      3\,500 &      10\,000 &     30\,000 \\
-P27 & \texttt{([ab]+)*c}                        &          10 &          15 &      10\,000 &     30\,000 \\
-P28 & \texttt{([ab]*)*c}                        &          10 &          15 &      10\,000 &     30\,000 \\
+P60 & \texttt{(a|b|ab)*}, \texttt{a} repeated   &      5\,000 &     20\,000 &  10\,000\,000 & --- &  10\,000\,000 & --- \\
+P61 & \texttt{(a|b|ab)*}, \texttt{ab} repeated  &          15 &         100 &   5\,000\,000 & --- &   5\,000\,000 & --- \\
+P20 & \texttt{(a|b|ab)+}                        &          16 &         100 &  10\,000\,000 & --- &  10\,000\,000 & --- \\
+P01 & \texttt{(a+)+}                            &          20 &          50 &      50\,000 &    200\,000 &   1\,000\,000 & --- \\
+P09 & \texttt{(a|aa)+}                          &          25 &         100 &   5\,000\,000 & --- &   5\,000\,000 & --- \\
+P25 & \texttt{(a|b)*c}                          &       2\,000 &      3\,500 &      10\,000 &     30\,000 &     200\,000 & --- \\
+P27 & \texttt{([ab]+)*c}                        &          10 &          15 &      10\,000 &     30\,000 &     200\,000 & --- \\
+P28 & \texttt{([ab]*)*c}                        &          10 &          15 &      10\,000 &     30\,000 &     200\,000 & --- \\
 \hline
 \end{tabular*}
 \caption{Match-side crash and timeout thresholds. The standard columns cover
-both \texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}, since both crash
-at the identical swept $n$ on every row. A dash means \texttt{deriv\_bc}
-completed every swept $n$ without timing out.}
+both \texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}, and the
+\texttt{pderiv} columns cover both \texttt{pderiv\_std} and \texttt{pderiv\_bc},
+since each pair is identical at every swept $n$ on every row. A dash means
+the candidate completed every swept $n$ without timing out. On P01, P25,
+P27, and P28, the partial-derivative pair substantially outlasts
+\texttt{deriv\_bc}; on the other four rows all three non-standard
+candidates behave identically.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
@@ -899,6 +1109,49 @@ retention of intermediate derivatives rather than recursion depth.
 The separate stack-depth test in Section~\ref{sec:eval-stack-depth}
 supports this distinction, since the iterative form survives 32 times
 further when stack depth is isolated.
+
+\textbf{Encode, derive, and decode cost.} The rows above sweep input
+length $n$; an \texttt{E}-row instead sweeps the pattern itself,
+isolating how \texttt{deriv\_bc} and \texttt{pderiv\_bc}'s three
+phases (Section~\ref{sec:eval-criteria-timing}) scale with pattern
+size rather than input length. Table~\ref{tab:patho-phases-e37}
+reports E37, a $p$-way alternation of distinct four-letter words, at
+$p \in \{100, 500, 1\,000, 2\,000\}$; Section~\ref{sec:eval-cost-partial-derivatives}
+returns to what it shows.
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrr rrr}
+\hline
+& \multicolumn{3}{c}{\texttt{deriv\_bc}} & \multicolumn{3}{c}{\texttt{pderiv\_bc}} \\
+\cline{2-4}\cline{5-7}
+$p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Decode (ms) \\
+\hline
+100         & 0.11 &   0.52 & 0.01 & 0.05 &   1.74 & 0.00 \\
+500         & 0.79 &   5.03 & 0.02 & 0.19 &  36.10 & 0.03 \\
+1\,000      & 1.32 &  13.92 & 0.03 & 0.51 & 142.35 & 0.04 \\
+2\,000      & 2.71 &  37.91 & 0.08 & 0.91 & 600.51 & 0.09 \\
+\hline
+\end{tabular*}
+\caption{\texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, E37: an \texttt{E}-row
+sweeping the pattern's alternation width $p$ at fixed input length
+(E37: \texttt{(?:aaaa|aaab|}\dots \texttt{)}, $p$ distinct four-letter
+alternatives; input \texttt{"aaaa"}, matching the first alternative
+immediately). Encode grows only mildly with $p$ for both parsers, and is
+consistently cheaper for \texttt{pderiv\_bc}, whose plain tree clone does
+less work per node than \texttt{deriv\_bc}'s annotated-state construction.
+Decode stays under 0.1\,ms throughout for both. Derive dominates and
+diverges sharply: \texttt{pderiv\_bc} is 3.3$\times$ \texttt{deriv\_bc}'s
+derive time at $p=100$ but 15.8$\times$ at $p=2\,000$, since a partial-derivative
+step touches every live alternative on each character, while \texttt{deriv\_bc}'s
+symbolic derivative does not enumerate them individually. On the
+non-matching input \texttt{"zzzz"} (not shown), which fails on the first
+character, both parsers stay under 3.5\,ms even at $p=2\,000$ -- the
+divergence above is specific to inputs that keep many alternatives alive.}
+\label{tab:patho-phases-e37}
+\end{table}
 
 \textbf{The E family.} Figure~\ref{fig:patho-fig7bc} plots the two
 remaining prefix-overlap rows. P61 uses P60's expression on
@@ -1772,8 +2025,10 @@ the measured corpus. \texttt{deriv\_bc} has a mean time of
 and a peak allocation of 5.1\,MB, about $114$--$144\times$ lower.
 Its forward pass retains information needed for single-pass
 reconstruction rather than simplifying every redundant branch.
-The decode step adds little time, with a mean well below
-0.1\,ms.
+The decode step adds little time, staying under 0.1\,ms even at
+$p=2\,000$ swept alternatives, while encode grows with pattern size
+alone, from 0.11\,ms at $p=100$ to 2.71\,ms at $p=2\,000$
+(Table~\ref{tab:patho-phases-e37}).
 
 The representative sweeps extend this result. \texttt{deriv\_bc}
 completes six of the eight rows, while both standard variants crash
@@ -1806,6 +2061,20 @@ faster on P61 and P20. On P20, it also has the lower peak allocation
 (3.27 against 4.97\,GB). The results suggest that the relative
 cost of bit-coding depends on the pattern and input, not only
 on input length.
+
+The two bit-coded parsers' phase costs diverge sharply once the
+pattern itself grows wide. On a $p$-way alternation of equal-length
+words (Table~\ref{tab:patho-phases-e37}), \texttt{pderiv\_bc}'s derive
+time grows from $3.3\times$ \texttt{deriv\_bc}'s at $p=100$ to
+$15.8\times$ at $p=2\,000$ on matching input, since a
+partial-derivative step touches every live alternative on each
+character, while \texttt{deriv\_bc}'s symbolic derivative does not
+enumerate them individually. The gap narrows sharply on non-matching
+input, where both stay under 3.5\,ms even at $p=2\,000$ because the
+derivation collapses on the first character. \texttt{pderiv\_bc}'s own
+encode step is, however, consistently cheaper than \texttt{deriv\_bc}'s,
+since cloning the pattern tree does less work per node than building
+\texttt{deriv\_bc}'s annotated state.
 
 Both partial-derivative variants produce non-POSIX trees. This is
 a difference in parsing policy, not a correctness defect, and is
