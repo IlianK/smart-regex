@@ -122,7 +122,7 @@ Each entry $(r, w)$ is timed once, without warm-up run or repeated
 measurements. Translation is measured separately, so the wall-clock
 time covers only the parser call $p(r, w)$.
 For \texttt{deriv\_std\_rec}, \texttt{deriv\_std\_loop}, and
-\texttt{pderiv\_std}, the entire parser call is reported as \emph{Derive}.
+\texttt{pderiv\_std}, the entire parser call is reported as \emph{mean}.
 For \texttt{deriv\_bc} and \texttt{pderiv\_bc}, the call is split into
 three: \emph{Encode} constructs the initial annotated state before
 any character of $w$ is consumed, \emph{Derive} processes the input one
@@ -456,11 +456,10 @@ input length $n$, the pattern size $p$, or both, and a \emph{sweep} varies
 one of these parameters over a range of values, recording a measurement at
 each. 
 
-A row of type \texttt{P} fixes the pattern and grows $n$, so its
-sweep measures how cost scales with input size. A row of type \texttt{E}
-fixes the input and grows $p$, so its sweep measures how cost scales with
-pattern size. Table~\ref{tab:sweep-samples} shows one row of each type at
-two sweep values.
+A \texttt{P} row fixes the pattern and grows $n$, measuring cost against
+input size, while an \texttt{E} row fixes the input and grows $p$, measuring
+cost against pattern size. Each sweep value yields an $entry$ $(r, w, e)$.
+Table~\ref{tab:sweep-samples} shows one row of each type at two sweep values.
 
 \begin{table}[H]
 \centering
