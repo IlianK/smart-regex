@@ -447,7 +447,7 @@ Total                                       & 177 \\
 \subsection{Synthetic Stress Set}
 \label{sec:eval-pathological}
 
-The synthetic set contains 113 manually authored patterns designed to
+The synthetic set contains 112 manually authored patterns designed to
 investigate how parser costs grow with input length and pattern size.
 It complements the real corpus, which does not exercise these cost
 mechanisms at comparable scales. All patterns are intended for full-string
@@ -516,8 +516,8 @@ B & Overlapping alternation
 C & Bounded rep over star
     & Bounded repetition of a star, unrolled
     & \texttt{(.*a)\{1,10\}} & 7 & 56 \\
-D & Full-consume near-miss
-    & Near-matching tail forces full enumeration
+D & Anchored-failure style
+    & Must fully consume input; near-miss tail forces full enumeration
     & \texttt{(a?)\{3\}a\{3\}} & 4 & 40 \\
 E & Prefix-overlap alternation
     & One alternative is a strict prefix of another
@@ -1694,7 +1694,7 @@ reach 582.4 and 737.6\,MB, compared with 5.1\,MB for
 \texttt{deriv\_bc}, a factor of $114$--$144$. The standard parser
 retains its derivation sequence for the backward pass, whereas
 \texttt{deriv\_bc} stores a flat bit vector. The difference in total
-allocation is smaller, at roughly $1.9$--$2\times$.
+allocation is smaller, at roughly $1.8$--$1.9\times$.
 
 The partial-derivative pair shows a different result from the growth
 curves. \texttt{pderiv\_std} has the lower peak (2.5 against 3.8\,MB),
@@ -2327,7 +2327,7 @@ Including the remaining 115 patterns with
 \texttt{BENCH\_MATCH\_INTENT=both} could change the absolute
 results and potentially the ranking of candidates.
 
-\textbf{The synthetic set.} Its 113 rows isolate individual
+\textbf{The synthetic set.} Its 112 rows isolate individual
 complexity mechanisms at controlled scales rather than representing
 patterns written by typical users. Most categories vary one parameter
 at a time, so combinations of stress mechanisms are not directly tested.
