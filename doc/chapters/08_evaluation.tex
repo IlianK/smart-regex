@@ -1052,20 +1052,21 @@ crash in the first column and a timeout in the other two.}
 
 \textbf{P60 and P61.} Figures~\ref{fig:patho-fig7a} and~\ref{fig:patho-fig7bc}
 plot wall time for \texttt{(a|b|ab)*} on \texttt{a}- and \texttt{ab}-repeated
-input, at the scale of \citet{sulzmannlu2014}'s Figure~7(a) and~7(b). Their
-paper also benchmarks three tools (TDFA, RE2, C-POSIX) that record only a
-star's last iteration rather than a full parse tree, so the comparison is
-restricted to the full-parse-tree family \texttt{deriv\_bc} implements. On
-both inputs the three surviving parsers grow roughly linearly, ten times
-the input taking about ten times as long, with no state explosion like the
-standard pair's. At this scale \texttt{deriv\_bc} is nonetheless the
-slowest of the three, and the lower panels plot the partial-derivative pair
-as a ratio to it. 
-On P60 both stay below 1 throughout, \texttt{pderiv\_std} reaching about
-0.7 at the largest inputs. On P61 they trade places with no clear winner,
-the ratio staying near 1, so the pair's margin narrows without reversing
-and its internal ordering depends on the pattern rather than on input
-length.
+input, at the scale of \citet{sulzmannlu2014}'s Figure~7(a) and~7(b). The
+comparison is not exact. \texttt{deriv\_bc} implements the paper's
+construction as described in their theory, building a full parse tree.
+But the paper's Figure~7 uses an implementation adapted for submatching, to record only a
+Kleene star's last match so it could be compared against TDFA, RE2,
+and C-POSIX. 
+That curve is not directly comparable, though
+it is plotted here at the same scale. Both inputs grow roughly linearly.
+The lower panels plot the partial-derivative pair's time as a ratio to
+\texttt{deriv\_bc}, which trails both across most of the sweep.
+\texttt{deriv\_bc} keeps the pattern's ambiguity in one expression and
+cleans it up after every character by comparing every alternative against
+every other one. The partial-derivative pair instead keep the readings in
+a short list and check each new one against it once, which is cheaper regardless
+of input.
 
 \begin{figure}[H]
 \centering
@@ -1097,6 +1098,48 @@ length.
 \end{tikzpicture}
 
 \vspace{0.4em}
+
+Between the two partial-derivative parsers, \texttt{pderiv\_std} is
+fastest on P60 across most of the sweep, reaching about 0.7 of
+\texttt{deriv\_bc}'s time at the largest inputs, with \texttt{pderiv\_bc}
+trailing it; on P61 the two stay close throughout, with
+\texttt{pderiv\_std} keeping only a slight edge. This is specific to this
+pattern: dataset-wide, \texttt{pderiv\_bc} is faster on mean in eight
+categories and median in six (see the summary above).
+\texttt{pderiv\_bc} and \texttt{pderiv\_std} step the same residuals and
+differ only in how they tag them, so here the gap traces back to how
+many residuals stay live.
+
+Write $B$ for \texttt{a|b|ab}, so the pattern is $B^*$, and $\mathit{step}$
+for one character's transition (derive, then keep the first copy of each
+repeat -- \texttt{nub2}/\texttt{nub\_tree}, \S\ref{sec:pderiv-state-set},
+\ref{sec:pderiv-bc-state-set}). From the start state $S_0 = \{B^*\}$:
+\[
+\begin{aligned}
+\mathit{step}(S_0, \mathtt{a}) &= \{\,B^*,\ \ \mathtt{b}\cdot B^*\,\} =: S_1, \\
+\mathit{step}(S_1, \mathtt{a}) &= S_1, \\
+\mathit{step}(S_1, \mathtt{b}) &= \{\,B^*\,\} = S_0.
+\end{aligned}
+\]
+$S_1$'s second residual is a reading still mid-way through \texttt{ab},
+parked on \texttt{b}: on \texttt{a} it finds no \texttt{b} and drops out
+while $B^*$ regenerates the pair, so $S_1$ reproduces itself and
+\texttt{a}-repeated input holds at two residuals forever. On \texttt{b}
+both residuals of $S_1$ instead reach $B^*$ and collapse to one copy,
+landing back on $S_0$ exactly, so \texttt{ab}-repeated input alternates
+$S_0 \to S_1 \to S_0 \to S_1 \to \cdots$ forever: one residual on every
+\texttt{b}, two on every \texttt{a}.
+
+Each new residual needs a tag recording which branch produced it.
+\texttt{pderiv\_bc} builds this tag as a short list of bits, grown one
+bit at a time; \texttt{pderiv\_std} wraps a function around the previous
+one instead. Growing a list this way copies it each time; wrapping a
+function does not, so \texttt{pderiv\_bc} pays a real, if small, extra
+cost on every residual it tags. On \texttt{a}-repeated input the residual
+count never drops below two, so every character pays that cost twice; on
+\texttt{ab}-repeated input it drops to one every other character, so only
+every other character does, narrowing the gap.
+
 
 \begin{tikzpicture}
 \begin{axis}[
