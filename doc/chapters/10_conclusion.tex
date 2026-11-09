@@ -22,19 +22,20 @@ Within the derivative family, bit-coding wins unconditionally.
 \texttt{deriv\_std} variants carry the whole derivation sequence, so
 it is faster and lighter at every scale measured. On
 multi-million-character \texttt{(a|b|ab)*} inputs at the scale of
-\citet{sulzmannlu2014}'s own benchmark, both standard variants fail
-outright at every input length tested, by two independent mechanisms,
-stack overflow for the recursive variant and heap exhaustion for the
-iterative one, while \texttt{deriv\_bc} completes the full
-ten-million-character range in under a minute.
+\citet{sulzmannlu2014}'s own benchmark, both standard variants crash
+between five thousand and twenty thousand characters, by the same
+mechanism in both cases: heap exhaustion from retaining the
+derivation sequence for the backward pass. \texttt{deriv\_bc}
+completes the full ten-million-character range in under a minute.
 
-Within the partial-derivative family the same claim does not hold.
-\texttt{pderiv\_std} and \texttt{pderiv\_bc} trade leading position
-with input structure rather than size. \texttt{pderiv\_std} is
-marginally faster on the real corpus and on \texttt{(a|b|ab)*} over
-\texttt{a}-only inputs, while \texttt{pderiv\_bc} is consistently
-faster on the same pattern over alternating \texttt{ab} inputs. The
-choice between them is therefore per-pattern and per-input.
+Within the partial-derivative family, this does not hold.
+\texttt{pderiv\_bc} is marginally faster on the real corpus, at
+0.625 against \texttt{pderiv\_std}'s 0.699\,ms mean, but
+\texttt{pderiv\_std} holds the edge on \texttt{(a|b|ab)*}
+specifically, clearly on \texttt{a}-only inputs and narrowly on
+alternating \texttt{ab} inputs. The choice between them is therefore
+per-pattern and per-input, not settled by either variant's aggregate
+edge.
 
 Construction therefore matters more than variant. A POSIX parser
 that scales to long inputs has one answer, \texttt{deriv\_bc}, the
