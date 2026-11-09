@@ -764,209 +764,100 @@ call begins. \emph{Mean}/\emph{Median}/\emph{Max} exclude both.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrr}
 \hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+Cat. & Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
-\texttt{deriv\_std\_rec} & 111 & 0 & 214.90 & 3.70 & 1\,828.71 \\
-\texttt{deriv\_std\_loop} & 111 & 0 & 216.25 & 3.58 & 1\,879.54 \\
-\texttt{deriv\_bc} & 2 & 0 & 157.27 & 0.29 & 1\,737.26 \\
-\texttt{pderiv\_bc} & 0 & 0 & 15.27 & 0.24 & 803.41 \\
-\texttt{pderiv\_std} & 0 & 0 & 18.63 & 0.24 & 1\,276.42 \\
+A & \texttt{deriv\_std\_rec}  & 111 & 0 & 214.90 & 3.70 & 1\,828.71 \\
+  & \texttt{deriv\_std\_loop} & 111 & 0 & 216.25 & 3.58 & 1\,879.54 \\
+  & \texttt{deriv\_bc}        &   2 & 0 & 157.27 & 0.29 & 1\,737.26 \\
+  & \texttt{pderiv\_std}      &   0 & 0 &  18.63 & 0.24 & 1\,276.42 \\
+  & \texttt{pderiv\_bc}       &   0 & 0 &  15.27 & 0.24 &   803.41 \\
+\hline
+B & \texttt{deriv\_std\_rec}  &  95 & 0 & 161.43 & 27.51 & 1\,481.46 \\
+  & \texttt{deriv\_std\_loop} &  95 & 0 & 160.11 & 25.73 & 1\,488.19 \\
+  & \texttt{deriv\_bc}        &   6 & 0 &  96.58 &  2.95 & 1\,459.29 \\
+  & \texttt{pderiv\_std}      &   2 & 0 &  76.04 &  1.86 & 1\,711.91 \\
+  & \texttt{pderiv\_bc}       &   0 & 0 &  94.33 &  1.89 & 1\,636.99 \\
+\hline
+C & \texttt{deriv\_std\_rec}  &  32 & 0 &  86.33 &  3.62 &   843.04 \\
+  & \texttt{deriv\_std\_loop} &  32 & 0 &  85.86 &  3.86 &   831.32 \\
+  & \texttt{deriv\_bc}        &  14 & 0 & 228.73 & 47.51 & 1\,149.12 \\
+  & \texttt{pderiv\_std}      &  10 & 0 & 234.90 & 34.03 &   881.80 \\
+  & \texttt{pderiv\_bc}       &  10 & 0 & 216.37 & 31.25 &   846.27 \\
+\hline
+D & \texttt{deriv\_std\_rec}  &   8 & 0 & 245.83 & 43.16 & 1\,770.13 \\
+  & \texttt{deriv\_std\_loop} &   8 & 0 & 245.44 & 42.65 & 1\,784.83 \\
+  & \texttt{deriv\_bc}        &   0 & 0 & 138.07 & 14.78 & 1\,461.16 \\
+  & \texttt{pderiv\_std}      &   6 & 0 & 212.65 & 43.62 &   928.24 \\
+  & \texttt{pderiv\_bc}       &   6 & 0 & 190.91 & 46.25 &   837.08 \\
+\hline
+E & \texttt{deriv\_std\_rec}  &  45 & 0 & 296.78 & 10.80 & 1\,790.84 \\
+  & \texttt{deriv\_std\_loop} &  42 & 0 & 393.84 & 12.87 & 1\,868.69 \\
+  & \texttt{deriv\_bc}        &   0 & 0 &  78.14 &  4.77 & 1\,265.09 \\
+  & \texttt{pderiv\_std}      &   0 & 0 &  62.28 &  3.12 & 1\,151.41 \\
+  & \texttt{pderiv\_bc}       &   0 & 0 &  57.07 &  3.10 &   953.83 \\
+\hline
+F & \texttt{deriv\_std\_rec}  &  46 & 0 & 382.18 & 16.03 & 1\,689.86 \\
+  & \texttt{deriv\_std\_loop} &  46 & 0 & 380.47 & 14.64 & 1\,670.68 \\
+  & \texttt{deriv\_bc}        &  28 & 0 &  42.59 &  2.41 &   420.71 \\
+  & \texttt{pderiv\_std}      &   2 & 0 & 100.32 &  6.75 & 1\,702.89 \\
+  & \texttt{pderiv\_bc}       &   2 & 0 & 103.08 &  8.01 & 1\,681.91 \\
+\hline
+H & \texttt{deriv\_std\_rec}  &  18 & 0 & 224.19 & 14.12 & 1\,182.88 \\
+  & \texttt{deriv\_std\_loop} &  18 & 0 & 224.30 & 15.01 & 1\,178.46 \\
+  & \texttt{deriv\_bc}        &   2 & 0 & 258.02 & 75.26 & 1\,675.36 \\
+  & \texttt{pderiv\_std}      &   4 & 0 & 232.96 & 47.96 & 1\,981.61 \\
+  & \texttt{pderiv\_bc}       &   4 & 0 & 212.35 & 44.70 & 1\,917.12 \\
 \hline
 \end{tabular*}
-\caption{Category A (\emph{Nested quantifiers}), $n=160$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-A}
+\caption{Per-parser timing over the synthetic set's default sweep for the
+mechanism categories A--H. \emph{Timed out} and \emph{Crashed} are counts;
+\emph{Mean}, \emph{Median}, and \emph{Max} are over completed entries only,
+so they are lower bounds where timeouts occur. Categories are as defined in
+Table~\ref{tab:patho-categories}.}
+\label{tab:patho-timing-mech}
 \end{table}
 
 \begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrr}
 \hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+Cat. & Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
-\texttt{deriv\_std\_rec} & 95 & 0 & 161.43 & 27.51 & 1\,481.46 \\
-\texttt{deriv\_std\_loop} & 95 & 0 & 160.11 & 25.73 & 1\,488.19 \\
-\texttt{deriv\_bc} & 6 & 0 & 96.58 & 2.95 & 1\,459.29 \\
-\texttt{pderiv\_bc} & 0 & 0 & 94.33 & 1.89 & 1\,636.99 \\
-\texttt{pderiv\_std} & 2 & 0 & 76.04 & 1.86 & 1\,711.91 \\
+I & \texttt{deriv\_std\_rec}  &  44 & 1 & 126.03 &   0.57 & 1\,613.18 \\
+  & \texttt{deriv\_std\_loop} &  44 & 0 & 232.31 &   0.54 & 1\,927.88 \\
+  & \texttt{deriv\_bc}        &  19 & 0 & 462.19 & 142.23 & 1\,889.89 \\
+  & \texttt{pderiv\_std}      &  18 & 0 & 280.94 & 131.14 & 1\,708.77 \\
+  & \texttt{pderiv\_bc}       &  18 & 0 & 232.19 & 106.81 & 1\,731.73 \\
 \hline
-\end{tabular*}
-\caption{Category B (\emph{Overlapping alternation}), $n=150$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-B}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
+J & \texttt{deriv\_std\_rec}  &   3 & 10 & 161.48 &  4.88 & 1\,704.85 \\
+  & \texttt{deriv\_std\_loop} &   2 & 10 & 235.94 &  6.53 & 1\,767.72 \\
+  & \texttt{deriv\_bc}        &   2 & 10 & 179.85 & 17.80 & 1\,555.27 \\
+  & \texttt{pderiv\_std}      &   4 & 10 & 244.74 & 70.80 & 1\,612.40 \\
+  & \texttt{pderiv\_bc}       &   4 & 10 & 209.77 & 63.59 & 1\,294.06 \\
 \hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
+K & \texttt{deriv\_std\_rec}  &  24 & 10 & 352.48 & 402.89 &   626.53 \\
+  & \texttt{deriv\_std\_loop} &  24 & 10 & 326.28 & 352.32 &   536.02 \\
+  & \texttt{deriv\_bc}        &  12 & 10 & 183.13 &  56.87 &   827.57 \\
+  & \texttt{pderiv\_std}      &  11 & 10 & 200.47 &  38.47 & 1\,923.37 \\
+  & \texttt{pderiv\_bc}       &  10 & 10 & 179.75 &  33.61 & 1\,177.06 \\
 \hline
-\texttt{deriv\_std\_rec} & 32 & 0 & 86.33 & 3.62 & 843.04 \\
-\texttt{deriv\_std\_loop} & 32 & 0 & 85.86 & 3.86 & 831.32 \\
-\texttt{deriv\_bc} & 14 & 0 & 228.73 & 47.51 & 1\,149.12 \\
-\texttt{pderiv\_bc} & 10 & 0 & 216.37 & 31.25 & 846.27 \\
-\texttt{pderiv\_std} & 10 & 0 & 234.90 & 34.03 & 881.80 \\
-\hline
-\end{tabular*}
-\caption{Category C (\emph{Bounded repetition over star}), $n=56$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-C}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 8 & 0 & 245.83 & 43.16 & 1\,770.13 \\
-\texttt{deriv\_std\_loop} & 8 & 0 & 245.44 & 42.65 & 1\,784.83 \\
-\texttt{deriv\_bc} & 0 & 0 & 138.07 & 14.78 & 1\,461.16 \\
-\texttt{pderiv\_bc} & 6 & 0 & 190.91 & 46.25 & 837.08 \\
-\texttt{pderiv\_std} & 6 & 0 & 212.65 & 43.62 & 928.24 \\
+L & \texttt{deriv\_std\_rec}  &  20 & 0 &  64.02 &  0.09 & 1\,850.29 \\
+  & \texttt{deriv\_std\_loop} &  19 & 0 &  66.26 &  0.13 & 1\,797.90 \\
+  & \texttt{deriv\_bc}        &   0 & 0 &   4.48 &  0.08 &    97.19 \\
+  & \texttt{pderiv\_std}      &   0 & 0 &   2.04 &  0.03 &    41.25 \\
+  & \texttt{pderiv\_bc}       &   0 & 0 &   2.09 &  0.03 &    48.39 \\
 \hline
 \end{tabular*}
-\caption{Category D (\emph{Anchored-failure style}), $n=40$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-D}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 45 & 0 & 296.78 & 10.80 & 1\,790.84 \\
-\texttt{deriv\_std\_loop} & 42 & 0 & 393.84 & 12.87 & 1\,868.69 \\
-\texttt{deriv\_bc} & 0 & 0 & 78.14 & 4.77 & 1\,265.09 \\
-\texttt{pderiv\_bc} & 0 & 0 & 57.07 & 3.10 & 953.83 \\
-\texttt{pderiv\_std} & 0 & 0 & 62.28 & 3.12 & 1\,151.41 \\
-\hline
-\end{tabular*}
-\caption{Category E (\emph{Prefix-overlap alternation}), $n=80$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-E}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 46 & 0 & 382.18 & 16.03 & 1\,689.86 \\
-\texttt{deriv\_std\_loop} & 46 & 0 & 380.47 & 14.64 & 1\,670.68 \\
-\texttt{deriv\_bc} & 28 & 0 & 42.59 & 2.41 & 420.71 \\
-\texttt{pderiv\_bc} & 2 & 0 & 103.08 & 8.01 & 1\,681.91 \\
-\texttt{pderiv\_std} & 2 & 0 & 100.32 & 6.75 & 1\,702.89 \\
-\hline
-\end{tabular*}
-\caption{Category F (\emph{Alternation-star + literal}), $n=70$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-F}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 18 & 0 & 224.19 & 14.12 & 1\,182.88 \\
-\texttt{deriv\_std\_loop} & 18 & 0 & 224.30 & 15.01 & 1\,178.46 \\
-\texttt{deriv\_bc} & 2 & 0 & 258.02 & 75.26 & 1\,675.36 \\
-\texttt{pderiv\_bc} & 4 & 0 & 212.35 & 44.70 & 1\,917.12 \\
-\texttt{pderiv\_std} & 4 & 0 & 232.96 & 47.96 & 1\,981.61 \\
-\hline
-\end{tabular*}
-\caption{Category H (\emph{Many adjacent stars/groups}), $n=28$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-H}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 44 & 1 & 126.03 & 0.57 & 1\,613.18 \\
-\texttt{deriv\_std\_loop} & 44 & 0 & 232.31 & 0.54 & 1\,927.88 \\
-\texttt{deriv\_bc} & 19 & 0 & 462.19 & 142.23 & 1\,889.89 \\
-\texttt{pderiv\_bc} & 18 & 0 & 232.19 & 106.81 & 1\,731.73 \\
-\texttt{pderiv\_std} & 18 & 0 & 280.94 & 131.14 & 1\,708.77 \\
-\hline
-\end{tabular*}
-\caption{Category I (\emph{Trivial pattern, large input}), $n=60$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-I}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 3 & 10 & 161.48 & 4.88 & 1\,704.85 \\
-\texttt{deriv\_std\_loop} & 2 & 10 & 235.94 & 6.53 & 1\,767.72 \\
-\texttt{deriv\_bc} & 2 & 10 & 179.85 & 17.80 & 1\,555.27 \\
-\texttt{pderiv\_bc} & 4 & 10 & 209.77 & 63.59 & 1\,294.06 \\
-\texttt{pderiv\_std} & 4 & 10 & 244.74 & 70.80 & 1\,612.40 \\
-\hline
-\end{tabular*}
-\caption{Category J (\emph{Large pattern, trivial input}), $n=34$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-J}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 24 & 10 & 352.48 & 402.89 & 626.53 \\
-\texttt{deriv\_std\_loop} & 24 & 10 & 326.28 & 352.32 & 536.02 \\
-\texttt{deriv\_bc} & 12 & 10 & 183.13 & 56.87 & 827.57 \\
-\texttt{pderiv\_bc} & 10 & 10 & 179.75 & 33.61 & 1\,177.06 \\
-\texttt{pderiv\_std} & 11 & 10 & 200.47 & 38.47 & 1\,923.37 \\
-\hline
-\end{tabular*}
-\caption{Category K (\emph{Large pattern, large input}), $n=40$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-K}
-\end{table}
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
-\hline
-Parser & Timed out & Crashed & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-\texttt{deriv\_std\_rec} & 20 & 0 & 64.02 & 0.09 & 1\,850.29 \\
-\texttt{deriv\_std\_loop} & 19 & 0 & 66.26 & 0.13 & 1\,797.90 \\
-\texttt{deriv\_bc} & 0 & 0 & 4.48 & 0.08 & 97.19 \\
-\texttt{pderiv\_bc} & 0 & 0 & 2.09 & 0.03 & 48.39 \\
-\texttt{pderiv\_std} & 0 & 0 & 2.04 & 0.03 & 41.25 \\
-\hline
-\end{tabular*}
-\caption{Category L (\emph{Trivial pattern, trivial input}), $n=195$ entries: per-parser timing over the synthetic set's default sweep.}
-\label{tab:patho-timing-cat-L}
+\caption{Per-parser timing over the synthetic set's default sweep for the
+$2\times 2$ size matrix I--L (pattern size $\times$ input size).
+\emph{Timed out} and \emph{Crashed} are counts; \emph{Mean},
+\emph{Median}, and \emph{Max} are over completed entries only, so they are
+lower bounds where timeouts occur.}
+\label{tab:patho-timing-size}
 \end{table}
 
 Categories A, B, and E (Table~\ref{tab:patho-categories}) behave as
