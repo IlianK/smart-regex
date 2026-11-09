@@ -753,16 +753,16 @@ all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
 \label{sec:eval-timing-pathological}
 
 The eleven categories (Table~\ref{tab:patho-categories}) are each swept
-once at their own default $n$ list. Table~\ref{tab:patho-timing-mech}
-reports the seven mechanism categories and Table~\ref{tab:patho-timing-size}
-the $2\times2$ pattern-size/input-size matrix, each grouping all five
-parsers by category so they compare directly within a fixed category.
-\emph{Timed out} counts entries whose parser call exceeded the
-two-second budget; a worker crash is rare enough at this point that
-it is folded into \emph{Timed out} as a parenthetical count rather
-than given its own column. \emph{Measured} counts the entries that
-returned a completed timing, and \emph{Mean}/\emph{Median}/\emph{Max}
-are computed over those only.
+once at their own default parameter values, so every entry is a single run
+at one point of a sweep rather than an average over repetitions.
+Table~\ref{tab:patho-timing-mech} reports the seven mechanism categories
+and Table~\ref{tab:patho-timing-size} the $2\times2$ pattern-size/input-size
+matrix. Both group the five parsers by category, so parsers compare
+directly within a fixed category. 
+Since timed-out entries are excluded
+from the measurements those columns understate a slower
+parser's cost in proportion to how many entries it loses, meaning the timeout
+count is the primary indicator.
 %
 \begin{table}[H]
 \centering
@@ -819,10 +819,79 @@ H & \texttt{deriv\_std\_rec}  &  18 &  10 & 234.76 & 14.54 & 1\,233.01 \\
 mechanism categories A--H. \emph{Timed out} counts entries exceeding the
 budget, with any crash among them shown in parentheses; \emph{Measured}
 counts entries with a completed timing. \emph{Mean}, \emph{Median}, and
-\emph{Max} are over measured entries only. Categories are as defined in
-Table~\ref{tab:patho-categories}.}
+\emph{Max} are over measured entries only.}
 \label{tab:patho-timing-mech}
 \end{table}
+
+Categories A, B, and E (Table~\ref{tab:patho-categories}) show the
+expected behavior: \texttt{deriv\_bc} and the partial-derivative variants
+time out on at most 6 entries per category, against 112 of A's 160, 95 of
+B's 150, and 45 of E's 80 for the standard variants, and the medians give
+the same ranking in all three. The partial-derivative variants are fastest
+and nearly tied (0.24--0.27, 1.75--1.94, and 3.43--3.53\,ms in A, B, and
+E), \texttt{deriv\_bc} follows (0.28, 2.95, 4.95\,ms), and the standard
+pair is an order of magnitude slower throughout. All three categories let
+the same input be consumed by many decompositions, so the standard
+construction's residual expression grows with each step and its size
+drives the cost, while \texttt{deriv\_bc} simplifies after each step and
+keeps a single expression, and the partial-derivative parsers keep a
+deduplicated set instead.
+
+Category C has high timeout counts across all five parsers, from 10 to 32
+of its 56 entries. Its patterns wrap a star body in a bounded repetition,
+so unrolling produces up to ten copies of an already ambiguous
+subexpression, and every parser has to process that larger expression
+within the measured call. \texttt{deriv\_bc} times out on 14 entries
+against 10 for each partial-derivative variant, so its modest robustness
+advantage comes at the cost of a higher median on completed entries
+(48.68 against 31.61 and 34.62\,ms).
+
+Category F is the one category where the median ranking reverses against
+\texttt{deriv\_bc}. Its patterns end in a literal that fails late, so
+every entry must consume the whole input before that literal is checked
+and no parser can reject early. There \texttt{deriv\_bc} appears faster
+than both partial-derivative variants, 43.15 against 102.03 and
+105.05\,ms on the mean, 2.48 against 7.93 and 8.44\,ms on the median, but
+this comparison is not valid, since it completes only 42 of the 70 entries
+against 68 for each partial-derivative variant. The statistics
+describe the easier subset it kept. The partial-derivative pair is the
+more robust choice here, timing out on 2 entries against 28.
+
+Category D reverses the ordering: \texttt{deriv\_bc} times out on none of
+its 40 entries and each partial-derivative variant on 6. The measured
+counts are close, so the means compare directly, and the fewest timeouts
+and the lowest mean fall on the same parser, \texttt{deriv\_bc}, at
+140.23 against 199.98--261.89\,ms. D's patterns are unrolled bounded
+repetitions, so consuming a prefix leaves a suffix of the unrolled chain,
+and different prefix lengths leave suffixes of different lengths.
+\texttt{deriv\_bc} simplifies after each step, which rewrites equivalent
+residuals into a common form so that identical ones merge and the
+expression stays small, whereas the partial-derivative parsers only drop
+residuals that are already equal, so suffixes of different lengths remain
+separate elements, each stepped at every character, and the set grows with
+the pattern. The advantage of \texttt{deriv\_bc} therefore comes from the
+simplification its encoding permits, not from the encoding itself.
+
+Category H is another reversal: \texttt{deriv\_bc} times out on 2 of its
+28 entries, against 4 for each partial-derivative variant. H's patterns
+are chains of adjacent unbounded groups, such as
+\texttt{(.+)(.+)}\(\ldots\), so the split points multiply across the group
+boundaries, the residual set the partial-derivative parsers carry grows
+with the number of groups, each element stepped at every character, and
+\texttt{deriv\_bc} carries a single simplified expression instead. On
+completed entries, however, the partial-derivative variants remain faster
+on both mean (215.79 and 238.05 against 262.41\,ms) and median (42.46 and
+46.68 against 75.97\,ms).
+
+The synthetic categories separate the two partial-derivative variants more
+than the corpus does. Wherever the residual set grows, which is C, D, E,
+and H, the mean favours \texttt{pderiv\_bc} 
+and in the three categories where the set stays small they
+are within a few points of each other. The medians are less consistent,
+favouring \texttt{pderiv\_bc} only in C and H, so the effect is a
+reduction in the slow tail rather than in the typical entry.
+
+
 
 \begin{table}[H]
 \centering
@@ -861,43 +930,29 @@ L & \texttt{deriv\_std\_rec}  & 20 & 175 &  65.14 & 0.10 & 1\,871.71 \\
 $2\times 2$ size matrix I--L (pattern size $\times$ input size).
 \emph{Timed out} counts entries exceeding the budget, with any crash
 among them shown in parentheses; \emph{Measured} counts entries with a
-completed timing. \emph{Mean}, \emph{Median}, and \emph{Max} are over
-measured entries only.}
+completed timing.}
 \label{tab:patho-timing-size}
 \end{table}
 
-Categories A, B, and E (Table~\ref{tab:patho-categories}) behave as
-intended: \texttt{deriv\_bc} and the partial-derivative variants time
-out on at most 6 entries per category, against 112 of A's 160, 95 of
-B's 150, and 45 of E's 80 for the standard variants -- consistent with
-shape-based simplification and per-step deduplication limiting
-redundant states in the standard construction. Category F is the
-contrast: \texttt{deriv\_bc} times out on 28 of 70 entries here,
-against only 2 for both partial-derivative variants, so this
-mechanism can defeat bit-coding.
-
-Category C has high timeout counts across all five parsers, from 10
-up to 32 of its 56 entries, consistent with bound unrolling producing
-a large translated \texttt{Regex} that each parser then processes
-during its timed loop, while translation itself stays outside the
-timing measurement (Section~\ref{sec:eval-criteria-timing}).
-
-Category H reverses the usual ranking: \texttt{deriv\_bc} times out
-on 2 of its 28 entries, against 4 for each partial-derivative variant.
-H places several unbounded groups adjacently rather than nesting
-them, which may explain why bit-coded derivatives outperform the
-partial-derivative variants here.
-
-Categories I, J, K, and L form a $2\times2$ matrix of pattern size
-against input size. L, trivial in both, is uniformly cheap: the
-bit-coded and partial-derivative parsers never time out, and even the
-standard variants average under 68\,ms. I holds the pattern trivial
-and grows only the input; every parser times out on at least 18 of its
-60 entries, rising to 44 (plus the one crash) for
-\texttt{deriv\_std\_rec}, a floor set by input length alone. J and K
-instead grow the pattern, scoped to stay within the translation cap
-(Section~\ref{sec:eval-translate-caps}); timeouts there range from 2
-to 24 entries.
+Categories I, J, K, and L form a $2\times2$ matrix of pattern size against
+input size. 
+L, trivial in both, is also comparable, since every parser
+measures at least 175 of the 195 entries; there the grouping matches the
+corpus, with \texttt{pderiv\_std} and \texttt{pderiv\_bc} averaging 2.08
+and 2.11\,ms, \texttt{deriv\_bc} 4.58\,ms, and the standard pair 65.14 and
+67.94\,ms, so on trivial work \texttt{deriv\_bc} is about twice as slow as
+either partial-derivative variant. 
+I holds the pattern trivial and grows
+only the input, where input length alone pushes every parser past the
+budget on at least 18 of its 60 entries, rising to 44 for
+\texttt{deriv\_std\_rec} plus the single crash that its call-stack storage
+makes reachable (Section~\ref{sec:eval-stack-depth}). 
+J grows the pattern
+while K grows both axes; timeouts range from 2 to 4 in J and 10 to 24 in
+K. J therefore shows that a large pattern alone does not separate the
+constructions much, since every parser pays the cost of traversing the
+translated expression, whereas K shows that the separation returns once
+the input is long enough for the derivative state to grow.
 
 %
 %
