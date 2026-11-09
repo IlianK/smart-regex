@@ -1012,10 +1012,6 @@ P61 & E & \texttt{(a|b|ab)*}, \texttt{ab} repeated
     & \shortstack[r]{\checkmark\ 15\\ $\times$\ 100}
     & \shortstack[r]{\checkmark\ 5\,000\,000\\ ---}
     & \shortstack[r]{\checkmark\ 5\,000\,000\\ ---} \\[14pt]
-P20 & E & \texttt{(a|b|ab)+}
-    & \shortstack[r]{\checkmark\ 16\\ $\times$\ 100}
-    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---}
-    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
 P09 & B & \texttt{(a|aa)+}
     & \shortstack[r]{\checkmark\ 25\\ $\times$\ 100}
     & \shortstack[r]{\checkmark\ 5\,000\,000\\ ---}
@@ -1027,10 +1023,6 @@ P01 & A & \texttt{(a+)+}
     & \shortstack[r]{\checkmark\ 1\,000\,000\\ ---} \\[14pt]
 P25 & F & \texttt{(a|b)*c}
     & \shortstack[r]{\checkmark\ 2\,000\\ $\times$\ 3\,500}
-    & \shortstack[r]{\checkmark\ 10\,000\\ $\times$\ 30\,000}
-    & \shortstack[r]{\checkmark\ 200\,000\\ ---} \\[14pt]
-P27 & F & \texttt{([ab]+)*c}
-    & \shortstack[r]{\checkmark\ 10\\ $\times$\ 15}
     & \shortstack[r]{\checkmark\ 10\,000\\ $\times$\ 30\,000}
     & \shortstack[r]{\checkmark\ 200\,000\\ ---} \\[14pt]
 P28 & F & \texttt{([ab]*)*c}
@@ -1243,28 +1235,27 @@ narrows between the two partial-derivative parsers.
 %
 %
 
-\textbf{P01.} Figure~\ref{fig:patho-p01-p09} plots \texttt{(a+)+},
+\textbf{P01.} Figure~\ref{fig:patho-p01} plots \texttt{(a+)+},
 category A's nested-quantifier stress case: a star nested directly
 inside a plus, chosen to isolate blow-up caused by nesting alone. The
 standard variants crash at $n=50$, earlier than either E-family row
 above. \texttt{deriv\_bc} survives much further but still times out,
 at $n=200\,000$; both partial-derivative variants complete the full
-sweep.
-
-\textbf{P09.} The same figure plots \texttt{(a|aa)+}, category B's
-overlapping-alternation analogue of P01: the quantifier is no longer
-nested, but \texttt{a} and \texttt{aa} overlap so the same substring
-can be consumed more than one way. The standard variants crash at
-$n=100$, later than P01 but still far earlier than either E-family
-row. Unlike P01, \texttt{deriv\_bc} does not time out here and
-completes the sweep alongside both partial-derivative variants.
+sweep. \textit{[PENDING: rerun extends this sweep to $n=10\,000\,000$;
+update the sweep-completion claim and figure data once the new CSV is
+in.]} The lower panel plots the partial-derivative pair's time as a
+ratio to \texttt{deriv\_bc}, over the range where \texttt{deriv\_bc}
+itself has data (up to $n=50\,000$): the ratio starts close to 0.9 at
+the smallest inputs and falls below 0.01 by $n=50\,000$, since
+\texttt{deriv\_bc}'s own cost grows far faster than the
+partial-derivative pair's as it nears its timeout.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=4.4cm,
+  height=3.3cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
@@ -1293,7 +1284,49 @@ completes the sweep alongside both partial-derivative variants.
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=4.4cm,
+  height=2.6cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Ratio to \texttt{deriv\_bc}},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  grid=major,
+]
+\addplot[dashed, gray, no markers]
+  coordinates {(5,1) (50000,1)};
+\addplot[mark=square*, thick, red]
+  coordinates {(5,0.857) (10,0.919) (15,0.855) (20,0.909) (50,0.667) (100,0.708) (500,0.444) (1000,0.382) (2000,0.217) (5000,0.080) (10000,0.039) (30000,0.014) (50000,0.009)};
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(5,1.071) (10,0.865) (15,0.964) (20,0.970) (50,0.771) (100,0.659) (500,0.412) (1000,0.342) (2000,0.194) (5000,0.072) (10000,0.038) (30000,0.013) (50000,0.008)};
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on P01, \texttt{(a+)+}, every swept $n$ on a
+log-log axis. The lower panel plots the partial-derivative pair's time
+as a ratio to \texttt{deriv\_bc}, covering only the range where
+\texttt{deriv\_bc} itself completes (up to $n=50\,000$).}
+\label{fig:patho-p01}
+\end{figure}
+
+\textbf{P09.} Figure~\ref{fig:patho-p09} plots \texttt{(a|aa)+},
+category B's overlapping-alternation analogue of P01: the quantifier
+is no longer nested, but \texttt{a} and \texttt{aa} overlap so the
+same substring can be consumed more than one way. The standard
+variants crash at $n=100$, later than P01 but still far earlier than
+either E-family row. Unlike P01, \texttt{deriv\_bc} does not time out
+here and completes the sweep alongside both partial-derivative
+variants. \textit{[PENDING: rerun extends this sweep to
+$n=10\,000\,000$; update once the new CSV is in.]} The lower panel
+plots the same ratio: because \texttt{deriv\_bc} completes the whole
+sweep here rather than nearing a timeout, both partial-derivative
+variants instead stay in a roughly steady band, from about 0.36 to
+0.91, throughout.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=3.3cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
@@ -1316,48 +1349,55 @@ completes the sweep alongside both partial-derivative variants.
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
-\caption{Wall time on P01 (category A, nested quantifiers) and P09
-(category B, overlapping alternation), every swept $n$ on a log-log
-axis. The two rows isolate nesting from overlap: P01's \texttt{(a+)+}
-nests a quantifier inside another, while P09's \texttt{(a|aa)+}
-instead overlaps two alternatives without nesting. \texttt{deriv\_bc}
-is the one parser that eventually times out, and only on P01, at
-$n=200\,000$, short of the partial-derivative pair's full sweep; on
-P09 all three survivors complete the whole sweep. The two standard
-variants crash from $n=50$ on P01 and from $n=100$ on P09.}
-\label{fig:patho-p01-p09}
+
+\vspace{0.4em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=2.6cm,
+  xmode=log,
+  xlabel={Input length (characters)},
+  ylabel={Ratio to \texttt{deriv\_bc}},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  grid=major,
+  ymin=0.3, ymax=1.0,
+  ytick={0.4,0.6,0.8,1},
+]
+\addplot[dashed, gray, no markers]
+  coordinates {(5,1) (5000000,1)};
+\addplot[mark=square*, thick, red]
+  coordinates {(5,0.771) (10,0.641) (15,0.685) (20,0.459) (25,0.464) (100,0.573) (1000,0.494) (5000,0.408) (10000,0.510) (50000,0.530) (100000,0.508) (500000,0.489) (1000000,0.539) (5000000,0.526)};
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(5,0.750) (10,0.609) (15,0.910) (20,0.439) (25,0.569) (100,0.460) (1000,0.488) (5000,0.358) (10000,0.471) (50000,0.497) (100000,0.527) (500000,0.479) (1000000,0.503) (5000000,0.500)};
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on P09, \texttt{(a|aa)+}, every swept $n$ on a
+log-log axis. The lower panel plots the partial-derivative pair's time
+as a ratio to \texttt{deriv\_bc}, which completes the full sweep on
+this row.}
+\label{fig:patho-p09}
 \end{figure}
 
-\textbf{P25.} Figure~\ref{fig:patho-f} plots \texttt{(a|b)*c},
+\textbf{P25.} Figure~\ref{fig:patho-p25} plots \texttt{(a|b)*c},
 category F's baseline alternation-star-then-literal shape: a flat
 two-way alternation under a star, followed by a literal that only
 matches once the input ends. The standard variants crash at
-$n=3\,500$, later than either row below since the alternation here is
-not nested. \texttt{deriv\_bc} times out at $n=30\,000$; both
-partial-derivative variants complete the full sweep.
-
-\textbf{P27.} The same figure plots \texttt{([ab]+)*c}, which nests a
-plus inside the star around the same two-character class. The
-standard variants now crash at $n=15$, far earlier than P25, isolating
-the effect of nesting the quantifier rather than leaving the
-alternation flat. \texttt{deriv\_bc} still times out at the same
-$n=30\,000$ as P25; both partial-derivative variants again complete
-the full sweep.
-
-\textbf{P28.} The same figure plots \texttt{([ab]*)*c}, replacing
-P27's inner plus with a star, the most deeply nested member of the
-family. Its crash and timeout thresholds match P27 exactly, so the
-extra nesting changes none of the three parsers' survival points;
-both partial-derivative variants again complete the full sweep, and
-this remains the family where they show the clearest robustness
-advantage over \texttt{deriv\_bc}.
+$n=3\,500$. \texttt{deriv\_bc} times out at $n=30\,000$; both
+partial-derivative variants complete the full sweep. \textit{[PENDING:
+rerun extends this sweep to $n=10\,000\,000$; update once the new CSV
+is in.]} The lower panel plots the ratio to \texttt{deriv\_bc} over
+the range where it has data (up to $n=10\,000$): like P01, the ratio
+falls steeply, from about 0.8 at the smallest inputs to under 0.01 by
+$n=10\,000$.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=4.0cm,
+  height=3.3cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
@@ -1386,36 +1426,51 @@ advantage over \texttt{deriv\_bc}.
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=4.0cm,
+  height=2.6cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
-  ylabel={Wall time (ms)},
-  title={P27: $([ab]^+)^*c$},
-  title style={font=\small},
+  ylabel={Ratio to \texttt{deriv\_bc}},
   label style={font=\small},
   tick label style={font=\scriptsize},
-  legend style={font=\scriptsize},
-  legend pos=north west,
   grid=major,
 ]
-\addplot[mark=*, thick, blue]
-  coordinates {(1,0.033) (3,0.054) (7,0.145) (10,0.191) (15,0.328) (20,0.386) (25,0.592) (30,0.504) (40,0.775) (50,1.343) (100,2.584) (1000,107.876) (10000,11583.601)};
-\addlegendentry{\texttt{deriv\_bc}}
+\addplot[dashed, gray, no markers]
+  coordinates {(1,1) (10000,1)};
 \addplot[mark=square*, thick, red]
-  coordinates {(1,0.024) (3,0.041) (7,0.087) (10,0.135) (15,0.206) (20,0.247) (25,0.279) (30,0.358) (40,0.430) (50,0.493) (100,1.014) (1000,10.007) (10000,94.066) (30000,286.037) (200000,1913.012)};
-\addlegendentry{\texttt{pderiv\_bc}}
+  coordinates {(1,0.842) (3,0.667) (7,0.585) (10,0.646) (50,0.405) (300,0.144) (1000,0.057) (2000,0.030) (3500,0.017) (5000,0.011) (10000,0.006)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(1,0.034) (3,0.051) (7,0.097) (10,0.129) (15,0.214) (20,0.243) (25,0.299) (30,0.360) (40,0.453) (50,0.656) (100,0.999) (1000,8.689) (10000,86.306) (30000,267.735) (200000,1816.203)};
-\addlegendentry{\texttt{pderiv\_std}}
+  coordinates {(1,0.789) (3,0.667) (7,0.509) (10,0.769) (50,0.367) (300,0.119) (1000,0.060) (2000,0.033) (3500,0.019) (5000,0.012) (10000,0.006)};
 \end{axis}
 \end{tikzpicture}
+\caption{Wall time on P25, \texttt{(a|b)*c}, every swept $n$ on a
+log-log axis. The lower panel plots the partial-derivative pair's time
+as a ratio to \texttt{deriv\_bc}, covering only the range where
+\texttt{deriv\_bc} itself completes (up to $n=10\,000$).}
+\label{fig:patho-p25}
+\end{figure}
 
-\vspace{0.4em}
+\textbf{P28.} Figure~\ref{fig:patho-p28} plots \texttt{([ab]*)*c},
+category F's most deeply nested member: a star nested inside another
+star around the same two-character class, followed by the same
+trailing literal as P25. The standard variants crash at $n=15$, far
+earlier than P25, isolating the effect of nesting the quantifier
+rather than leaving the alternation flat. \texttt{deriv\_bc} times out
+at the same $n=30\,000$ as P25; both partial-derivative variants again
+complete the full sweep, the clearest robustness advantage over
+\texttt{deriv\_bc} in the F family. \textit{[PENDING: rerun extends
+this sweep to $n=10\,000\,000$; update once the new CSV is in.]} The
+lower panel plots the ratio to \texttt{deriv\_bc} over the range where
+it has data (up to $n=10\,000$): it rises from about 0.4 at the
+smallest input to around 0.7 by $n=10$, then falls below 0.01 by
+$n=10\,000$, the same steep decline seen on P01 and P25 once
+\texttt{deriv\_bc} nears its own timeout.
 
+\begin{figure}[H]
+\centering
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=4.0cm,
+  height=3.3cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
@@ -1438,24 +1493,44 @@ advantage over \texttt{deriv\_bc}.
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
-\caption{Wall time on P25, P27, and P28 (all category F,
-alternation-star-then-literal), every swept $n$ on a log-log axis. The
-three share the same \texttt{(\ldots)*c} shape at increasing nesting
-depth -- P25 flat, P27 nesting a plus, P28 nesting a star -- chosen to
-isolate nesting depth as the stress axis while holding the alternation
-and the trailing literal fixed. \texttt{deriv\_bc} eventually times
-out on all three, its line stopping at $n=10\,000$. P27 and P28
-additionally show the two standard variants crashing already at
-$n=15$, far earlier than P25's $n=3\,500$.}
-\label{fig:patho-f}
+
+\vspace{0.4em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=2.6cm,
+  xmode=log, ymode=log,
+  xlabel={Input length (characters)},
+  ylabel={Ratio to \texttt{deriv\_bc}},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  grid=major,
+]
+\addplot[dashed, gray, no markers]
+  coordinates {(1,1) (10000,1)};
+\addplot[mark=square*, thick, red]
+  coordinates {(1,0.413) (3,0.576) (7,0.704) (10,0.725) (15,0.612) (20,0.561) (25,0.538) (30,0.507) (40,0.551) (50,0.439) (100,0.372) (1000,0.073) (10000,0.006)};
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(1,0.522) (3,0.576) (7,0.696) (10,0.649) (15,0.531) (20,0.429) (25,0.508) (30,0.472) (40,0.561) (50,0.503) (100,0.340) (1000,0.065) (10000,0.006)};
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on P28, \texttt{([ab]*)*c}, every swept $n$ on a
+log-log axis. The lower panel plots the partial-derivative pair's time
+as a ratio to \texttt{deriv\_bc}, covering only the range where
+\texttt{deriv\_bc} itself completes (up to $n=10\,000$).}
+\label{fig:patho-p28}
 \end{figure}
 
 \textbf{The overall picture.} The standard variants crash first on
-all eight rows, between $n=15$ and $n=5\,000$, and complete no full
-sweep. \texttt{deriv\_bc} completes six sweeps, reaching up to ten
-million characters on P60 and P20. It times out on P01 and the F
-family, but only at lengths well beyond the standard variants' crash
-points. Both partial-derivative variants complete all eight sweeps.
+all six rows, between $n=15$ and $n=20\,000$, and complete no full
+sweep. \texttt{deriv\_bc} completes three sweeps (P60, P61, P09),
+reaching up to ten million characters on P60. It times out on P01,
+P25, and P28, but only at lengths well beyond the standard variants'
+crash points. Both partial-derivative variants complete all six
+sweeps. \textit{[PENDING: once the reruns are in, this paragraph needs
+a full re-check -- several of these thresholds and sweep-completion
+claims may change at $n=10\,000\,000$.]}
 
 \textbf{Encode, derive, and decode cost.} The rows above sweep input
 length $n$; an \texttt{E}-row instead sweeps the pattern itself,
@@ -1648,7 +1723,7 @@ entries it completed.
 \subsubsection{Representative Patterns}
 \label{sec:eval-memory-representative}
 
-The eight representative rows are reported by mechanism family.
+The six representative rows are reported by mechanism family.
 Tables~\ref{tab:patho-memory-e} through~\ref{tab:patho-memory-f} give each
 row's peak live-byte high-water mark on any single entry, against the
 largest swept input length the parser completed. The two standard forms are
@@ -1673,13 +1748,8 @@ P61 & \texttt{deriv\_bc}                      &  5\,000\,000 & 1.70 GB \\
 P61 & \texttt{pderiv\_std}                    &  5\,000\,000 & 2.48 GB \\
 P61 & \texttt{pderiv\_bc}                     &  5\,000\,000 & 1.64 GB \\
 \hline
-P20 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         16 & 280.0 MB \\
-P20 & \texttt{deriv\_bc}                      & 10\,000\,000 & 3.40 GB \\
-P20 & \texttt{pderiv\_std}                    & 10\,000\,000 & 4.97 GB \\
-P20 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 3.27 GB \\
-\hline
 \end{tabular*}
-\caption{Peak live memory across the three E-family representative rows,
+\caption{Peak live memory across the two E-family representative rows,
 against the largest swept input length each parser completed. Peak is
 the live high-water mark within a single call. The standard variants
 complete only the smallest swept inputs, so their peak is not directly
@@ -1726,18 +1796,13 @@ P25 & \texttt{deriv\_bc}                      &     10\,000 & 4.73 MB \\
 P25 & \texttt{pderiv\_std}                    &    200\,000 & 86.2 MB \\
 P25 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
-P27 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         10 & 1.41 GB \\
-P27 & \texttt{deriv\_bc}                      &     10\,000 & 4.81 MB \\
-P27 & \texttt{pderiv\_std}                    &    200\,000 & 99.0 MB \\
-P27 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
-\hline
 P28 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         10 & 1.21 GB \\
 P28 & \texttt{deriv\_bc}                      &     10\,000 & 4.81 MB \\
 P28 & \texttt{pderiv\_std}                    &    200\,000 & 99.0 MB \\
 P28 & \texttt{pderiv\_bc}                     &    200\,000 & 52.0 MB \\
 \hline
 \end{tabular*}
-\caption{Peak live memory across the three F-family representative rows,
+\caption{Peak live memory across the two F-family representative rows,
 against the largest swept input length each parser completed.
 \emph{Max live peak} is the live high-water mark within a single call.}
 \label{tab:patho-memory-f}
@@ -1749,12 +1814,14 @@ the tens to thousands, while the other three reach millions, so the
 standard variants' peaks are not directly comparable with the
 survivors' and are excluded from the comparisons below.
 
-Among the survivors, \texttt{deriv\_bc} has the lowest peak on the
-E-family rows, 1.64--2.64\,GB at ten million characters, and is
-lower than \texttt{pderiv\_std} on P20 (3.40 against 4.97\,GB). On
-the F family its peak stays below 5\,MB because the derivative
-sequence collapses to a single residual. P01 also has a low peak of
-7.9\,MB, consistent with its relatively small set of live candidates.
+Among the survivors, \texttt{pderiv\_bc} has the lowest peak on both
+E-family rows, 1.64\,GB on P60 and P61 alike. \texttt{deriv\_bc} is
+lower than \texttt{pderiv\_std} on P61 (1.70 against 2.48\,GB) but
+higher on P60 (2.64 against 2.48\,GB). On the F family,
+\texttt{deriv\_bc}'s own peak stays below 5\,MB because the
+derivative sequence collapses to a single residual. P01 also has a
+low peak of 7.9\,MB, consistent with its relatively small set of live
+candidates.
 
 Within the partial-derivative pair, bit-coding reduces peak
 allocation on every representative row. This holds across the E
@@ -1763,9 +1830,9 @@ and F families and on P01 and P09. On the F family, for example,
 for \texttt{pderiv\_std}. Its memory advantage is therefore more
 consistent than its timing advantage.
 
-Cumulative allocation is a separate matter. On P20, \texttt{deriv\_bc}
-allocates 271\,GB in total over the sweep while holding at most
-3.40\,GB live, because short-lived state is allocated and released at
+Cumulative allocation is a separate matter. On P60, \texttt{deriv\_bc}
+allocates 169.26\,GB in total over the sweep while holding at most
+2.64\,GB live, because short-lived state is allocated and released at
 every step. This total exceeds the 15.94\,GB allocated across all
 11\,395 real-corpus entries, showing the scale the synthetic set
 reaches; it is allocator churn, not a footprint.
