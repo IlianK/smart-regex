@@ -1051,23 +1051,21 @@ crash in the first column and a timeout in the other two.}
 %
 
 \textbf{P60 and P61.} Figures~\ref{fig:patho-fig7a} and~\ref{fig:patho-fig7bc}
-plot wall time for \texttt{(a|b|ab)*} on \texttt{a}-repeated and
-\texttt{ab}-repeated input, swept to the same scale as
-\citet{sulzmannlu2014}'s Figure~7(a) and~7(b). Their paper also
-benchmarks three tools (TDFA, RE2, C-POSIX) which, unlike
-\texttt{deriv\_bc} and the other parsers here, record only a Kleene star's
-last iteration rather than a full parse tree, so the comparison is
-restricted to the full-parse-tree family that \texttt{deriv\_bc}
-implements. On both inputs the three surviving parsers show roughly
-linear growth across the full range, from single digits to millions of
-characters; the lower panel in each figure gives the partial-derivative
-pair's wall time as a ratio to \texttt{deriv\_bc} -- \texttt{pderiv\_std}
-is consistently faster on P60, while on P61 the two trade places across
-the sweep with no clear winner. P20 swaps the star for a plus on the
-same \texttt{ab}-repeated input; it follows the same pattern and appears
-in Table~\ref{tab:patho-crash-thresholds} and the category tables above,
-but since it has no dedicated paper-scale sweep of its own it is not
-plotted separately here.
+plot wall time for \texttt{(a|b|ab)*} on \texttt{a}- and \texttt{ab}-repeated
+input, at the scale of \citet{sulzmannlu2014}'s Figure~7(a) and~7(b). Their
+paper also benchmarks three tools (TDFA, RE2, C-POSIX) that record only a
+star's last iteration rather than a full parse tree, so the comparison is
+restricted to the full-parse-tree family \texttt{deriv\_bc} implements. On
+both inputs the three surviving parsers grow roughly linearly, ten times
+the input taking about ten times as long, with no state explosion like the
+standard pair's. At this scale \texttt{deriv\_bc} is nonetheless the
+slowest of the three, and the lower panels plot the partial-derivative pair
+as a ratio to it. 
+On P60 both stay below 1 throughout, \texttt{pderiv\_std} reaching about
+0.7 at the largest inputs. On P61 they trade places with no clear winner,
+the ratio staying near 1, so the pair's margin narrows without reversing
+and its internal ordering depends on the pattern rather than on input
+length.
 
 \begin{figure}[H]
 \centering
