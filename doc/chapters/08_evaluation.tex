@@ -2192,10 +2192,10 @@ alone, from 0.11\,ms at $p=100$ to 2.71\,ms at $p=2\,000$
 (Table~\ref{tab:patho-phases-e37}).
 
 The representative sweeps extend this result. \texttt{deriv\_bc}
-completes six of the eight rows, while both standard variants crash
-on all eight. It reaches ten million characters on P60 and P20.
-Cumulative allocation can still be high, reaching 271\,GB on P20,
-although peak allocation is 3.40\,GB. This distinction between
+completes three of the six rows (P60, P61, P09), while both standard
+variants crash on all six. It reaches ten million characters on P60.
+Cumulative allocation can still be high, reaching 169.26\,GB on P60,
+although peak allocation is 2.64\,GB. This distinction between
 cumulative allocation and peak live bytes is why both are reported
 (Section~\ref{sec:eval-criteria-memory}).
 
@@ -2216,12 +2216,14 @@ On the full corpus, \texttt{pderiv\_bc} is marginally faster
 (0.625 against \texttt{pderiv\_std}'s 0.699\,ms mean) and has
 lower total allocation (4.80 against \texttt{pderiv\_std}'s
 5.52\,GB), though \texttt{pderiv\_std} still has the lower peak
-(2.5 against 3.8\,MB). The ranking changes again on the representative rows.
-\texttt{pderiv\_std} is faster on P60, while \texttt{pderiv\_bc} is
-faster on P61 and P20. On P20, it also has the lower peak allocation
-(3.27 against 4.97\,GB). The results suggest that the relative
-cost of bit-coding depends on the pattern and input, not only
-on input length.
+(2.5 against 3.8\,MB). The ranking changes again on the representative
+rows: \texttt{pderiv\_std} is faster on P60, yet \texttt{pderiv\_bc}
+still has the lower peak allocation there (1.64 against 2.48\,GB) --
+the two axes do not move together on this row.
+\textit{[PENDING: re-check whether either ranking holds on P61, P09,
+P01, P25, and P28 once their $n=10\,000\,000$ reruns are in.]} The
+results suggest that the relative cost of bit-coding depends on the
+pattern and input, not only on input length.
 
 The two bit-coded parsers' phase costs diverge sharply once the
 pattern itself grows wide. On a $p$-way alternation of equal-length
