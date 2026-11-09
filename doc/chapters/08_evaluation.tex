@@ -483,9 +483,8 @@ E36 & $p = 1000$ & $n = 20$ & 1000-way word Alt
 \hline
 \end{tabular*}
 \caption{Two rows at two sweep values each. P01 fixes the pattern and
-sweeps $n$, so the input grows. E36 fixes $n = 20$ and sweeps $p$, so the
-alternation width grows while the input is the same string repeated 20
-times.}
+sweeps $n$, so the input grows. E36 sweeps $p$, so the
+alternation width grows while the input is fixed $n = 20$.}
 \label{tab:sweep-samples}
 \end{table}
 
@@ -501,9 +500,9 @@ typically increases from microseconds to a timeout or crash.
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.1}
 \begin{tabularx}{\textwidth}{l
-    >{\raggedright\arraybackslash}p{4.3cm}
+    >{\raggedright\arraybackslash}p{4.5cm}
     >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}p{2.6cm}
+    >{\raggedright\arraybackslash}p{2.1cm}
     rr}
 \hline
 Cat. & Name & Mechanism & Example & Patterns & Entries \\
@@ -534,12 +533,12 @@ I & Long input, simple pattern
     & \texttt{a+} & 10 & 60 \\
 J & Large pattern, short input
     & Per-node cost of a very large pattern
-    & 100-way word alt. & 5 & 22 \\
+    & 100-word Alt. & 5 & 22 \\
 K & Large pattern, large input
     & Per-node and per-character cost together
-    & 1000-way word alt. & 3 & 30 \\
+    & 1000-word Alt. & 3 & 30 \\
 L & Trivial pattern, trivial input
-    & Baseline for the other categories
+    & Baseline 
     & \texttt{x} & 33 & 195 \\
 \hline
 Total & & & & 112 & 891 \\
@@ -549,9 +548,7 @@ Total & & & & 112 & 891 \\
 $2\times 2$ matrix of pattern size against input size; the remaining
 seven each stress one cost mechanism. \emph{Patterns} counts distinct
 hand-curated or generated pattern definitions; \emph{Entries} counts the
-(pattern, input) pairs the default sweep actually times -- the $n$
-reported in Tables~\ref{tab:patho-timing-mech} and
-\ref{tab:patho-timing-size}.}
+(pattern, input) pairs.}
 \label{tab:patho-categories}
 \end{table}
 
