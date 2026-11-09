@@ -1536,10 +1536,24 @@ claims may change at $n=10\,000\,000$.]}
 length $n$; an \texttt{E}-row instead sweeps the pattern itself,
 isolating how \texttt{deriv\_bc} and \texttt{pderiv\_bc}'s three
 phases (Section~\ref{sec:eval-criteria-timing}) scale with pattern
-size rather than input length. Table~\ref{tab:patho-phases-e37}
-reports E37, a $p$-way alternation of distinct four-letter words, at
-$p \in \{100, 500, 1\,000, 2\,000\}$; Section~\ref{sec:eval-cost-partial-derivatives}
-returns to what it shows.
+size rather than input length. Both rows used here carry the
+dataset's category letter \texttt{J} (compile-size stress), not
+category E: \texttt{E37} and \texttt{E38} are sequential dataset IDs,
+unrelated to the prefix-overlap category E of P60, P61, and the
+dropped P20. Table~\ref{tab:patho-phases-e37} reports E37, a $p$-way
+alternation of distinct four-letter words, at $p \in \{100, 500,
+1\,000, 2\,000\}$. Table~\ref{tab:patho-phases-e38} reports a sibling
+row, E38: a $p$-way alternation of distinct numbered placeholder
+words (\texttt{w000001}, \texttt{w000002}, \dots) with no repetition
+operator, at $p \in \{100, 500, 1\,000\}$ -- E38 hits
+\texttt{core\_regex\_tagged}'s translation-size cap at $p=2\,000$,
+where E37 does not, so the two rows are compared only up to
+$p=1\,000$. E38's non-matching input is its first two words
+concatenated, so, unlike E37's \texttt{"zzzz"}, which fails on the
+first character, every parser here must scan past the first
+alternative before rejecting.
+Section~\ref{sec:eval-cost-partial-derivatives} returns to what both
+show.
 
 \begin{table}[H]
 \centering
@@ -1574,6 +1588,53 @@ character, both parsers stay under 3.5\,ms even at $p=2\,000$ -- the
 divergence above is specific to inputs that keep many alternatives alive.}
 \label{tab:patho-phases-e37}
 \end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrr rrr}
+\hline
+& \multicolumn{3}{c}{\texttt{deriv\_bc}} & \multicolumn{3}{c}{\texttt{pderiv\_bc}} \\
+\cline{2-4}\cline{5-7}
+$p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Decode (ms) \\
+\hline
+100         & [PENDING] & [PENDING] & [PENDING] & [PENDING] & [PENDING] & [PENDING] \\
+500         & [PENDING] & [PENDING] & [PENDING] & [PENDING] & [PENDING] & [PENDING] \\
+1\,000      & [PENDING] & [PENDING] & [PENDING] & [PENDING] & [PENDING] & [PENDING] \\
+\hline
+\end{tabular*}
+\caption{\texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, E38: a sibling
+\texttt{E}-row to Table~\ref{tab:patho-phases-e37}, sweeping a $p$-way
+alternation of distinct numbered words (\texttt{w000001}, \dots,
+\texttt{w0000}$p$) with no repetition operator, at fixed input length.
+The matching input is a single word (the first alternative); the
+non-matching input concatenates the first two words, so every parser
+must scan past the first alternative before rejecting -- unlike
+E37's \texttt{"zzzz"}, which fails immediately. E38 reaches
+$p=1\,000$ cleanly but hits \texttt{core\_regex\_tagged}'s
+translation-size cap at $p=2\,000$, where E37 does not; the two rows
+are compared only up to $p=1\,000$ for this reason.
+\textit{[PENDING: fill in once \texttt{PATHO\_ROW\_ID=E38
+PATHO\_P=100,500,1000} has been run via \texttt{bench\_pathological\_time}
+(see \texttt{helper/quick.md}).]}}
+\label{tab:patho-phases-e38}
+\end{table}
+
+The representative rows' own entries carry the same three columns at
+each swept $n$ (Section~\ref{sec:eval-criteria-timing}), giving a
+complementary, input-length view of the same three phases for a
+single fixed pattern, rather than a pattern-size view across many.
+On P60, \texttt{deriv\_bc}'s encode cost stays flat at
+3--4\,$\mu$s regardless of $n$, since it depends on pattern size, not
+input length; derive dominates throughout, from 48\,$\mu$s at $n=10$
+to 35.9--37.9\,ms at $n=10\,000\,000$; and decode tracks the match
+outcome rather than $n$ alone, costing 1.5\,ms on the matching entry
+at $n=10\,000\,000$ against effectively zero on the non-matching one,
+since only a successful parse builds a tree to decode.
+\textit{[PENDING: add the same three-number sketch for P61, P09, P01,
+P25, and P28 once their reruns are in, to confirm the pattern holds
+across rows.]}
 
 %
 %

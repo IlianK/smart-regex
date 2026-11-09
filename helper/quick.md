@@ -72,6 +72,19 @@ BENCH_MEM_CAP_MB=4096 cargo run --release --example demo_parser_agreement_pathol
 
 
 
+# ENCODE / DERIVE / DECODE: PATTERN-SIZE SWEEP (E37, E38)
+
+# E37: p-way alternation of distinct four-letter words.
+PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000 BENCH_RUN_LABEL=PHASE_E37 \
+  cargo bench --bench bench_pathological_time
+
+# E38: p-way alternation of distinct numbered words, no quantifier.
+# Capped at p=1000: p=2000 hits core_regex_tagged's translation-size
+# cap, identically for every parser (see pathological_patterns.json).
+PATHO_ROW_ID=E38 PATHO_P=100,500,1000 BENCH_RUN_LABEL=PHASE_E38 \
+  cargo bench --bench bench_pathological_time
+
+
 
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
 
