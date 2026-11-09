@@ -933,25 +933,23 @@ completed timing.}
 \end{table}
 
 \paragraph{Categories I, J, K, L} form a $2\times2$ matrix of pattern
-size against input size. L is trivial in both and comparable, since every
-parser measures at least 175 of 195 entries. The means rank the parsers 
-with the partial-derivative pair at 2.08 and 2.11\,ms,
-\texttt{deriv\_bc} at 4.58\,ms, and the standard pair at 65.14 and
-67.94\,ms. This shows, that on trivial work \texttt{deriv\_bc} 
-is twice as slow as either partial-derivative variant.
+size against input size. L is trivial in both and comparable, every parser
+measuring at least 175 of 195 entries, and the means rank the parsers with
+the partial-derivative pair at 2.08 and 2.11\,ms, \texttt{deriv\_bc} at
+4.58\,ms, and the standard pair at 65.14 and 67.94\,ms: on trivial work
+\texttt{deriv\_bc} is twice as slow as either partial-derivative variant.
 I grows only the input, and length alone pushes every parser past the
 budget on at least 18 of its 60 entries, rising to 44 for
 \texttt{deriv\_std\_rec} plus the crash its call-stack storage makes
-reachable as explained in Section~\ref{sec:eval-stack-depth}..
-Among the survivors \texttt{deriv\_bc} is
-slowest, 151.47 against 113.67 and 130.53\,ms. 
-J and K differ only in input length. J's short input keeps the per-entry
-work small, so the parsers have little room to diverge and their timeouts
-stay close at 2 to 4. K repeats the same expensive steps over a long
-input, and timeouts rise to 10 to 24. \texttt{deriv\_std\_rec} does not
-crash here despite that length, because the expensive steps time each
-entry out at small inputs, before its stack can even reach the ceiling that
-produced the one crash in I.
+reachable (Section~\ref{sec:eval-stack-depth}); among the survivors
+\texttt{deriv\_bc} is slowest, 151.47 against 113.67 and 130.53\,ms. J and
+K differ only in input length: J's short input keeps the per-entry work
+small, so the parsers have little room to diverge and timeouts stay at 2
+to 4, while K repeats the same expensive derivation steps over a long input and
+timeouts rise to 10 to 24. \texttt{deriv\_std\_rec} does not crash here
+despite that length, because the expensive steps time each entry out at
+small inputs, before its stack can reach the ceiling that produced the one
+crash in I.
 
 \paragraph{Overall} across all categories the standard derivative parsers
 are the most timeout-prone. \texttt{deriv\_bc} beats the standard pair
@@ -973,69 +971,94 @@ categories and the median in six, so its advantage over
 \subsubsection{Representative Patterns}
 \label{sec:eval-timing-representative}
 
-Eight rows are swept beyond their baseline values, reaching millions of
-characters or thousands of repetitions. Row selection, sweep points, and
-the per-row deadline and memory cap were set empirically and adjusted as
-each row's cost became clear. Since these inputs exceed the default 2\,s
-budget, each sweep uses a row-specific deadline of 30--120\,s so that its
-largest point can finish.
-Table~\ref{tab:patho-crash-thresholds} gives, per row, the largest swept
-$n$ each parser family completes and the first at which it fails. The
-standard variants fail by crashing, while \texttt{deriv\_bc} and the
-partial-derivative pair fail by timing out.
+Eight representative rows are drawn from the categories above and swept
+past their baseline values, reaching millions of characters or thousands of
+repetitions, so that each row crosses from measured to failing within its
+own range. Row selection, sweep points, and the per-row deadline and memory
+cap were set empirically and adjusted as each row's cost became clear.
+Since these inputs exceed the default 2\,s budget, each sweep uses a
+row-specific deadline of 30--120\,s so that its largest point can finish.
+Table~\ref{tab:patho-crash-thresholds} summarises how far each parser gets
+on them, in terms of the largest input length $n$ it completes and the
+first $n$ at which it fails.
+
+The standard pair fails earliest on every row, by crashing rather than
+timing out. Both run on the 256\,MiB worker stack with the 8\,GiB heap cap
+enabled, so they have more stack headroom than in the stack-depth test, yet
+still reach the cap at the same $n$ with nearly identical allocation.
+Recursion depth is therefore not the cause, but the heap is, since both
+keep the derivation sequence for the backward pass and its size grows with
+the input. With the standard pair ruled out, the remaining question is how
+\texttt{deriv\_bc} and the partial-derivative pair compare. On P01, P25,
+P27, and P28 the pair outlasts \texttt{deriv\_bc}, while on the other four
+all three reach the sweep maximum without timing out.
 
 \begin{table}[H]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} ll rr rr rr}
+\small
+\setlength{\tabcolsep}{6pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lll rrr}
 \hline
-& & \multicolumn{2}{c}{Standard (\texttt{rec} \& \texttt{loop})} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv} (\texttt{std} \& \texttt{bc})} \\
-Row & Pattern & Last OK & First crash & Last OK & First timeout & Last OK & First timeout \\
-\hline
-P60 & \texttt{(a|b|ab)*}, \texttt{a} repeated   &      5\,000 &     20\,000 &  10\,000\,000 & --- &  10\,000\,000 & --- \\
-P61 & \texttt{(a|b|ab)*}, \texttt{ab} repeated  &          15 &         100 &   5\,000\,000 & --- &   5\,000\,000 & --- \\
-P20 & \texttt{(a|b|ab)+}                        &          16 &         100 &  10\,000\,000 & --- &  10\,000\,000 & --- \\
-P01 & \texttt{(a+)+}                            &          20 &          50 &      50\,000 &    200\,000 &   1\,000\,000 & --- \\
-P09 & \texttt{(a|aa)+}                          &          25 &         100 &   5\,000\,000 & --- &   5\,000\,000 & --- \\
-P25 & \texttt{(a|b)*c}                          &       2\,000 &      3\,500 &      10\,000 &     30\,000 &     200\,000 & --- \\
-P27 & \texttt{([ab]+)*c}                        &          10 &          15 &      10\,000 &     30\,000 &     200\,000 & --- \\
-P28 & \texttt{([ab]*)*c}                        &          10 &          15 &      10\,000 &     30\,000 &     200\,000 & --- \\
+& & & \shortstack{Standard\\\texttt{rec} \& \texttt{loop}}
+    & \shortstack{\texttt{deriv\_bc}}
+    & \shortstack{\texttt{pderiv}\\\texttt{std} \& \texttt{bc}} \\[4pt]
+Row & Cat. & Pattern & \multicolumn{3}{c}{\checkmark\ last OK \qquad $\times$\ first fail} \\
+\hline\\[-6pt]
+P60 & E & \texttt{(a|b|ab)*}, \texttt{a} repeated
+    & \shortstack[r]{\checkmark\ 5\,000\\ $\times$\ 20\,000}
+    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
+P61 & E & \texttt{(a|b|ab)*}, \texttt{ab} repeated
+    & \shortstack[r]{\checkmark\ 15\\ $\times$\ 100}
+    & \shortstack[r]{\checkmark\ 5\,000\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 5\,000\,000\\ ---} \\[14pt]
+P20 & E & \texttt{(a|b|ab)+}
+    & \shortstack[r]{\checkmark\ 16\\ $\times$\ 100}
+    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
+P09 & B & \texttt{(a|aa)+}
+    & \shortstack[r]{\checkmark\ 25\\ $\times$\ 100}
+    & \shortstack[r]{\checkmark\ 5\,000\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 5\,000\,000\\ ---} \\[14pt]
+\hline\\[-6pt]
+P01 & A & \texttt{(a+)+}
+    & \shortstack[r]{\checkmark\ 20\\ $\times$\ 50}
+    & \shortstack[r]{\checkmark\ 50\,000\\ $\times$\ 200\,000}
+    & \shortstack[r]{\checkmark\ 1\,000\,000\\ ---} \\[14pt]
+P25 & F & \texttt{(a|b)*c}
+    & \shortstack[r]{\checkmark\ 2\,000\\ $\times$\ 3\,500}
+    & \shortstack[r]{\checkmark\ 10\,000\\ $\times$\ 30\,000}
+    & \shortstack[r]{\checkmark\ 200\,000\\ ---} \\[14pt]
+P27 & F & \texttt{([ab]+)*c}
+    & \shortstack[r]{\checkmark\ 10\\ $\times$\ 15}
+    & \shortstack[r]{\checkmark\ 10\,000\\ $\times$\ 30\,000}
+    & \shortstack[r]{\checkmark\ 200\,000\\ ---} \\[14pt]
+P28 & F & \texttt{([ab]*)*c}
+    & \shortstack[r]{\checkmark\ 10\\ $\times$\ 15}
+    & \shortstack[r]{\checkmark\ 10\,000\\ $\times$\ 30\,000}
+    & \shortstack[r]{\checkmark\ 200\,000\\ ---} \\[6pt]
 \hline
 \end{tabular*}
-\caption{Match-side crash and timeout thresholds. A dash indicates the candidate
-completed every swept $n$ without failing.}
+\caption{Match-side crash and timeout thresholds. Each cell gives the
+largest swept $n$ that completed (\checkmark) above the first $n$ that
+failed ($\times$); a dash means every swept $n$ completed. The standard
+variants fail by crashing and the \texttt{deriv\_bc} and
+partial-derivative columns by timing out, so the $\times$ entries denote a
+crash in the first column and a timeout in the other two.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
-The table separates the three families cleanly. On every row the standard
-pair fails earliest, at small inputs, and it fails by crashing rather than
-timing out, because it keeps the derivation sequence for the backward pass
-and its memory therefore grows with the input. This is a different limit
-from recursion depth: the isolated stack-depth test
-(Section~\ref{sec:eval-stack-depth}) runs without a memory cap and there
-the iterative form survives far beyond the recursive one, yet here both
-forms crash identically on every row, so the shared cause must be the
-memory they both retain rather than either form's own call stack.
-With the standard pair ruled out
-everywhere, the remaining question is how \texttt{deriv\_bc} and the
-partial-derivative pair compare. 
-To examine them further, the rows in the
-table are chosen to highlight where they differ.
-On P01, P25, P27, and P28 the
-partial-derivative pair outlasts \texttt{deriv\_bc} and on the
-other they reach the sweep maximum without timing out.
-The figures below plot time against input length for these rows.
+%
 
-\textbf{P60.} Figure~\ref{fig:patho-fig7a} plots wall time against
-input length for \texttt{(a|b|ab)*} on \texttt{a} repeated $n$ times,
-swept to the same scale as \citet{sulzmannlu2014}'s Figure~7(a). The
-three surviving parsers show roughly linear growth on the log-log plot
-across four orders of magnitude; both standard variants crash before
-the first plotted point (Table~\ref{tab:patho-crash-thresholds}). The
-lower panel plots the partial-derivative pair's wall time as a ratio to
-\texttt{deriv\_bc} on the same sweep, at a scale the top panel's six
-decades compress.
+\textbf{P60.} Figure~\ref{fig:patho-fig7a} plots wall time against input
+length for \texttt{(a|b|ab)*} on \texttt{a} repeated $n$ times, swept to
+the same scale as \citet{sulzmannlu2014}'s Figure~7(a). Their paper also
+benchmarks three tools (TDFA, RE2, C-POSIX) which, unlike
+\texttt{deriv\_bc} and the other parsers here, record only a Kleene star's
+last iteration rather than a full parse tree, so the comparison is
+restricted to the full-parse-tree family that \texttt{deriv\_bc}
+implements. The three parsers show roughly linear growth on the log-log plot across
+the full range, from ten to ten million characters.
 
 \begin{figure}[H]
 \centering
@@ -1088,16 +1111,9 @@ decades compress.
   coordinates {(10,0.983) (50,0.833) (100,0.909) (500,0.791) (1000,0.829) (5000,0.767) (20000,0.619) (100000,0.710) (300000,0.700) (1000000,0.720) (5000000,0.696) (10000000,0.688)};
 \end{axis}
 \end{tikzpicture}
-\caption{Wall time on P60 (category E, prefix-overlap alternation),
-\texttt{(a|b|ab)*} against \texttt{a} repeated, swept to the scale of
-\citet{sulzmannlu2014}'s Figure~7(a), up to ten million characters. The
-paper's Figure~7 there also benchmarks three other tools (TDFA, RE2,
-C-POSIX) that, unlike \texttt{DERIV} and the parsers here, only record
-a Kleene star's last iteration rather than a full parse tree; this
-comparison is restricted to the full-parse-tree family \texttt{DERIV}
-represents, which \texttt{deriv\_bc} implements directly. The lower
-panel shows \texttt{pderiv\_std} and \texttt{pderiv\_bc}'s wall time as
-a ratio to \texttt{deriv\_bc} (dashed line at 1) on the same sweep.}
+\caption{Wall time on P60, \texttt{(a|b|ab)*} against \texttt{a} repeated,
+to the scale of \citet{sulzmannlu2014}'s Figure~7(a). The lower panel plots
+the partial-derivative pair as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-fig7a}
 \end{figure}
 
