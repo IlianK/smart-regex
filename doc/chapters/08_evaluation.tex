@@ -1050,22 +1050,31 @@ crash in the first column and a timeout in the other two.}
 
 %
 
-\textbf{P60.} Figure~\ref{fig:patho-fig7a} plots wall time against input
-length for \texttt{(a|b|ab)*} on \texttt{a} repeated $n$ times, swept to
-the same scale as \citet{sulzmannlu2014}'s Figure~7(a). Their paper also
+\textbf{P60 and P61.} Figures~\ref{fig:patho-fig7a} and~\ref{fig:patho-fig7bc}
+plot wall time for \texttt{(a|b|ab)*} on \texttt{a}-repeated and
+\texttt{ab}-repeated input, swept to the same scale as
+\citet{sulzmannlu2014}'s Figure~7(a) and~7(b). Their paper also
 benchmarks three tools (TDFA, RE2, C-POSIX) which, unlike
 \texttt{deriv\_bc} and the other parsers here, record only a Kleene star's
 last iteration rather than a full parse tree, so the comparison is
 restricted to the full-parse-tree family that \texttt{deriv\_bc}
-implements. The three parsers show roughly linear growth on the log-log plot across
-the full range, from ten to ten million characters.
+implements. On both inputs the three surviving parsers show roughly
+linear growth across the full range, from single digits to millions of
+characters; the lower panel in each figure gives the partial-derivative
+pair's wall time as a ratio to \texttt{deriv\_bc} -- \texttt{pderiv\_std}
+is consistently faster on P60, while on P61 the two trade places across
+the sweep with no clear winner. P20 swaps the star for a plus on the
+same \texttt{ab}-repeated input; it follows the same pattern and appears
+in Table~\ref{tab:patho-crash-thresholds} and the category tables above,
+but since it has no dedicated paper-scale sweep of its own it is not
+plotted separately here.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=5cm,
+  height=3.1cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
@@ -1094,7 +1103,7 @@ the full range, from ten to ten million characters.
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=3cm,
+  height=2.4cm,
   xmode=log,
   xlabel={Input length (characters)},
   ylabel={Ratio to \texttt{deriv\_bc}},
@@ -1102,6 +1111,7 @@ the full range, from ten to ten million characters.
   tick label style={font=\scriptsize},
   grid=major,
   ymin=0.55, ymax=1.03,
+  ytick={0.6,0.8,1},
 ]
 \addplot[dashed, gray, no markers]
   coordinates {(10,1) (10000000,1)};
@@ -1117,25 +1127,12 @@ the partial-derivative pair as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-fig7a}
 \end{figure}
 
-\textbf{P61.} Figure~\ref{fig:patho-fig7bc} plots wall time for P60's
-expression, \texttt{(a|b|ab)*}, on \texttt{ab}-repeated input instead
-of \texttt{a}-repeated, swept to the same scale as
-\citet{sulzmannlu2014}'s Figure~7(b). The standard variants again fail
-at small input lengths
-(Table~\ref{tab:patho-crash-thresholds}), while the other three show
-roughly linear growth, this time with \texttt{pderiv\_bc} fastest
-rather than \texttt{pderiv\_std}. P20 swaps the star for a plus on the
-same \texttt{ab}-repeated input; it follows the same pattern and
-appears in Table~\ref{tab:patho-crash-thresholds} and the category
-tables above, but since it has no dedicated paper-scale sweep of its
-own it is not plotted separately here.
-
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=5cm,
+  height=3.1cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
@@ -1164,7 +1161,7 @@ own it is not plotted separately here.
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=3cm,
+  height=2.4cm,
   xmode=log,
   xlabel={Input length (characters)},
   ylabel={Ratio to \texttt{deriv\_bc}},
@@ -1172,6 +1169,7 @@ own it is not plotted separately here.
   tick label style={font=\scriptsize},
   grid=major,
   ymin=0.45, ymax=1.1,
+  ytick={0.5,0.75,1},
 ]
 \addplot[dashed, gray, no markers]
   coordinates {(5,1) (5000000,1)};
@@ -1181,13 +1179,9 @@ own it is not plotted separately here.
   coordinates {(5,0.500) (10,0.937) (15,0.779) (100,0.859) (1000,0.997) (10000,0.844) (100000,0.856) (500000,0.885) (2500000,0.862) (5000000,0.886)};
 \end{axis}
 \end{tikzpicture}
-\caption{Wall time on P61 (category E, prefix-overlap alternation),
-\texttt{(a|b|ab)*} against \texttt{ab} repeated, every swept $n$ on a
-log-log axis. This row reproduces the reference paper's Figure~7(b) at
-the same multi-million-character scale used for P60, isolating whether
-an \texttt{ab}-repeated input instead of \texttt{a}-repeated changes
-the ranking among the three survivors: here \texttt{pderiv\_bc} is
-faster throughout, flipping its rank relative to P60.}
+\caption{Wall time on P61, \texttt{(a|b|ab)*} against \texttt{ab} repeated,
+to the scale of \citet{sulzmannlu2014}'s Figure~7(b). The lower panel plots
+the partial-derivative pair as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-fig7bc}
 \end{figure}
 
