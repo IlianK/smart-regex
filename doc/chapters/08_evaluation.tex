@@ -330,7 +330,7 @@ stress the parsers.
 Dataset & Authored & Duplicate & Rejected & Accepted & Unanchored & Fully-Anchored & Inputs \\
 \hline
 S2ELab     & 762 & 7 & 177 & 578 & 115 & 463 & 11\,395 \\
-Synthetic  & 113 & 0 &   0 & 113 &   0 & 113 &    887 \\
+Synthetic  & 112 & 0 &   0 & 112 &   0 & 112 &    891 \\
 \hline
 \end{tabular*}
 \caption{Benchmark scope. \emph{Authored} = \emph{Duplicate} + \emph{Rejected}
@@ -501,53 +501,57 @@ typically increases from microseconds to a timeout or crash.
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.1}
 \begin{tabularx}{\textwidth}{l
-    >{\raggedright\arraybackslash}p{5cm}
+    >{\raggedright\arraybackslash}p{4.3cm}
     >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}p{3cm}
-    r}
+    >{\raggedright\arraybackslash}p{2.6cm}
+    rr}
 \hline
-Cat. & Name & Mechanism & Example & Count \\
+Cat. & Name & Mechanism & Example & Patterns & Entries \\
 \hline
 A & Nested quantifiers
     & Quantifier inside a quantifier
-    & \texttt{(a+)+} & 16 \\
+    & \texttt{(a+)+} & 16 & 160 \\
 B & Overlapping alternation
     & Shared-prefix alternatives under a quantifier
-    & \texttt{(a|aa)+} & 15 \\
+    & \texttt{(a|aa)+} & 15 & 150 \\
 C & Bounded rep over star
     & Bounded repetition of a star, unrolled
-    & \texttt{(.*a)\{1,10\}} & 7 \\
+    & \texttt{(.*a)\{1,10\}} & 7 & 56 \\
 D & Full-consume near-miss
     & Near-matching tail forces full enumeration
-    & \texttt{(a?)\{3\}a\{3\}} & 4 \\
+    & \texttt{(a?)\{3\}a\{3\}} & 4 & 40 \\
 E & Prefix-overlap alternation
     & One alternative is a strict prefix of another
-    & \texttt{(a|b|ab)*} & 8 \\
+    & \texttt{(a|b|ab)*} & 8 & 80 \\
 F & Star then failing literal
     & Trailing literal fails only at the last character
-    & \texttt{(a|b)*c} & 7 \\
+    & \texttt{(a|b)*c} & 7 & 70 \\
 H & Adjacent unbounded groups
     & Consecutive unbounded groups multiply split points
-    & \texttt{(.+)(.+)\ldots} & 4 \\
+    & \texttt{(.+)(.+)\ldots} & 4 & 28 \\
 I & Long input, simple pattern
     & Per-character cost on a very long input
-    & \texttt{a+} & 10 \\
+    & \texttt{a+} & 10 & 60 \\
 J & Large pattern, short input
     & Per-node cost of a very large pattern
-    & 100-way word alt. & 5 \\
+    & 100-way word alt. & 5 & 22 \\
 K & Large pattern, large input
     & Per-node and per-character cost together
-    & 1000-way word alt. & 4 \\
+    & 1000-way word alt. & 3 & 30 \\
 L & Trivial pattern, trivial input
     & Baseline for the other categories
-    & \texttt{x} & 33 \\
+    & \texttt{x} & 33 & 195 \\
 \hline
-Total & & & & 113 \\
+Total & & & & 112 & 891 \\
 \hline
 \end{tabularx}
 \caption{The synthetic-set categories. Categories I, J, K, and L form a
 $2\times 2$ matrix of pattern size against input size; the remaining
-seven each stress one cost mechanism.}
+seven each stress one cost mechanism. \emph{Patterns} counts distinct
+hand-curated or generated pattern definitions; \emph{Entries} counts the
+(pattern, input) pairs the default sweep actually times -- the $n$
+reported in Tables~\ref{tab:patho-timing-mech} and
+\ref{tab:patho-timing-size}.}
 \label{tab:patho-categories}
 \end{table}
 
@@ -752,9 +756,11 @@ all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
 \label{sec:eval-timing-pathological}
 
 The eleven categories (Table~\ref{tab:patho-categories}) are each swept
-once at their own default $n$ list. Tables~\ref{tab:patho-timing-cat-A}--%
-\ref{tab:patho-timing-cat-L} report all five parsers per category, so that
-parsers compare directly within a fixed category. \emph{Timed out} counts
+once at their own default $n$ list. Table~\ref{tab:patho-timing-mech}
+reports the seven mechanism categories and Table~\ref{tab:patho-timing-size}
+the $2\times2$ pattern-size/input-size matrix, each grouping all five
+parsers by category so they compare directly within a fixed category.
+\emph{Timed out} counts
 entries whose parser call exceeded the two-second budget; \emph{Crashed}
 counts any other non-zero worker exit, most commonly the translated
 pattern hitting \texttt{core\_regex}'s own depth/node cap before a parser
