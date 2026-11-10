@@ -971,30 +971,32 @@ categories and the median in six, so its advantage over
 \subsubsection{Representative Patterns}
 \label{sec:eval-timing-representative}
 
-Eight representative rows are drawn from the categories above. Six are
-swept past their baseline values in input length $n$, reaching millions
-of characters or thousands of repetitions, so that each row crosses from
-measured to failing within its own range; the other two, E37 and E38,
-instead sweep the pattern's own alternation width $p$ at fixed input
-length, isolating compile-size cost from input length. Row selection,
-sweep points, and the per-row deadline and memory cap were set
-empirically and adjusted as each row's cost became clear. Since these
-inputs exceed the default 2\,s budget, each sweep uses a row-specific
-deadline of 30--120\,s so that its largest point can finish.
-Table~\ref{tab:patho-crash-thresholds} summarises how far each parser
-gets on them, in terms of the largest $n$ or $p$ it completes and the
-first value at which it fails.
+Eight representative rows are drawn from the categories above. 
+Six are swept past their baseline values in input length $n$, 
+reaching millions of characters or thousands of repetitions, 
+so that each row crosses from measured to failing within its own range. 
+The other two, E37 and E38,
+instead sweep the pattern's own alternation width $p$ at fixed input length, 
+isolating compile-size cost from input length. 
+Row selection and sweep points were set empirically as each row’s cost became clear. 
+Since the six $n$-sweep rows’ inputs exceed the default 2 s budget, 
+each uses a fixed 120 s deadline and an 8 GiB memory cap,
+so that its largest point can finish.
+E37 and E38 stay within the default budget and need neither override.
+Table~\ref{tab:patho-crash-thresholds} summarises how far each parser gets on them, 
+in terms of the largest $n$ or $p$ it completes and the first value at which it fails.
 
-The standard pair fails earliest on every row, by crashing rather than
-timing out. Both run on the 256\,MiB worker stack with the 8\,GiB heap cap
-enabled, so they have more stack headroom than in the stack-depth test, yet
-still reach the cap at the same $n$ with nearly identical allocation.
-Recursion depth is therefore not the cause, but the heap is, since both
-keep the derivation sequence for the backward pass and its size grows with
-the input. With the standard pair ruled out, the remaining question is how
-\texttt{deriv\_bc} and the partial-derivative pair compare. On P01, P25,
-and P28 the pair outlasts \texttt{deriv\_bc}, while on the other three
-all three reach the sweep maximum without timing out.
+The standard pair fails earliest on every row, by crashing rather than timing out. 
+Since both run on the 256\,MiB worker stack with the 8\,GiB heap cap enabled, 
+they have more stack headroom than in the bench of \ref{sec:eval-stack-depth}.
+They still reach the cap at the same $n$ with nearly identical allocation.
+Recursion depth is therefore not the cause, but the heap is.
+Both keep the derivation sequence for the backward pass 
+and its size grows with the input. 
+With the standard pair ruled out, 
+the remaining question is how \texttt{deriv\_bc} and the partial-derivative pair compare. 
+On P01, P25, and P28 the pair outlasts \texttt{deriv\_bc}, 
+while on the other three all three reach the sweep maximum without timing out.
 
 \begin{table}[H]
 \centering
@@ -1054,21 +1056,18 @@ failed ($\times$), and a dash means every swept $n$ completed.}
 \textbf{P60 and P61.} Figures~\ref{fig:patho-fig7a} and~\ref{fig:patho-fig7bc}
 plot wall time for \texttt{(a|b|ab)*} on \texttt{a}- and \texttt{ab}-repeated
 input, at the scale of \citet{sulzmannlu2014}'s Figure~7(a) and~7(b). The
-comparison is not exact. \texttt{deriv\_bc} implements the paper's
-construction as described in their theory, building a full parse tree.
-But the paper's Figure~7 uses an implementation adapted for submatching, 
-to record only a
-Kleene star's last match so it could be compared against TDFA, RE2,
-and C-POSIX. 
-This means that curve is not directly comparable. However, here
-it is plotted at the same scale. Both inputs grow roughly linearly.
-The lower panels plot the partial-derivative pair's time as a ratio to
-\texttt{deriv\_bc}, which trails both across most of the sweep.
-\texttt{deriv\_bc} keeps the pattern's ambiguity in one expression and
-cleans it up after every character by comparing every alternative against
-every other one. The partial-derivative pair instead keep the readings in
-a short list and check each new one against it once, which is cheaper on
-both inputs here.
+comparison is not exact, since \texttt{deriv\_bc} implements the paper's
+construction as described in their theory and builds a full parse tree,
+whereas the experiments in the paper used a variant adapted for submatching
+called DERIV, that records only a Kleene star's last match so it could be compared against
+TDFA, RE2, and C-POSIX. The candidate results are therefore not directly
+comparable to the paper's curves.
+Both inputs grow roughly linearly, and the lower panels plot the
+partial-derivative pair as a ratio to \texttt{deriv\_bc}, which trails both
+across most of the sweep. \texttt{deriv\_bc} holds the pattern's ambiguity
+in one expression and simplifies it after every character, while the
+partial-derivative pair keep a short list of readings and check each new
+one against it once, which is cheaper on both inputs.
 
 \begin{figure}[H]
 \centering
@@ -1250,21 +1249,19 @@ narrows between the two partial-derivative parsers.
 plot \texttt{(a+)+} and \texttt{(a|aa)+}, category A and B's ambiguous
 Kleene-star pair: P01 nests a star directly inside a plus, while P09
 leaves the quantifier flat and instead lets \texttt{a} and \texttt{aa}
-overlap, so the same substring can be consumed more than one way --
-two different routes to the same kind of ambiguity. The standard
-variants crash earliest on both, at $n=50$ on P01 and $n=100$ on P09,
+overlap, so the same substring can be consumed more than one way.
+So both patterns are different routes to the same kind of ambiguity. 
+The standard variants crash earliest on both, at $n=50$ on P01 and $n=100$ on P09,
 later than either but still far earlier than the E-family rows above.
 \texttt{deriv\_bc} times out on P01, at $n=200\,000$, but not on P09,
 where it joins both partial-derivative variants in completing the full
-ten-million-character sweep; on P01, both partial-derivative variants
-reach ten million characters despite \texttt{deriv\_bc}'s own
-earlier timeout there. The lower panels plot the partial-derivative
-pair's time as a ratio to \texttt{deriv\_bc}. On P01, over the range
+ten-million-character sweep.
+On P01, over the range
 where \texttt{deriv\_bc} itself has data (up to $n=50\,000$), the
 ratio starts close to 0.9 at the smallest inputs and falls below 0.01
 by $n=50\,000$, since \texttt{deriv\_bc}'s own cost grows far faster
-than the partial-derivative pair's as it nears its timeout. On P09,
-where \texttt{deriv\_bc} completes the whole sweep instead of nearing
+than the partial-derivative pair's as it nears its timeout. 
+On P09, where \texttt{deriv\_bc} completes the whole sweep instead of nearing
 a timeout, both partial-derivative variants instead stay in a roughly
 steady band, from about 0.42 to 0.73, throughout.
 
@@ -1320,8 +1317,7 @@ steady band, from about 0.42 to 0.73, throughout.
 \end{tikzpicture}
 \caption{Wall time on P01, \texttt{(a+)+}, every swept $n$ on a
 log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}, covering only the range where
-\texttt{deriv\_bc} itself completes (up to $n=50\,000$).}
+as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-p01}
 \end{figure}
 
@@ -1379,30 +1375,49 @@ as a ratio to \texttt{deriv\_bc}, covering only the range where
 \end{tikzpicture}
 \caption{Wall time on P09, \texttt{(a|aa)+}, every swept $n$ on a
 log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}, which completes the full sweep on
-this row.}
+as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-p09}
 \end{figure}
 
+The difference is what each pattern's ambiguity costs per character. P01
+nests a \texttt{+} inside another \texttt{+}, so each additional
+\texttt{a} multiplies the number of ways the outer repetition could have
+been split into iterations, making every derivative step
+near-exponential. \texttt{deriv\_bc} keeps all of these live splits in one
+expression and compares every pair of them after each character, so the
+cost grows with $n$, and the ratio collapses from near parity to under
+0.01 before \texttt{deriv\_bc} times out. P09's ambiguity is shallower,
+since category B's shared-prefix alternatives under one flat quantifier
+leave only a couple of live readings at any position, not a count tied to
+how many iterations have passed. The same pairwise cleanup therefore costs
+a bounded amount per character, holding the ratio in the 0.42--0.73
+band out to ten million characters. 
+Between the two partial-derivative
+variants, which avoid this cost on both rows by construction,
+\texttt{pderiv\_std} is faster here, matching P60's ordering.
+
+%
+%
+%
+
 \textbf{P25 and P28.} Figures~\ref{fig:patho-p25} and~\ref{fig:patho-p28}
-plot \texttt{(a|b)*c} and \texttt{([ab]*)*c}, category F's
-alternation-star-then-literal pair: P25 is the flat baseline, a
-two-way alternation under a star followed by a literal that only
-matches once the input ends; P28 nests a second star around the same
-two-character class, isolating the effect of nesting the quantifier
-rather than leaving the alternation flat. The standard variants crash
-far earlier on the nested row, at $n=15$ on P28 against $n=3\,500$ on
-P25. \texttt{deriv\_bc} completes both rows up to $n=30\,000$ before
-timing out, but the two thresholds diverge sharply beyond that point:
-$n=50\,000$ on P25 against $n=200\,000$ on P28. Both partial-derivative
-variants complete the full ten-million-character sweep on both rows,
-the clearest robustness advantage over \texttt{deriv\_bc} in the F
-family. The lower panels plot the ratio to \texttt{deriv\_bc} over the
-range where it has data (up to $n=30\,000$ on both). On P25, like
-P01, the ratio falls steeply, from about 0.8--1.0 at the smallest
-inputs to 0.002 by $n=30\,000$. On P28 it instead stays in a noisy
-0.36--0.68 band through $n=100$, before the same steep decline to
-0.002 by $n=30\,000$ once \texttt{deriv\_bc} nears its own timeout.
+plot the alternation-star-then-literal pair of category F,
+\texttt{(a|b)*c} (P25) and \texttt{([ab]*)*c} (P28). P25 is the flat
+baseline, with a two-way alternation under a star and a trailing literal
+that matches only at the end of the input, while P28 nests a second star
+around the same class to isolate the effect of nesting rather than leaving
+the alternation flat. The standard variants crash much earlier on the
+nested row, at $n=15$ on P28 against $n=3\,500$ on P25. \texttt{deriv\_bc}
+completes both up to $n=30\,000$ before timing out, but the two thresholds
+diverge sharply beyond that point, reaching $n=50\,000$ on P25 and
+$n=200\,000$ on P28. Both partial-derivative variants complete the full
+ten-million-character sweep on both rows, the clearest robustness
+advantage over \texttt{deriv\_bc} in the F family. The lower panels plot
+the ratio to \texttt{deriv\_bc} over the range where it has data. On P25,
+as on P01, the ratio falls steeply, from about 0.8--1.0 at the smallest
+inputs to 0.002 by $n=30\,000$. On P28 it stays in a noisy 0.36--0.68 band
+through $n=100$, before the same steep decline to 0.002 by $n=30\,000$
+once \texttt{deriv\_bc} nears its own timeout.
 
 \begin{figure}[H]
 \centering
@@ -1456,8 +1471,7 @@ inputs to 0.002 by $n=30\,000$. On P28 it instead stays in a noisy
 \end{tikzpicture}
 \caption{Wall time on P25, \texttt{(a|b)*c}, every swept $n$ on a
 log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}, covering only the range where
-\texttt{deriv\_bc} itself completes (up to $n=30\,000$).}
+as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-p25}
 \end{figure}
 
@@ -1513,8 +1527,7 @@ as a ratio to \texttt{deriv\_bc}, covering only the range where
 \end{tikzpicture}
 \caption{Wall time on P28, \texttt{([ab]*)*c}, every swept $n$ on a
 log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}, covering only the range where
-\texttt{deriv\_bc} itself completes (up to $n=30\,000$).}
+as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-p28}
 \end{figure}
 
