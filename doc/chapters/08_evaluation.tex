@@ -1045,22 +1045,7 @@ E38 & J & $p$-way alternation, numbered words
 \end{tabular*}
 \caption{Match-side crash and timeout thresholds. Each cell gives the
 largest swept $n$ that completed (\checkmark) above the first $n$ that
-failed ($\times$); a dash means every swept $n$ completed. The standard
-variants fail by crashing and the \texttt{deriv\_bc} and
-partial-derivative columns by timing out, so the $\times$ entries denote a
-crash in the first column and a timeout in the other two. For E37 and
-E38, the swept quantity is the pattern's alternation width $p$ in place
-of input length $n$; neither fails by crashing or timing out, so a
-$\times$ there instead marks \texttt{core\_regex\_tagged}'s
-translation-size cap, a single pre-execution check shared identically
-by every parser, which is why all three columns agree on the same
-entry for these two rows. E37's full swept range is confirmed by the
-full-corpus run (\texttt{bench\_pathological\_time\_PT1\_entries.csv});
-E38 is independently confirmed only to $p=500$ by that same run, with
-its $p=1\,000$ entry following \texttt{pathological\_patterns.json}'s
-own documented cap. Table~\ref{tab:patho-phases-e38}'s dedicated sweep
-now confirms $p=1\,000$ directly: every parser measures cleanly there,
-with neither a crash nor a timeout.}
+failed ($\times$), and a dash means every swept $n$ completed.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
@@ -1197,8 +1182,8 @@ the partial-derivative pair as a ratio to \texttt{deriv\_bc}.}
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P61, \texttt{(a|b|ab)*} against \texttt{ab} repeated,
-to the scale of \citet{sulzmannlu2014}'s Figure~7(b), now extended to ten
-million characters. The lower panel plots the partial-derivative pair as a
+to the scale of \citet{sulzmannlu2014}'s Figure~7(b). 
+The lower panel plots the partial-derivative pair as a
 ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-fig7bc}
 \end{figure}
@@ -1272,7 +1257,7 @@ later than either but still far earlier than the E-family rows above.
 \texttt{deriv\_bc} times out on P01, at $n=200\,000$, but not on P09,
 where it joins both partial-derivative variants in completing the full
 ten-million-character sweep; on P01, both partial-derivative variants
-now also reach ten million characters despite \texttt{deriv\_bc}'s own
+reach ten million characters despite \texttt{deriv\_bc}'s own
 earlier timeout there. The lower panels plot the partial-derivative
 pair's time as a ratio to \texttt{deriv\_bc}. On P01, over the range
 where \texttt{deriv\_bc} itself has data (up to $n=50\,000$), the
@@ -1897,8 +1882,8 @@ standard variants' peaks are not directly comparable with the
 survivors' and are excluded from the comparisons below.
 
 Among the survivors, \texttt{pderiv\_bc} has the lowest peak on both
-E-family rows, though the two no longer match once P61 is swept to
-P60's ten-million-character range: 1.64\,GB on P60 against 3.27\,GB
+E-family rows, though the two values diverge at matching input length, 
+ten million characters each: 1.64\,GB on P60 against 3.27\,GB
 on P61. \texttt{deriv\_bc} is lower than
 \texttt{pderiv\_std} on P61 (3.40 against 4.97\,GB) but higher on P60
 (2.64 against 2.48\,GB). On the F family, \texttt{deriv\_bc}'s own
@@ -2032,9 +2017,8 @@ points, for the reasons in the text.}
 \end{table}
 
 Measuring syntactic nesting exposed a gap in the depth estimate.
-Previously, groups did not contribute to the count, so deeply nested
-groups could pass the check. The estimate was fixed to add one level
-per group. This does not change the real-corpus results. Running
+The depth estimate adds one level per group.
+This does not change the real-corpus results. Running
 \texttt{dataset\_prepare} on S2ELab still gives 578 accepted patterns,
 572 usable patterns, and 13\,957 inputs. The synthetic set is affected.
 In category J, the E39 row uses $p \in \{100, 500, 1000, 2000\}$
