@@ -99,7 +99,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
                                     other
                                 ),
                             });
-                            (Regex::seq(r1_, r2c), f)
+                            (smart_seq(r1_, &r2c), f)
                         }
                     })
                     .collect()

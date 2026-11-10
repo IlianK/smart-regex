@@ -69,10 +69,16 @@ of the previous chapters:
 
 The resulting \texttt{Regex} has 54 nodes
 (Figure~\ref{fig:frontend-worked-regex}). The two digit expansions
-account for 38 of them, 20 digit leaves and 18 \texttt{Alt} nodes, and
-the remaining 16 come from the two \texttt{[a-c]} expansions, the
+account for 38 of them, with 20 digit leaves and 18 \texttt{Alt} nodes, 
+here abbreviated as \texttt{D}:
+
+\begin{center}
+\texttt{D = Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(0,1),2),3),4),5),6),7),8),9)}
+\end{center}
+
+The remaining 16 come from the two \texttt{[a-c]} expansions, the
 \texttt{Plus} rewrite, the unrolling, and the surrounding
-\texttt{Seq} nodes.
+\texttt{Seq} nodes. 
 
 \begin{figure}[ht]
 \small
@@ -84,20 +90,16 @@ Seq(
       Star(Alt(Alt(a, b), c))
    ),
    Seq(
-      Seq(
-         Eps,
-         Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(0, 1), 2), 3), 4), 5), 6), 7), 8), 9)
-      ),
-      Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(0, 1), 2), 3), 4), 5), 6), 7), 8), 9)
+      Seq(Eps, D),
+      D
    )
 )
 \end{verbatim}
 \caption{The full \texttt{Regex} produced by translating
-the \texttt{ExtPat}.}
+the \texttt{ExtPat}. \texttt{D} abbreviates the nine-deep, left-nested
+\texttt{Alt} chain over the digits \texttt{0}--\texttt{9}.}
 \label{fig:frontend-worked-regex}
 \end{figure}
-
-
 
 %
 %

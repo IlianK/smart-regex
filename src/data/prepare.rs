@@ -232,7 +232,7 @@ fn estimated_translated_depth(ep: &ExtPat) -> usize {
         ExtPat::Carat | ExtPat::Dollar => 1,
         ExtPat::Dot => 98, // full alphabet Alt chain
         ExtPat::Any(cs) | ExtPat::NoneOf(cs) => cs.len().max(1),
-        ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => estimated_translated_depth(inner),
+        ExtPat::Group(inner) | ExtPat::GroupNonMarking(inner) => 1 + estimated_translated_depth(inner),
         ExtPat::Opt(inner) => 1 + estimated_translated_depth(inner),
         ExtPat::Plus(inner) => 1 + 2 * estimated_translated_depth(inner),
         ExtPat::Star(inner) => 1 + estimated_translated_depth(inner),

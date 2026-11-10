@@ -116,11 +116,9 @@
       "stress_axis": "compile blow-up (pattern size)",
       "suggested_p": [
         100,
-        500,
-        1000,
-        2000
+        500
       ],
-      "suggested_p_notes": "Lowered from [100,1000,10000,100000]: a real full-category run (bench_pathological_translate PX1) showed p=10000 and p=100000 reject at translation for every J row (core_regex_tagged's 20,000-node cap), so those two points contributed zero measured comparisons -- pure wasted wall-clock, not a stress result. p=1000 translates for most rows (observed 2000-14000 nodes depending on the row's per-alternative cost), so the new top point (2000) pushes a little past that confirmed-safe range without guaranteeing uniform rejection the way 10000 did."
+      "suggested_p_notes": "Lowered from [100,1000,10000,100000]: a real full-category run (bench_pathological_translate PX1) showed p=10000 and p=100000 reject at translation for every J row (core_regex_tagged's 20,000-node cap), so those two points contributed zero measured comparisons -- pure wasted wall-clock, not a stress result. Further lowered from [100,500,1000,2000]: at p=1000/2000, E36, E38 (p=2000 only), and E39 exceed the translation cap identically for every parser -- a controlled, parser-independent rejection before any parser-specific code runs, so those entries contributed no parser-comparison signal to the routine timing sweep (bench_pathological_time PT1) either. E37 keeps its own suggested_p override at the full [100,500,1000,2000] range, since it translates cleanly throughout and is used as the representative encode/derive/decode sweep."
     },
     "K": {
       "name": "Large pattern, large input",
@@ -136,7 +134,7 @@
         10000,
         50000
       ],
-      "suggested_p_notes": "Lowered from [1000]: a real full-category run showed exactly half of K's routine entries (20 of 40, uniform across all 5 parsers and every n) fail at translation, not at parsing -- p=1000 pushes at least one of K's 4 rows over core_regex_tagged's 20,000-node cap before any parser-timing comparison is possible. 300 keeps margin under the cap for the row observed with the highest per-alternative node cost."
+      "suggested_p_notes": "Lowered from [1000]: a real full-category run showed exactly half of K's routine entries (20 of 40, uniform across all 5 parsers and every n) fail at translation, not at parsing -- all from one row, E52, which layered a bounded repetition {2,5} on top of the same word-alternation generator as E41, multiplying the alternation tree up to 5x; it already exceeded the cap at p=300 while the unbounded E41/E42/E43 translate cleanly. E52 has been removed from the routine set rather than kept at a p where it never contributes a parser-comparison point (it was a controlled, parser-independent rejection, identical across all five parsers). 300 keeps comfortable margin under the cap for the remaining three rows."
     },
     "L": {
       "name": "Trivial pattern, trivial input",
@@ -1723,6 +1721,7 @@
     {
       "id": "E37",
       "category": "J",
+      "suggested_p": [100, 500, 1000, 2000],
       "pattern_template": "(?:{WORDS})",
       "generator": {
         "kind": "fixed_width_trie",
@@ -1860,27 +1859,6 @@
       },
       "stress_axis": "large pattern + large input",
       "notes": "disjoint alternatives, so this is actually safe at both axes -- useful as a K-category control alongside E36/E41"
-    },
-    {
-      "id": "E52",
-      "category": "K",
-      "pattern_template": "(?:{WORDS}){2,5}",
-      "generator": {
-        "kind": "word_alternation",
-        "word_fn": "w%06d",
-        "p_values": [100, 200, 300]
-      },
-      "match_input": {
-        "repeat_word": 1,
-        "count": "{N}"
-      },
-      "nomatch_input": {
-        "repeat_word": 1,
-        "count": "{N}",
-        "suffix": "!"
-      },
-      "stress_axis": "compile blow-up (bounded repetition multiplies the alternation tree, not just concatenates it)",
-      "notes": "same word_alternation generator as E36/E41, but {2,5} bounded instead of unbounded +; bound-unrolling clones the whole P-sized alternation tree up to 5x -- confirmed P=100 bound{2,5}=7009 nodes vs unbounded+=2800 nodes at the same P, and this row already rejects (exceeds MAX_CORE_NODES) at P=300 while the unbounded E41/E36 survive to P=500"
     }
   ]
 }

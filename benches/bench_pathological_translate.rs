@@ -659,6 +659,13 @@ fn main() {
     let patterns_path = format!("{REPORTS_DIR}/bench_pathological_translate{label_suffix}_patterns.csv");
     let pattern_limit_str = fmt_limit(limit);
 
+    // append_summary_row below appends one row per category as each
+    // completes, so a crash partway through still keeps the earlier
+    // categories' rows -- but that only holds within one run. Clear any
+    // previous run's rows first, or this file accumulates every run's
+    // output forever instead of reporting just the latest one.
+    let _ = std::fs::remove_file(&summary_path);
+
     let mut all_patterns: Vec<PatternStat> = Vec::new();
 
     for (category, cat_entries) in group_by_category(entries) {

@@ -90,7 +90,7 @@ fn resolve_count_template(s: &str, n: u32, p: u32) -> u32 {
         return scaled.saturating_sub(off.parse().unwrap_or_else(|_| panic!("bad count offset: {s:?}")));
     }
     if let Some(off) = rest.strip_prefix('+') {
-        return scaled + off.parse::<u32>().unwrap_or_else(|_| panic!("bad count offset: {s:?}"));
+        return scaled.saturating_add(off.parse::<u32>().unwrap_or_else(|_| panic!("bad count offset: {s:?}")));
     }
     panic!("unexpected count template: {s:?}")
 }
@@ -165,6 +165,18 @@ impl Generator {
             Generator::FixedWidthTrie { width, alphabet } => {
                 let alphabet: Vec<char> = alphabet.chars().collect();
                 let base = alphabet.len() as u64;
+                // Past base^width distinct width-digit strings, the odometer
+                // below wraps and starts repeating words it already emitted
+                // -- silently, since the loop only checks `words.len()`, not
+                // distinctness. Catch a config that asks for more than the
+                // alphabet/width can provide instead of quietly padding the
+                // trie with duplicates.
+                if let Some(capacity) = base.checked_pow(*width as u32) {
+                    assert!(
+                        (p as u64) <= capacity,
+                        "FixedWidthTrie: {p} distinct words requested but width {width} over a {base}-letter alphabet only has {capacity}"
+                    );
+                }
                 let mut words = Vec::with_capacity(p as usize);
                 let mut i: u64 = 0;
                 while words.len() < p as usize {
@@ -442,7 +454,7 @@ mod tests {
         let doc = load(Path::new("data/pathological/pathological_patterns.json")).expect("should load");
         assert_eq!(doc.pathological_patterns.len(), 61);
         assert_eq!(doc.baseline_and_edge_patterns.len(), 43);
-        assert_eq!(doc.generated_patterns.len(), 9);
+        assert_eq!(doc.generated_patterns.len(), 8);
         assert!(doc.categories.contains_key("A"));
         assert!(doc.categories.contains_key("L"));
     }

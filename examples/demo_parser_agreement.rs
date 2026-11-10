@@ -51,7 +51,7 @@ use common::{csv_quote, save};
 
 use regex_engine::data::load_prepared_cases;
 use regex_engine::data::prepare::core_regex;
-use regex_engine::data::types::{PreparedCase, SourceKind};
+use regex_engine::data::types::{MatchIntent, PreparedCase, SourceKind};
 use regex_engine::types::ParseTree;
 
 const DATA_ROOT: &str = "data/processed";
@@ -76,6 +76,7 @@ fn source_idx(s: SourceKind) -> usize {
 struct Selection {
     sources: Vec<SourceKind>,
     pattern_limit: Option<usize>,
+    match_intent: Option<MatchIntent>,
     timeout: Duration,
 }
 
@@ -105,13 +106,30 @@ fn selection() -> Selection {
     let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT").ok().map(|s| {
         s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
     });
+    // Same default and env var as bench_corpus_time.rs/bench_corpus_memory.rs:
+    // every measurement in this evaluation runs on the same scope, the 463
+    // anchor-stripped (full-match) patterns, unless BENCH_MATCH_INTENT
+    // explicitly asks to fold in the 115 "direct" patterns too. A prepared
+    // case's claimed label is only unambiguous for this engine's full-string
+    // matching under ExplicitFullMatch; UnanchoredAmbiguous's own name is
+    // the reason it is not the default anywhere else, and agreement should
+    // not be the one measurement checking it against a looser bar.
+    let match_intent = match std::env::var("BENCH_MATCH_INTENT").ok() {
+        None => Some(MatchIntent::ExplicitFullMatch),
+        Some(s) => match s.trim().to_lowercase().as_str() {
+            "both" => None,
+            "direct" => Some(MatchIntent::UnanchoredAmbiguous),
+            "explicit" => Some(MatchIntent::ExplicitFullMatch),
+            other => panic!("BENCH_MATCH_INTENT must be direct, explicit, or both, got {other:?}"),
+        },
+    };
     let timeout_ms = std::env::var("AGREEMENT_TIMEOUT_MS")
         .ok()
         .map(|s| {
             s.parse().unwrap_or_else(|_| panic!("AGREEMENT_TIMEOUT_MS must be a positive integer, got {s:?}"))
         })
         .unwrap_or(DEFAULT_TIMEOUT_MS);
-    Selection { sources, pattern_limit, timeout: Duration::from_millis(timeout_ms) }
+    Selection { sources, pattern_limit, match_intent, timeout: Duration::from_millis(timeout_ms) }
 }
 
 /// Deserializes a worker's one-line `Option<ParseTree>` output.
@@ -257,6 +275,10 @@ fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
                 DATA_ROOT
             )
         });
+    let cases: Vec<PreparedCase> = match sel.match_intent {
+        None => cases,
+        Some(wanted) => cases.into_iter().filter(|case| case.match_intent == wanted).collect(),
+    };
     let Some(limit) = sel.pattern_limit else {
         return cases;
     };

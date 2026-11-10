@@ -11,12 +11,13 @@
 //!
 //! "Size" means different things per family.
 //! Deriv keeps one expression: size is its node count.
-//! PartDeriv keeps a frontier (a set of residual terms): size is the
-//! strand count, plus total node count summed across the frontier for a
-//! value comparable to Deriv's.
+//! PartDeriv keeps a frontier (a set of distinct residual terms,
+//! deduplicated the same way the real parser's own step_frontier is):
+//! size is the strand count, plus total node count summed across that
+//! deduplicated frontier for a value comparable to Deriv's.
 //! Bitcoded and standard sides are not quite the same construction
-//! either: bitcoded applies `smart_seq`/dedup the standard side does not
-//! always match.
+//! either: bitcoded applies `smart_seq`, so a standard residual can
+//! carry a few extra `Eps .` nodes the bitcoded side already collapsed.
 //! Printed, not smoothed over.
 //!
 //! Saves the two tables separately, replacing any previous run:

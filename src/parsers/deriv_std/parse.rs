@@ -29,7 +29,27 @@ fn parse_recursive_helper(r: &Regex, chars: &[char], pos: usize) -> Option<Parse
 
 pub fn parse_deriv_std_rec(input: &str, r: &Regex) -> Option<ParseTree> {
     let chars: Vec<char> = input.chars().collect();
-    parse_recursive_helper(r, &chars, 0)
+    parse_recursive_helper(r, &chars, 0).map(reverse_stars)
+}
+
+/// Reverses every `Star`'s items exactly once. `inject`'s Star case
+/// (see inject.rs) now `push`es a new iteration onto the existing tail
+/// instead of rebuilding the whole vec by `extend`, O(1) amortized
+/// instead of O(current length) -- which leaves every Star's items in
+/// reverse temporal order until this single O(total tree size)
+/// correction pass, applied once here after the full backward pass
+/// completes.
+pub(super) fn reverse_stars(v: ParseTree) -> ParseTree {
+    match v {
+        ParseTree::Empty | ParseTree::Char(_) => v,
+        ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(reverse_stars(*v1)), Box::new(reverse_stars(*v2))),
+        ParseTree::Left(v1) => ParseTree::Left(Box::new(reverse_stars(*v1))),
+        ParseTree::Right(v1) => ParseTree::Right(Box::new(reverse_stars(*v1))),
+        ParseTree::Star(mut items) => {
+            items.reverse();
+            ParseTree::Star(items.into_iter().map(reverse_stars).collect())
+        }
+    }
 }
 
 
@@ -58,5 +78,55 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree> {
         tree = inject(&expressions[i], chars[i], tree);
     }
 
-    Some(tree)
+    Some(reverse_stars(tree))
+}
+
+
+// Unit tests
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::flatten;
+    use crate::parsers::deriv_bc::parse_deriv_bc;
+
+    #[test]
+    fn star_iterations_are_in_left_to_right_order() {
+        // (a|b)* on "abab": a bug in the push/reverse rewrite would
+        // reverse this to [b,a,b,a] instead of the correct [a,b,a,b].
+        let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
+
+        let tree_rec = parse_deriv_std_rec("abab", &r).unwrap();
+        let tree_loop = parse_deriv_std_loop("abab", &r).unwrap();
+        assert_eq!(tree_rec, tree_loop);
+        assert_eq!(flatten(&tree_rec), "abab");
+        assert_eq!(
+            tree_rec,
+            ParseTree::Star(vec![
+                ParseTree::Left(Box::new(ParseTree::Char('a'))),
+                ParseTree::Right(Box::new(ParseTree::Char('b'))),
+                ParseTree::Left(Box::new(ParseTree::Char('a'))),
+                ParseTree::Right(Box::new(ParseTree::Char('b'))),
+            ])
+        );
+        assert_eq!(tree_rec, parse_deriv_bc("abab", &r).unwrap());
+    }
+
+    #[test]
+    fn nested_star_iterations_match_bc_order() {
+        // ((a|b)(a|b))* on "abba": two-character iterations, so a
+        // within-iteration order bug (not just a between-iteration one)
+        // would also show up here.
+        let pair = Regex::seq(
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+        );
+        let r = Regex::star(pair);
+
+        let tree_rec = parse_deriv_std_rec("abba", &r).unwrap();
+        let tree_loop = parse_deriv_std_loop("abba", &r).unwrap();
+        assert_eq!(tree_rec, tree_loop);
+        assert_eq!(flatten(&tree_rec), "abba");
+        assert_eq!(tree_rec, parse_deriv_bc("abba", &r).unwrap());
+    }
 }

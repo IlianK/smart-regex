@@ -1,4 +1,4 @@
-//! dsrc/diagnostics/report.rs
+//! src/diagnostics/report.rs
 //! 
 //! ReportWriter: buffers diagnostic output and writes to a file (diag_3)
 

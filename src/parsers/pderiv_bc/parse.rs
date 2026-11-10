@@ -47,30 +47,38 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_pderiv_bc_timed(input, r).0
 }
 
-/// Same parse, plus how long derive (the per-character frontier
-/// stepping) and decode (bits -> ParseTree) each took. pderiv_bc has no
-/// encode step (it works on plain `Regex` directly, no ARegex
-/// conversion), so `encode_us` is always 0.
+/// Same parse, plus how long encode, derive (the per-character frontier
+/// stepping), and decode (bits -> ParseTree) each took. pderiv_bc has no
+/// `Regex` -> `ARegex` conversion the way deriv_bc does, but it still
+/// clones `r` into the initial frontier before deriving, and that clone
+/// is a full recursive walk of the same pattern tree (`Regex`'s `Clone`
+/// is derived over `Box<Regex>` fields, not `Rc`/`Arc`), the same order
+/// of work as `internalize` does there. Timed as its own `encode_us`
+/// here so the two bit-coded parsers' phase breakdowns stay comparable,
+/// instead of silently folding that cost into `derive_us`.
 pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, BcTiming) {
-    let t0 = Instant::now();
+    let t_encode = Instant::now();
     let mut frontier = vec![(r.clone(), AppendBits::empty())];
+    let encode_us = t_encode.elapsed().as_micros() as u64;
+
+    let t0 = Instant::now();
     for c in input.chars() {
         frontier = step_frontier(&frontier, c);
         if frontier.is_empty() {
             let derive_us = t0.elapsed().as_micros() as u64;
-            return (None, BcTiming { encode_us: 0, derive_us, decode_us: 0 });
+            return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
         }
     }
     let derive_us = t0.elapsed().as_micros() as u64;
 
     let t1 = Instant::now();
     let Some(bits) = select_bits(&frontier) else {
-        return (None, BcTiming { encode_us: 0, derive_us, decode_us: 0 });
+        return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
     };
     let tree = decode(r, &bits);
     let decode_us = t1.elapsed().as_micros() as u64;
 
-    (Some(tree), BcTiming { encode_us: 0, derive_us, decode_us })
+    (Some(tree), BcTiming { encode_us, derive_us, decode_us })
 }
 
 
@@ -99,12 +107,11 @@ mod tests {
     }
 
     #[test]
-    fn timed_matches_untimed_and_has_no_encode_step() {
+    fn timed_matches_untimed_output() {
         let r = Regex::star(Regex::lit('a'));
         let plain = parse_pderiv_bc("aaa", &r);
-        let (timed, timing) = parse_pderiv_bc_timed("aaa", &r);
+        let (timed, _timing) = parse_pderiv_bc_timed("aaa", &r);
         assert_eq!(plain, timed);
-        assert_eq!(timing.encode_us, 0, "pderiv_bc has no ARegex encode step");
     }
 
     #[test]

@@ -172,7 +172,9 @@ produces several successors, they are appended in the order the rules
 generate them, with the left alternative first, so the leftmost path
 appears earliest. Second, when two states share a residual,
 $\mathit{nub}$ keeps the first and discards the later one with its
-injection, so the earlier path wins ties. Both mechanisms favour the
+injection, so the earlier path wins ties -- the frontier-wide
+deduplication rule stated as Definition~8 of \citep{sulzmannlu2012}. Both
+mechanisms favour the
 leftmost alternative at every choice over the longest one, which is what
 distinguishes the tree this parser returns from the POSIX tree of
 Chapter~\ref{sec:derivative-parser}.
@@ -394,7 +396,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
                                     ParseTree::Pair(Box::new(inj1(*v1)), v2),
                                 _ => panic!("pderiv_tree/Seq: want Pair"),
                             });
-                            (Regex::seq(r1_, r2c), f)
+                            (smart_seq(r1_, &r2c), f)
                         }
                     })
                     .collect()
@@ -752,6 +754,17 @@ bit-coded variant replaces closures with bit-sequences: each configuration's
 annotation records the choices made so far, and decoding the final
 bit-sequence against the original expression yields the parse tree.
 
+Unlike the bit-coded \emph{derivative} parser of
+Chapter~\ref{sec:derivative-parser}, this construction has no
+\texttt{internalize} step and builds no annotated \texttt{ARegex} type. A
+partial derivative already returns one residual per surviving strand, so
+each strand's bits thread alongside its plain \texttt{Regex} residual as
+a separate value (\texttt{AppendBits}, \S\ref{sec:pderiv-bc-state-set})
+rather than being embedded in the expression tree itself. There is
+accordingly no $\mathit{fuse}$ step either: $\mathit{fuse}$ exists to
+carry bits from a node a shared annotated tree is about to lose onto the
+node that replaces it, and no such tree is ever built here.
+
 Transitioning $w = \mathtt{ab}$ from $r_0 = (a + ab)(b + \varepsilon)$ gives:
 \begin{equation}\label{eq:pderiv-bc-overview}
 \begin{aligned}
@@ -885,6 +898,14 @@ standard version. When the first factor is nullable, the bits recorded inside
 its empty match are extracted with $\mathit{mkEpsBC}_{r_1}$ and prepended to
 the second factor's bits, so the choice made inside the first factor survives
 in the surviving configuration.
+
+The reference teaching material's own derivation keeps a trace of why this
+prefix is necessary: an earlier draft of this clause, kept only as a
+comment, used the jump strand's residual with no bits prepended, annotated
+\emph{bug spotted by clause}; the live version was corrected to the
+$\mathit{mkEpsBC}_{r_1}$-prefixed form given here~\citep{sulzmann_slides},
+which is what~\eqref{eq:pderiv-bc} and Figure~\ref{fig:pderiv-bc-rust}
+below implement.
 
 %
 

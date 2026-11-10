@@ -650,6 +650,13 @@ fn main() {
     let run_label = std::env::var("BENCH_RUN_LABEL").unwrap_or_default();
     let pattern_limit_str = fmt_limit(sel.pattern_limit);
 
+    // append_summary_row below appends one row per source as each completes,
+    // so a crash partway through still keeps the earlier sources' rows --
+    // but that only holds within one run. Clear any previous run's rows
+    // first, or this file accumulates every run's output forever instead of
+    // reporting just the latest one.
+    let _ = std::fs::remove_file(&summary_path);
+
     let mut all_patterns: Vec<(&'static str, SourcePatternStat)> = Vec::new();
     let mut by_source: Vec<(&'static str, Vec<SourcePatternStat>)> = Vec::new();
 

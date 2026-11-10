@@ -30,7 +30,7 @@ fn main() {
     let ab16 = "ab".repeat(8);
 
     let s1 = series_bitcoded_simplified(&r2, &ab16);
-    let s2 = series_plain_unsimplified(&r2, &"ab".repeat(6));
+    let s2 = series_plain_unsimplified(&r2, &ab16);
     let s3 = series_bitcoded_simplified(&astar, &a16);
     let s4 = series_plain_unsimplified(&astar, &a16);
 
