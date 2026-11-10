@@ -1,0 +1,81 @@
+\chapter{Related Work and Conclusion}
+\label{sec:related}
+
+Sulzmann and Lu observed that many POSIX regular expression
+implementations were incorrect. To address this problem, they proposed
+a method based on Brzozowski's derivatives~\citep{brzozowski1964},
+which constructs a full parse tree according to the longest-leftmost
+disambiguation policy. They also provided a proof of correctness
+for their approach.
+In separate work, they investigated submatching, an area in which
+existing approaches predominantly rely on greedy disambiguation.
+Greedy matching is closely tied to the structure of the regular
+expression and can be implemented efficiently by translating the
+expression into a nondeterministic finite automaton (NFA). 
+Examples include the general parsing approach of
+\citet{frischcardelli2004} and Laurikari's tagged NFAs \citet{laurikari2000} for
+submatching. Applying these NFA-based approaches to POSIX semantics,
+however, requires additional bookkeeping to select the
+longest-leftmost result, as observed by
+\citet{sulzmannlu2012}. Instead, their approach to submatching
+uses Antimirov's partial derivatives directly, resulting in a
+non-POSIX counterpart to their full-parse-tree construction
+\citep{sulzmannlu2012,antimirov1996}.
+
+While the original papers provided Haskell implementations, their
+practical realisation in a systems programming language had not
+been investigated. This thesis addressed this gap by implementing
+all four parser variants in Rust and empirically evaluating their
+performance and memory consumption on the S2ELab
+corpus~\citep{s2elab-regexeval-dataset} and a synthetic stress-test
+dataset.
+
+Across the datasets, the implementations had the following
+performance ordering, from the slowest to the fastest parser:
+\texttt{deriv\_std\_rec}, \texttt{deriv\_std\_loop},
+\texttt{deriv\_bc}, \texttt{pderiv\_std}, and
+\texttt{pderiv\_bc}. In particular, \texttt{deriv\_bc} was four
+to five times faster than the standard derivative parser while
+using roughly two orders of magnitude less peak memory.
+Partial derivatives proved more efficient for submatching on
+realistic inputs, whereas bit-coding substantially benefited the
+full-derivative parser but made little difference for partial
+derivatives. The relative performance nevertheless depends on
+the input, particularly on the growth of the residual set, so
+neither family was shown to be uniformly superior.
+
+Beyond derivative-based approaches, \citet{laurikari2000} attach
+submatch information to automaton transitions, as in Kuklewicz's
+\texttt{regex-tdfa}~\citep{kuklewicz_tdfa}. It is one of three tools
+\citet{sulzmannlu2014} benchmark against in their own paper, not with
+the general construction presented there but with a second, adapted
+Haskell implementation that records only the last match of each
+Kleene star. The bit-coded parsers here implement that general
+construction directly, without this adaptation.
+Production engines such as
+RE2~\citep{re2} and Rust's \texttt{regex}~\citep{rust_regex} compile
+to automata for linear-time matching but do not build the full parse
+trees this thesis targets.
+
+For future work, three directions follow from these results. 
+First, \texttt{deriv\_bc}
+still trails the partial-derivative variants on several
+large-scale patterns, partly due to repeatedly simplifying a
+shared expression against itself rather than stepping independent
+residuals. Sulzmann and Lu report memory problems in their
+bit-coded implementation and propose computing the POSIX path
+separately before constructing the parse tree with a
+space-efficient tree builder~\citep{sulzmannlu2014}. A related
+improvement for \texttt{deriv\_bc} would be to defer bit construction
+until decoding. 
+Second, the supported language could be extended to include
+operations currently rejected by the frontend, such as anchors,
+bounded lookaround, and backreferences, as discussed in
+Chapter~\ref{sec:frontend}. Lu's partial-derivative
+implementation~\citep{lu_regex_pderiv} provides a useful reference
+for such extensions.
+Additionally, the current trace instrumentation could be developed
+into a proper diagnostic tool identifying which subexpressions are
+responsible for a match or timeout, helping to localise remaining
+performance problems or providing verbose information on where and
+why a given input failed to match.
