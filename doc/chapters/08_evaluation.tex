@@ -1530,20 +1530,15 @@ reverse ranking.}
 \label{tab:patho-e38-all-parsers}
 \end{table}
 
-\textbf{The ranking inverts at wide $p$.} Past a few thousand
-alternatives, the two parsers fastest everywhere else in this thesis
--- \texttt{deriv\_bc} by $4$--$4.5\times$ on the corpus, the
-partial-derivative pair faster still -- become the slowest.
-Table~\ref{tab:patho-e38-all-parsers} shows this on E38: by
-$p=10\,000$, \texttt{deriv\_bc} is roughly $18\times$ slower than the
-standard pair, and the partial-derivative pair over $100\times$
-slower. This is the one row in the representative set where that
-ordering reverses.
-
-The two slower parsers blow up for different reasons.
-\texttt{deriv\_bc}'s branch simplification deduplicates the $p$ live
-alternatives by comparing every one against every other, shown in
-Figure~\ref{fig:dedup-first-rust}.
+\textbf{The ranking inverts at wide $p$.} Past a few thousand alternatives, 
+the two parsers fastest everywhere else become the slowest.
+Table~\ref{tab:patho-e38-all-parsers} shows this on E38. 
+By $p=10\,000$, \texttt{deriv\_bc} is roughly $18\times$ slower than the standard pair, 
+and the partial-derivative pair over $100\times$ slower. 
+This is the one row in the representative set where that ordering reverses.
+These parsers blow up for different reasons.
+\texttt{deriv\_bc}'s branch simplification (Figure~\ref{fig:dedup-first-rust}) 
+deduplicates the $p$  live alternatives by comparing them against every other.
 
 \begin{figure}[H]
 \small
@@ -1563,31 +1558,32 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
     }
 }
 \end{verbatim}
-\caption{\texttt{dedup\_first}: the nested loop behind
-Figure~\ref{fig:simp-rust}'s own \texttt{dedup\_first} call,
-elided there for space. Every branch is compared against every
-later branch via \texttt{same\_shape}, removing a match in place --
-an $O(p^2)$ scan with no hashing or ordering involved.}
+\caption{\texttt{dedup\_first}: the nested loop behind Figure~\ref{fig:simp-rust}'s 
+own \texttt{dedup\_first} call. 
+Every branch is compared against every later branch via \texttt{same\_shape}, 
+removing a match in place, an $O(p^2)$ scan with no hashing or ordering,
+directly implementing \citet{sulzmannlu2014}, Fig.6.}
 \label{fig:dedup-first-rust}
 \end{figure}
 
-This is not an implementation shortcut; it is Sulzmann and Lu's own
-construction. Figure 6 of \citet{sulzmannlu2014} defines
-simplification's choice case as
+Figure~6 of \citet{sulzmannlu2014} defines the choice case of simplification as:
 \[
 simp\ (bs@{\oplus}(ri : rsi)) = bs@{\oplus}\bigl(\mathit{nub}\
 (\mathit{filter}\ (\neg\,\mathit{isPhi})\ ((simp\ ri) : \mathit{map}\
 simp\ rsi))\bigr),
 \]
-stating explicitly that duplicates are removed by keeping only the
-first occurrence ``via \texttt{nub}'' -- the standard Haskell
-\texttt{Data.List} function, quadratic by construction since it
-requires only an \texttt{Eq} instance. \texttt{same\_shape} above is
-exactly this equality check, made insensitive to bit-code history so
-identical branches merge regardless of parse path. For $p$ genuinely distinct words,
-nothing ever merges, so the full $O(p^2)$ cost is paid for no
-benefit. The paper's own complexity claim covers input length, not
-pattern width, so this result does not contradict it.
+So the paper notes that duplicates are removed by keeping only the first
+occurrence via \texttt{nub}, 
+the standard Haskell \texttt{Data.List} function. 
+That function is quadratic, because with only an \texttt{Eq}
+instance available it compares each element against every other. 
+The \texttt{same\_shape} check above is this equality test, 
+made insensitive to bit-code history 
+so that identical branches merge regardless of parse path. 
+For $p$ genuinely distinct words nothing ever merges, 
+so the full $O(p^2)$ cost is paid with no benefit. 
+The paper's complexity claim covers input length rather than pattern width, 
+so this result appears consistent with it.
 
 The partial-derivative pair's own deduplication (\texttt{nub2} and
 \texttt{nub\_tree}) is hash-based and genuinely $O(p)$ -- it is not
