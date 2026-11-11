@@ -1004,10 +1004,9 @@ while on the other three all three reach the sweep maximum without timing out.
 \setlength{\tabcolsep}{6pt}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lll rrr}
 \hline
-& & & \shortstack{Standard\\\texttt{rec} \& \texttt{loop}}
-    & \shortstack{\texttt{deriv\_bc}}
-    & \shortstack{\texttt{pderiv}\\\texttt{std} \& \texttt{bc}} \\[4pt]
-Row & Cat. & Pattern and Input & \multicolumn{3}{c}{\checkmark\ last OK \qquad $\times$\ first fail} \\
+Row & Cat. & Pattern and Input & \shortstack{Standard\\\texttt{rec} \& \texttt{loop}}
+    & \texttt{deriv\_bc}
+    & \shortstack{\texttt{pderiv}\\\texttt{std} \& \texttt{bc}} \\
 \hline\\[-6pt]
 P60 & E & \texttt{(a|b|ab)*}, \texttt{a} repeated
     & \shortstack[r]{\checkmark\ 5\,000\\ $\times$\ 20\,000}
@@ -1043,9 +1042,45 @@ failed ($\times$), and a dash means every swept $n$ completed.
 P60 and P61 are the reference-paper scale rows,
 P09 and P01 are the nested-quantifier and overlapping-alternation rows,
 and E37 and E38 sweep the pattern size $p$ rather than the input length.
-For every row except the E rows, the two numbers are the last input length
-that completed and the first that failed, while for E37 and E38 they are
-the last alternation width that completed and the first that failed.}
+Spelled out, category E (P60, P61) stresses prefix-overlap alternation,
+category B (P09) stresses overlapping alternatives under one flat
+quantifier, category A (P01) stresses a quantifier nested inside
+another, and category J (E37, E38) stresses compile-time cost as the
+pattern itself grows rather than as the input does.
+For P60, P61, P09, and P01, the two numbers are the last input length
+that completed and the first that failed; for E37 and E38, they are
+the last alternation width that completed and the first that failed.
+The three data columns each merge a pair of parsers -- the two standard
+variants, and the two partial-derivative variants -- since within each
+pair the last-completed and first-failed points coincide on every row
+shown; \texttt{deriv\_bc} gets its own column because it has no such
+twin. A crash means the worker was killed by a signal, almost always
+from the memory cap below; a timeout means it exceeded its deadline
+without resolving either way. Every $n$-sweep row here runs under a
+fixed $120\,\mathrm{s}$ deadline and $8\,\mathrm{GiB}$ memory cap;
+E37 and E38 stay within the default $2\,\mathrm{s}$ budget and need
+neither override. Only the standard pair fails by crashing; the other
+parsers, when they fail at all, do so by timing out. The three
+horizontal rules group the six rows by what each pair is designed to
+isolate, matching the category breakdown just given. Their peak
+memory and phase-cost breakdowns are reported later in this chapter.
+Each cell's outcome comes from a dedicated child-process invocation
+per parser, row, and input length, so a crash or timeout in one
+measurement cannot affect any other. The merged pairs were confirmed
+directly against the per-entry measurement logs rather than assumed
+from the two variants' similar design: on every row shown, their
+last-completed and first-failed input lengths coincide exactly. The
+$8\,\mathrm{GiB}$ cap here is twice the $4\,\mathrm{GiB}$ used for the
+full-corpus sweep (Section~\ref{sec:eval-criteria-setup}), since these
+six rows are specifically chosen to push further before failing than
+anything in the corpus itself. Where a cell shows a dash, the parser
+was never observed to fail anywhere in its own swept range, not merely
+at the single largest point listed. Each representative pattern was
+the single costliest example found within its category at the
+dataset's own baseline input lengths, before being swept to the much
+larger scales shown here. This table therefore summarises six
+separate experiments, each run under the same two overrides, rather
+than six columns of one shared sweep.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
