@@ -94,10 +94,11 @@ pub fn core_regex_tagged(raw_pattern: &str) -> Result<(Regex, MatchIntent), Stri
 
     // Any anchor not strippable shape reaches `translate` unchanged and is rejected there
     let r = translate(&ep)?;
-    let nodes = node_count(&r);
-    if nodes > MAX_CORE_NODES {
+    let cap = max_core_nodes();
+    let nodes = node_count(&r, cap);
+    if nodes > cap {
         return Err(format!(
-            "translated pattern has {nodes} nodes, exceeding this pipeline's cap of {MAX_CORE_NODES}"
+            "translated pattern has {nodes} nodes, exceeding this pipeline's cap of {cap}"
         ));
     }
     Ok((r, intent))
@@ -246,12 +247,12 @@ fn estimated_translated_depth(ep: &ExtPat) -> usize {
     }
 }
 
-fn node_count(r: &Regex) -> usize {
+fn node_count(r: &Regex, cap: usize) -> usize {
     let mut stack = vec![r];
     let mut count = 0usize;
     while let Some(node) = stack.pop() {
         count += 1;
-        if count > MAX_CORE_NODES {
+        if count > cap {
             return count;
         }
         match node {
@@ -269,8 +270,21 @@ fn node_count(r: &Regex) -> usize {
 /// Reject before translating if estimated depth exceeds this.
 const MAX_CORE_DEPTH: usize = 2_000;
 
-/// Coarser cap on the translated pattern's node count.
-const MAX_CORE_NODES: usize = 20_000;
+/// Coarser cap on the translated pattern's node count, protecting the
+/// dataset pipeline against unexpectedly huge real-world patterns.
+/// Overridable via `CORE_REGEX_MAX_NODES` for a deliberate, controlled
+/// sweep (e.g. a pattern-size benchmark) that wants to push past it on
+/// purpose; every other caller keeps the same default as before.
+fn max_core_nodes() -> usize {
+    std::env::var("CORE_REGEX_MAX_NODES")
+        .ok()
+        .map(|s| {
+            s.parse().unwrap_or_else(|_| {
+                panic!("CORE_REGEX_MAX_NODES must be a positive integer, got {s:?}")
+            })
+        })
+        .unwrap_or(20_000)
+}
 
 /// Append `cases` to `path` as JSON lines, creating parents if needed.
 pub fn write_prepared_cases(path: &std::path::Path, cases: &[PreparedCase]) -> std::io::Result<()> {
@@ -367,7 +381,7 @@ mod tests {
     #[test]
     fn an_ordinary_pattern_is_well_under_the_node_cap() {
         let r = core_regex(r"[a-c]+\d{2}").expect("should translate");
-        assert!(node_count(&r) < 100);
+        assert!(node_count(&r, 20_000) < 100);
     }
 
     #[test]
