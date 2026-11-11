@@ -46,14 +46,31 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
                     .into_iter()
                     .map(|(r1_, inj1)| {
                         let r2c = (**r2).clone();
-                        let f: InjStep = Rc::new(move |v: ParseTree| match v {
-                            ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(inj1(*v1)), v2),
-                            other => panic!(
-                                "pderiv_tree: Seq-continue strand expected Pair, got {:?}",
-                                other
-                            ),
-                        });
-                        (Regex::seq(r1_, r2c), f)
+                        // smart_seq, not raw Seq: a nullable r1's own
+                        // derivative can itself be Eps, and without
+                        // collapsing that wrapper this strand and the
+                        // "r1 matched empty, jump to r2" strand below can
+                        // reach the same residual in two syntactically
+                        // different shapes, defeating nub_tree's
+                        // structural-equality dedup. PPDP12 licenses
+                        // exactly this collapse ("we omit some obvious
+                        // simplifications, e.g. (eps,A*) -> A*", Fig. 10),
+                        // so this is not just a style choice.
+                        if r1_ == Regex::Eps {
+                            let f: InjStep = Rc::new(move |v2: ParseTree| {
+                                ParseTree::Pair(Box::new(inj1(ParseTree::Empty)), Box::new(v2))
+                            });
+                            (r2c, f)
+                        } else {
+                            let f: InjStep = Rc::new(move |v: ParseTree| match v {
+                                ParseTree::Pair(v1, v2) => ParseTree::Pair(Box::new(inj1(*v1)), v2),
+                                other => panic!(
+                                    "pderiv_tree: Seq-continue strand expected Pair, got {:?}",
+                                    other
+                                ),
+                            });
+                            (smart_seq(r1_, &r2c), f)
+                        }
                     })
                     .collect();
 
@@ -72,12 +89,8 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
                     .into_iter()
                     .map(|(r1_, inj1)| {
                         let r2c = (**r2).clone();
-                        // smart_seq, not raw Seq, matching the reference's
-                        // `smartC r' s` here (the nullable branch above
-                        // deliberately keeps raw Seq, matching its own
-                        // `Seq r' s` -- the asymmetry is the reference's,
-                        // not a bug). Without it, residuals can carry a
-                        // spurious `Eps . r` wrapper that defeats
+                        // smart_seq, not raw Seq: without it, residuals can
+                        // carry a spurious `Eps . r` wrapper that defeats
                         // nub_tree's structural-equality dedup.
                         //
                         // smart_seq(Eps, r2c) collapses to r2c alone, so
@@ -171,4 +184,22 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
 /// stays `pub(crate)` since `InjStep` is not exported.
 pub fn pderiv_tree_residuals(r: &Regex, x: char) -> Vec<Regex> {
     pderiv_tree(r, x).into_iter().map(|(r, _)| r).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // (eps+a)b | ab, derived by 'a': the nullable Seq branch's first strand
+    // used to build a raw Seq(Eps, Lit('b')) instead of collapsing it via
+    // smart_seq, so this and the second alternative's own Lit('b') survived
+    // nub_tree as two syntactically distinct residuals for the same state.
+    #[test]
+    fn seq_nullable_branch_dedups_against_sibling_alternative() {
+        let left = Regex::seq(Regex::alt(Regex::Eps, Regex::lit('a')), Regex::lit('b'));
+        let right = Regex::seq(Regex::lit('a'), Regex::lit('b'));
+        let r = Regex::alt(left, right);
+        let residuals = pderiv_tree_residuals(&r, 'a');
+        assert_eq!(residuals, vec![Regex::lit('b')]);
+    }
 }

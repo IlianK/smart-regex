@@ -94,10 +94,20 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
 
         Regex::Seq(r1, r2) => {
             if nullable(r1) {
-                // Strand 1: continue r1, r2 untouched (not smart-constructed, matching the reference literally)
+                // Strand 1: continue r1, then r2. smart_seq, not raw Seq:
+                // a nullable r1's own derivative can itself be Eps, and
+                // without collapsing that wrapper this strand and strand 2
+                // below ("r1 matched empty, jump to r2") can reach the same
+                // residual in two syntactically different shapes, defeating
+                // nub2's structural-equality dedup. PPDP12 licenses exactly
+                // this collapse ("we omit some obvious simplifications,
+                // e.g. (eps,A*) -> A*", Fig. 10). Bits are external to the
+                // Regex shape here (unlike ARegex), so the collapse needs
+                // no companion bit adjustment -- bs rides along unchanged,
+                // same as the non-nullable branch below.
                 let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
                     .into_iter()
-                    .map(|(r1_, bs)| (Regex::seq(r1_, *r2.clone()), bs))
+                    .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
                     .collect();
 
                 // Strand 2: r1 matched empty, jump straight into r2.
@@ -193,7 +203,8 @@ mod tests {
         let r1 = Regex::alt(Regex::Eps, Regex::lit('a'));
         let r = Regex::seq(r1, Regex::lit('b'));
         let d = pderiv_bc(&r, 'a');
-        assert_eq!(d, vec![(Regex::seq(Regex::Eps, Regex::lit('b')), vec![true])]);
+        // smart_seq collapses Seq(Eps, Lit('b')) to Lit('b') alone; bits unchanged.
+        assert_eq!(d, vec![(Regex::lit('b'), vec![true])]);
     }
 
     // pderiv_bc(Star(r), c) tags with a leading `false` (one more iteration)
