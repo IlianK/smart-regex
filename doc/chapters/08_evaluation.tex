@@ -934,39 +934,34 @@ completed timing.}
 
 \paragraph{Categories I, J, K, L} form a $2\times2$ matrix of pattern
 size against input size. L is trivial in both and comparable, every parser
-measuring at least 175 of 195 entries, and the means rank the parsers with
-the partial-derivative pair at 2.08 and 2.11\,ms, \texttt{deriv\_bc} at
-4.58\,ms, and the standard pair at 65.14 and 67.94\,ms: on trivial work
+measuring at least 175 of 195 entries, and its means put the
+partial-derivative pair at 2.08 and 2.11\,ms, \texttt{deriv\_bc} at
+4.58\,ms and the standard pair at 65.14 and 67.94\,ms, so on trivial work
 \texttt{deriv\_bc} is twice as slow as either partial-derivative variant.
 I grows only the input, and length alone pushes every parser past the
 budget on at least 18 of its 60 entries, rising to 44 for
 \texttt{deriv\_std\_rec} plus the crash its call-stack storage makes
-reachable (Section~\ref{sec:eval-stack-depth}); among the survivors
-\texttt{deriv\_bc} is slowest, 151.47 against 113.67 and 130.53\,ms. J and
-K differ only in input length: J's short input keeps the per-entry work
-small, so the parsers have little room to diverge and timeouts stay at 2
-to 4, while K repeats the same expensive derivation steps over a long input and
-timeouts rise to 10 to 24. \texttt{deriv\_std\_rec} does not crash here
-despite that length, because the expensive steps time each entry out at
-small inputs, before its stack can reach the ceiling that produced the one
-crash in I.
+reachable (Section~\ref{sec:eval-stack-depth}). J and K differ only in
+input length, since J's short input keeps per-entry work small and leaves
+the parsers little room to diverge, with timeouts at 2 to 4, while K
+repeats the same expensive steps over a long input and timeouts rise to 10
+to 24. \texttt{deriv\_std\_rec} does not crash there, because the
+expensive steps time each entry out before its stack reaches the ceiling
+that caused the single crash in I.
 
 \paragraph{Overall} across all categories the standard derivative parsers
-are the most timeout-prone. \texttt{deriv\_bc} beats the standard pair
-everywhere, and the partial-derivative variants beat the whole derivative
-family in A, B, C, F, I, and K. Though not in D, H, and J, where
-\texttt{deriv\_bc} remains more robust. This ranking holds at the
-pattern sizes tested here; category J is pushed far past them later
-(Table~\ref{tab:patho-e38-all-parsers}), where \texttt{deriv\_bc}
-loses its lead over the standard pair, though not its lead over the
-partial-derivative pair. It carries a single expression
-rather than a set of residuals, so in D its simplification merges
-residuals that are equivalent but not syntactically equal, in H it
-does not pay the per-element cost of a set that grows with the number of
-groups, and in J it does not pay that same per-element cost across a
-wide alternation. Within the pair, the mean favours \texttt{pderiv\_bc} in eight
-categories and the median in six, so its advantage over
-\texttt{pderiv\_std} lies in the slowest entries at the top of each sweep.
+are the most timeout-prone, \texttt{deriv\_bc} beats them everywhere, and
+the partial-derivative variants beat the whole derivative family in A, B,
+C, F, I, and K. Though not in D, H, and J, where \texttt{deriv\_bc} remains
+more robust, where it carries a single expression rather than a set of
+residuals. In D its simplification merges residuals that are equivalent
+but not syntactically equal, in H it does not pay the per-element cost of
+a set that grows with the number of groups, and in J it does not pay that
+cost across a wide alternation. Within the pair, the mean favours
+\texttt{pderiv\_bc} in eight categories and the median in six, so its
+advantage over \texttt{pderiv\_std} lies in the slowest entries at the top
+of each sweep. Category J's completely inverted ranking, with
+the standard pair being fastest, is examined later in Table~\ref{tab:patho-e38-all-parsers}.
 
 %
 %
@@ -1530,6 +1525,10 @@ reverse ranking.}
 \label{tab:patho-e38-all-parsers}
 \end{table}
 
+%
+%
+%
+
 \textbf{The ranking inverts at wide $p$.} Past a few thousand alternatives, 
 the two parsers fastest everywhere else become the slowest.
 Table~\ref{tab:patho-e38-all-parsers} shows this on E38. 
@@ -1585,9 +1584,14 @@ so the full $O(p^2)$ cost is paid with no benefit.
 The paper's complexity claim covers input length rather than pattern width, 
 so this result appears consistent with it.
 
-The partial-derivative pair's own deduplication (\texttt{nub2} and
-\texttt{nub\_tree}) is hash-based and genuinely $O(p)$ -- it is not
-the same mechanism, shown in Figure~\ref{fig:step-frontier-rust}.
+%
+
+The partial-derivative pair deduplicates differently. \texttt{nub2} and
+\texttt{nub\_tree} are hash-based and $O(p)$, where the scan above is $O(p^2)$. 
+The two differ only in what rides along with each residual, 
+a bit vector in \texttt{pderiv\_bc} and an injection closure in \texttt{pderiv\_std}.
+Figure~\ref{fig:nub2-rust} shows the
+\texttt{nub2} function they share, built on a \texttt{HashSet}.
 
 \begin{figure}[H]
 \small
@@ -1616,57 +1620,36 @@ pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
     out
 }
 \end{verbatim}
-\caption{\texttt{step\_frontier} and \texttt{nub2}: each live residual
-steps through its own \texttt{pderiv\_bc} call, then the combined
-results are deduplicated once via a \texttt{HashSet} keyed on the
-residual alone -- $O(p)$ amortized, not $O(p^2)$, implementing the
-frontier-wide rule of \citet{sulzmannlu2012}, Definition~8.}
-\label{fig:step-frontier-rust}
+\caption{\texttt{pderiv\_bc}'s own \texttt{step\_frontier} and
+\texttt{nub2}: each live residual steps through its own
+\texttt{pderiv\_bc} call, then the combined results are deduplicated
+once via a \texttt{HashSet} keyed on the residual alone,
+implementing the rule of \citet{sulzmannlu2012}, Definition~8: keep
+only the first occurrence of each residual across the whole combined
+result.}
+\label{fig:nub2-rust}
 \end{figure}
 
-E38's words all share the prefix
-\texttt{w0000\dots}, so many residuals stay alive for several
-characters before diverging, multiplying this per-residual cost
-further -- consistent with E38 climbing more slowly than E37 in
-absolute terms (Tables~\ref{tab:patho-phases-e37}
-and~\ref{tab:patho-phases-e38}) but still losing to the standard pair
-at this scale, since the standard pair pays neither cost: its own
-simplification does no cross-branch comparison at all, only dropping
-a branch once its derivative is $\Phi$, so its per-character cost is
-the size of the residual tree it walks, not the number of
-alternatives still alive.
+Its own bottleneck is structural, not the deduplication: \texttt{step\_frontier}
+(Figure~\ref{fig:nub2-rust}) calls \texttt{pderiv\_bc} once per live residual, 
+every character, rather than walking the whole pattern as
+one combined tree the way \texttt{deriv\_bc} and the standard pair both do. 
+The words in E38 share the prefix \texttt{w0000\dots}. 
+Because of this, many residuals stay alive for several characters before diverging. 
+This multiplies the per-residual overhead across several steps rather than just the first. 
+That is consistent with E38 climbing more slowly than E37 
+(Tables~\ref{tab:patho-phases-e37} and~\ref{tab:patho-phases-e38}). 
+The standard pair pays neither cost. 
+It performs no cross-branch comparison and no per-residual call, 
+taking just one walk over the residual tree it has.
 
-A fix for \texttt{deriv\_bc} is not speculative: this same codebase
-already solves the equivalent problem for the partial-derivative pair.
-Replacing the pairwise \texttt{same\_shape} scan with a hash keyed on
-bit-code-independent structure -- the same approach \texttt{nub2} and
-\texttt{nub\_tree} already take -- would make this dedup $O(p)$
-without changing what it computes. The partial-derivative pair's own
-bottleneck has no equally direct fix: batching the per-character step
-across all live residuals in one pass, rather than one call per
-residual, would require restructuring the data they are stored in,
-not just the comparison step.
-
-The representative rows' own entries carry the same three columns at
-each swept $n$ (Section~\ref{sec:eval-criteria-timing}), giving a
-complementary, input-length view of the same three phases for a
-single fixed pattern, rather than a pattern-size view across many.
-On P60, \texttt{deriv\_bc}'s encode cost stays flat at
-3--4\,$\mu$s regardless of $n$, since it depends on pattern size, not
-input length; derive dominates throughout, from 48\,$\mu$s at $n=10$
-to 35\,866--37\,937\,ms at $n=10\,000\,000$; and decode tracks the
-match outcome rather than $n$ alone, costing 1.5\,ms on the matching
-entry at $n=10\,000\,000$ against effectively zero on the non-matching
-one, since only a successful parse builds a tree to decode. The same
-pattern holds on all three reruns. Encode stays flat at 1--4\,$\mu$s
-regardless of $n$ on every row. Derive dominates and grows with $n$
-throughout, reaching 54\,324\,ms on P61 and 45\,534\,ms on P09 at
-$n=10\,000\,000$, and 12\,595\,ms on P01 at its own $n=50\,000$ ceiling
-(\texttt{deriv\_bc} times out beyond that point on P01). Decode again
-tracks the match outcome rather than $n$ alone: 2\,419\,ms on P61's
-matching entry, 1\,063\,ms on P09's, and 1.4\,ms on P01's, against
-effectively zero on every row's non-matching entry. The three-phase
-breakdown is therefore not specific to P60.
+The improvement for \texttt{deriv\_bc} would be replacing the
+pairwise \texttt{same\_shape} scan with a hash keyed on bit-code-independent structure, 
+which is the same approach \texttt{nub2} and \texttt{nub\_tree} already take. 
+This would make this dedup $O(p)$ without changing what it computes. 
+The partial-derivative pair's own bottleneck has no equally direct fix.
+Batching its per-character step across all live residuals in one pass 
+would require restructuring how they are stored, not just the comparison itself.
 
 %
 %
