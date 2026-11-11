@@ -971,15 +971,15 @@ categories and the median in six, so its advantage over
 \subsubsection{Representative Patterns}
 \label{sec:eval-timing-representative}
 
-Eight representative rows are drawn from the categories above. 
-Six are swept past their baseline values in input length $n$, 
-reaching millions of characters or thousands of repetitions, 
-so that each row crosses from measured to failing within its own range. 
+Six representative rows are drawn from the categories above.
+Four are swept past their baseline values in input length $n$,
+reaching millions of characters or thousands of repetitions,
+so that each row crosses from measured to failing within its own range.
 The other two, E37 and E38,
-instead sweep the pattern's own alternation width $p$ at fixed input length, 
-isolating compile-size cost from input length. 
-Row selection and sweep points were set empirically as each row’s cost became clear. 
-Since the six $n$-sweep rows’ inputs exceed the default 2 s budget, 
+instead sweep the pattern's own alternation width $p$ at fixed input length,
+isolating compile-size cost from input length.
+Row selection and sweep points were set empirically as each row’s cost became clear.
+Since the four $n$-sweep rows’ inputs exceed the default 2 s budget,
 each uses a fixed 120 s deadline and an 8 GiB memory cap,
 so that its largest point can finish.
 E37 and E38 stay within the default budget and need neither override.
@@ -995,7 +995,7 @@ Both keep the derivation sequence for the backward pass
 and its size grows with the input. 
 With the standard pair ruled out, 
 the remaining question is how \texttt{deriv\_bc} and the partial-derivative pair compare. 
-On P01, P25, and P28 the pair outlasts \texttt{deriv\_bc}, 
+On P01 the pair outlasts \texttt{deriv\_bc},
 while on the other three all three reach the sweep maximum without timing out.
 
 \begin{table}[H]
@@ -1025,14 +1025,6 @@ P09 & B & \texttt{(a|aa)+}
 P01 & A & \texttt{(a+)+}
     & \shortstack[r]{\checkmark\ 20\\ $\times$\ 50}
     & \shortstack[r]{\checkmark\ 50\,000\\ $\times$\ 200\,000}
-    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
-P25 & F & \texttt{(a|b)*c}
-    & \shortstack[r]{\checkmark\ 2\,000\\ $\times$\ 3\,500}
-    & \shortstack[r]{\checkmark\ 30\,000\\ $\times$\ 50\,000}
-    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
-P28 & F & \texttt{([ab]*)*c}
-    & \shortstack[r]{\checkmark\ 10\\ $\times$\ 15}
-    & \shortstack[r]{\checkmark\ 30\,000\\ $\times$\ 200\,000}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
 \hline\\[-6pt]
 E37 & J & $p$-way alternation, 4-letter words
@@ -1274,7 +1266,7 @@ steady band, from about 0.42 to 0.73, throughout.
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
-  title={P01: $(a+)^+$},
+  title={P01: $(a+)^+$, \texttt{a} repeated},
   title style={font=\small},
   label style={font=\small},
   tick label style={font=\scriptsize},
@@ -1315,9 +1307,9 @@ steady band, from about 0.42 to 0.73, throughout.
   coordinates {(5,0.923) (10,0.833) (15,0.852) (20,0.914) (50,0.767) (100,0.566) (500,0.330) (1000,0.279) (2000,0.221) (5000,0.081) (10000,0.041) (30000,0.016) (50000,0.009)};
 \end{axis}
 \end{tikzpicture}
-\caption{Wall time on P01, \texttt{(a+)+}, every swept $n$ on a
-log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}.}
+\caption{Wall time on P01, \texttt{(a+)+} against \texttt{a} repeated,
+every swept $n$ on a log-log axis. The lower panel plots the
+partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-p01}
 \end{figure}
 
@@ -1330,7 +1322,7 @@ as a ratio to \texttt{deriv\_bc}.}
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
   ylabel={Wall time (ms)},
-  title={P09: $(a|aa)^+$},
+  title={P09: $(a|aa)^+$, \texttt{a} repeated},
   title style={font=\small},
   label style={font=\small},
   tick label style={font=\scriptsize},
@@ -1373,9 +1365,9 @@ as a ratio to \texttt{deriv\_bc}.}
   coordinates {(5,0.636) (10,0.435) (15,0.418) (20,0.611) (25,0.630) (100,0.470) (1000,0.462) (5000,0.484) (10000,0.465) (50000,0.474) (100000,0.460) (500000,0.484) (1000000,0.489) (5000000,0.494) (10000000,0.503)};
 \end{axis}
 \end{tikzpicture}
-\caption{Wall time on P09, \texttt{(a|aa)+}, every swept $n$ on a
-log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}.}
+\caption{Wall time on P09, \texttt{(a|aa)+} against \texttt{a} repeated,
+every swept $n$ on a log-log axis. The lower panel plots the
+partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-p09}
 \end{figure}
 
@@ -1400,144 +1392,13 @@ variants, which avoid this cost on both rows by construction,
 %
 %
 
-\textbf{P25 and P28.} Figures~\ref{fig:patho-p25} and~\ref{fig:patho-p28}
-plot the alternation-star-then-literal pair of category F,
-\texttt{(a|b)*c} (P25) and \texttt{([ab]*)*c} (P28). P25 is the flat
-baseline, with a two-way alternation under a star and a trailing literal
-that matches only at the end of the input, while P28 nests a second star
-around the same class to isolate the effect of nesting rather than leaving
-the alternation flat. The standard variants crash much earlier on the
-nested row, at $n=15$ on P28 against $n=3\,500$ on P25. \texttt{deriv\_bc}
-completes both up to $n=30\,000$ before timing out, but the two thresholds
-diverge sharply beyond that point, reaching $n=50\,000$ on P25 and
-$n=200\,000$ on P28. Both partial-derivative variants complete the full
-ten-million-character sweep on both rows, the clearest robustness
-advantage over \texttt{deriv\_bc} in the F family. The lower panels plot
-the ratio to \texttt{deriv\_bc} over the range where it has data. On P25,
-as on P01, the ratio falls steeply, from about 0.8--1.0 at the smallest
-inputs to 0.002 by $n=30\,000$. On P28 it stays in a noisy 0.36--0.68 band
-through $n=100$, before the same steep decline to 0.002 by $n=30\,000$
-once \texttt{deriv\_bc} nears its own timeout.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  width=0.78\textwidth,
-  height=3.3cm,
-  xmode=log, ymode=log,
-  xlabel={Input length (characters)},
-  ylabel={Wall time (ms)},
-  title={P25: $(a|b)^*c$},
-  title style={font=\small},
-  label style={font=\small},
-  tick label style={font=\scriptsize},
-  legend style={font=\scriptsize},
-  legend pos=north west,
-  grid=major,
-]
-\addplot[mark=*, thick, blue]
-  coordinates {(1,0.019) (3,0.026) (7,0.084) (10,0.058) (50,0.503) (300,5.320) (1000,47.750) (2000,182.753) (3500,542.442) (5000,1065.398) (10000,4352.677) (30000,38815.588)};
-\addlegendentry{\texttt{deriv\_bc}}
-\addplot[mark=square*, thick, red]
-  coordinates {(1,0.019) (3,0.021) (7,0.031) (10,0.041) (50,0.138) (300,0.940) (1000,2.677) (2000,5.268) (3500,9.036) (5000,12.349) (10000,23.982) (30000,70.807) (50000,118.243) (200000,475.617) (1000000,2407.570) (5000000,12117.424) (10000000,24888.093)};
-\addlegendentry{\texttt{pderiv\_bc}}
-\addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(1,0.015) (3,0.017) (7,0.027) (10,0.037) (50,0.151) (300,0.828) (1000,2.763) (2000,5.785) (3500,10.047) (5000,14.895) (10000,26.560) (30000,74.085) (50000,124.440) (200000,504.596) (1000000,2593.849) (5000000,12652.794) (10000000,25294.293)};
-\addlegendentry{\texttt{pderiv\_std}}
-\end{axis}
-\end{tikzpicture}
-
-\vspace{0.4em}
-
-\begin{tikzpicture}
-\begin{axis}[
-  width=0.78\textwidth,
-  height=2.6cm,
-  xmode=log, ymode=log,
-  xlabel={Input length (characters)},
-  ylabel={Ratio to \texttt{deriv\_bc}},
-  label style={font=\small},
-  tick label style={font=\scriptsize},
-  grid=major,
-]
-\addplot[dashed, gray, no markers]
-  coordinates {(1,1) (30000,1)};
-\addplot[mark=square*, thick, red]
-  coordinates {(1,1.000) (3,0.808) (7,0.369) (10,0.707) (50,0.274) (300,0.177) (1000,0.056) (2000,0.029) (3500,0.017) (5000,0.012) (10000,0.006) (30000,0.002)};
-\addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(1,0.789) (3,0.654) (7,0.321) (10,0.638) (50,0.300) (300,0.156) (1000,0.058) (2000,0.032) (3500,0.019) (5000,0.014) (10000,0.006) (30000,0.002)};
-\end{axis}
-\end{tikzpicture}
-\caption{Wall time on P25, \texttt{(a|b)*c}, every swept $n$ on a
-log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}.}
-\label{fig:patho-p25}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  width=0.78\textwidth,
-  height=3.3cm,
-  xmode=log, ymode=log,
-  xlabel={Input length (characters)},
-  ylabel={Wall time (ms)},
-  title={P28: $([ab]^*)^*c$},
-  title style={font=\small},
-  label style={font=\small},
-  tick label style={font=\scriptsize},
-  legend style={font=\scriptsize},
-  legend pos=north west,
-  grid=major,
-]
-\addplot[mark=*, thick, blue]
-  coordinates {(1,0.034) (3,0.065) (7,0.134) (10,0.175) (15,0.288) (20,0.383) (25,0.476) (30,0.564) (40,0.808) (50,1.082) (100,2.603) (1000,116.423) (10000,12483.503) (30000,117035.645)};
-\addlegendentry{\texttt{deriv\_bc}}
-\addplot[mark=square*, thick, red]
-  coordinates {(1,0.023) (3,0.035) (7,0.085) (10,0.114) (15,0.149) (20,0.213) (25,0.235) (30,0.329) (40,0.396) (50,0.456) (100,0.930) (1000,7.786) (10000,79.118) (30000,240.333) (200000,1599.336) (1000000,8039.180) (5000000,40263.270) (10000000,80033.109)};
-\addlegendentry{\texttt{pderiv\_bc}}
-\addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(1,0.023) (3,0.033) (7,0.074) (10,0.098) (15,0.138) (20,0.208) (25,0.224) (30,0.272) (40,0.458) (50,0.429) (100,0.961) (1000,7.424) (10000,71.544) (30000,217.874) (200000,1461.894) (1000000,7300.668) (5000000,36103.358) (10000000,71853.881)};
-\addlegendentry{\texttt{pderiv\_std}}
-\end{axis}
-\end{tikzpicture}
-
-\vspace{0.4em}
-
-\begin{tikzpicture}
-\begin{axis}[
-  width=0.78\textwidth,
-  height=2.6cm,
-  xmode=log, ymode=log,
-  xlabel={Input length (characters)},
-  ylabel={Ratio to \texttt{deriv\_bc}},
-  label style={font=\small},
-  tick label style={font=\scriptsize},
-  grid=major,
-]
-\addplot[dashed, gray, no markers]
-  coordinates {(1,1) (30000,1)};
-\addplot[mark=square*, thick, red]
-  coordinates {(1,0.676) (3,0.538) (7,0.634) (10,0.651) (15,0.517) (20,0.556) (25,0.494) (30,0.583) (40,0.490) (50,0.421) (100,0.357) (1000,0.067) (10000,0.006) (30000,0.002)};
-\addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(1,0.676) (3,0.508) (7,0.552) (10,0.560) (15,0.479) (20,0.543) (25,0.471) (30,0.482) (40,0.567) (50,0.396) (100,0.369) (1000,0.064) (10000,0.006) (30000,0.002)};
-\end{axis}
-\end{tikzpicture}
-\caption{Wall time on P28, \texttt{([ab]*)*c}, every swept $n$ on a
-log-log axis. The lower panel plots the partial-derivative pair's time
-as a ratio to \texttt{deriv\_bc}.}
-\label{fig:patho-p28}
-\end{figure}
-
 \textbf{The overall picture.} The standard variants crash first on
-all six rows, between $n=15$ and $n=20\,000$, and complete no full
+all four rows, between $n=50$ and $n=20\,000$, and complete no full
 sweep. \texttt{deriv\_bc} completes three sweeps (P60, P61, P09),
 reaching the full ten-million-character range on all three. It times
-out on P01, P25, and P28, but only at lengths well beyond the standard
+out on P01, but only at lengths well beyond the standard
 variants' crash points. Both partial-derivative variants complete all
-six sweeps, reaching ten million characters without a single timeout
+four sweeps, reaching ten million characters without a single timeout
 or crash on any representative row.
 
 \textbf{Encode, derive, and decode cost.} The rows above sweep input
@@ -1643,17 +1504,15 @@ to 35\,866--37\,937\,ms at $n=10\,000\,000$; and decode tracks the
 match outcome rather than $n$ alone, costing 1.5\,ms on the matching
 entry at $n=10\,000\,000$ against effectively zero on the non-matching
 one, since only a successful parse builds a tree to decode. The same
-pattern holds on all five reruns. Encode stays flat at 1--4\,$\mu$s
+pattern holds on all three reruns. Encode stays flat at 1--4\,$\mu$s
 regardless of $n$ on every row. Derive dominates and grows with $n$
 throughout, reaching 54\,324\,ms on P61 and 45\,534\,ms on P09 at
-$n=10\,000\,000$, 12\,595\,ms on P01 at its own $n=50\,000$ ceiling
-(\texttt{deriv\_bc} times out beyond that point on P01), and
-38\,810\,ms on P25 and 117\,032\,ms on P28 at their shared
-$n=30\,000$ ceiling. Decode again tracks the match outcome rather
-than $n$ alone: 2\,419\,ms on P61's matching entry, 1\,063\,ms on
-P09's, 1.4\,ms on P01's, 3.5\,ms on P25's, and 1.9\,ms on P28's,
-against effectively zero on every row's non-matching entry. The
-three-phase breakdown is therefore not specific to P60.
+$n=10\,000\,000$, and 12\,595\,ms on P01 at its own $n=50\,000$ ceiling
+(\texttt{deriv\_bc} times out beyond that point on P01). Decode again
+tracks the match outcome rather than $n$ alone: 2\,419\,ms on P61's
+matching entry, 1\,063\,ms on P09's, and 1.4\,ms on P01's, against
+effectively zero on every row's non-matching entry. The three-phase
+breakdown is therefore not specific to P60.
 
 %
 %
@@ -1784,7 +1643,7 @@ a call, the footprint measure defined in
 Section~\ref{sec:eval-criteria-memory}. Timed-out entries are excluded,
 so a low peak next to a high timeout share describes only the easy
 entries that survived. Cumulative allocation for the representative
-rows is given in Tables~\ref{tab:patho-memory-e}--\ref{tab:patho-memory-f}.}
+rows is given in Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab}.}
 \label{tab:patho-memory-baseline}
 \end{table}
 
@@ -1803,8 +1662,8 @@ entries it completed.
 \subsubsection{Representative Patterns}
 \label{sec:eval-memory-representative}
 
-The six representative rows are reported by mechanism family.
-Tables~\ref{tab:patho-memory-e} through~\ref{tab:patho-memory-f} give each
+The four representative rows are reported by mechanism family.
+Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab} give each
 row's peak live-byte high-water mark on any single entry, against the
 largest swept input length the parser completed. The two standard forms are
 reported once per row, since their peaks agree to within 0.01\% of each
@@ -1863,31 +1722,6 @@ rows, against the largest swept input length each parser completed.
 \label{tab:patho-memory-ab}
 \end{table}
 
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrr}
-\hline
-Row & Parser & Max input length & Max live peak \\
-\hline
-P25 & \texttt{deriv\_std\_rec}/\texttt{loop}  &      2\,000 & 2.11 GB \\
-P25 & \texttt{deriv\_bc}                      &     30\,000 & 13.9 MB \\
-P25 & \texttt{pderiv\_std}                    & 10\,000\,000 & 4.49 GB \\
-P25 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 2.79 GB \\
-\hline
-P28 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         10 & 1.21 GB \\
-P28 & \texttt{deriv\_bc}                      &     30\,000 & 14.1 MB \\
-P28 & \texttt{pderiv\_std}                    & 10\,000\,000 & 5.13 GB \\
-P28 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 2.79 GB \\
-\hline
-\end{tabular*}
-\caption{Peak live memory across the two F-family representative rows,
-against the largest swept input length each parser completed.
-\emph{Max live peak} is the live high-water mark within a single call.}
-\label{tab:patho-memory-f}
-\end{table}
-
 The tables report peak live memory against the input length each
 parser actually completed. The standard variants fail at lengths in
 the tens to thousands, while the other three reach millions, so the
@@ -1899,17 +1733,16 @@ E-family rows, though the two values diverge at matching input length,
 ten million characters each: 1.64\,GB on P60 against 3.27\,GB
 on P61. \texttt{deriv\_bc} is lower than
 \texttt{pderiv\_std} on P61 (3.40 against 4.97\,GB) but higher on P60
-(2.64 against 2.48\,GB). On the F family, \texttt{deriv\_bc}'s own
-peak stays below 15\,MB, since its timeout threshold on both rows
-keeps the derivative sequence short before it collapses to a single
-residual. P01 also has a low peak of 7.9\,MB, consistent with its
-relatively small set of live candidates.
+(2.64 against 2.48\,GB). \texttt{deriv\_bc}'s own peak on P01 stays
+low at 7.9\,MB, since its timeout threshold keeps the derivative
+sequence short before it collapses to a single residual, consistent
+with its relatively small set of live candidates.
 
 Within the partial-derivative pair, bit-coding reduces peak
 allocation on every representative row. This holds across the E
-and F families and on P01 and P09. On the F family, for example,
-\texttt{pderiv\_bc} peaks at 2.79\,GB on both rows, compared with
-4.49--5.13\,GB for \texttt{pderiv\_std}. Its memory advantage is
+family and on P01 and P09. On P09, for example,
+\texttt{pderiv\_bc} peaks at 1.40\,GB, compared with
+1.92\,GB for \texttt{pderiv\_std}. Its memory advantage is
 therefore more consistent than its timing advantage.
 
 Cumulative allocation is a separate matter. On P60, \texttt{deriv\_bc}
@@ -2277,8 +2110,8 @@ alone, from 0.11\,ms at $p=100$ to 2.71\,ms at $p=2\,000$
 (Table~\ref{tab:patho-phases-e37}).
 
 The representative sweeps extend this result. \texttt{deriv\_bc}
-completes three of the six rows (P60, P61, P09), while both standard
-variants crash on all six. It reaches the full ten-million-character
+completes three of the four rows (P60, P61, P09), while both standard
+variants crash on all four. It reaches the full ten-million-character
 range on all three. Cumulative allocation can still be high, reaching
 169.26\,GB on P60, although peak allocation is 2.64\,GB. This distinction between
 cumulative allocation and peak live bytes is why both are reported
@@ -2306,14 +2139,13 @@ rows: \texttt{pderiv\_std} is faster on P60, yet \texttt{pderiv\_bc}
 still has the lower peak allocation there (1.64 against 2.48\,GB) --
 the two axes do not move together on this row. The peak-memory
 ranking generalizes cleanly: \texttt{pderiv\_bc} has the lower peak
-on every one of the five rerun rows too (1.14 against 1.68\,GB on
-P01; 1.40 against 1.92\,GB on P09; 2.79 against 4.49\,GB on P25;
-2.79 against 5.13\,GB on P28; 3.27 against 4.97\,GB on P61), so its
-lower-peak advantage holds across all six representative rows
+on every one of the three rerun rows too (1.14 against 1.68\,GB on
+P01; 1.40 against 1.92\,GB on P09; 3.27 against 4.97\,GB on P61), so its
+lower-peak advantage holds across all four representative rows
 without exception. The speed ranking does not generalize the same
-way: \texttt{pderiv\_std} is faster on P01, P09, and P28, matching
-P60's pattern, but \texttt{pderiv\_bc} is faster on P25 and, reversing
-P60's ordering, on P61 as well. The results suggest that the relative
+way: \texttt{pderiv\_std} is faster on P01 and P09, matching
+P60's pattern, but \texttt{pderiv\_bc} is faster, reversing
+P60's ordering, on P61. The results suggest that the relative
 cost of bit-coding depends on the pattern and input, not only on
 input length -- consistently so for peak memory, where it always
 helps, but not for speed, where it helps on some patterns and not
