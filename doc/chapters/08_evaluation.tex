@@ -1587,10 +1587,44 @@ so this result appears consistent with it.
 
 The partial-derivative pair's own deduplication (\texttt{nub2} and
 \texttt{nub\_tree}) is hash-based and genuinely $O(p)$ -- it is not
-the same mechanism. Its cost instead comes from stepping each of the
-$p$ live residuals through its own function call every character,
-rather than one combined tree-walk the way \texttt{deriv\_bc} and the
-standard pair both do; E38's words all share the prefix
+the same mechanism, shown in Figure~\ref{fig:step-frontier-rust}.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub(super) fn step_frontier(
+    frontier: &[(Regex, AppendBits)],
+    x: char,
+) -> Vec<(Regex, AppendBits)> {
+    let mut out = Vec::new();
+    for (r, bits) in frontier {
+        for (r_next, extra) in pderiv_bc(r, x) {
+            out.push((r_next, bits.append(&extra)));
+        }
+    }
+    nub2(out)
+}
+
+pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
+    let mut seen: HashSet<Regex> = HashSet::with_capacity(pairs.len());
+    let mut out = Vec::with_capacity(pairs.len());
+    for (r, bs) in pairs {
+        if seen.insert(r.clone()) {
+            out.push((r, bs));
+        }
+    }
+    out
+}
+\end{verbatim}
+\caption{\texttt{step\_frontier} and \texttt{nub2}: each live residual
+steps through its own \texttt{pderiv\_bc} call, then the combined
+results are deduplicated once via a \texttt{HashSet} keyed on the
+residual alone -- $O(p)$ amortized, not $O(p^2)$, implementing the
+frontier-wide rule of \citet{sulzmannlu2012}, Definition~8.}
+\label{fig:step-frontier-rust}
+\end{figure}
+
+E38's words all share the prefix
 \texttt{w0000\dots}, so many residuals stay alive for several
 characters before diverging, multiplying this per-residual cost
 further -- consistent with E38 climbing more slowly than E37 in
