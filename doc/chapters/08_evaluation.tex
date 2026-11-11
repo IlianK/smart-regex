@@ -1405,22 +1405,21 @@ variants, which avoid this cost on both rows by construction,
 
 \textbf{E37 and E38.} The rows above sweep input length $n$.
 An \texttt{E}-row instead sweeps the pattern itself,
-isolating how \texttt{deriv\_bc} and \texttt{pderiv\_bc}'s three phases 
-(Section~\ref{sec:eval-criteria-timing}) 
-scale with pattern size rather than input length. 
-Table~\ref{tab:patho-phases-e37} reports E37, 
-a $p$-way alternation of distinct four-letter words, 
-at $p \in \{100, 500,1\,000, 2\,000\}$. 
-Table~\ref{tab:patho-phases-e38} shows E38,
-a $p$-way alternation of distinct numbered placeholder words 
-(\texttt{w000001}, \texttt{w000002}, \dots), 
-at $p \in \{100, 500, 1\,000\}$.
-E38 hits the translation-size cap at $p=2\,000$, where E37 does not. 
-So the two rows are compared only up to $p=1\,000$. 
-E38's non-matching input is its first two words concatenated, so, 
-unlike E37's \texttt{"zzzz"}, 
-which fails on the first character, 
-every parser here must scan past the first alternative before rejecting.
+isolating how \texttt{deriv\_bc} and \texttt{pderiv\_bc}'s three phases
+(Section~\ref{sec:eval-criteria-timing})
+scale with pattern size rather than input length, on the matching side
+only. Both are drawn from category J (``large pattern, short input''),
+whose mechanism is the per-node cost of a very large pattern;
+alternation is the natural way to grow a pattern's node count by a
+single parameter $p$ while leaving the input trivial.
+Table~\ref{tab:patho-phases-e37} reports E37, a $p$-way alternation of
+distinct four-letter words; Table~\ref{tab:patho-phases-e38} shows
+E38, a $p$-way alternation of distinct numbered placeholder words
+(\texttt{w000001}, \texttt{w000002}, \dots). Both now sweep the same
+range, $p \in \{100, 500, 1\,000, 2\,000, 5\,000, 10\,000\}$, with
+\texttt{core\_regex\_tagged}'s translation-size cap raised for this
+sweep alone -- E38's longer words previously hit it at $p=2\,000$,
+stopping the comparison at $p=1\,000$.
 
 \begin{table}[H]
 \centering
@@ -1432,10 +1431,12 @@ every parser here must scan past the first alternative before rejecting.
 \cline{2-4}\cline{5-7}
 $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Decode (ms) \\
 \hline
-100         & 0.11 &   0.52 & 0.01 & 0.05 &   1.74 & 0.00 \\
-500         & 0.79 &   5.03 & 0.02 & 0.19 &  36.10 & 0.03 \\
-1\,000      & 1.32 &  13.92 & 0.03 & 0.51 & 142.35 & 0.04 \\
-2\,000      & 2.71 &  37.91 & 0.08 & 0.91 & 600.51 & 0.09 \\
+100         &  0.09 &     0.46 & 0.00 & 0.03 &      1.46 & 0.00 \\
+500         &  0.66 &     4.64 & 0.02 & 0.23 &     34.23 & 0.02 \\
+1\,000      &  1.57 &    12.65 & 0.03 & 0.49 &    139.02 & 0.03 \\
+2\,000      &  2.81 &    38.37 & 0.09 & 0.97 &    601.46 & 0.08 \\
+5\,000      &  6.77 &   199.33 & 0.23 & 1.98 &  4\,338.31 & 0.19 \\
+10\,000     & 12.87 &   780.73 & 0.47 & 4.79 & 26\,843.77 & 0.41 \\
 \hline
 \end{tabular*}
 \caption{\texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, E37: an \texttt{E}-row
@@ -1445,14 +1446,16 @@ alternatives; input \texttt{"aaaa"}, matching the first alternative
 immediately). Encode grows only mildly with $p$ for both parsers, and is
 consistently cheaper for \texttt{pderiv\_bc}, whose plain tree clone does
 less work per node than \texttt{deriv\_bc}'s annotated-state construction.
-Decode stays under 0.1\,ms throughout for both. Derive dominates and
-diverges sharply: \texttt{pderiv\_bc} is 3.3$\times$ \texttt{deriv\_bc}'s
-derive time at $p=100$ but 15.8$\times$ at $p=2\,000$, since a partial-derivative
+Decode stays under 0.5\,ms throughout for both. Derive dominates and
+diverges sharply: \texttt{pderiv\_bc} is 3.1$\times$ \texttt{deriv\_bc}'s
+derive time at $p=100$, 15.7$\times$ by $p=2\,000$, and 34.4$\times$ by
+$p=10\,000$, since a partial-derivative
 step touches every live alternative on each character, while \texttt{deriv\_bc}'s
 symbolic derivative does not enumerate them individually. On the
 non-matching input \texttt{"zzzz"} (not shown), which fails on the first
 character, both parsers stay under 3.5\,ms even at $p=2\,000$ -- the
-divergence above is specific to inputs that keep many alternatives alive.}
+divergence above is specific to inputs that keep many alternatives alive.
+At this scale both are slower than the standard pair, discussed next.}
 \label{tab:patho-phases-e37}
 \end{table}
 
@@ -1466,9 +1469,12 @@ divergence above is specific to inputs that keep many alternatives alive.}
 \cline{2-4}\cline{5-7}
 $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Decode (ms) \\
 \hline
-100         & 0.20 &   1.54 & 0.00 & 0.06 &   3.34 & 0.00 \\
-500         & 1.20 &  18.03 & 0.02 & 0.49 &  66.98 & 0.02 \\
-1\,000      & 2.60 &  67.64 & 0.03 & 0.84 & 274.77 & 0.04 \\
+100         &  0.20 &     1.45 & 0.00 & 0.06 &      3.55 & 0.00 \\
+500         &  1.06 &    16.65 & 0.02 & 0.35 &     68.22 & 0.02 \\
+1\,000      &  2.42 &    69.07 & 0.05 & 0.79 &    282.15 & 0.03 \\
+2\,000      &  4.50 &   261.14 & 0.31 & 1.80 &  1\,107.62 & 0.09 \\
+5\,000      & 10.50 & 1\,644.12 & 0.26 & 4.10 &  7\,505.14 & 0.19 \\
+10\,000     & 20.41 & 6\,787.95 & 0.63 & 7.77 & 41\,135.56 & 0.43 \\
 \hline
 \end{tabular*}
 \caption{\texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, E38: a sibling
@@ -1478,18 +1484,95 @@ alternation of distinct numbered words (\texttt{w000001}, \dots,
 The matching input is a single word (the first alternative); the
 non-matching input concatenates the first two words, so every parser
 must scan past the first alternative before rejecting -- unlike
-E37's \texttt{"zzzz"}, which fails immediately. E38 reaches
-$p=1\,000$ cleanly but hits \texttt{core\_regex\_tagged}'s
-translation-size cap at $p=2\,000$, where E37 does not; the two rows
-are compared only up to $p=1\,000$ for this reason. Derive again
+E37's \texttt{"zzzz"}, which fails immediately. Derive again
 dominates and grows with $p$ for both parsers, but the divergence
-between them is milder than on E37: \texttt{pderiv\_bc}'s derive time
-is 2.2$\times$ \texttt{deriv\_bc}'s at $p=100$ and 4.1$\times$ at
-$p=1\,000$, against E37's 3.3$\times$ and 10.2$\times$ at the same two
-points. Encode remains cheaper for \texttt{pderiv\_bc} throughout, as
-on E37, and decode again stays under 0.1\,ms for both.}
+between them is milder and flatter than on E37: \texttt{pderiv\_bc}'s
+derive time is 2.5$\times$ \texttt{deriv\_bc}'s at $p=100$, climbing
+only to 6.1$\times$ by $p=10\,000$, against E37's 3.1$\times$ to
+34.4$\times$ over the same range. Encode remains cheaper for
+\texttt{pderiv\_bc} throughout, as on E37, and decode stays under
+0.7\,ms for both even at the widest point.}
 \label{tab:patho-phases-e38}
 \end{table}
+
+\textbf{The ranking inverts at wide $p$.} Both tables stop at
+\texttt{deriv\_bc} and \texttt{pderiv\_bc}, but all five parsers were
+measured. Past a few thousand alternatives, the two parsers fastest
+everywhere else in this thesis -- \texttt{deriv\_bc} by
+$4$--$4.5\times$ on the corpus, the partial-derivative pair faster
+still -- become the slowest. At $p=10\,000$, \texttt{deriv\_std\_rec}
+finishes E37 in 203.75\,ms against \texttt{deriv\_bc}'s 780.73\,ms and
+\texttt{pderiv\_bc}'s 26.84\,s; on E38 the gaps are 376.30\,ms, 6.79\,s,
+and 41.14\,s respectively. This is the one row in the representative
+set where that ordering reverses.
+
+The two slower parsers blow up for different reasons.
+\texttt{deriv\_bc}'s branch simplification deduplicates the $p$ live
+alternatives by comparing every one against every other:
+\begin{lstlisting}
+fn dedup_first(branches: &mut Vec<ARegex>) {
+    let mut i = 0;
+    while i < branches.len() {
+        let mut j = i + 1;
+        while j < branches.len() {
+            if same_shape(&branches[i], &branches[j]) {
+                branches.remove(j);
+            } else {
+                j += 1;
+            }
+        }
+        i += 1;
+    }
+}
+\end{lstlisting}
+This is not an implementation shortcut; it is Sulzmann and Lu's own
+construction. Figure 6 of \citet{sulzmannlu2014} defines
+simplification's choice case as
+\[
+simp\ (bs@{\oplus}(ri : rsi)) = bs@{\oplus}\bigl(\mathit{nub}\
+(\mathit{filter}\ (\neg\,\mathit{isPhi})\ ((simp\ ri) : \mathit{map}\
+simp\ rsi))\bigr),
+\]
+stating explicitly that duplicates are removed by keeping only the
+first occurrence ``via \texttt{nub}'' -- the standard Haskell
+\texttt{Data.List} function, which requires only an \texttt{Eq}
+instance and is therefore quadratic by construction, since no
+ordering or hash is available to do better. \texttt{same\_shape}
+above is exactly this equality check, made insensitive to bit-code
+history so that semantically identical branches merge regardless of
+which parse path produced them. For $p$ genuinely distinct words,
+nothing ever merges, so the full $O(p^2)$ cost is paid for no
+benefit. The paper's own complexity claim covers scaling in input
+length, not pattern width, and hedges even there (``we yet need to
+work out detailed estimates regarding the space complexity of our
+algorithm''); it does not examine this case, so the result does not
+contradict it.
+
+The partial-derivative pair's own deduplication (\texttt{nub2} and
+\texttt{nub\_tree}) is hash-based and genuinely $O(p)$ -- it is not
+the same mechanism. Its cost instead comes from stepping each of the
+$p$ live residuals through its own function call every character,
+rather than one combined tree-walk the way \texttt{deriv\_bc} and the
+standard pair both do; E38's words all share the prefix
+\texttt{w0000\dots}, so many residuals stay alive for several
+characters before diverging, multiplying this per-residual cost
+further -- consistent with E38 climbing more slowly than E37 in
+absolute terms (Tables~\ref{tab:patho-phases-e37}
+and~\ref{tab:patho-phases-e38}) but still losing to the standard pair
+at this scale, since the standard pair pays neither cost: its own
+simplification only compares adjacent branches, which is why it
+happens to be cheap for a pattern built entirely of distinct literals.
+
+A fix for \texttt{deriv\_bc} is not speculative: this same codebase
+already solves the equivalent problem for the partial-derivative pair.
+Replacing the pairwise \texttt{same\_shape} scan with a hash keyed on
+bit-code-independent structure -- the same approach \texttt{nub2} and
+\texttt{nub\_tree} already take -- would make this dedup $O(p)$
+without changing what it computes. The partial-derivative pair's own
+bottleneck has no equally direct fix: batching the per-character step
+across all live residuals in one pass, rather than one call per
+residual, would require restructuring the data they are stored in,
+not just the comparison step.
 
 The representative rows' own entries carry the same three columns at
 each swept $n$ (Section~\ref{sec:eval-criteria-timing}), giving a
@@ -2104,8 +2187,10 @@ Its forward pass retains information needed for single-pass
 reconstruction rather than simplifying every redundant branch.
 The decode step adds little time, staying under 0.1\,ms even at
 $p=2\,000$ swept alternatives, while encode grows with pattern size
-alone, from 0.11\,ms at $p=100$ to 2.71\,ms at $p=2\,000$
-(Table~\ref{tab:patho-phases-e37}).
+alone, from 0.09\,ms at $p=100$ to 2.81\,ms at $p=2\,000$
+(Table~\ref{tab:patho-phases-e37}). At far larger $p$, this same row
+is also where \texttt{deriv\_bc} stops being faster than the standard
+pair at all, discussed below.
 
 The representative sweeps extend this result. \texttt{deriv\_bc}
 completes three of the four rows (P60, P61, P09), while both standard
@@ -2152,11 +2237,13 @@ others.
 The two bit-coded parsers' phase costs diverge sharply once the
 pattern itself grows wide. On a $p$-way alternation of equal-length
 words (Table~\ref{tab:patho-phases-e37}), \texttt{pderiv\_bc}'s derive
-time grows from $3.3\times$ \texttt{deriv\_bc}'s at $p=100$ to
-$15.8\times$ at $p=2\,000$ on matching input, since a
+time grows from $3.1\times$ \texttt{deriv\_bc}'s at $p=100$ to
+$34.4\times$ at $p=10\,000$ on matching input, since a
 partial-derivative step touches every live alternative on each
 character, while \texttt{deriv\_bc}'s symbolic derivative does not
-enumerate them individually. The gap narrows sharply on non-matching
+enumerate them individually -- though both lose to the standard pair
+at this scale, as Section~\ref{sec:eval-timing-representative} shows.
+The gap narrows sharply on non-matching
 input, where both stay under 3.5\,ms even at $p=2\,000$ because the
 derivation collapses on the first character. \texttt{pderiv\_bc}'s own
 encode step is, however, consistently cheaper than \texttt{deriv\_bc}'s,
