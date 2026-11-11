@@ -1582,16 +1582,19 @@ so that identical branches merge regardless of parse path.
 For $p$ genuinely distinct words nothing ever merges, 
 so the full $O(p^2)$ cost is paid with no benefit. 
 The paper's complexity claim covers input length rather than pattern width, 
-so this result appears consistent with it.
+so this result does not contradict it.
 
 %
 
-The partial-derivative pair deduplicates differently. \texttt{nub2} and
-\texttt{nub\_tree} are hash-based and $O(p)$, where the scan above is $O(p^2)$. 
+The partial-derivative pair deduplicates differently. 
+\texttt{nub2} and \texttt{nub\_tree} are both hash-based and $O(p)$, 
+where the scan above is $O(p^2)$. 
 The two differ only in what rides along with each residual, 
 a bit vector in \texttt{pderiv\_bc} and an injection closure in \texttt{pderiv\_std}.
-Figure~\ref{fig:nub2-rust} shows the
-\texttt{nub2} function they share, built on a \texttt{HashSet}.
+Figure~\ref{fig:nub2-rust} shows \texttt{pderiv\_bc}'s
+\texttt{step\_frontier} and \texttt{nub2}. 
+Since the mechanism is otherwise the same, only \texttt{pderiv\_bc}'s version is shown
+(Figure~\ref{fig:nub2-rust}).
 
 \begin{figure}[H]
 \small
