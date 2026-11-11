@@ -1007,7 +1007,7 @@ while on the other three all three reach the sweep maximum without timing out.
 & & & \shortstack{Standard\\\texttt{rec} \& \texttt{loop}}
     & \shortstack{\texttt{deriv\_bc}}
     & \shortstack{\texttt{pderiv}\\\texttt{std} \& \texttt{bc}} \\[4pt]
-Row & Cat. & Pattern & \multicolumn{3}{c}{\checkmark\ last OK \qquad $\times$\ first fail} \\
+Row & Cat. & Pattern and Input & \multicolumn{3}{c}{\checkmark\ last OK \qquad $\times$\ first fail} \\
 \hline\\[-6pt]
 P60 & E & \texttt{(a|b|ab)*}, \texttt{a} repeated
     & \shortstack[r]{\checkmark\ 5\,000\\ $\times$\ 20\,000}
@@ -1017,12 +1017,12 @@ P61 & E & \texttt{(a|b|ab)*}, \texttt{ab} repeated
     & \shortstack[r]{\checkmark\ 15\\ $\times$\ 100}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
-P09 & B & \texttt{(a|aa)+}
+\hline\\[-6pt]    
+P09 & B & \texttt{(a|aa)+}, \texttt{a} repeated
     & \shortstack[r]{\checkmark\ 25\\ $\times$\ 100}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
-\hline\\[-6pt]
-P01 & A & \texttt{(a+)+}
+P01 & A & \texttt{(a+)+}, \texttt{a} repeated
     & \shortstack[r]{\checkmark\ 20\\ $\times$\ 50}
     & \shortstack[r]{\checkmark\ 50\,000\\ $\times$\ 200\,000}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
@@ -1039,7 +1039,13 @@ E38 & J & $p$-way alternation, numbered words
 \end{tabular*}
 \caption{Match-side crash and timeout thresholds. Each cell gives the
 largest swept $n$ that completed (\checkmark) above the first $n$ that
-failed ($\times$), and a dash means every swept $n$ completed.}
+failed ($\times$), and a dash means every swept $n$ completed.
+P60 and P61 are the reference-paper scale rows,
+P09 and P01 are the nested-quantifier and overlapping-alternation rows,
+and E37 and E38 sweep the pattern size $p$ rather than the input length.
+For every row except the E rows, the two numbers are the last input length
+that completed and the first that failed, while for E37 and E38 they are
+the last alternation width that completed and the first that failed.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
