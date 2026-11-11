@@ -1027,13 +1027,13 @@ P01 & A & \texttt{(a+)+}, \texttt{a} repeated
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
 \hline\\[-6pt]
 E37 & J & $p$-way alternation, 4-letter words
-    & \shortstack[r]{\checkmark\ 2\,000\\ ---}
-    & \shortstack[r]{\checkmark\ 2\,000\\ ---}
-    & \shortstack[r]{\checkmark\ 2\,000\\ ---} \\[14pt]
+    & \shortstack[r]{\checkmark\ 10\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 10\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 10\,000\\ ---} \\[14pt]
 E38 & J & $p$-way alternation, numbered words
-    & \shortstack[r]{\checkmark\ 1\,000\\ $\times$\ 2\,000}
-    & \shortstack[r]{\checkmark\ 1\,000\\ $\times$\ 2\,000}
-    & \shortstack[r]{\checkmark\ 1\,000\\ $\times$\ 2\,000} \\[6pt]
+    & \shortstack[r]{\checkmark\ 10\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 10\,000\\ ---}
+    & \shortstack[r]{\checkmark\ 10\,000\\ ---} \\[6pt]
 \hline
 \end{tabular*}
 \caption{Match-side crash and timeout thresholds. Each cell gives the
@@ -1042,18 +1042,18 @@ failed ($\times$), and a dash means every swept $n$ completed.
 P60 and P61 are the reference-paper scale rows,
 P09 and P01 are the nested-quantifier and overlapping-alternation rows,
 and E37 and E38 sweep the pattern size $p$ rather than the input length.
-For every row except the E rows, the two numbers are the last input length
-that completed and the first that failed, while for E37 and E38 they are
-the last alternation width that completed and the first that failed. 
+For P60, P61, P09, and P01, the two numbers are the last input length
+that completed and the first that failed.
+For E37 and E38, they are
+the last alternation width that completed and the first that failed.
 All six rows are drawn from the synthetic stress set. 
 The standard variants share one column because under this test's stack cap 
-the recursive and iterative forms reach the same limit. 
-For E37 and E38 the $\times$ marks the translation-size cap, 
-a check made before any parser runs, 
-which is why all three columns agree on those two rows.}
+the recursive and iterative forms reach the same limit.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
+%
+%
 %
 
 \textbf{P60 and P61.} Figures~\ref{fig:patho-fig7a} and~\ref{fig:patho-fig7bc}
@@ -1407,19 +1407,29 @@ variants, which avoid this cost on both rows by construction,
 An \texttt{E}-row instead sweeps the pattern itself,
 isolating how \texttt{deriv\_bc} and \texttt{pderiv\_bc}'s three phases
 (Section~\ref{sec:eval-criteria-timing})
-scale with pattern size rather than input length, on the matching side
-only. Both are drawn from category J (``large pattern, short input''),
-whose mechanism is the per-node cost of a very large pattern;
-alternation is the natural way to grow a pattern's node count by a
+scale with pattern size rather than input length, 
+on the matching side only. 
+Both are drawn from category J (``large pattern, short input''),
+whose mechanism is the per-node cost of a very large pattern.
+Alternation was chosen to grow a pattern's node count by a
 single parameter $p$ while leaving the input trivial.
-Table~\ref{tab:patho-phases-e37} reports E37, a $p$-way alternation of
-distinct four-letter words; Table~\ref{tab:patho-phases-e38} shows
-E38, a $p$-way alternation of distinct numbered placeholder words
-(\texttt{w000001}, \texttt{w000002}, \dots). Both now sweep the same
-range, $p \in \{100, 500, 1\,000, 2\,000, 5\,000, 10\,000\}$, with
-\texttt{core\_regex\_tagged}'s translation-size cap raised for this
-sweep alone -- E38's longer words previously hit it at $p=2\,000$,
-stopping the comparison at $p=1\,000$.
+Table~\ref{tab:patho-phases-e37} reports E37, 
+a $p$-way alternation of distinct four-letter words.
+Table~\ref{tab:patho-phases-e38} shows E38, 
+a $p$-way alternation of distinct numbered placeholder words
+(\texttt{w000001}, \texttt{w000002}, \dots). 
+Both sweep the same range, 
+$p \in \{100, 500, 1\,000, 2\,000, 5\,000, 10\,000\}$, 
+with the  \emph{node cap}
+(Section~\ref{sec:eval-criteria-translation})
+raised from 20\,000 to 200\,000 for this test.
+The cap was sized for the real corpus, but within
+a $p$-way alternation it is too small once $p$ gets this large.
+At $p = 10\,000$, E38's seven-character words each translate to 13 nodes
+(seven literals chained by six concatenations), and joining all
+$10\,000$ of them adds $9\,999$ more nodes for the alternation itself: 
+$10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total,
+almost seven times the default cap.
 
 \begin{table}[H]
 \centering
@@ -1450,12 +1460,8 @@ Decode stays under 0.5\,ms throughout for both. Derive dominates and
 diverges sharply: \texttt{pderiv\_bc} is 3.1$\times$ \texttt{deriv\_bc}'s
 derive time at $p=100$, 15.7$\times$ by $p=2\,000$, and 34.4$\times$ by
 $p=10\,000$, since a partial-derivative
-step touches every live alternative on each character, while \texttt{deriv\_bc}'s
-symbolic derivative does not enumerate them individually. On the
-non-matching input \texttt{"zzzz"} (not shown), which fails on the first
-character, both parsers stay under 3.5\,ms even at $p=2\,000$ -- the
-divergence above is specific to inputs that keep many alternatives alive.
-At this scale both are slower than the standard pair, discussed next.}
+step touches every live alternative on each character, while \texttt{deriv\_bc}
+does not enumerate them individually.}
 \label{tab:patho-phases-e37}
 \end{table}
 
@@ -1480,11 +1486,9 @@ $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Deco
 \caption{\texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, E38: a sibling
 \texttt{E}-row to Table~\ref{tab:patho-phases-e37}, sweeping a $p$-way
 alternation of distinct numbered words (\texttt{w000001}, \dots,
-\texttt{w0000}$p$) with no repetition operator, at fixed input length.
-The matching input is a single word (the first alternative); the
-non-matching input concatenates the first two words, so every parser
-must scan past the first alternative before rejecting -- unlike
-E37's \texttt{"zzzz"}, which fails immediately. Derive again
+\texttt{w0000}$p$), at fixed input length.
+The matching input is a single word (the first alternative).
+Derive again
 dominates and grows with $p$ for both parsers, but the divergence
 between them is milder and flatter than on E37: \texttt{pderiv\_bc}'s
 derive time is 2.5$\times$ \texttt{deriv\_bc}'s at $p=100$, climbing
