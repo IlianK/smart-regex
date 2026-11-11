@@ -955,7 +955,11 @@ crash in I.
 are the most timeout-prone. \texttt{deriv\_bc} beats the standard pair
 everywhere, and the partial-derivative variants beat the whole derivative
 family in A, B, C, F, I, and K. Though not in D, H, and J, where
-\texttt{deriv\_bc} remains more robust. It carries a single expression
+\texttt{deriv\_bc} remains more robust. This ranking holds at the
+pattern sizes tested here; category J is pushed far past them later
+(Table~\ref{tab:patho-e38-all-parsers}), where \texttt{deriv\_bc}
+loses its lead over the standard pair, though not its lead over the
+partial-derivative pair. It carries a single expression
 rather than a set of residuals, so in D its simplification merges
 residuals that are equivalent but not syntactically equal, in H it
 does not pay the per-element cost of a set that grows with the number of
@@ -1529,16 +1533,21 @@ reverse ranking.}
 \textbf{The ranking inverts at wide $p$.} Past a few thousand
 alternatives, the two parsers fastest everywhere else in this thesis
 -- \texttt{deriv\_bc} by $4$--$4.5\times$ on the corpus, the
-partial-derivative pair faster still -- become the slowest: at
-$p=10\,000$ on E37, \texttt{deriv\_std\_rec} finishes in 203.75\,ms
-against \texttt{deriv\_bc}'s 780.73\,ms and \texttt{pderiv\_bc}'s
-26.84\,s. This is the one row in the representative set where that
+partial-derivative pair faster still -- become the slowest.
+Table~\ref{tab:patho-e38-all-parsers} shows this on E38: by
+$p=10\,000$, \texttt{deriv\_bc} is roughly $18\times$ slower than the
+standard pair, and the partial-derivative pair over $100\times$
+slower. This is the one row in the representative set where that
 ordering reverses.
 
 The two slower parsers blow up for different reasons.
 \texttt{deriv\_bc}'s branch simplification deduplicates the $p$ live
-alternatives by comparing every one against every other:
-\begin{lstlisting}
+alternatives by comparing every one against every other, shown in
+Figure~\ref{fig:dedup-first-rust}.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
 fn dedup_first(branches: &mut Vec<ARegex>) {
     let mut i = 0;
     while i < branches.len() {
@@ -1553,7 +1562,15 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
         i += 1;
     }
 }
-\end{lstlisting}
+\end{verbatim}
+\caption{\texttt{dedup\_first}: the nested loop behind
+Figure~\ref{fig:simp-rust}'s own \texttt{dedup\_first} call,
+elided there for space. Every branch is compared against every
+later branch via \texttt{same\_shape}, removing a match in place --
+an $O(p^2)$ scan with no hashing or ordering involved.}
+\label{fig:dedup-first-rust}
+\end{figure}
+
 This is not an implementation shortcut; it is Sulzmann and Lu's own
 construction. Figure 6 of \citet{sulzmannlu2014} defines
 simplification's choice case as
@@ -1584,8 +1601,10 @@ further -- consistent with E38 climbing more slowly than E37 in
 absolute terms (Tables~\ref{tab:patho-phases-e37}
 and~\ref{tab:patho-phases-e38}) but still losing to the standard pair
 at this scale, since the standard pair pays neither cost: its own
-simplification only compares adjacent branches, which is why it
-happens to be cheap for a pattern built entirely of distinct literals.
+simplification does no cross-branch comparison at all, only dropping
+a branch once its derivative is $\Phi$, so its per-character cost is
+the size of the residual tree it walks, not the number of
+alternatives still alive.
 
 A fix for \texttt{deriv\_bc} is not speculative: this same codebase
 already solves the equivalent problem for the partial-derivative pair.
