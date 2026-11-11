@@ -1499,16 +1499,43 @@ only to 6.1$\times$ by $p=10\,000$, against E37's 3.1$\times$ to
 \label{tab:patho-phases-e38}
 \end{table}
 
-\textbf{The ranking inverts at wide $p$.} Both tables stop at
-\texttt{deriv\_bc} and \texttt{pderiv\_bc}, but all five parsers were
-measured. Past a few thousand alternatives, the two parsers fastest
-everywhere else in this thesis -- \texttt{deriv\_bc} by
-$4$--$4.5\times$ on the corpus, the partial-derivative pair faster
-still -- become the slowest. At $p=10\,000$, \texttt{deriv\_std\_rec}
-finishes E37 in 203.75\,ms against \texttt{deriv\_bc}'s 780.73\,ms and
-\texttt{pderiv\_bc}'s 26.84\,s; on E38 the gaps are 376.30\,ms, 6.79\,s,
-and 41.14\,s respectively. This is the one row in the representative
-set where that ordering reverses.
+Both tables above stop at \texttt{deriv\_bc} and \texttt{pderiv\_bc},
+but all five parsers were measured. Table~\ref{tab:patho-e38-all-parsers}
+gives all five on E38, the more complex of the two rows.
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrrrr}
+\hline
+$p$ & \texttt{deriv\_std\_rec} & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
+\hline
+100         &   1.06 &   1.00 &      1.68 &      3.77 &      3.61 \\
+500         &   5.90 &   5.84 &     17.83 &     79.64 &     68.61 \\
+1\,000      &  12.10 &  12.16 &     71.75 &    298.76 &    282.99 \\
+2\,000      &  26.59 &  27.45 &    266.35 &  1\,230.15 &  1\,109.54 \\
+5\,000      & 107.33 & 109.41 &  1\,655.87 &  9\,234.76 &  7\,509.52 \\
+10\,000     & 376.30 & 385.22 &  6\,811.07 & 40\,284.31 & 41\,143.94 \\
+\hline
+\end{tabular*}
+\caption{Total match-side time (ms) for all five parsers on E38,
+same $p$ sweep as Table~\ref{tab:patho-phases-e38}. The standard pair
+stays cheapest throughout and grows the slowest; \texttt{deriv\_bc}
+and the partial-derivative pair start within a factor of four of it
+at $p=100$ and finish $18$--$109\times$ slower at $p=10\,000$ -- the
+reverse of their ranking everywhere else in this thesis.}
+\label{tab:patho-e38-all-parsers}
+\end{table}
+
+\textbf{The ranking inverts at wide $p$.} Past a few thousand
+alternatives, the two parsers fastest everywhere else in this thesis
+-- \texttt{deriv\_bc} by $4$--$4.5\times$ on the corpus, the
+partial-derivative pair faster still -- become the slowest: at
+$p=10\,000$ on E37, \texttt{deriv\_std\_rec} finishes in 203.75\,ms
+against \texttt{deriv\_bc}'s 780.73\,ms and \texttt{pderiv\_bc}'s
+26.84\,s. This is the one row in the representative set where that
+ordering reverses.
 
 The two slower parsers blow up for different reasons.
 \texttt{deriv\_bc}'s branch simplification deduplicates the $p$ live
@@ -1539,18 +1566,13 @@ simp\ rsi))\bigr),
 \]
 stating explicitly that duplicates are removed by keeping only the
 first occurrence ``via \texttt{nub}'' -- the standard Haskell
-\texttt{Data.List} function, which requires only an \texttt{Eq}
-instance and is therefore quadratic by construction, since no
-ordering or hash is available to do better. \texttt{same\_shape}
-above is exactly this equality check, made insensitive to bit-code
-history so that semantically identical branches merge regardless of
-which parse path produced them. For $p$ genuinely distinct words,
+\texttt{Data.List} function, quadratic by construction since it
+requires only an \texttt{Eq} instance. \texttt{same\_shape} above is
+exactly this equality check, made insensitive to bit-code history so
+identical branches merge regardless of parse path. For $p$ genuinely distinct words,
 nothing ever merges, so the full $O(p^2)$ cost is paid for no
-benefit. The paper's own complexity claim covers scaling in input
-length, not pattern width, and hedges even there (``we yet need to
-work out detailed estimates regarding the space complexity of our
-algorithm''); it does not examine this case, so the result does not
-contradict it.
+benefit. The paper's own complexity claim covers input length, not
+pattern width, so this result does not contradict it.
 
 The partial-derivative pair's own deduplication (\texttt{nub2} and
 \texttt{nub\_tree}) is hash-based and genuinely $O(p)$ -- it is not
