@@ -1042,45 +1042,15 @@ failed ($\times$), and a dash means every swept $n$ completed.
 P60 and P61 are the reference-paper scale rows,
 P09 and P01 are the nested-quantifier and overlapping-alternation rows,
 and E37 and E38 sweep the pattern size $p$ rather than the input length.
-Spelled out, category E (P60, P61) stresses prefix-overlap alternation,
-category B (P09) stresses overlapping alternatives under one flat
-quantifier, category A (P01) stresses a quantifier nested inside
-another, and category J (E37, E38) stresses compile-time cost as the
-pattern itself grows rather than as the input does.
-For P60, P61, P09, and P01, the two numbers are the last input length
-that completed and the first that failed; for E37 and E38, they are
-the last alternation width that completed and the first that failed.
-The three data columns each merge a pair of parsers -- the two standard
-variants, and the two partial-derivative variants -- since within each
-pair the last-completed and first-failed points coincide on every row
-shown; \texttt{deriv\_bc} gets its own column because it has no such
-twin. A crash means the worker was killed by a signal, almost always
-from the memory cap below; a timeout means it exceeded its deadline
-without resolving either way. Every $n$-sweep row here runs under a
-fixed $120\,\mathrm{s}$ deadline and $8\,\mathrm{GiB}$ memory cap;
-E37 and E38 stay within the default $2\,\mathrm{s}$ budget and need
-neither override. Only the standard pair fails by crashing; the other
-parsers, when they fail at all, do so by timing out. The three
-horizontal rules group the six rows by what each pair is designed to
-isolate, matching the category breakdown just given. Their peak
-memory and phase-cost breakdowns are reported later in this chapter.
-Each cell's outcome comes from a dedicated child-process invocation
-per parser, row, and input length, so a crash or timeout in one
-measurement cannot affect any other. The merged pairs were confirmed
-directly against the per-entry measurement logs rather than assumed
-from the two variants' similar design: on every row shown, their
-last-completed and first-failed input lengths coincide exactly. The
-$8\,\mathrm{GiB}$ cap here is twice the $4\,\mathrm{GiB}$ used for the
-full-corpus sweep (Section~\ref{sec:eval-criteria-setup}), since these
-six rows are specifically chosen to push further before failing than
-anything in the corpus itself. Where a cell shows a dash, the parser
-was never observed to fail anywhere in its own swept range, not merely
-at the single largest point listed. Each representative pattern was
-the single costliest example found within its category at the
-dataset's own baseline input lengths, before being swept to the much
-larger scales shown here. This table therefore summarises six
-separate experiments, each run under the same two overrides, rather
-than six columns of one shared sweep.}
+For every row except the E rows, the two numbers are the last input length
+that completed and the first that failed, while for E37 and E38 they are
+the last alternation width that completed and the first that failed. 
+All six rows are drawn from the synthetic stress set. 
+The standard variants share one column because under this test's stack cap 
+the recursive and iterative forms reach the same limit. 
+For E37 and E38 the $\times$ marks the translation-size cap, 
+a check made before any parser runs, 
+which is why all three columns agree on those two rows.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
@@ -1433,37 +1403,24 @@ variants, which avoid this cost on both rows by construction,
 %
 %
 
-\textbf{The overall picture.} The standard variants crash first on
-all four rows, between $n=50$ and $n=20\,000$, and complete no full
-sweep. \texttt{deriv\_bc} completes three sweeps (P60, P61, P09),
-reaching the full ten-million-character range on all three. It times
-out on P01, but only at lengths well beyond the standard
-variants' crash points. Both partial-derivative variants complete all
-four sweeps, reaching ten million characters without a single timeout
-or crash on any representative row.
-
-\textbf{Encode, derive, and decode cost.} The rows above sweep input
-length $n$; an \texttt{E}-row instead sweeps the pattern itself,
-isolating how \texttt{deriv\_bc} and \texttt{pderiv\_bc}'s three
-phases (Section~\ref{sec:eval-criteria-timing}) scale with pattern
-size rather than input length. Both rows used here carry the
-dataset's category letter \texttt{J} (compile-size stress), not
-category E: \texttt{E37} and \texttt{E38} are sequential dataset IDs,
-unrelated to the prefix-overlap category E of P60, P61, and the
-dropped P20. Table~\ref{tab:patho-phases-e37} reports E37, a $p$-way
-alternation of distinct four-letter words, at $p \in \{100, 500,
-1\,000, 2\,000\}$. Table~\ref{tab:patho-phases-e38} reports a sibling
-row, E38: a $p$-way alternation of distinct numbered placeholder
-words (\texttt{w000001}, \texttt{w000002}, \dots) with no repetition
-operator, at $p \in \{100, 500, 1\,000\}$ -- E38 hits
-\texttt{core\_regex\_tagged}'s translation-size cap at $p=2\,000$,
-where E37 does not, so the two rows are compared only up to
-$p=1\,000$. E38's non-matching input is its first two words
-concatenated, so, unlike E37's \texttt{"zzzz"}, which fails on the
-first character, every parser here must scan past the first
-alternative before rejecting.
-Section~\ref{sec:eval-cost-partial-derivatives} returns to what both
-show.
+\textbf{E37 and E38.} The rows above sweep input length $n$.
+An \texttt{E}-row instead sweeps the pattern itself,
+isolating how \texttt{deriv\_bc} and \texttt{pderiv\_bc}'s three phases 
+(Section~\ref{sec:eval-criteria-timing}) 
+scale with pattern size rather than input length. 
+Table~\ref{tab:patho-phases-e37} reports E37, 
+a $p$-way alternation of distinct four-letter words, 
+at $p \in \{100, 500,1\,000, 2\,000\}$. 
+Table~\ref{tab:patho-phases-e38} shows E38,
+a $p$-way alternation of distinct numbered placeholder words 
+(\texttt{w000001}, \texttt{w000002}, \dots), 
+at $p \in \{100, 500, 1\,000\}$.
+E38 hits the translation-size cap at $p=2\,000$, where E37 does not. 
+So the two rows are compared only up to $p=1\,000$. 
+E38's non-matching input is its first two words concatenated, so, 
+unlike E37's \texttt{"zzzz"}, 
+which fails on the first character, 
+every parser here must scan past the first alternative before rejecting.
 
 \begin{table}[H]
 \centering
