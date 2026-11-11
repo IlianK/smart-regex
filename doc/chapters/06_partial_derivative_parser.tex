@@ -300,9 +300,8 @@ character.
 Second, the \texttt{Seq} and \texttt{Star} arms use \texttt{smart\_seq}
 -- the Rust counterpart of $\mathit{smartC}$ used by \texttt{pderiv} in
 Figure~\ref{fig:pderiv-rust} -- wherever the equations build
-$\varepsilon \cdot s$, except in \texttt{Seq}'s nullable branch, which
-still pairs its continue-strand with the plain \texttt{Regex::seq}
-constructor. Collapsing $\varepsilon \cdot s$ to $s$ changes the shape
+$\varepsilon \cdot s$, including \texttt{Seq}'s nullable branch's
+continue-strand. Collapsing $\varepsilon \cdot s$ to $s$ changes the shape
 the next transition's closure must match against, so each arm that uses
 \texttt{smart\_seq} branches on whether the residual collapsed
 (\texttt{r1\_ == Regex::Eps}) and builds the closure for that shape
@@ -350,19 +349,25 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
 
         Regex::Seq(r1, r2) => {
             if nullable(r1) {
-                // Continue-strand: not smart-constructed, matching
-                // the reference literally -- the skip-strand below
-                // needs r1's own closure untouched to inject into.
                 let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
                     .into_iter()
                     .map(|(r1_, inj1)| {
                         let r2c = (**r2).clone();
-                        let f: InjStep = Rc::new(move |v| match v {
-                            ParseTree::Pair(v1, v2) =>
-                                ParseTree::Pair(Box::new(inj1(*v1)), v2),
-                            _ => panic!("pderiv_tree/Seq: want Pair"),
-                        });
-                        (Regex::seq(r1_, r2c), f)
+                        // smart_seq collapse, same split as below.
+                        if r1_ == Regex::Eps {
+                            let f: InjStep = Rc::new(move |v2| {
+                                let v1 = inj1(ParseTree::Empty);
+                                ParseTree::Pair(Box::new(v1), Box::new(v2))
+                            });
+                            (r2c, f)
+                        } else {
+                            let f: InjStep = Rc::new(move |v| match v {
+                                ParseTree::Pair(v1, v2) =>
+                                    ParseTree::Pair(Box::new(inj1(*v1)), v2),
+                                _ => panic!("pderiv_tree/Seq: want Pair"),
+                            });
+                            (smart_seq(r1_, &r2c), f)
+                        }
                     })
                     .collect();
 
@@ -948,7 +953,7 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
             if nullable(r1) {
                 let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
                     .into_iter()
-                    .map(|(r1_, bs)| (Regex::seq(r1_, *r2.clone()), bs))
+                    .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
                     .collect();
 
                 let eps_bits = mk_eps_bits(r1);
@@ -982,12 +987,15 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
 \label{fig:pderiv-bc-rust}
 \end{figure}
 
-The \texttt{Seq} arm keeps the outer sequence constructor in the nullable case,
-matching the standard version's behaviour. It uses \texttt{smart\_seq} only in
-the non-nullable case, where the derivative of the first factor is guaranteed
-to be a proper expression and no outer pair needs to be preserved. This
-asymmetry mirrors the paper's reference implementation and is needed so that
-the residual's shape stays compatible with the decoder.
+The \texttt{Seq} arm uses \texttt{smart\_seq} in both the nullable and the
+non-nullable case: $r_1$'s own derivative can be $\varepsilon$ regardless of
+whether $r_1$ itself is nullable -- a literal's derivative is $\varepsilon$
+the moment it matches, even though the literal itself never is -- so both
+branches need the same collapse. Unlike \texttt{pderiv\_tree}
+(Section~\ref{sec:pderiv-tree-impl}), no companion adjustment is needed
+here: bits ride alongside the residual as a separate value rather than
+being stored on it, so collapsing $\varepsilon \cdot s$ to $s$ leaves
+\texttt{bs} untouched.
 
 %
 
