@@ -1439,7 +1439,7 @@ almost seven times the default cap.
 \cline{2-4}\cline{5-7}
 $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Decode (ms) \\
 \hline
-100         &  6.49$^{*}$ &     0.60 & 0.01 & 0.04 &      1.74 & 0.00 \\
+100         &  6.49 &     0.60 & 0.01 & 0.04 &      1.74 & 0.00 \\
 500         &  0.63 &     4.75 & 0.02 & 0.25 &     34.07 & 0.02 \\
 1\,000      &  2.16 &    12.96 & 0.04 & 0.41 &    138.39 & 0.05 \\
 2\,000      &  2.59 &    41.05 & 0.10 & 1.03 &    603.65 & 0.11 \\
@@ -1761,6 +1761,7 @@ distinct residuals, rather than a single expression.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.3}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
 Cat. & \texttt{std\_rec/loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
@@ -1771,9 +1772,10 @@ C &  334.7 &  32.8 &   9.8 &  14.3 \\
 D &  638.8 &   2.3 &  18.9 &   5.7 \\
 E &  672.9 &  21.7 &  40.4 &  15.7 \\
 F &  529.0 &   1.0 &  24.7 &  13.0 \\
-H &  423.1 &   3.8 &   1.9 &   2.1 \\
+H &  423.1 &   2.1 &   3.8 &   1.9 \\
 \hline
 \end{tabular*}
+\renewcommand{\arraystretch}{1}
 \caption{Peak live MB over the full swept entry set per category: the
 highest live-byte high-water mark (Section~\ref{sec:eval-criteria-memory})
 reached by any entry of that category, timed-out and crashed
@@ -1795,7 +1797,26 @@ layer per residual kept alive, where \texttt{pderiv\_bc}'s bit vectors
 stay flat regardless of how many residuals survive. \texttt{deriv\_bc}
 is the exception only on C, where its retained history for the
 backward pass costs more than either partial-derivative parser's
-frontier: 32.8\,MB against 9.8 and 14.3\,MB.
+frontier: 32.8\,MB against 9.8 and 14.3\,MB. The margin by which
+\texttt{pderiv\_std} leads is itself uneven: narrowest on H, where
+all three stay within 1.9\,MB of each other (1.9 to 3.8), and widest
+on A, where its peak is roughly eight times either of the other two
+(90.6 against 12.0 and 10.7). This is the same asymmetry noted for
+total allocation on the real corpus (Section~\ref{sec:eval-memory-s2elab}):
+\texttt{pderiv\_std}'s closures grow with every live residual, so the
+more adversarial a pattern's mechanism, the more that cost compounds
+relative to \texttt{pderiv\_bc}'s flat bit vectors. These peaks are
+measured only over each category's \emph{completed} entries, the
+same caveat the Timing subsection raises for its own tables: a
+category where one parser times out on most of its entries, such as
+A's 70\% share for the standard pair, reports a peak drawn from a
+smaller and easier surviving subset than a category where it
+completes nearly everything. The standard pair's own peak also moves
+far less in relative terms across categories than the other three
+do: it stays within a factor of two, from 335 to 673\,MB, where
+\texttt{pderiv\_std} ranges from 1.9 to 90.6\,MB, a factor of close
+to fifty, and \texttt{pderiv\_bc} from 1.9 to 15.7\,MB, a factor of
+roughly eight.
 
 %
 %
