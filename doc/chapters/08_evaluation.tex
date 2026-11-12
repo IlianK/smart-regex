@@ -488,7 +488,7 @@ alternation width grows while the input is fixed $n = 20$.}
 \label{tab:sweep-samples}
 \end{table}
 
-The 113 patterns are also grouped into categories according 
+The 112 patterns are also grouped into categories according
 to the complexity mechanism they are designed to test 
 (Table~\ref{tab:patho-categories}).
 Each category uses its own sweep range, chosen so that the measured cost
@@ -690,7 +690,7 @@ entries per parser.}
 The standard variants are substantially slower, with mean times roughly
 $4$--$4.5\times$ that of \texttt{deriv\_bc} and more than ten times those
 of the partial-derivative variants. The gap is wider than the means
-suggest, because the 72 and 74 entries time out on the standard variants and
+suggest, because the 73 and 74 entries time out on the standard variants and
 are excluded from their means, while neither bit-coded nor either
 partial-derivative variant times out at all. 
 On the mean, the ranking is
@@ -737,13 +737,13 @@ bit-coded pair, which is consistent with the standard construction
 spending most of its time on the matching path, where it retains the
 derivation sequence for the backward pass. 
 
-On matches, \texttt{deriv\_std\_loop} takes 70.510\,s against the
-recursive variant's 72.829\,s; their non-match times are almost
-identical (9.759 against 9.534\,s), so the difference between the two
+On matches, \texttt{deriv\_std\_loop} takes 70.732\,s against the
+recursive variant's 74.928\,s; their non-match times are almost
+identical (10.079 against 9.812\,s), so the difference between the two
 forms is confined to the matching path, the only place the backward
 pass runs. The totals cover slightly different entry sets, and almost
 all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
-70 of \texttt{deriv\_std\_loop}'s 72, against none for the other three.
+71 of \texttt{deriv\_std\_loop}'s 73, against none for the other three.
 
 %
 %
@@ -1699,8 +1699,8 @@ the standard variants' true footprint.}
 \end{table}
 
 The largest difference is in peak allocation. The standard variants
-reach 582.4 and 737.6\,MB, compared with 5.1\,MB for
-\texttt{deriv\_bc}, a factor of $114$--$144$. The standard parser
+reach 582.4 and 618.2\,MB, compared with 5.1\,MB for
+\texttt{deriv\_bc}, a factor of $114$--$121$. The standard parser
 retains its derivation sequence for the backward pass, whereas
 \texttt{deriv\_bc} stores a flat bit vector. The difference in total
 allocation is smaller, at roughly $1.8$--$1.9\times$.
@@ -1786,10 +1786,13 @@ Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab}.}
 \label{tab:patho-memory-baseline}
 \end{table}
 
-The standard pair's peak is an order of magnitude or more above every
-other parser in all seven categories, consistent with retaining the
-full derivation sequence regardless of which category's mechanism is
-in play. Among the other three, \texttt{pderiv\_std} has the highest
+The standard pair's peak is at least an order of magnitude above
+every other parser in six of the seven categories, consistent with
+retaining the full derivation sequence regardless of which
+category's mechanism is in play. The exception is A, where the gap
+narrows to 6.1$\times$ -- the same category where, as below,
+\texttt{pderiv\_std}'s own peak is unusually high. Among the other
+three, \texttt{pderiv\_std} has the highest
 peak in six of the seven categories (A, B, D, E, F, H), sometimes by a
 wide margin -- 90.6\,MB against \texttt{pderiv\_bc}'s 10.7\,MB and
 \texttt{deriv\_bc}'s 12.0\,MB on A. Its injection closures grow one
@@ -1802,7 +1805,7 @@ frontier: 32.8\,MB against 9.8 and 14.3\,MB. The margin by which
 all three stay within 1.9\,MB of each other (1.9 to 3.8), and widest
 on A, where its peak is roughly eight times either of the other two
 (90.6 against 12.0 and 10.7). This is the same asymmetry noted for
-total allocation on the real corpus (Section~\ref{sec:eval-memory-s2elab}):
+total allocation on the real corpus (Section~\ref{sec:eval-cost-partial-derivatives}):
 \texttt{pderiv\_std}'s closures grow with every live residual, so the
 more adversarial a pattern's mechanism, the more that cost compounds
 relative to \texttt{pderiv\_bc}'s flat bit vectors. These peaks are
@@ -1987,20 +1990,20 @@ L & Trivial pattern, trivial input & 33 &  0 & 0.002 &    388 \\
 \caption{Translation cost over the synthetic set's baseline values.
 \emph{Rejected} counts rows whose translated result exceeds the node cap at
 the swept pattern size and therefore produce no measurement. Categories J
-and K show fewer rows than in earlier versions of this table: the rows
-that exceeded the cap at every entry, and so carried no comparison
-signal, were already dropped from the dataset itself, but this table
-had not been regenerated to match until now.}
+and K each omit the rows that would exceed the cap at every entry of
+their sweep, since those rows carry no comparison signal.}
 \label{tab:translate-cost-patho}
 \end{table}
 
-Category C has the highest translation cost, with a mean of 0.104\,ms
-and 9\,881 maximum nodes, consistent with its use of bound unrolling.
-Categories J and K have the largest patterns of the eleven -- J's mean
-of 0.382\,ms and K's 8\,400 maximum nodes are each the second-highest
-in the table -- but neither rejects any row: the cap-doomed entries
-that used to inflate these two categories were removed from the
-dataset, not from this table.
+Category J has the highest translation cost in the table, with a
+mean of 0.382\,ms and 15\,999 maximum nodes -- unsurprising, since
+its patterns are deliberately the largest the set sweeps. Category C
+is next, with a mean of 0.104\,ms and 9\,881 maximum nodes,
+consistent with its use of bound unrolling to grow pattern size
+instead. K's maximum nodes (8\,400) rank third, behind J and C, but
+its mean (0.103\,ms) is close to C's despite that gap; like J,
+neither rejects any row, since both are swept only over pattern
+sizes that stay under the cap.
 
 %
 %
@@ -2031,15 +2034,13 @@ points, for the reasons in the text.}
 \label{tab:translate-caps}
 \end{table}
 
-Measuring syntactic nesting exposed a gap in the depth estimate.
-The depth estimate adds one level per group.
-This does not change the real-corpus results. Running
-\texttt{dataset\_prepare} on S2ELab still gives 578 accepted patterns,
-572 usable patterns, and 13\,957 inputs. The synthetic set is affected.
-In category J, the E39 row uses $p \in \{100, 500, 1000, 2000\}$
-sequential capturing groups. After the fix, both $p=1000$ and
-$p=2000$ exceed the depth cap, rejecting two additional entries
-(Section~\ref{sec:eval-agreement}).
+The depth estimate adds one level per group. In category J, the E39
+row uses $p \in \{100, 500, 1000, 2000\}$ sequential capturing
+groups; at $p=1000$ and $p=2000$, this estimate exceeds the depth
+cap, rejecting those two entries (Section~\ref{sec:eval-agreement}).
+The real corpus is unaffected: running \texttt{dataset\_prepare} on
+S2ELab gives 578 accepted patterns, 572 usable patterns, and
+13\,957 inputs.
 
 The caps are deliberately set below the measured crash points. The
 crash test uses one bound with a trivial one-node body, whereas real
@@ -2103,14 +2104,7 @@ of its deliberately difficult inputs.
 
 The real corpus has 14 shape disagreements, or 0.2\% of compared
 matches. Each family is internally consistent on these entries, so
-the differences arise between the POSIX and non-POSIX policies. This
-table and every disagreement example below it are unchanged, byte
-for byte, by the \texttt{smart\_seq} fix
-(Section~\ref{sec:pderiv-tree-impl}): rerunning this measurement
-against the fixed parsers reproduced the pre-fix output file
-exactly, which is as direct a confirmation as this evaluation can
-give that the fix never altered which tree gets selected on this
-corpus.
+the differences arise between the POSIX and non-POSIX policies.
 The synthetic set has 21 disagreements among 206 compared matches,
 or 10.2\%. The category breakdown shows where these disagreements
 occur.
@@ -2263,8 +2257,8 @@ memory cap at the same input lengths and have similar allocation
 figures. This points to their shared retention of intermediate
 derivatives rather than recursion depth. The separate stack-depth
 test isolates the other failure mode. Without a memory cap,
-\texttt{deriv\_std\_loop} survives 32 times further than the
-recursive form. Thus, the limiting factor depends on whether
+\texttt{deriv\_std\_loop} survives roughly 26 times longer in wall
+time before the doubling search's own per-probe cap ends it. Thus, the limiting factor depends on whether
 derivation cost or stack depth grows first.
 
 %
@@ -2277,7 +2271,7 @@ derivation cost or stack depth grows first.
 For the standard-derivative family, bit-coding performs better on
 the measured corpus. \texttt{deriv\_bc} has a mean time of
 1.695\,ms, roughly $4$--$4.5\times$ below the standard variants,
-and a peak allocation of 5.1\,MB, about $114$--$144\times$ lower.
+and a peak allocation of 5.1\,MB, about $114$--$121\times$ lower.
 Its forward pass retains information needed for single-pass
 reconstruction rather than simplifying every redundant branch.
 The decode step adds little time, staying under 0.1\,ms even at
@@ -2312,22 +2306,22 @@ On the full corpus, \texttt{pderiv\_bc} is marginally faster
 (0.634 against \texttt{pderiv\_std}'s 0.722\,ms mean) and has
 lower total allocation (4.74 against \texttt{pderiv\_std}'s
 5.61\,GB), though \texttt{pderiv\_std} still has the lower peak
-(2.5 against 3.8\,MB). This asymmetry is not incidental: fixing the
-missing \texttt{smart\_seq} collapse in \texttt{pderiv\_std}'s
-nullable-\texttt{Seq} branch (Section~\ref{sec:pderiv-tree-impl})
-adds a branch and a differently-shaped closure allocation on every
-step where $r_1$'s own derivative is \texttt{Eps}, paid whether or
-not a collision was actually waiting to be caught; \texttt{pderiv\_bc}'s
-side of the same fix only removes a wrapper that no longer gets
-built, with no new cost on any step. On the real corpus, where that
-collision is rare, the fix therefore shows up as a small net loss for
+(2.5 against 3.8\,MB). This asymmetry follows from how the two
+parsers apply the same collapse (Section~\ref{sec:pderiv-tree-impl}):
+\texttt{pderiv\_std}'s nullable-\texttt{Seq} branch builds a
+differently-shaped injection closure on every step where $r_1$'s own
+derivative is \texttt{Eps}, regardless of whether a duplicate
+residual was actually waiting to be caught, while \texttt{pderiv\_bc}'s
+side of the same collapse only removes a wrapper, with no added cost
+on a step where nothing needed collapsing. On the real corpus, where
+that collision is rare, this shows up as a small net loss for
 \texttt{pderiv\_std} and a small net gain for \texttt{pderiv\_bc}.
 The ranking changes again on the representative
 rows: \texttt{pderiv\_std} is faster on P60, yet \texttt{pderiv\_bc}
 still has the lower peak allocation there (1.64 against 2.48\,GB) --
 the two axes do not move together on this row. The peak-memory
 ranking generalizes cleanly: \texttt{pderiv\_bc} has the lower peak
-on every one of the three rerun rows too (1.14 against 1.68\,GB on
+on every one of the other three rows too (1.14 against 1.68\,GB on
 P01; 1.40 against 1.92\,GB on P09; 3.27 against 4.97\,GB on P61), so its
 lower-peak advantage holds across all four representative rows
 without exception. The speed ranking does not generalize the same
