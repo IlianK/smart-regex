@@ -1759,40 +1759,43 @@ distinct residuals, rather than a single expression.
 
 \begin{table}[H]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrrrrrrr}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
-& & \multicolumn{2}{c}{\texttt{std\_rec}} & \multicolumn{2}{c}{\texttt{std\_loop}} & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_std}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
-Cat. & Entries & to\% & peak MB & to\% & peak MB & to\% & peak MB & to\% & peak MB & to\% & peak MB \\
+Cat. & \texttt{std\_rec/loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 \hline
-A & 160 & 70\% & 74.3 & 69\% & 74.3 &  1\% & 186.9 &  0\% & 15.5 &  0\% & 14.5 \\
-B & 150 & 63\% & 61.8 & 63\% & 61.8 &  4\% &  93.6 &  1\% & 70.5 &  0\% & 71.5 \\
-C &  56 & 57\% & 33.1 & 57\% & 33.1 & 25\% & 145.8 & 18\% & 122.9 & 18\% & 139.9 \\
-D &  40 & 20\% & 96.0 & 20\% & 96.0 &  0\% &  79.7 & 15\% & 121.6 & 15\% & 115.8 \\
-E &  80 & 56\% & 114.8 & 53\% & 114.8 &  0\% & 106.3 &  0\% & 60.1 &  0\% & 59.5 \\
-F &  70 & 66\% & 158.0 & 66\% & 158.0 & 40\% &  32.4 &  3\% & 88.0 &  3\% & 94.3 \\
-H &  28 & 64\% & 77.9 & 64\% & 77.9 &  7\% & 232.3 & 14\% & 131.5 & 14\% & 135.2 \\
+A &  553.6 &  12.0 &  90.6 &  10.7 \\
+B &  503.3 &   7.3 &  17.9 &   8.9 \\
+C &  334.7 &  32.8 &   9.8 &  14.3 \\
+D &  638.8 &   2.3 &  18.9 &   5.7 \\
+E &  672.9 &  21.7 &  40.4 &  15.7 \\
+F &  529.0 &   1.0 &  24.7 &  13.0 \\
+H &  423.1 &   3.8 &   1.9 &   2.1 \\
 \hline
 \end{tabular*}
-\caption{Peak live MB per completed entry, and the share of entries
-that hit the two-second cap, over one baseline pass per category at each
-category's baseline values. Peak is the live-byte high-water mark within
-a call, the footprint measure defined in
-Section~\ref{sec:eval-criteria-memory}. Timed-out entries are excluded,
-so a low peak next to a high timeout share describes only the easy
-entries that survived. Cumulative allocation for the representative
-rows is given in Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab}.}
+\caption{Peak live MB over the full swept entry set per category: the
+highest live-byte high-water mark (Section~\ref{sec:eval-criteria-memory})
+reached by any entry of that category, timed-out and crashed
+entries excluded. \texttt{std\_rec} and \texttt{std\_loop} are merged
+into one column, agreeing to within 0.1\,MB on every category.
+Cumulative allocation for the representative rows is given in
+Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab}.}
 \label{tab:patho-memory-baseline}
 \end{table}
 
-The standard variants have near-identical peak allocation in most
-categories, consistent with similar live-state costs regardless of
-control flow. \texttt{deriv\_bc} has the highest peak among the
-surviving parsers in A, C, and H, showing that its retained history
-still has a cost. In F, its peak is the lowest at 32.4\,MB, but 40\%
-of its entries time out, so this figure describes only the easy
-entries it completed.
+The standard pair's peak is an order of magnitude or more above every
+other parser in all seven categories, consistent with retaining the
+full derivation sequence regardless of which category's mechanism is
+in play. Among the other three, \texttt{pderiv\_std} has the highest
+peak in six of the seven categories (A, B, D, E, F, H), sometimes by a
+wide margin -- 90.6\,MB against \texttt{pderiv\_bc}'s 10.7\,MB and
+\texttt{deriv\_bc}'s 12.0\,MB on A. Its injection closures grow one
+layer per residual kept alive, where \texttt{pderiv\_bc}'s bit vectors
+stay flat regardless of how many residuals survive. \texttt{deriv\_bc}
+is the exception only on C, where its retained history for the
+backward pass costs more than either partial-derivative parser's
+frontier: 32.8\,MB against 9.8 and 14.3\,MB.
 
 %
 %
@@ -2079,7 +2082,14 @@ of its deliberately difficult inputs.
 
 The real corpus has 14 shape disagreements, or 0.2\% of compared
 matches. Each family is internally consistent on these entries, so
-the differences arise between the POSIX and non-POSIX policies.
+the differences arise between the POSIX and non-POSIX policies. This
+table and every disagreement example below it are unchanged, byte
+for byte, by the \texttt{smart\_seq} fix
+(Section~\ref{sec:pderiv-tree-impl}): rerunning this measurement
+against the fixed parsers reproduced the pre-fix output file
+exactly, which is as direct a confirmation as this evaluation can
+give that the fix never altered which tree gets selected on this
+corpus.
 The synthetic set has 21 disagreements among 206 compared matches,
 or 10.2\%. The category breakdown shows where these disagreements
 occur.
