@@ -1454,10 +1454,7 @@ alternatives; input \texttt{"aaaa"}, matching the first alternative
 immediately). Encode grows only mildly with $p$ for both parsers, and is
 consistently cheaper for \texttt{pderiv\_bc}, whose plain tree clone does
 less work per node than \texttt{deriv\_bc}'s annotated-state construction.
-$^{*}$\texttt{deriv\_bc}'s $p=100$ encode figure is a one-off outlier
-against the otherwise smooth trend, consistent with a one-time
-measurement cold start rather than a real cost; a rerun of this single
-point would confirm it. Decode stays under 0.5\,ms throughout for both. Derive dominates and
+Decode stays under 0.5\,ms throughout for both. Derive dominates and
 diverges sharply: \texttt{pderiv\_bc} is 2.9$\times$ \texttt{deriv\_bc}'s
 derive time at $p=100$, 14.7$\times$ by $p=2\,000$, and 37.3$\times$ by
 $p=10\,000$, since a partial-derivative
