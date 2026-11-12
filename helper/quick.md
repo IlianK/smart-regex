@@ -59,9 +59,9 @@ BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 
 
 
-# STACK DEPTH #STACKDEPTH_N_CAP=4294967295 
+# STACK DEPTH 
 cargo build --release --example bench_stack_depth_worker
-cargo bench --bench bench_stack_depth
+STACKDEPTH_N_CAP=4294967295 cargo bench --bench bench_stack_depth
 
 
 
