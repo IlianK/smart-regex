@@ -1679,26 +1679,29 @@ Section~\ref{sec:eval-criteria-memory}.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrr}
 \hline
-Parser & Total allocated & Max live peak \\
+Parser & Total allocated & Avg/entry & Max live peak \\
 \hline
-\texttt{deriv\_std\_rec}  & 29.19 GB & 582.4 MB \\
-\texttt{deriv\_std\_loop} & 29.96 GB & 618.2 MB \\
-\texttt{deriv\_bc}        & 15.94 GB &   5.1 MB \\
-\texttt{pderiv\_std}      &  5.61 GB &   2.5 MB \\
-\texttt{pderiv\_bc}       &  4.74 GB &   3.8 MB \\
+\texttt{deriv\_std\_rec}  & 29.19 GB & 2.67 MB & 582.4 MB \\
+\texttt{deriv\_std\_loop} & 29.96 GB & 2.76 MB & 618.2 MB \\
+\texttt{deriv\_bc}        & 15.94 GB & 1.37 MB &   5.1 MB \\
+\texttt{pderiv\_std}      &  5.61 GB & 0.48 MB &   2.5 MB \\
+\texttt{pderiv\_bc}       &  4.74 GB & 0.41 MB &   3.8 MB \\
 \hline
 \end{tabular*}
 \caption{Heap allocation over the default scope of 463 patterns and
 11\,395 entries. \emph{Total allocated} counts every allocation,
 including memory later freed, and measures allocator pressure.
+\emph{Avg/entry} divides that total by the parser's own measured-entry
+count, since total alone scales with how many entries a parser
+completes and the standard variants exclude their timeouts.
 \emph{Max live peak} is the highest live-byte high-water mark within a
-single call and measures the footprint a deployment would see. The two
-are different quantities: total is cumulative and can exceed the live
-peak, because freed memory is counted in the former but not the latter.
-Timed-out entries are excluded from both, so both are lower bounds on
-the standard variants' true footprint.}
+single call and measures the footprint a deployment would see. Total
+and peak are different quantities: total is cumulative and can exceed
+the live peak, because freed memory is counted in the former but not
+the latter. Timed-out entries are excluded from all three, so each is
+a lower bound on the standard variants' true figure.}
 \label{tab:memory}
 \end{table}
 
@@ -1785,8 +1788,9 @@ highest live-byte high-water mark (Section~\ref{sec:eval-criteria-memory})
 reached by any entry of that category, timed-out and crashed
 entries excluded. \texttt{std\_rec} and \texttt{std\_loop} are merged
 into one column, agreeing to within 0.1\,MB on every category.
-Cumulative allocation for the representative rows is given in
-Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab}.}
+Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab} report
+peak live memory for the representative rows the same way; cumulative
+allocation for one of them is discussed in prose below.}
 \label{tab:patho-memory-baseline}
 \end{table}
 
