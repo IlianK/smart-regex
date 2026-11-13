@@ -1194,16 +1194,15 @@ fastest on P60 across most of the sweep, reaching about 0.65 of
 \texttt{deriv\_bc}'s time at the largest inputs, with \texttt{pderiv\_bc}
 trailing it.
 On P61 the two stay close throughout and trade the lead at different
-points along the sweep, with neither keeping a consistent edge --
-unlike P60's clean ordering. This is specific
-to this pattern.
+points along the sweep, with neither keeping a consistent edge,
+unlike P60's clean ordering. 
+This is specific to this pattern.
 Dataset-wide, \texttt{pderiv\_bc} was shown to be faster on mean in nine
 categories and median in seven.
 \texttt{pderiv\_bc} and \texttt{pderiv\_std} step the same residuals and
 differ only in how they tag them. 
-This gap could be attributed to how many
-residuals stay live, since tagging is charged per residual and the number
-live differs between the two inputs.
+This gap could be attributed to how many residuals stay live, 
+since tagging is charged per residual and the number live differs between the two inputs.
 
 Let $B$ denote the pattern \texttt{a|b|ab}, so the whole
 pattern is $B^{*}$, and let a \emph{state} be the set of residuals that
@@ -1414,8 +1413,7 @@ single parameter $p$ while leaving the input trivial.
 Table~\ref{tab:patho-phases-e37} reports E37, 
 a $p$-way alternation of distinct four-letter words.
 Table~\ref{tab:patho-phases-e38} shows E38, 
-a $p$-way alternation of distinct numbered placeholder words
-(\texttt{w000001}, \texttt{w000002}, \dots). 
+a $p$-way alternation of distinct numbered placeholder words.
 Both sweep the same range, 
 $p \in \{100, 500, 1\,000, 2\,000, 5\,000, 10\,000\}$, 
 with the  \emph{node cap}
@@ -1447,19 +1445,21 @@ $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Deco
 10\,000     & 13.44 &   826.40 & 0.48 & 5.10 & 30\,845.30 & 0.41 \\
 \hline
 \end{tabular*}
-\caption{\texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, E37: an \texttt{E}-row
-sweeping the pattern's alternation width $p$ at fixed input length
-(E37: \texttt{(?:aaaa|aaab|}\dots \texttt{)}, $p$ distinct four-letter
-alternatives; input \texttt{"aaaa"}, matching the first alternative
-immediately). Encode grows only mildly with $p$ for both parsers, and is
-consistently cheaper for \texttt{pderiv\_bc}, whose plain tree clone does
-less work per node than \texttt{deriv\_bc}'s annotated-state construction.
-Decode stays under 0.5\,ms throughout for both. Derive dominates and
-diverges sharply: \texttt{pderiv\_bc} is 2.9$\times$ \texttt{deriv\_bc}'s
-derive time at $p=100$, 14.7$\times$ by $p=2\,000$, and 37.3$\times$ by
-$p=10\,000$, since a partial-derivative
-step touches every live alternative on each character, while \texttt{deriv\_bc}
-does not enumerate them individually.}
+\caption{E37: \texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}.
+An \texttt{E}-row sweeping the pattern's alternation width $p$ at fixed input length
+(\texttt{(?:aaaa|aaab|}\dots \texttt{)}, 
+$p$ distinct four-letter alternatives; 
+input \texttt{"aaaa"}, matching the first alternative immediately). 
+Encode grows only mildly with $p$ for both parsers, 
+and is consistently cheaper for \texttt{pderiv\_bc}, 
+whose plain tree clone does less work per node than \texttt{deriv\_bc}'s 
+annotated-state construction.
+Decode stays under 0.5\,ms throughout for both. 
+Derive dominates and diverges sharply: 
+\texttt{pderiv\_bc} is 2.9$\times$ \texttt{deriv\_bc}'s derive time at $p=100$, 
+14.7$\times$ by $p=2\,000$, and 37.3$\times$ by $p=10\,000$, 
+since a partial-derivative step touches every live alternative on each character, 
+while \texttt{deriv\_bc} does not enumerate them individually.}
 \label{tab:patho-phases-e37}
 \end{table}
 
@@ -1481,25 +1481,23 @@ $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Deco
 10\,000     & 21.73 & 6\,935.60 & 0.73 & 7.95 & 48\,678.12 & 0.41 \\
 \hline
 \end{tabular*}
-\caption{\texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, E38: a sibling
-\texttt{E}-row to Table~\ref{tab:patho-phases-e37}, sweeping a $p$-way
-alternation of distinct numbered words (\texttt{w000001}, \dots,
-\texttt{w0000}$p$), at fixed input length.
+\caption{E38: \texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}.
+Am \texttt{E}-row, sweeping a $p$-way alternation of distinct numbered words 
+(\texttt{w000001}, \dots, \texttt{w0000}$p$), at fixed input length.
 The matching input is a single word (the first alternative).
-Derive again
-dominates and grows with $p$ for both parsers, but the divergence
-between them is milder and flatter than on E37: \texttt{pderiv\_bc}'s
-derive time is 2.6$\times$ \texttt{deriv\_bc}'s at $p=100$, climbing
-only to 7.0$\times$ by $p=10\,000$, against E37's 2.9$\times$ to
-37.3$\times$ over the same range. Encode remains cheaper for
-\texttt{pderiv\_bc} throughout, as on E37, and decode stays under
-0.8\,ms for both even at the widest point.}
+Derive grows with $p$ for both parsers, 
+but the divergence between them is milder and flatter than on E37: 
+\texttt{pderiv\_bc}'s derive time is 2.6$\times$ \texttt{deriv\_bc}'s at $p=100$, 
+climbing only to 7.0$\times$ by $p=10\,000$, 
+against E37's 2.9$\times$ to 37.3$\times$ over the same range. 
+Encode remains cheaper for \texttt{pderiv\_bc} throughout, 
+as on E37, and decode stays under 0.8\,ms for both even at the widest point.}
 \label{tab:patho-phases-e38}
 \end{table}
 
-Both tables above stop at \texttt{deriv\_bc} and \texttt{pderiv\_bc},
-but all five parsers were measured. Table~\ref{tab:patho-e38-all-parsers}
-gives all five on E38, the more complex of the two rows.
+%
+%
+%
 
 \begin{table}[H]
 \centering
@@ -1528,15 +1526,18 @@ reverse ranking.}
 %
 %
 
-\textbf{The ranking inverts at wide $p$.} Past a few thousand alternatives, 
-the two parsers fastest everywhere else become the slowest.
-Table~\ref{tab:patho-e38-all-parsers} shows this on E38. 
+\textbf{The ranking inverts at wide $p$.}
+Table~\ref{tab:patho-e38-all-parsers}
+shows the mean time of all parsers on E38. 
+Past a few thousand alternatives, 
+the two partial-derivative parsers, fastest almost everywhere else become the slowest.
 By $p=10\,000$, \texttt{deriv\_bc} is roughly $18\times$ slower than the standard pair, 
 and the partial-derivative pair over $100\times$ slower. 
-This is the one row in the representative set where that ordering reverses.
-These parsers blow up for different reasons.
-\texttt{deriv\_bc}'s branch simplification (Figure~\ref{fig:dedup-first-rust}) 
-deduplicates the $p$  live alternatives by comparing them against every other.
+The parsers blow up for different reasons, but the standard pair's
+own advantage here has one cause. 
+Unlike the other three, it does not attempt to simplify the alternation at all, 
+so it never pays for an attempt that could not have paid off anyway, 
+since every one of the $p$ alternatives stays genuinely distinct by construction.
 
 \begin{figure}[H]
 \small
@@ -1559,49 +1560,49 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
 \caption{\texttt{dedup\_first}: the nested loop behind Figure~\ref{fig:simp-rust}'s 
 own \texttt{dedup\_first} call. 
 Every branch is compared against every later branch via \texttt{same\_shape}, 
-removing a match in place, an $O(p^2)$ scan with no hashing or ordering,
-directly implementing \citet{sulzmannlu2014}, Fig.6.}
+removing a match in place.}
 \label{fig:dedup-first-rust}
 \end{figure}
 
-Figure~6 of \citet{sulzmannlu2014} defines the choice case of simplification as:
+Figure~\ref{fig:dedup-first-rust}'s nested loop compares branch $i$
+against every later branch $j$.
+With $p$ branches, that is roughly $p^2/2$ calls to \texttt{same\_shape}, 
+every single character. 
+For $p$ genuinely distinct words, 
+\texttt{same\_shape} is essentially always false, 
+so nothing is ever removed.
+The full $O(p^2)$ cost is paid every character for zero branches removed.
+This directly implements the \texttt{nub} call in the choice case of
+\citet[sect.~3, Fig.~6]{sulzmannlu2014}'s simplification:
 \[
 simp\ (bs@{\oplus}(ri : rsi)) = bs@{\oplus}\bigl(\mathit{nub}\
 (\mathit{filter}\ (\neg\,\mathit{isPhi})\ ((simp\ ri) : \mathit{map}\
 simp\ rsi))\bigr),
 \]
-So the paper notes that duplicates are removed by keeping only the first
-occurrence via \texttt{nub}, 
-the standard Haskell \texttt{Data.List} function. 
-That function is quadratic, because with only an \texttt{Eq}
-instance available it compares each element against every other. 
-The \texttt{same\_shape} check above is this equality test, 
+Haskell's \texttt{nub} is quadratic for the same reason.
+With only an \texttt{Eq} instance available, 
+it keeps the first occurrence of each element 
+by comparing it against every element already kept.
+\texttt{same\_shape} is this same equality test, 
 made insensitive to bit-code history 
 so that identical branches merge regardless of parse path. 
-For $p$ genuinely distinct words nothing ever merges, 
-so the full $O(p^2)$ cost is paid with no benefit. 
 The paper's complexity claim covers input length rather than pattern width, 
 so this result does not contradict it.
 
 %
 
-The partial-derivative pair deduplicates differently. 
-\texttt{nub2} and \texttt{nub\_tree} are both hash-based and $O(p)$, 
-where the scan above is $O(p^2)$. 
-The two differ only in what rides along with each residual, 
+The partial-derivative pair deduplicates differently, and more cheaply: 
+\texttt{nub2} and \texttt{nub\_tree} are both hash-based and $O(p)$.
+The two differ only in what carries along with each residual, 
 a bit vector in \texttt{pderiv\_bc} and an injection closure in \texttt{pderiv\_std}.
-Figure~\ref{fig:nub2-rust} shows \texttt{pderiv\_bc}'s
-\texttt{step\_frontier} and \texttt{nub2}. 
-Since the mechanism is otherwise the same, only \texttt{pderiv\_bc}'s version is shown
-(Figure~\ref{fig:nub2-rust}).
+Since the mechanism is otherwise the same, 
+only \texttt{pderiv\_bc}'s is shown (Figure~\ref{fig:nub2-rust}). 
 
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub(super) fn step_frontier(
-    frontier: &[(Regex, AppendBits)],
-    x: char,
-) -> Vec<(Regex, AppendBits)> {
+pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) 
+-> Vec<(Regex, AppendBits)> {
     let mut out = Vec::new();
     for (r, bits) in frontier {
         for (r_next, extra) in pderiv_bc(r, x) {
@@ -1632,26 +1633,33 @@ result.}
 \label{fig:nub2-rust}
 \end{figure}
 
-Its own bottleneck is structural, not the deduplication: \texttt{step\_frontier}
-(Figure~\ref{fig:nub2-rust}) calls \texttt{pderiv\_bc} once per live residual, 
-every character, rather than walking the whole pattern as
-one combined tree the way \texttt{deriv\_bc} and the standard pair both do. 
-The words in E38 share the prefix \texttt{w0000\dots}. 
-Because of this, many residuals stay alive for several characters before diverging. 
-This multiplies the per-residual overhead across several steps rather than just the first. 
+The loop in \texttt{step\_frontier} is the real bottleneck.
+For every character, it calls \texttt{pderiv\_bc} separately, once per live residual, 
+rather than walking the whole pattern 
+as one combined tree the way \texttt{deriv\_bc} and the standard pair both do.
+\texttt{nub2} only runs once that loop has already finished, 
+so however cheaply it merges the results, 
+the $p$ separate calls that produced them were already paid for. 
+On E38, the words share the prefix \texttt{w0000\dots}, 
+so many residuals stay alive, undistinguished from each other, 
+for several characters before diverging.
+Each of those extra characters repeats the same once-per-residual loop, 
+multiplying this cost across several steps rather than paying it once. 
 That is consistent with E38 climbing more slowly than E37 
-(Tables~\ref{tab:patho-phases-e37} and~\ref{tab:patho-phases-e38}). 
-The standard pair pays neither cost. 
-It performs no cross-branch comparison and no per-residual call, 
-taking just one walk over the residual tree it has.
+(Tables~\ref{tab:patho-phases-e37} and~\ref{tab:patho-phases-e38}).
+The standard pair pays neither cost.
+No cross-branch comparison and no per-residual call.
 
-The improvement for \texttt{deriv\_bc} would be replacing the
-pairwise \texttt{same\_shape} scan with a hash keyed on bit-code-independent structure, 
+The improvement for \texttt{deriv\_bc} would be 
+replacing the pairwise \texttt{same\_shape} scan 
+with a hash keyed on bit-code-independent structure, 
 which is the same approach \texttt{nub2} and \texttt{nub\_tree} already take. 
 This would make this dedup $O(p)$ without changing what it computes. 
-The partial-derivative pair's own bottleneck has no equally direct fix.
-Batching its per-character step across all live residuals in one pass 
-would require restructuring how they are stored, not just the comparison itself.
+The partial-derivative pair's own bottleneck has no equally direct fix,
+since it is the once-per-residual loop itself, 
+not the comparison after it, that costs time.
+Batching that loop's work across all live residuals in one pass 
+would require restructuring how they are stored, not just replacing a comparison.
 
 %
 %
