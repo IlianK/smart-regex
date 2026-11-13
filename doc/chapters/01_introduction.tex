@@ -1,135 +1,128 @@
 \chapter{Introduction}
 
-%
-
 \section{Motivation}
 \label{sec:motivation}
 
-Regular expressions are a fundamental formalism for describing regular
-languages and are among the most widely used abstractions in computer
-science. They underpin applications including lexical analysis, input
-validation, log processing, search tools, and network security. Across
-these applications, the problem is regular expression matching. Given
-a regular expression and an input string, determine whether the string
-belongs to the language denoted by the expression. Formally, this is
-the \emph{membership problem}.
+Regular expressions are a fundamental formalism for describing regular languages 
+and are among the most widely used abstractions in computer science. 
+They underpin applications including lexical analysis, 
+input validation, log processing, search tools, and network security. 
+Across these applications, the problem is regular expression matching. 
+Given a regular expression \texttt{(a|ab)*} and an input string \texttt{"aba"}, 
+determine whether the string belongs to the language denoted by the expression. 
+This is the \emph{membership problem}.
 
-For example, the expression \texttt{(ab|a)*} matches \texttt{"aba"},
-as it decomposes into \texttt{"ab"} followed by \texttt{"a"}, but does
-not match \texttt{"abb"}, since no sequence of subexpressions can
-produce it.
-
-For many applications, a Boolean answer is enough. An input validator
-may only need to accept or reject a password or URL. 
-Others require more. For instance, a lexer must determine how
-input decomposes into tokens. Capturing groups, schema validation,
-and information extraction require identifying which input parts
-correspond to parts of the expression. Recognition alone is not
-enough. The matcher must also recover the \emph{structure}.
+For many applications, a Boolean answer is enough, 
+such as when an input validator only needs to accept or reject a password or URL.
+Other applications require more information. 
+A lexer, for example, must determine how the input decomposes into tokens, 
+while capturing groups require identifying 
+which parts of the input correspond to parts of the expression. 
+In these cases, determining whether an input 
+is a \emph{match} or a \emph{non-match} is not enough.
+The \emph{structure} of the match must also be recovered.
 
 Efficiently solving these problems remains an active research area.
-The choice of algorithm influences performance, memory consumption, and
-security. Once matching becomes parsing, the way in which match
-structure is recovered also influences correctness and raises the
-question of how to handle ambiguity when multiple matches are possible.
+The choice of algorithm influences performance and memory consumption.
+Once matching becomes parsing, 
+the way in which the parse tree is recovered also raises the question
+of how to resolve ambiguity when multiple valid parses exist.
 
-Existing approaches include backtracking and finite-automata-based
-techniques, such as nondeterministic (NFA) and deterministic (DFA)
-automata. These approaches have different trade-offs in implementation
-complexity, memory consumption, and worst-case performance. Backtracking
-engines are flexible and widely used, but may exhibit exponential
-running time on constructed inputs, leading to regular expression
-denial-of-service (ReDoS) vulnerabilities~\citep{cox2007}.
-Automata-based approaches provide stronger worst-case guarantees but may
-require preprocessing or suffer from state-space explosion.
+Existing approaches include backtracking and finite-automata-based techniques, 
+such as nondeterministic (NFA) and deterministic (DFA) automata. 
+These approaches have different trade-offs in implementation complexity, 
+memory consumption, and worst-case performance. 
+Backtracking engines are flexible and widely used, 
+but may exhibit exponential running time on constructed inputs, 
+leading to regular expression denial-of-service (ReDoS) vulnerabilities~\citep{cox2007}.
+Automata-based approaches provide stronger worst-case guarantees 
+but may require preprocessing or suffer from state-space explosion.
 
-Derivative-based algorithms provide an alternative by transforming the
-regular expression as input symbols are consumed. Each derivative
-represents the language remaining after an input symbol has been
-consumed. By maintaining a correspondence between an expression
-and its successive residuals, derivative-based methods provide an elegant
-foundation for regular expression matching and, with suitable
-extensions, structured parsing.
+Regular expressions can also be processed using derivative-based algorithms, 
+which transform the expression as input symbols are consumed. 
+Each derivative represents the language remaining after an input symbol has been consumed.
+This relationship between an expression and its successive residuals
+provides a foundation for regular expression matching and, 
+with suitable extensions, structured parsing.
 
-However, derivative-based techniques are less common in practical
-regular expression tooling. Their use for practical matching, parsing,
-and diagnostic tools motivates this thesis: "From Theory to Tools".
+However, derivative-based techniques are not commonly used 
+in practical regular expression tooling. 
+This work explores their implementation 
+and practical application to regular expression parsing, 
+moving ``From Theory to Tools''.
 
+%
+%
 %
 
 \section{Problem Statement}
 \label{sec:problem-statement}
 
-Derivative-based approaches provide a principled foundation for regular
-expression matching and parsing. Brzozowski introduced regular expression
-derivatives as a way of transforming a regular expression after consuming
-an input symbol~\citep{brzozowski1964}. Antimirov later introduced partial
-derivatives, which represent sets of residual expressions and are closely
-related to nondeterministic automata~\citep{antimirov1996}.
+Brzozowski introduced regular expression derivatives 
+as a way of transforming a regular expression 
+after consuming an input symbol~\citep{brzozowski1964}. 
+Antimirov later introduced partial derivatives, 
+which represent sets of residual expressions and are closely related 
+to nondeterministic automata~\citep{antimirov1996}.
 
-Building on Brzozowski's derivatives, Sulzmann and Lu developed a
-derivative-based algorithm for POSIX regular expression
-parsing~\citep{sulzmannlu2014}. Their work also presents a bit-coded
-variant that represents parse information as a compact bit sequence,
-which can be decoded after a successful match rather than maintaining
-an explicit parse tree throughout the computation. A Haskell
-implementation of the POSIX parser is available in Sulzmann's
-\emph{Programming Paradigms} teaching material~\citep{sulzmann_slides}.
+The work of ~\citep{sulzmannlu2014} developed a derivative-based algorithm 
+for POSIX regular expression parsing. 
+They also describe an optimized bit-coded variant 
+that represents parse information as a compact bit sequence,
+which can be decoded after a successful match 
+rather than maintaining an explicit parse tree throughout the computation. 
+In an earlier work, \citep{sulzmannlu2012} 
+also studied partial derivatives in the context 
+of regular expression submatching. 
+While submatching is not the focus of this thesis, 
+their work provides relevant background 
+for implementing partial-derivative-based parsers. 
 
-Sulzmann and Lu also studied partial derivatives in the context of regular
-expression sub-matching~\citep{sulzmannlu2012}. While sub-matching is not
-the focus of this thesis, their work provides relevant background for the
-partial-derivative approach. The \emph{Programming Paradigms} teaching
-material also presents a bit-coded partial-derivative-based parser in Haskell.
+The authors have primarily studied these constructions 
+in theoretical and functional programming settings, 
+with less emphasis on practical considerations 
+such as execution time and memory consumption.
+Haskell implementations of the relevant constructions are also presented
+in Sulzmann's \emph{Programming Paradigms} teaching material
+\citep{sulzmann_slides}.
 
-These constructions have primarily been presented in a theoretical and
-functional programming setting, leaving open practical questions about
-execution time, memory consumption, and data representation.
-
-This thesis investigates these questions through implementations in Rust.
-As a systems programming language, Rust provides fine-grained control over
-memory allocation and data representation, allowing the derivative-based and
-partial-derivative-based parsers, including their bit-coded variants, to
-be evaluated in practice.
-
-The implementation also provides traced versions of the parsing
-algorithms that record intermediate derivative computations during
-matching. These traces show the transformations performed by the
-algorithms and help explain successful and unsuccessful matches.
-
+To examine the practical aspects of derivative-based parsing, 
+this thesis implements the derivative-based and partial-derivative-based parsers, 
+including their bit-coded variants, in Rust. 
+As a systems programming language, 
+Rust provides fine-grained control over memory allocation and data representation, 
+making it suitable for evaluating their execution time and memory consumption.
 
 %
 
 \section{Contributions}
 \label{sec:contributions}
 
-The following contributions are being made:
+The thesis implements ~\citep{sulzmannlu2014}'s derivative-based 
+and \citep{sulzmannlu2012}'s partial-derivative-based 
+parsing constructions in Rust, including their direct and bit-coded variants.
+The implementations are based on the theory described in the
+literature and the Haskell reference.
+The derivative-based parsing function is further
+implemented in recursive and iterative forms, 
+which are evaluated as separate candidates.
 
-\begin{itemize}
-  \item \textbf{Rust implementation of derivative-based parsers.}
-  The thesis implements derivative-based and partial-derivative-based
-  parsing constructions in Rust, including direct and bit-coded variants.
-  The implementations are based on the constructions described in the
-  literature and the corresponding Haskell material, resulting in four
-  parser variants in total. The direct derivative-based parser is further
-  implemented in both a recursive and an iterative form, evaluated as two
-  separate candidates, for five candidates measured overall.
-
-  \item \textbf{Empirical evaluation of the parser variants.}
-  The five resulting candidates are evaluated with respect to execution time
-  and memory consumption using synthetic benchmarks and a corpus of
-  real-world regular expressions from Snort/Suricata, SpamAssassin, and
-  RegexLib.
-\end{itemize}
+The five parser candidates are evaluated 
+in terms of execution time and memory consumption using two datasets. 
+The first is the \emph{S2Elab} dataset \citep{s2elab-regexeval-dataset}, 
+which contains real-world regular expression patterns. 
+The second is the \emph{Synthetic Stress Set}, 
+a dataset developed for this evaluation,
+consisting of regular expression patterns designed to stress-test the parsers.
 
 %
 
 \section{Thesis Outline}
 \label{sec:thesis-outline}
 
-The remainder of this thesis follows the parsing constructions from their
-formal concepts through their Rust implementation to their evaluation.
-Theory and implementation are presented together.
+The chapters are structured to present the theoretical concepts and
+parsing constructions alongside their Rust implementations, 
+instead treating them as separate topics.
 
 
 \begin{itemize}
