@@ -689,19 +689,15 @@ entries per parser.}
 
 The standard variants are substantially slower, with mean times roughly
 $4$--$4.5\times$ that of \texttt{deriv\_bc} and more than ten times those
-of the partial-derivative variants. The gap is wider than the means
-suggest, because the 73 and 74 entries time out on the standard variants and
-are excluded from their means, while neither bit-coded nor either
-partial-derivative variant times out at all. 
-On the mean, the ranking is
-\texttt{pderiv\_bc}, \texttt{pderiv\_std}, \texttt{deriv\_bc}, then the
-two standard variants, so the partial-derivative pair is fastest overall.
-On the median, \texttt{deriv\_bc} is slower than both partial-derivative
-variants but faster than either standard variant, and its maximum is
-between the two groups. 
-This shows, that bit-coding helps the standard construction
-enormously but does not bring it to partial-derivative cost on typical
-entries. Within the partial-derivative pair, \texttt{pderiv\_bc} is
+of the partial-derivative variants. 
+The gap is wider than the means suggest, 
+because the 73 and 74 entries time out on the standard variants and
+are excluded from their means.
+This is why the standard pair’s own median looks lower
+but cannot be used for a fair comparison.
+On the median, \texttt{deriv\_bc} is slower than both partial-derivative variants, 
+a fair comparison since neither times out either. 
+Within the partial-derivative pair, \texttt{pderiv\_bc} is
 marginally faster, at 0.634 against \texttt{pderiv\_std}'s 0.722\,ms.
 
 \begin{table}[H]
@@ -817,7 +813,7 @@ H & \texttt{deriv\_std\_rec}  &  18 &  10 & 236.09 & 15.55 & 1\,240.12 \\
 \end{tabular*}
 \caption{Per-parser timing over the synthetic set's default sweep for the
 mechanism categories A--H. \emph{Timed out} counts entries exceeding the
-budget, with any crash among them shown in parentheses; \emph{Measured}
+budget, with any crash separately shown in parentheses; \emph{Measured}
 counts entries with a completed timing. \emph{Mean}, \emph{Median}, and
 \emph{Max} are over measured entries only.}
 \label{tab:patho-timing-mech}
@@ -1482,7 +1478,7 @@ $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Deco
 \hline
 \end{tabular*}
 \caption{E38: \texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}.
-Am \texttt{E}-row, sweeping a $p$-way alternation of distinct numbered words 
+An \texttt{E}-row, sweeping a $p$-way alternation of distinct numbered words 
 (\texttt{w000001}, \dots, \texttt{w0000}$p$), at fixed input length.
 The matching input is a single word (the first alternative).
 Derive grows with $p$ for both parsers, 
