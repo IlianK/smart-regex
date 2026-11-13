@@ -1,17 +1,12 @@
 \chapter{Derivatives and Partial Derivatives}
 \label{sec:derivatives}
 
-Chapter~\ref{sec:regular-expressions} introduced the syntax and semantics
-of regular expressions, and defined the \emph{membership problem}: Decide
-whether a word $w$ belongs to $L(r)$. This chapter introduces three algorithms
-for solving it, each returning a Boolean answer: match or no match.
-
-The first is a naive recursive matcher that follows the structure of the
-regular-expression semantics. The other two transform the regular expression
-as input symbols are consumed. Brzozowski derivatives transform it into a
-single residual expression, while Antimirov's partial derivatives represent
-the possible residual expressions as a set.
-
+This chapter introduces three algorithms for deciding \(w \in L(r)\),
+starting with a naive recursive matcher as a simple starting point,
+before introducing the two transformation-based approaches.
+Brzozowski derivatives transform the expression 
+into a single residual as input is consumed, 
+while Antimirov's partial derivatives represent a set of residuals.
 
 %
 %
@@ -20,12 +15,11 @@ the possible residual expressions as a set.
 \section{Naive Matching}
 \label{sec:naive-matching}
 
-A direct way to decide whether $w \in L(r)$ is to interpret the
-regular-expression semantics as recursive matching rules, by 
-following the structure of the expression and searching for
-possible decompositions of the input. Let $w[i:j]$
-denote the substring from position $i$ to $j$. A recursive procedure
-$\operatorname{match}(w,i,j,r)$ determines whether $w[i:j] \in L(r)$:
+The direct way to decide whether $w \in L(r)$ 
+is to interpret the semantic rules of Equation~\eqref{eq:semantics} 
+as recursive matching rules.
+Let $w[i:j]$ denote the substring of $w$ from position $i$ to $j$.
+A procedure $\operatorname{match}(w,i,j,r)$ determines whether $w[i:j] \in L(r)$:
 \begin{equation}
 \begin{aligned}
 \operatorname{match}(w,i,j,\varepsilon)
@@ -51,13 +45,21 @@ $\operatorname{match}(w,i,j,r)$ determines whether $w[i:j] \in L(r)$:
 \label{eq:naive-matcher}
 \end{equation}
 
-Each rule corresponds directly to the semantics. Concatenation does not
-specify where to split, so the matcher must consider all possible split
-points $k$.
-
-For matching $(a\cdot a)\cdot a$ against $\mathtt{aaa}$, the
-split points $k\in\{0,1,2,3\}$ are:
-\begin{equation}
+Each rule mirrors one case of the semantics.
+Concatenation does not specify where the prefix ends and the suffix begins, 
+so the matcher tries every split point $k$.
+For $(a\cdot a)\cdot a$ against $\mathtt{aaa}$, 
+the outer concatenation considers each $k\in\{0,1,2,3\}$ in turn. 
+The split $k=2$ succeeds,
+placing $a\cdot a$ against $\mathtt{aa}$ and $a$ against $\mathtt{a}$.
+The recursive call on $a\cdot a$ against $\mathtt{aa}$
+in turn succeeds at its own split $k=1$, completing the match
+(Figure~\ref{fig:naive-splits}).
+\begin{figure}[ht]
+\centering
+\begin{minipage}[t]{0.49\textwidth}
+\footnotesize
+\[
 \begin{aligned}
 &\underbrace{\operatorname{match}(w,0,0,a\cdot a)}_
   {\text{$a\cdot a$ against }w[0:0]=\mathtt{\epsilon}}
@@ -86,12 +88,11 @@ split points $k\in\{0,1,2,3\}$ are:
   \underbrace{\operatorname{match}(w,3,3,a)}_
   {\text{$a$ against }w[3:3]=\mathtt{\epsilon}}.
 \end{aligned}
-\label{eq:naive-splits-1}
-\end{equation}
-
-At $k=2$, both operands match, triggering a recursive search on $(a\cdot a)$
-against $\mathtt{aa}$ with split points $k\in\{0,1,2\}$, where $k=1$ succeeds:
-\begin{equation}
+\]
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\textwidth}
+\footnotesize
+\[
 \begin{aligned}
 &\underbrace{\operatorname{match}(w,0,0,a)}_
   {\text{$a$ against }w[0:0]=\mathtt{\epsilon}}
@@ -113,43 +114,43 @@ against $\mathtt{aa}$ with split points $k\in\{0,1,2\}$, where $k=1$ succeeds:
   \underbrace{\operatorname{match}(w,2,2,a)}_
   {\text{$a$ against }w[2:2]=\mathtt{\epsilon}}.
 \end{aligned}
-\label{eq:naive-splits-2}
-\end{equation}
-
-This completes the original match through the nested split points $k=2$ and
-$k=1$.
+\]
+\end{minipage}
+\caption{The two successful splits for $(a\cdot a)\cdot a$ against \texttt{aaa}. 
+The left panel shows the outer concatenation splitting at $k=2$,
+the right the recursive call on $a\cdot a$
+splitting \texttt{aa} at $k=1$.}
+\label{fig:naive-splits}
+\end{figure}
 
 %
 
 \paragraph{In Rust.}
-The recursive rules translate directly into the corresponding Rust match arms,
-shown in Figure~\ref{fig:match-naive-rust}.
-Alternation tries both branches on the same input, while concatenation and star
-search possible split points.
-The star arm clones the body to construct the recursive \texttt{Star} expression.
-This is necessary because the recursive call needs to own the newly constructed
-expression. The range-based search short-circuits at the first successful split.
-Nested concatenations repeatedly search smaller substrings, exploring multiple
-paths before succeeding. This leads to exponential backtracking in the worst
-case.
+The rules of Equation~\ref{eq:naive-matcher} 
+translate directly into the match arms of Figure~\ref{fig:match-naive-rust}. 
+Alternation tries both branches on the same input, 
+and concatenation and star search the split points with \texttt{.any}, 
+short-circuiting at the first success. 
+The star arm clones its body, 
+because the recursive call must own the newly built \texttt{Star} expression.
 
 \begin{figure}[H]
 \small
 \begin{verbatim}
 Regex::Alt(r, s) => {
-    match_naive_range(word, i, j, r) 
+    match_naive_range(word, i, j, r)
         || match_naive_range(word, i, j, s)
 }
 Regex::Seq(r, s) => {
     (i..=j).any(|k| {
-        match_naive_range(word, i, k, r) 
+        match_naive_range(word, i, k, r)
             && match_naive_range(word, k, j, s)
     })
 }
 Regex::Star(r) => {
     i == j || (i + 1..=j).any(|k| {
         match_naive_range(word, i, k, r)
-            && match_naive_range(word, k, j, 
+            && match_naive_range(word, k, j,
                 &Regex::star(*r.clone()))
     })
 }
@@ -158,19 +159,13 @@ Regex::Star(r) => {
 \label{fig:match-naive-rust}
 \end{figure}
 
-Although inefficient, this matcher is useful as a reference implementation
-because it follows the regular-expression semantics directly without any
-intermediate transformation. The cost is visible in the worked examples: nested
-concatenations repeatedly search smaller substrings, each exploring all possible
-split points before finding a match.
-
-%
-
-The derivative approach takes a different approach.
-Rather than searching for a decomposition of $w$ while keeping $r$ fixed,
-it transforms $r$ as each character of $w$ is consumed. The resulting
-expression describes the language that can still match the remaining
-suffix.
+Although inefficient, the matcher serves as a reference implementation
+that follows the semantics directly, without intermediate transformations.
+Nested concatenations can cause exponential backtracking 
+as the matcher repeatedly explores smaller substrings and alternative paths. 
+By contrast, the derivative approach transforms \(r\) 
+as each character of \(w\) is consumed, 
+producing an expression that describes the language of the remaining suffix.
 
 %
 %
