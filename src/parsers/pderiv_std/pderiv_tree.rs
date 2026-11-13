@@ -13,6 +13,38 @@ use crate::regex::mk_eps::mk_eps;
 use crate::regex::simplify::smart_seq;
 use super::inject::{InjStep, nub_tree};
 
+/// Flattens a chain of nested `Alt`s into its leaves, pairing each leaf
+/// with the composed injection closure its position in the chain
+/// assigns (wrapping in `Left`/`Right` down the spine). Same fix, same
+/// reasoning, as `pderiv_bc::pderiv::flatten_alt`: recursing through
+/// `Alt` one level at a time and calling `nub_tree` at every level is
+/// semantically fine (same "keep first occurrence" composition
+/// argument) but costs O(p) redundant dedup passes for a p-wide
+/// alternation. Flattening first and deduping once gives the identical
+/// result for a fraction of the cost.
+///
+/// `wrap` composes outer-applied-last: each new level's `Left`/`Right`
+/// goes *inside* the accumulated `wrap`, i.e. `w(Left(v))`, not
+/// `Left(w(v))` -- the opposite order from how `prefix` accumulates for
+/// `pderiv_bc`'s bits, where append order already matches encounter
+/// order. Composing a closure the wrong way round doesn't panic or
+/// drop anything; it silently builds the wrong parse tree, so this is
+/// pinned down by `nested_alt_three_leaves_matches_hand_traced_wraps`
+/// below rather than left to be caught by inspection alone.
+fn flatten_alt<'a>(r: &'a Regex, wrap: &InjStep, out: &mut Vec<(&'a Regex, InjStep)>) {
+    match r {
+        Regex::Alt(r1, r2) => {
+            let w = wrap.clone();
+            let left_wrap: InjStep = Rc::new(move |v| w(ParseTree::Left(Box::new(v))));
+            flatten_alt(r1, &left_wrap, out);
+            let w = wrap.clone();
+            let right_wrap: InjStep = Rc::new(move |v| w(ParseTree::Right(Box::new(v))));
+            flatten_alt(r2, &right_wrap, out);
+        }
+        other => out.push((other, wrap.clone())),
+    }
+}
+
 pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
         Regex::Eps | Regex::Phi => vec![],
@@ -25,18 +57,19 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
             }
         }
 
-        Regex::Alt(r1, r2) => {
-            let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
-                .into_iter()
-                .map(|(r1_, inj1)| {
-                    let f: InjStep = Rc::new(move |v| ParseTree::Left(Box::new(inj1(v))));
-                    (r1_, f)
-                })
-                .collect();
-            out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
-                let f: InjStep = Rc::new(move |v| ParseTree::Right(Box::new(inj2(v))));
-                (r2_, f)
-            }));
+        Regex::Alt(_, _) => {
+            let mut leaves: Vec<(&Regex, InjStep)> = Vec::new();
+            let identity: InjStep = Rc::new(|v| v);
+            flatten_alt(r, &identity, &mut leaves);
+
+            let mut out: Vec<(Regex, InjStep)> = Vec::new();
+            for (leaf, wrap) in leaves {
+                for (r_, inj) in pderiv_tree(leaf, x) {
+                    let w = wrap.clone();
+                    let combined: InjStep = Rc::new(move |v| w(inj(v)));
+                    out.push((r_, combined));
+                }
+            }
             nub_tree(out)
         }
 
@@ -201,5 +234,59 @@ mod tests {
         let r = Regex::alt(left, right);
         let residuals = pderiv_tree_residuals(&r, 'a');
         assert_eq!(residuals, vec![Regex::lit('b')]);
+    }
+
+    // Same hand-traced case as pderiv_bc's own
+    // nested_alt_three_leaves_prefix_matches_hand_trace_and_dedups_leftmost,
+    // checked here on the actual parse tree the surviving closure
+    // produces rather than on a bit prefix. This is the case that
+    // caught the composition-order bug (`w(Left(v))` vs `Left(w(v))`)
+    // before it ever reached the real implementation: getting the
+    // order backwards doesn't panic, it silently builds a tree shaped
+    // like Left(Right(Char('a'))) instead of Left(Char('a')), so this
+    // has to be checked against a known tree, not just "does it run".
+    #[test]
+    fn nested_alt_three_leaves_dedups_leftmost_and_wraps_correctly() {
+        // a + (a + b) on 'a': the left 'a' must win the tie over the
+        // nested 'a', and its closure must wrap in exactly one Left
+        // (not Right(Left(..)) or any other order), since it's reached
+        // by taking the outer Alt's own left branch, one level deep.
+        let r = Regex::alt(Regex::lit('a'), Regex::alt(Regex::lit('a'), Regex::lit('b')));
+        let d = pderiv_tree(&r, 'a');
+        assert_eq!(d.len(), 1, "the nested 'a' must be deduped away, leaving only the left one");
+        let (residual, inj) = &d[0];
+        assert_eq!(*residual, Regex::Eps);
+        assert_eq!(inj(ParseTree::Empty), ParseTree::Left(Box::new(ParseTree::Char('a'))));
+    }
+
+    // Four levels deep, no duplicates, mirroring pderiv_bc's own
+    // nested_alt_four_leaves_each_prefix_matches_hand_trace: leaf i's
+    // wrap is i Rights then one Left, except the last leaf, which is
+    // all Rights with no trailing Left.
+    #[test]
+    fn nested_alt_four_leaves_each_wraps_correctly() {
+        let r = Regex::alt(
+            Regex::lit('a'),
+            Regex::alt(Regex::lit('b'), Regex::alt(Regex::lit('c'), Regex::lit('d'))),
+        );
+        let check = |c: char, expected: ParseTree| {
+            let d = pderiv_tree(&r, c);
+            assert_eq!(d.len(), 1);
+            assert_eq!((d[0].1)(ParseTree::Empty), expected);
+        };
+        check('a', ParseTree::Left(Box::new(ParseTree::Char('a'))));
+        check('b', ParseTree::Right(Box::new(ParseTree::Left(Box::new(ParseTree::Char('b'))))));
+        check(
+            'c',
+            ParseTree::Right(Box::new(ParseTree::Right(Box::new(ParseTree::Left(Box::new(
+                ParseTree::Char('c'),
+            )))))),
+        );
+        check(
+            'd',
+            ParseTree::Right(Box::new(ParseTree::Right(Box::new(ParseTree::Right(Box::new(
+                ParseTree::Char('d'),
+            )))))),
+        );
     }
 }

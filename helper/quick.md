@@ -87,6 +87,23 @@ CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
   cargo bench --bench bench_pathological_time
 
 
+# ENCODE / DERIVE / DECODE: PATTERN-SIZE SWEEP MEMORY (E37, E38)
+# Same row/p/override conventions as the timing sweep above, same
+# labels, just bench_pathological_memory instead of _time.
+
+cargo build --release --example bench_worker
+
+# E37
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+  PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E37_WIDE \
+  cargo bench --bench bench_pathological_memory
+
+# E38
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+  PATHO_ROW_ID=E38 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E38_WIDE \
+  cargo bench --bench bench_pathological_memory
+
+
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
 
 # P60
