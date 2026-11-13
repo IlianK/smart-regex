@@ -591,16 +591,16 @@ repeated $n$ times as the input, with $n$ increasing across the sweep.
 Row & Pattern & Derivative step & Parser & Last $n$ & Outcome & Elapsed \\
 \hline
 P01 & \texttt{(a+)+} & expensive (nested quantifier)
-    & \texttt{rec}  & 16          & timeout & 15.818\,s \\
-    & & & \texttt{loop} & 16          & timeout & 15.845\,s \\
+    & \texttt{rec}  & 16          & timeout & 15.808\,s \\
+    & & & \texttt{loop} & 16          & timeout & 15.893\,s \\
 \hline
 P30 & \texttt{(\textbackslash w+)(\textbackslash w+)}\ldots & moderate (product of stars)
-    & \texttt{rec}  & 64          & timeout & 21.397\,s \\
-    & & & \texttt{loop} & 64          & timeout & 20.579\,s \\
+    & \texttt{rec}  & 64          & timeout & 21.217\,s \\
+    & & & \texttt{loop} & 64          & timeout & 20.453\,s \\
 \hline
 E51 & \texttt{x} & cheap (fixed residual)
-    & \texttt{rec}  & 32\,768     & crash   & 1.291\,s \\
-    & & & \texttt{loop} & 268\,435\,456 & timeout & 34.180\,s \\
+    & \texttt{rec}  & 32\,768     & crash   & 1.298\,s \\
+    & & & \texttt{loop} & 268\,435\,456 & timeout & 32.973\,s \\
 \hline
 \end{tabular*}
 \caption{Doubling-search stack-depth results, one group per pattern with
@@ -675,11 +675,11 @@ in Section~\ref{sec:eval-criteria-timing}.
 \hline
 Parser & Timed out & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
-\texttt{deriv\_std\_rec}  & 74 & 7.751 & 0.217 & 1\,866.221 \\
-\texttt{deriv\_std\_loop} & 73 & 7.454 & 0.232 & 1\,802.287 \\
-\texttt{deriv\_bc}        &  0 & 1.695 & 0.320 &   310.481 \\
-\texttt{pderiv\_std}      &  0 & 0.722 & 0.109 &   124.869 \\
-\texttt{pderiv\_bc}       &  0 & 0.634 & 0.100 &   108.532 \\
+\texttt{deriv\_std\_rec}  & 74 & 7.605 & 0.214 & 1\,804.503 \\
+\texttt{deriv\_std\_loop} & 72 & 7.371 & 0.231 & 1\,898.316 \\
+\texttt{deriv\_bc}        &  0 & 1.646 & 0.323 &   280.920 \\
+\texttt{pderiv\_std}      &  0 & 0.759 & 0.114 &   126.316 \\
+\texttt{pderiv\_bc}       &  0 & 0.664 & 0.102 &   101.621 \\
 \hline
 \end{tabular*}
 \caption{Corpus timing over the default scope of 463 patterns and 11\,395
@@ -688,17 +688,17 @@ entries per parser.}
 \end{table}
 
 The standard variants are substantially slower, with mean times roughly
-$4$--$4.5\times$ that of \texttt{deriv\_bc} and more than ten times those
-of the partial-derivative variants. 
-The gap is wider than the means suggest, 
-because the 73 and 74 entries time out on the standard variants and
+$4.5\times$ that of \texttt{deriv\_bc} and on the order of ten times
+those of the partial-derivative variants.
+The gap is wider than the means suggest,
+because the 74 and 72 entries time out on the standard variants and
 are excluded from their means.
 This is why the standard pair’s own median looks lower
 but cannot be used for a fair comparison.
-On the median, \texttt{deriv\_bc} is slower than both partial-derivative variants, 
-a fair comparison since neither times out either. 
+On the median, \texttt{deriv\_bc} is slower than both partial-derivative variants,
+a fair comparison since neither times out either.
 Within the partial-derivative pair, \texttt{pderiv\_bc} is
-marginally faster, at 0.634 against \texttt{pderiv\_std}'s 0.722\,ms.
+marginally faster, at 0.664 against \texttt{pderiv\_std}'s 0.759\,ms.
 
 \begin{table}[H]
 \centering
@@ -711,11 +711,11 @@ marginally faster, at 0.634 against \texttt{pderiv\_std}'s 0.722\,ms.
 \cline{2-4}\cline{5-7}
 Parser & Total & Timeout & Time (s) & Total & Timeout & Time (s) \\
 \hline
-\texttt{deriv\_std\_rec}  & 5\,797 & 72 &  74.928 & 5\,524 & 2 &  9.812 \\
-\texttt{deriv\_std\_loop} & 5\,798 & 71 &  70.732 & 5\,524 & 2 & 10.079 \\
-\texttt{deriv\_bc}        & 5\,869 &  0 &  14.595 & 5\,526 & 0 &  5.067 \\
-\texttt{pderiv\_std}      & 5\,869 &  0 &   6.664 & 5\,526 & 0 &  1.797 \\
-\texttt{pderiv\_bc}       & 5\,869 &  0 &   5.850 & 5\,526 & 0 &  1.573 \\
+\texttt{deriv\_std\_rec}  & 5\,797 & 72 &  73.493 & 5\,524 & 2 &  9.653 \\
+\texttt{deriv\_std\_loop} & 5\,799 & 70 &  70.321 & 5\,524 & 2 &  9.744 \\
+\texttt{deriv\_bc}        & 5\,869 &  0 &  14.165 & 5\,526 & 0 &  4.931 \\
+\texttt{pderiv\_std}      & 5\,869 &  0 &   6.991 & 5\,526 & 0 &  1.891 \\
+\texttt{pderiv\_bc}       & 5\,869 &  0 &   6.101 & 5\,526 & 0 &  1.658 \\
 \hline
 \end{tabular*}
 \caption{Total wall time by verified outcome on the same run as
@@ -733,13 +733,13 @@ bit-coded pair, which is consistent with the standard construction
 spending most of its time on the matching path, where it retains the
 derivation sequence for the backward pass. 
 
-On matches, \texttt{deriv\_std\_loop} takes 70.732\,s against the
-recursive variant's 74.928\,s; their non-match times are almost
-identical (10.079 against 9.812\,s), so the difference between the two
+On matches, \texttt{deriv\_std\_loop} takes 70.321\,s against the
+recursive variant's 73.493\,s; their non-match times are almost
+identical (9.744 against 9.653\,s), so the difference between the two
 forms is confined to the matching path, the only place the backward
 pass runs. The totals cover slightly different entry sets, and almost
 all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
-71 of \texttt{deriv\_std\_loop}'s 73, against none for the other three.
+70 of \texttt{deriv\_std\_loop}'s 72, against none for the other three.
 
 %
 %
@@ -768,47 +768,47 @@ count is the primary indicator.
 \hline
 Cat. & Parser & Timed out & Measured & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
-A & \texttt{deriv\_std\_rec}  & 112 &  48 & 191.15 &  3.90 & 1\,736.50 \\
-  & \texttt{deriv\_std\_loop} & 111 &  49 & 225.58 &  3.79 & 1\,894.74 \\
-  & \texttt{deriv\_bc}        &   2 & 158 & 165.05 &  0.32 & 1\,814.38 \\
-  & \texttt{pderiv\_std}      &   0 & 160 &  19.74 &  0.24 & 1\,312.70 \\
-  & \texttt{pderiv\_bc}       &   0 & 160 &  15.87 &  0.26 &   825.96 \\
+A & \texttt{deriv\_std\_rec}  & 111 &  49 & 217.23 &  3.69 & 1\,926.87 \\
+  & \texttt{deriv\_std\_loop} & 111 &  49 & 219.15 &  3.53 & 1\,924.43 \\
+  & \texttt{deriv\_bc}        &   2 & 158 & 159.81 &  0.30 & 1\,774.65 \\
+  & \texttt{pderiv\_std}      &   0 & 160 &  18.92 &  0.26 & 1\,272.00 \\
+  & \texttt{pderiv\_bc}       &   0 & 160 &  15.21 &  0.24 &   809.38 \\
 \hline
-B & \texttt{deriv\_std\_rec}  &  95 &  55 & 168.75 & 28.15 & 1\,516.52 \\
-  & \texttt{deriv\_std\_loop} &  95 &  55 & 169.82 & 29.18 & 1\,567.05 \\
-  & \texttt{deriv\_bc}        &   6 & 144 &  99.64 &  2.42 & 1\,482.84 \\
-  & \texttt{pderiv\_std}      &   2 & 148 &  83.14 &  2.26 & 1\,986.13 \\
-  & \texttt{pderiv\_bc}       &   0 & 150 &  98.56 &  1.82 & 1\,713.12 \\
+B & \texttt{deriv\_std\_rec}  &  95 &  55 & 161.73 & 26.79 & 1\,466.93 \\
+  & \texttt{deriv\_std\_loop} &  95 &  55 & 159.95 & 27.52 & 1\,473.06 \\
+  & \texttt{deriv\_bc}        &   6 & 144 &  97.30 &  2.69 & 1\,460.83 \\
+  & \texttt{pderiv\_std}      &   3 & 147 &  71.02 &  2.00 & 1\,988.15 \\
+  & \texttt{pderiv\_bc}       &   0 & 150 &  97.63 &  1.98 & 1\,817.60 \\
 \hline
-C & \texttt{deriv\_std\_rec}  &  32 &  24 &  88.98 &  3.79 &   866.81 \\
-  & \texttt{deriv\_std\_loop} &  32 &  24 &  90.65 &  3.81 &   869.75 \\
-  & \texttt{deriv\_bc}        &  14 &  42 & 238.48 & 50.41 & 1\,201.74 \\
-  & \texttt{pderiv\_std}      &  10 &  46 & 270.77 & 35.42 & 1\,035.94 \\
-  & \texttt{pderiv\_bc}       &  10 &  46 & 245.32 & 31.47 &   957.84 \\
+C & \texttt{deriv\_std\_rec}  &  32 &  24 &  86.88 &  3.67 &   862.78 \\
+  & \texttt{deriv\_std\_loop} &  32 &  24 &  86.73 &  3.80 &   845.13 \\
+  & \texttt{deriv\_bc}        &  14 &  42 & 226.63 & 48.56 & 1\,142.09 \\
+  & \texttt{pderiv\_std}      &  10 &  46 & 237.39 & 33.55 &   898.17 \\
+  & \texttt{pderiv\_bc}       &  10 &  46 & 212.09 & 31.03 &   792.58 \\
 \hline
-D & \texttt{deriv\_std\_rec}  &   8 &  32 & 260.84 & 46.16 & 1\,895.22 \\
-  & \texttt{deriv\_std\_loop} &   8 &  32 & 261.62 & 46.04 & 1\,915.13 \\
-  & \texttt{deriv\_bc}        &   0 &  40 & 141.61 & 16.07 & 1\,513.66 \\
-  & \texttt{pderiv\_std}      &   6 &  34 & 241.30 & 52.38 & 1\,026.07 \\
-  & \texttt{pderiv\_bc}       &   6 &  34 & 204.20 & 47.87 &   925.94 \\
+D & \texttt{deriv\_std\_rec}  &   8 &  32 & 245.91 & 44.18 & 1\,825.46 \\
+  & \texttt{deriv\_std\_loop} &   8 &  32 & 244.80 & 45.30 & 1\,812.28 \\
+  & \texttt{deriv\_bc}        &   0 &  40 & 137.87 & 15.62 & 1\,455.57 \\
+  & \texttt{pderiv\_std}      &   6 &  34 & 221.25 & 47.83 &   943.79 \\
+  & \texttt{pderiv\_bc}       &   6 &  34 & 193.93 & 48.24 &   842.33 \\
 \hline
-E & \texttt{deriv\_std\_rec}  &  46 &  34 & 253.05 & 12.35 & 1\,883.29 \\
-  & \texttt{deriv\_std\_loop} &  43 &  37 & 381.76 & 12.43 & 1\,915.26 \\
-  & \texttt{deriv\_bc}        &   0 &  80 &  80.61 &  4.74 & 1\,285.09 \\
-  & \texttt{pderiv\_std}      &   0 &  80 &  65.76 &  3.62 & 1\,202.81 \\
-  & \texttt{pderiv\_bc}       &   0 &  80 &  60.00 &  3.69 & 1\,023.59 \\
+E & \texttt{deriv\_std\_rec}  &  45 &  35 & 287.51 & 10.91 & 1\,788.03 \\
+  & \texttt{deriv\_std\_loop} &  42 &  38 & 401.34 & 12.02 & 1\,888.47 \\
+  & \texttt{deriv\_bc}        &   0 &  80 &  79.57 &  4.71 & 1\,279.33 \\
+  & \texttt{pderiv\_std}      &   0 &  80 &  65.15 &  3.42 & 1\,160.53 \\
+  & \texttt{pderiv\_bc}       &   0 &  80 &  57.56 &  3.23 &   959.55 \\
 \hline
-F & \texttt{deriv\_std\_rec}  &  46 &  24 & 408.17 & 16.79 & 1\,801.95 \\
-  & \texttt{deriv\_std\_loop} &  46 &  24 & 394.89 & 15.28 & 1\,759.03 \\
-  & \texttt{deriv\_bc}        &  28 &  42 &  42.91 &  2.59 &   413.57 \\
-  & \texttt{pderiv\_std}      &   2 &  68 & 106.55 &  7.29 & 1\,744.62 \\
-  & \texttt{pderiv\_bc}       &   2 &  68 & 109.19 &  7.68 & 1\,790.56 \\
+F & \texttt{deriv\_std\_rec}  &  46 &  24 & 387.14 & 15.53 & 1\,707.54 \\
+  & \texttt{deriv\_std\_loop} &  46 &  24 & 384.87 & 14.77 & 1\,695.10 \\
+  & \texttt{deriv\_bc}        &  28 &  42 &  41.65 &  2.39 &   410.55 \\
+  & \texttt{pderiv\_std}      &   2 &  68 & 113.18 &  8.13 & 1\,876.39 \\
+  & \texttt{pderiv\_bc}       &   3 &  67 &  88.56 &  3.32 & 1\,974.81 \\
 \hline
-H & \texttt{deriv\_std\_rec}  &  18 &  10 & 236.09 & 15.55 & 1\,240.12 \\
-  & \texttt{deriv\_std\_loop} &  18 &  10 & 235.24 & 13.86 & 1\,258.37 \\
-  & \texttt{deriv\_bc}        &   2 &  26 & 261.45 & 80.84 & 1\,710.24 \\
-  & \texttt{pderiv\_std}      &   5 &  23 & 166.72 & 44.75 &   879.46 \\
-  & \texttt{pderiv\_bc}       &   5 &  23 & 141.85 & 39.31 &   759.49 \\
+H & \texttt{deriv\_std\_rec}  &  18 &  10 & 226.98 & 14.48 & 1\,196.58 \\
+  & \texttt{deriv\_std\_loop} &  18 &  10 & 226.23 & 13.79 & 1\,167.62 \\
+  & \texttt{deriv\_bc}        &   2 &  26 & 253.72 & 74.75 & 1\,668.39 \\
+  & \texttt{pderiv\_std}      &   5 &  23 & 167.23 & 49.95 &   855.02 \\
+  & \texttt{pderiv\_bc}       &   4 &  24 & 213.98 & 53.42 & 1\,983.17 \\
 \hline
 \end{tabular*}
 \caption{Per-parser timing over the synthetic set's default sweep for the
@@ -822,15 +822,15 @@ counts entries with a completed timing. \emph{Mean}, \emph{Median}, and
 \paragraph{Categories A, B, E} show the expected behavior.
 The partial-derivative variants are faster
 than the derivative variants, though within their own family they are
-nearly tied on median (0.24--0.26, 1.82--2.26, and 3.62--3.69\,ms in A, B, and E).
-\texttt{deriv\_bc} follows behind (0.32, 2.42, 4.74\,ms).
+nearly tied on median (0.24--0.26, 1.98--2.00, and 3.23--3.42\,ms in A, B, and E).
+\texttt{deriv\_bc} follows behind (0.30, 2.69, 4.71\,ms).
 All three categories let the same input be consumed by many decompositions,
 so their residual expressions grow with each step and their size drives the cost.
 While \texttt{deriv\_bc} simplifies after each step and keeps a single
 expression, the partial-derivative parsers keep a deduplicated set
 instead.
 The standard derivative parsers are much slower throughout
-and timeout against 111--112 of A's 160, 95 of B's 150, and 43--46 of E's 80 entries.
+and timeout against 111 of A's 160, 95 of B's 150, and 42--45 of E's 80 entries.
 
 
 \paragraph{Category C} has high timeout counts across all five parsers, from 10 to 32
@@ -838,20 +838,20 @@ of its 56 entries. Its patterns wrap a star body in a bounded repetition,
 so unrolling produces up to ten copies of an already ambiguous
 subexpression that every parser must then process within the measured call.
 Here the partial-derivative pair overtakes \texttt{deriv\_bc} on both
-counts, with 10 timeouts against 14 and medians of 31.47 and 35.42\,ms
-against 50.41, while \texttt{deriv\_bc} still beats the standard derivative
-parsers on robustness, 14 timeouts against 32. The lower medians (3.79
-and 3.81\,ms) come from the 24 entries they complete and describe the
+counts, with 10 timeouts against 14 and medians of 31.03 and 33.55\,ms
+against 48.56, while \texttt{deriv\_bc} still beats the standard derivative
+parsers on robustness, 14 timeouts against 32. The lower medians (3.67
+and 3.80\,ms) come from the 24 entries they complete and describe the
 easiest subset rather than a faster parser.
 
 \paragraph{Category F} is where \texttt{deriv\_bc} loses most ground to the
 partial-derivative variants, timing out on 28 of its 70 entries against 2
-for each. Its patterns end in a literal that fails late, so every entry
+and 3 for the two partial-derivative variants. Its patterns end in a literal that fails late, so every entry
 must consume the whole input before that literal is checked and no parser
 can reject early. On completed entries \texttt{deriv\_bc} appears faster
-than both variants, 42.91 against 106.55 and 109.19\,ms on the mean and
-2.59 against 7.29 and 7.68\,ms on the median, but as in C these figures
-cover only the 42 entries it completed against 68 for each variant, so they
+than both variants, 41.65 against 88.56 and 113.18\,ms on the mean and
+2.39 against 3.32 and 8.13\,ms on the median, but as in C these figures
+cover only the 42 entries it completed against 67 and 68 for the two variants, so they
 describe the easier subset and the partial-derivative pair remains the more
 robust choice.
 
@@ -859,7 +859,7 @@ robust choice.
 on F, timing out on none of its 40 entries against 6 for each
 partial-derivative variant. Since the measured counts are close, the means
 compare directly, and the fewest timeouts and the lowest mean fall on the
-same parser, \texttt{deriv\_bc}, at 141.61 against 204.20--261.62\,ms.
+same parser, \texttt{deriv\_bc}, at 137.87 against 193.93--221.25\,ms.
 D's patterns are unrolled bounded repetitions, so consuming a prefix
 leaves a suffix of the unrolled chain, and different prefix lengths leave
 suffixes of different lengths. \texttt{deriv\_bc} simplifies after each
@@ -873,15 +873,15 @@ uses, not from the encoding itself.
 
 \paragraph{Category H} is a weaker version of D's outcome.
 \texttt{deriv\_bc} again times out on fewer entries, 2 of its 28 against 5
-for each partial-derivative variant, but here the timeouts and the median
+and 4 for the two partial-derivative variants, but here the timeouts and the median
 disagree. H's patterns are chains of adjacent unbounded groups, such as
 \texttt{(.+)(.+)}\(\ldots\), so the split points multiply across the group
 boundaries. The residual set the partial-derivative parsers carry grows
 with the number of groups. Each element is stepped at every character, but
 \texttt{deriv\_bc} only carries a single simplified expression. On
 completed entries, however, the partial-derivative parsers are faster
-on both mean (141.85 and 166.72 against 261.45\,ms) and median (39.31 and
-44.75 against 80.84\,ms).
+on both mean (167.23 and 213.98 against 253.72\,ms) and median (49.95 and
+53.42 against 74.75\,ms).
 
 %
 %
@@ -895,29 +895,29 @@ on both mean (141.85 and 166.72 against 261.45\,ms) and median (39.31 and
 \hline
 Cat. & Parser & Timed out & Measured & Mean (ms) & Median (ms) & Max (ms) \\
 \hline
-I & \texttt{deriv\_std\_rec}  & 44 (1) &  15 & 132.59 &   0.60 & 1\,690.64 \\
-  & \texttt{deriv\_std\_loop} &     45 &  15 & 126.01 &   0.59 & 1\,648.17 \\
-  & \texttt{deriv\_bc}        &     21 &  39 & 412.36 & 131.82 & 2\,001.87 \\
-  & \texttt{pderiv\_std}      &     18 &  42 & 291.19 & 137.12 & 1\,743.29 \\
-  & \texttt{pderiv\_bc}       &     18 &  42 & 244.71 & 103.34 & 1\,874.64 \\
+I & \texttt{deriv\_std\_rec}  & 44 (1) &  15 & 128.08 &   0.51 & 1\,634.08 \\
+  & \texttt{deriv\_std\_loop} &     45 &  15 & 122.17 &   0.55 & 1\,604.48 \\
+  & \texttt{deriv\_bc}        &     19 &  41 & 463.33 & 151.20 & 1\,867.90 \\
+  & \texttt{pderiv\_std}      &     19 &  41 & 249.43 &  47.37 & 1\,603.32 \\
+  & \texttt{pderiv\_bc}       &     19 &  41 & 200.82 &  52.44 & 1\,136.38 \\
 \hline
-J & \texttt{deriv\_std\_rec}  &  3 &  19 & 189.56 &  5.29 & 1\,834.69 \\
-  & \texttt{deriv\_std\_loop} &  2 &  20 & 271.93 &  5.98 & 1\,833.83 \\
-  & \texttt{deriv\_bc}        &  2 &  20 & 204.99 & 15.88 & 1\,696.12 \\
-  & \texttt{pderiv\_std}      &  4 &  18 & 254.14 & 40.45 & 1\,691.29 \\
-  & \texttt{pderiv\_bc}       &  4 &  18 & 214.61 & 35.51 & 1\,392.01 \\
+J & \texttt{deriv\_std\_rec}  &  3 &  19 & 182.17 &  5.64 & 1\,726.85 \\
+  & \texttt{deriv\_std\_loop} &  2 &  20 & 258.57 &  5.80 & 1\,724.29 \\
+  & \texttt{deriv\_bc}        &  2 &  20 & 187.48 & 14.87 & 1\,567.33 \\
+  & \texttt{pderiv\_std}      &  4 &  18 & 179.89 &  1.92 & 1\,515.41 \\
+  & \texttt{pderiv\_bc}       &  4 &  18 & 155.05 &  2.64 & 1\,354.74 \\
 \hline
-K & \texttt{deriv\_std\_rec}  & 24 &  6 & 385.32 & 432.43 &   667.63 \\
-  & \texttt{deriv\_std\_loop} & 24 &  6 & 369.73 & 454.17 &   582.06 \\
-  & \texttt{deriv\_bc}        & 12 & 18 & 187.19 &  57.18 &   803.82 \\
-  & \texttt{pderiv\_std}      & 11 & 19 & 205.44 &  40.57 & 1\,976.13 \\
-  & \texttt{pderiv\_bc}       & 10 & 20 & 183.48 &  35.82 & 1\,193.98 \\
+K & \texttt{deriv\_std\_rec}  & 24 &  6 & 354.41 & 405.10 &   625.28 \\
+  & \texttt{deriv\_std\_loop} & 24 &  6 & 336.07 & 372.51 &   532.73 \\
+  & \texttt{deriv\_bc}        & 12 & 18 & 175.79 &  58.88 &   734.89 \\
+  & \texttt{pderiv\_std}      & 11 & 19 & 199.88 &  40.24 & 1\,925.61 \\
+  & \texttt{pderiv\_bc}       & 10 & 20 & 180.38 &  32.89 & 1\,182.48 \\
 \hline
-L & \texttt{deriv\_std\_rec}  & 20 & 175 &  64.24 & 0.11 & 1\,874.67 \\
-  & \texttt{deriv\_std\_loop} & 19 & 176 &  71.72 & 0.12 & 1\,875.94 \\
-  & \texttt{deriv\_bc}        &  0 & 195 &   4.56 & 0.08 &   102.52 \\
-  & \texttt{pderiv\_std}      &  0 & 195 &   2.18 & 0.03 &    45.18 \\
-  & \texttt{pderiv\_bc}       &  0 & 195 &   2.14 & 0.03 &    51.74 \\
+L & \texttt{deriv\_std\_rec}  & 20 & 175 &  61.23 & 0.12 & 1\,795.99 \\
+  & \texttt{deriv\_std\_loop} & 19 & 176 &  65.75 & 0.13 & 1\,785.88 \\
+  & \texttt{deriv\_bc}        &  0 & 195 &   4.48 & 0.08 &    98.13 \\
+  & \texttt{pderiv\_std}      &  0 & 195 &   2.26 & 0.03 &    51.10 \\
+  & \texttt{pderiv\_bc}       &  0 & 195 &   2.25 & 0.03 &    50.52 \\
 \hline
 \end{tabular*}
 \caption{Per-parser timing over the synthetic set's default sweep for the
@@ -931,11 +931,11 @@ completed timing.}
 \paragraph{Categories I, J, K, L} form a $2\times2$ matrix of pattern
 size against input size. L is trivial in both and comparable, every parser
 measuring at least 175 of 195 entries, and its means put the
-partial-derivative pair at 2.18 and 2.14\,ms, \texttt{deriv\_bc} at
-4.56\,ms and the standard pair at 64.24 and 71.72\,ms, so on trivial work
+partial-derivative pair at 2.26 and 2.25\,ms, \texttt{deriv\_bc} at
+4.48\,ms and the standard pair at 61.23 and 65.75\,ms, so on trivial work
 \texttt{deriv\_bc} is twice as slow as either partial-derivative variant.
 I grows only the input, and length alone pushes every parser past the
-budget on at least 18 of its 60 entries, rising to 44 for
+budget on at least 19 of its 60 entries, rising to 44 for
 \texttt{deriv\_std\_rec} plus the crash its call-stack storage makes
 reachable (Section~\ref{sec:eval-stack-depth}). J and K differ only in
 input length, since J's short input keeps per-entry work small and leaves
@@ -948,16 +948,21 @@ that caused the single crash in I.
 \paragraph{Overall} across all categories the standard derivative parsers
 are the most timeout-prone, \texttt{deriv\_bc} beats them everywhere, and
 the partial-derivative variants beat the whole derivative family in A, B,
-C, F, I, and K. Though not in D, H, and J, where \texttt{deriv\_bc} remains
+C, F, and K, and tie \texttt{deriv\_bc} while still beating the standard
+pair in I. Though not in D, H, and J, where \texttt{deriv\_bc} remains
 more robust, where it carries a single expression rather than a set of
 residuals. In D its simplification merges residuals that are equivalent
 but not syntactically equal, in H it does not pay the per-element cost of
 a set that grows with the number of groups, and in J it does not pay that
 cost across a wide alternation. Within the pair, the mean favours
-\texttt{pderiv\_bc} in nine categories and the median in seven, so its
-advantage over \texttt{pderiv\_std} lies in the slowest entries at the top
-of each sweep. Category J's completely inverted ranking, with
-the standard pair being fastest, is examined later in Table~\ref{tab:patho-e38-all-parsers}.
+\texttt{pderiv\_bc} in nine categories and the median in six, so its
+advantage over \texttt{pderiv\_std} lies more often in the slowest entries
+at the top of each sweep than in the typical one. The widest alternations
+of all, examined next via rows E37 and E38, show no reversal of this
+picture: \texttt{pderiv\_bc} and \texttt{pderiv\_std} stay the fastest
+parsers as $p$ grows into the thousands, while \texttt{deriv\_bc}'s own
+branch-deduplication cost (Figure~\ref{fig:dedup-first-rust}) becomes the
+one that dominates, examined in Table~\ref{tab:patho-e38-all-parsers}.
 
 %
 %
@@ -991,12 +996,16 @@ and its size grows with the input.
 With the standard pair ruled out, 
 the remaining question is how \texttt{deriv\_bc} and the partial-derivative pair compare. 
 On P01 the pair outlasts \texttt{deriv\_bc},
-while on the other three all three reach the sweep maximum without timing out.
+while on P60 and P09 all three reach the sweep maximum without failing.
+P61 is the exception: \texttt{deriv\_bc} and \texttt{pderiv\_bc} both
+still reach the maximum, but \texttt{pderiv\_std} now crashes there
+instead, the only failure among these three parsers on any of the six
+rows.
 
 \begin{table}[H]
 \centering
 \small
-\setlength{\tabcolsep}{6pt}
+\setlength{\tabcolsep}{4pt}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lll rrr}
 \hline
 Row & Cat. & Pattern and Input & \shortstack{Standard\\\texttt{rec} \& \texttt{loop}}
@@ -1010,8 +1019,8 @@ P60 & E & \texttt{(a|b|ab)*}, \texttt{a} repeated
 P61 & E & \texttt{(a|b|ab)*}, \texttt{ab} repeated
     & \shortstack[r]{\checkmark\ 15\\ $\times$\ 100}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---}
-    & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---} \\[14pt]
-\hline\\[-6pt]    
+    & \scriptsize\shortstack[r]{bc: \checkmark\ 10\,000\,000\\ std: \checkmark\ 5\,000\,000\\ std: $\times$\ 10\,000\,000}\normalsize \\[20pt]
+\hline\\[-6pt]
 P09 & B & \texttt{(a|aa)+}, \texttt{a} repeated
     & \shortstack[r]{\checkmark\ 25\\ $\times$\ 100}
     & \shortstack[r]{\checkmark\ 10\,000\,000\\ ---}
@@ -1085,13 +1094,13 @@ one against it once, which is cheaper on both inputs.
   grid=major,
 ]
 \addplot[mark=*, thick, blue]
-  coordinates {(10,0.064) (50,0.260) (100,0.361) (500,1.925) (1000,3.262) (5000,18.180) (20000,79.668) (100000,380.180) (300000,1102.757) (1000000,3770.446) (5000000,19115.043) (10000000,39476.758)};
+  coordinates {(10,0.059) (50,0.202) (100,0.427) (500,2.032) (1000,3.709) (5000,19.069) (20000,78.743) (100000,365.998) (300000,1102.866) (1000000,3928.752) (5000000,19574.089) (10000000,39698.147)};
 \addlegendentry{\texttt{deriv\_bc}}
 \addplot[mark=square*, thick, red]
-  coordinates {(10,0.053) (50,0.164) (100,0.369) (500,1.664) (1000,2.610) (5000,14.521) (20000,53.445) (100000,314.903) (300000,934.116) (1000000,3247.228) (5000000,16636.130) (10000000,33551.825)};
+  coordinates {(10,0.052) (50,0.158) (100,0.285) (500,1.476) (1000,2.954) (5000,15.679) (20000,52.553) (100000,274.030) (300000,800.265) (1000000,2913.345) (5000000,13583.006) (10000000,27195.089)};
 \addlegendentry{\texttt{pderiv\_bc}}
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(10,0.049) (50,0.162) (100,0.326) (500,1.738) (1000,2.578) (5000,13.410) (20000,49.170) (100000,243.436) (300000,738.900) (1000000,2497.248) (5000000,12590.578) (10000000,25255.905)};
+  coordinates {(10,0.047) (50,0.154) (100,0.375) (500,1.431) (1000,3.025) (5000,14.000) (20000,56.380) (100000,290.089) (300000,855.030) (1000000,2861.204) (5000000,14302.748) (10000000,28640.134)};
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
@@ -1114,9 +1123,9 @@ one against it once, which is cheaper on both inputs.
 \addplot[dashed, gray, no markers]
   coordinates {(10,1) (10000000,1)};
 \addplot[mark=square*, thick, red]
-  coordinates {(10,0.828) (50,0.631) (100,1.022) (500,0.864) (1000,0.800) (5000,0.799) (20000,0.671) (100000,0.828) (300000,0.847) (1000000,0.861) (5000000,0.870) (10000000,0.850)};
+  coordinates {(10,0.881) (50,0.782) (100,0.667) (500,0.726) (1000,0.796) (5000,0.822) (20000,0.667) (100000,0.749) (300000,0.726) (1000000,0.742) (5000000,0.694) (10000000,0.685)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(10,0.766) (50,0.623) (100,0.903) (500,0.903) (1000,0.790) (5000,0.738) (20000,0.617) (100000,0.640) (300000,0.670) (1000000,0.662) (5000000,0.659) (10000000,0.640)};
+  coordinates {(10,0.797) (50,0.762) (100,0.878) (500,0.704) (1000,0.816) (5000,0.734) (20000,0.716) (100000,0.793) (300000,0.775) (1000000,0.728) (5000000,0.731) (10000000,0.721)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P60, \texttt{(a|b|ab)*} against \texttt{a} repeated,
@@ -1144,13 +1153,13 @@ the partial-derivative pair as a ratio to \texttt{deriv\_bc}.}
   grid=major,
 ]
 \addplot[mark=*, thick, blue]
-  coordinates {(5,0.058) (10,0.092) (15,0.103) (100,0.570) (1000,5.884) (10000,60.365) (100000,566.022) (500000,2798.610) (2500000,14439.356) (5000000,28706.090) (10000000,57646.609)};
+  coordinates {(5,0.055) (10,0.099) (15,0.131) (100,0.696) (1000,5.818) (10000,61.383) (100000,579.040) (500000,2844.289) (2500000,14312.697) (5000000,28509.994) (10000000,58487.464)};
 \addlegendentry{\texttt{deriv\_bc}}
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.038) (10,0.084) (15,0.097) (100,0.536) (1000,4.762) (10000,44.504) (100000,436.111) (500000,2179.457) (2500000,11096.442) (5000000,22419.540) (10000000,45882.176)};
+  coordinates {(5,0.044) (10,0.074) (15,0.092) (100,0.606) (1000,5.129) (10000,46.731) (100000,462.433) (500000,2329.246) (2500000,12616.088) (5000000,23688.711) (10000000,47527.509)};
 \addlegendentry{\texttt{pderiv\_bc}}
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.041) (10,0.056) (15,0.079) (100,0.580) (1000,4.631) (10000,46.938) (100000,439.353) (500000,2210.985) (2500000,11218.974) (5000000,22405.255) (10000000,43877.290)};
+  coordinates {(5,0.045) (10,0.059) (15,0.102) (100,0.626) (1000,5.712) (10000,51.147) (100000,514.586) (500000,2614.580) (2500000,12897.374) (5000000,25681.017)};
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
@@ -1173,9 +1182,9 @@ the partial-derivative pair as a ratio to \texttt{deriv\_bc}.}
 \addplot[dashed, gray, no markers]
   coordinates {(5,1) (10000000,1)};
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.655) (10,0.913) (15,0.942) (100,0.940) (1000,0.809) (10000,0.737) (100000,0.770) (500000,0.779) (2500000,0.768) (5000000,0.781) (10000000,0.796)};
+  coordinates {(5,0.800) (10,0.747) (15,0.702) (100,0.871) (1000,0.882) (10000,0.761) (100000,0.799) (500000,0.819) (2500000,0.881) (5000000,0.831) (10000000,0.813)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.707) (10,0.609) (15,0.767) (100,1.018) (1000,0.787) (10000,0.778) (100000,0.776) (500000,0.790) (2500000,0.777) (5000000,0.781) (10000000,0.761)};
+  coordinates {(5,0.818) (10,0.596) (15,0.779) (100,0.899) (1000,0.982) (10000,0.833) (100000,0.889) (500000,0.919) (2500000,0.901) (5000000,0.901)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P61, \texttt{(a|b|ab)*} against \texttt{ab} repeated,
@@ -1185,20 +1194,24 @@ ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-fig7bc}
 \end{figure}
 
-Between the two partial-derivative parsers, \texttt{pderiv\_std} is
-fastest on P60 across most of the sweep, reaching about 0.65 of
-\texttt{deriv\_bc}'s time at the largest inputs, with \texttt{pderiv\_bc}
-trailing it.
-On P61 the two stay close throughout and trade the lead at different
-points along the sweep, with neither keeping a consistent edge,
-unlike P60's clean ordering. 
-This is specific to this pattern.
-Dataset-wide, \texttt{pderiv\_bc} was shown to be faster on mean in nine
-categories and median in seven.
-\texttt{pderiv\_bc} and \texttt{pderiv\_std} step the same residuals and
-differ only in how they tag them. 
-This gap could be attributed to how many residuals stay live, 
-since tagging is charged per residual and the number live differs between the two inputs.
+Between the two partial-derivative parsers, neither keeps a consistent
+edge on either row: \texttt{pderiv\_bc} is faster at 7 of P60's 12
+swept points and 9 of P61's 10 comparable ones, trading the lead at
+different points along each sweep rather than showing P60's older
+clean ordering. P61's eleventh point, $n=10\,000\,000$, has no
+\texttt{pderiv\_std} value to compare against, since it crashes there
+instead of completing (Table~\ref{tab:patho-crash-thresholds}). At the
+largest input both still complete, \texttt{pderiv\_bc} is a little
+ahead on each row: 0.685 against \texttt{pderiv\_std}'s 0.722 of
+\texttt{deriv\_bc}'s time at $n=10\,000\,000$ on P60, and 0.831 against
+0.901 at $n=5\,000\,000$ on P61.
+This leans the same way as the dataset-wide result rather than against
+it: \texttt{pderiv\_bc} was shown to be faster on mean in nine
+categories and median in six. \texttt{pderiv\_bc} and
+\texttt{pderiv\_std} step the same residuals and differ only in how
+they tag them, so a lead this narrow and this inconsistent from one
+swept point to the next is better explained by ordinary run-to-run
+variation than by a mechanism tied to tagging.
 
 Let $B$ denote the pattern \texttt{a|b|ab}, so the whole
 pattern is $B^{*}$, and let a \emph{state} be the set of residuals that
@@ -1254,12 +1267,12 @@ where it joins both partial-derivative variants in completing the full
 ten-million-character sweep.
 On P01, over the range
 where \texttt{deriv\_bc} itself has data (up to $n=50\,000$), the
-ratio starts between 0.7 and 0.9 at the smallest inputs and falls below 0.01
+ratio starts between 0.8 and 1.0 at the smallest inputs and falls below 0.01
 by $n=50\,000$, since \texttt{deriv\_bc}'s own cost grows far faster
 than the partial-derivative pair's as it nears its timeout.
 On P09, where \texttt{deriv\_bc} completes the whole sweep instead of nearing
 a timeout, both partial-derivative variants instead stay in a roughly
-steady band, from about 0.38 to 0.70, throughout.
+steady band, from about 0.37 to 0.67, throughout.
 
 \begin{figure}[H]
 \centering
@@ -1279,13 +1292,13 @@ steady band, from about 0.38 to 0.70, throughout.
   grid=major,
 ]
 \addplot[mark=*, thick, blue]
-  coordinates {(5,0.027) (10,0.037) (15,0.055) (20,0.084) (50,0.210) (100,0.464) (500,2.709) (1000,8.518) (2000,31.277) (5000,163.412) (10000,616.274) (30000,5025.491) (50000,13438.518)};
+  coordinates {(5,0.028) (10,0.040) (15,0.059) (20,0.068) (50,0.155) (100,0.460) (500,3.053) (1000,7.543) (2000,28.029) (5000,144.765) (10000,579.514) (30000,4749.342) (50000,12750.014)};
 \addlegendentry{\texttt{deriv\_bc}}
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.023) (10,0.027) (15,0.049) (20,0.050) (50,0.123) (100,0.304) (500,1.292) (1000,2.542) (2000,5.048) (5000,10.694) (10000,23.762) (30000,69.028) (50000,117.578) (200000,456.427) (1000000,2244.056) (5000000,11343.617) (10000000,22258.521)};
+  coordinates {(5,0.024) (10,0.040) (15,0.046) (20,0.059) (50,0.147) (100,0.253) (500,1.227) (1000,2.699) (2000,4.861) (5000,10.959) (10000,22.112) (30000,65.466) (50000,111.142) (200000,442.371) (1000000,2209.321) (5000000,11274.874) (10000000,23621.059)};
 \addlegendentry{\texttt{pderiv\_bc}}
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.019) (10,0.029) (15,0.049) (20,0.056) (50,0.138) (100,0.226) (500,1.050) (1000,2.473) (2000,4.221) (5000,10.461) (10000,20.738) (30000,61.052) (50000,103.059) (200000,403.485) (1000000,1986.501) (5000000,10211.021) (10000000,20696.697)};
+  coordinates {(5,0.027) (10,0.040) (15,0.046) (20,0.066) (50,0.133) (100,0.298) (500,1.316) (1000,2.437) (2000,4.727) (5000,10.572) (10000,21.534) (30000,65.048) (50000,106.089) (200000,432.476) (1000000,2154.129) (5000000,11014.471) (10000000,21959.981)};
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
@@ -1306,9 +1319,9 @@ steady band, from about 0.38 to 0.70, throughout.
 \addplot[dashed, gray, no markers]
   coordinates {(5,1) (50000,1)};
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.852) (10,0.730) (15,0.891) (20,0.595) (50,0.586) (100,0.655) (500,0.477) (1000,0.298) (2000,0.161) (5000,0.065) (10000,0.039) (30000,0.014) (50000,0.009)};
+  coordinates {(5,0.857) (10,1.000) (15,0.780) (20,0.868) (50,0.948) (100,0.550) (500,0.402) (1000,0.358) (2000,0.173) (5000,0.076) (10000,0.038) (30000,0.014) (50000,0.009)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.704) (10,0.784) (15,0.891) (20,0.667) (50,0.657) (100,0.487) (500,0.388) (1000,0.290) (2000,0.135) (5000,0.064) (10000,0.034) (30000,0.012) (50000,0.008)};
+  coordinates {(5,0.964) (10,1.000) (15,0.780) (20,0.971) (50,0.858) (100,0.648) (500,0.431) (1000,0.323) (2000,0.169) (5000,0.073) (10000,0.037) (30000,0.014) (50000,0.008)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P01, \texttt{(a+)+} against \texttt{a} repeated,
@@ -1335,13 +1348,13 @@ partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
   grid=major,
 ]
 \addplot[mark=*, thick, blue]
-  coordinates {(5,0.046) (10,0.101) (15,0.113) (20,0.150) (25,0.174) (100,0.626) (1000,4.784) (5000,24.225) (10000,46.473) (50000,237.741) (100000,464.622) (500000,2468.427) (1000000,4676.733) (5000000,23388.627) (10000000,47079.841)};
+  coordinates {(5,0.047) (10,0.072) (15,0.152) (20,0.132) (25,0.184) (100,0.573) (1000,5.702) (5000,26.126) (10000,49.353) (50000,240.035) (100000,486.034) (500000,2411.099) (1000000,4974.812) (5000000,24789.667) (10000000,48470.669)};
 \addlegendentry{\texttt{deriv\_bc}}
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.032) (10,0.049) (15,0.054) (20,0.084) (25,0.101) (100,0.376) (1000,2.935) (5000,13.131) (10000,23.700) (50000,114.423) (100000,232.897) (500000,1129.742) (1000000,2333.883) (5000000,11620.466) (10000000,23980.188)};
+  coordinates {(5,0.031) (10,0.045) (15,0.056) (20,0.077) (25,0.093) (100,0.264) (1000,2.909) (5000,14.738) (10000,25.029) (50000,140.299) (100000,253.593) (500000,1231.322) (1000000,2492.013) (5000000,12692.971) (10000000,25228.726)};
 \addlegendentry{\texttt{pderiv\_bc}}
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.021) (10,0.038) (15,0.054) (20,0.072) (25,0.094) (100,0.243) (1000,2.553) (5000,11.429) (10000,23.121) (50000,110.551) (100000,217.608) (500000,1115.879) (1000000,2224.139) (5000000,11347.755) (10000000,22615.777)};
+  coordinates {(5,0.029) (10,0.048) (15,0.058) (20,0.067) (25,0.104) (100,0.299) (1000,2.764) (5000,13.415) (10000,25.424) (50000,126.849) (100000,249.426) (500000,1264.277) (1000000,2760.026) (5000000,12833.675) (10000000,25662.750)};
 \addlegendentry{\texttt{pderiv\_std}}
 \end{axis}
 \end{tikzpicture}
@@ -1364,9 +1377,9 @@ partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
 \addplot[dashed, gray, no markers]
   coordinates {(5,1) (10000000,1)};
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.696) (10,0.485) (15,0.478) (20,0.560) (25,0.580) (100,0.601) (1000,0.614) (5000,0.542) (10000,0.510) (50000,0.481) (100000,0.501) (500000,0.458) (1000000,0.499) (5000000,0.497) (10000000,0.509)};
+  coordinates {(5,0.660) (10,0.625) (15,0.368) (20,0.583) (25,0.505) (100,0.461) (1000,0.510) (5000,0.564) (10000,0.507) (50000,0.584) (100000,0.522) (500000,0.511) (1000000,0.501) (5000000,0.512) (10000000,0.520)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.457) (10,0.376) (15,0.478) (20,0.480) (25,0.540) (100,0.388) (1000,0.534) (5000,0.472) (10000,0.498) (50000,0.465) (100000,0.468) (500000,0.452) (1000000,0.476) (5000000,0.485) (10000000,0.480)};
+  coordinates {(5,0.617) (10,0.667) (15,0.382) (20,0.508) (25,0.565) (100,0.522) (1000,0.485) (5000,0.513) (10000,0.515) (50000,0.528) (100000,0.513) (500000,0.524) (1000000,0.555) (5000000,0.518) (10000000,0.529)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P09, \texttt{(a|aa)+} against \texttt{a} repeated,
@@ -1386,11 +1399,15 @@ cost grows with $n$, and the ratio collapses from near parity to under
 since category B's shared-prefix alternatives under one flat quantifier
 leave only a couple of live readings at any position, not a count tied to
 how many iterations have passed. The same pairwise cleanup therefore costs
-a bounded amount per character, holding the ratio in the 0.38--0.70
+a bounded amount per character, holding the ratio in the 0.37--0.67
 band out to ten million characters.
 Between the two partial-derivative
 variants, which avoid this cost on both rows by construction,
-\texttt{pderiv\_std} is faster here, matching P60's ordering.
+\texttt{pderiv\_bc} is faster at 9 of the 15 swept points here,
+including the largest (0.520 against \texttt{pderiv\_std}'s 0.529 of
+\texttt{deriv\_bc}'s time at ten million characters) -- the same
+modest, inconsistent lean seen on P60 and P61 above, not a clean win
+for either variant.
 
 %
 %
@@ -1433,29 +1450,30 @@ almost seven times the default cap.
 \cline{2-4}\cline{5-7}
 $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Decode (ms) \\
 \hline
-100         &  6.49 &     0.60 & 0.01 & 0.04 &      1.74 & 0.00 \\
-500         &  0.63 &     4.75 & 0.02 & 0.25 &     34.07 & 0.02 \\
-1\,000      &  2.16 &    12.96 & 0.04 & 0.41 &    138.39 & 0.05 \\
-2\,000      &  2.59 &    41.05 & 0.10 & 1.03 &    603.65 & 0.11 \\
-5\,000      &  6.51 &   215.08 & 0.21 & 2.85 &  4\,499.90 & 0.21 \\
-10\,000     & 13.44 &   826.40 & 0.48 & 5.10 & 30\,845.30 & 0.41 \\
+100         &  0.11 &     0.44 & 0.00 & 0.04 &      0.21 & 0.01 \\
+500         &  0.65 &     4.64 & 0.02 & 0.21 &      1.02 & 0.04 \\
+1\,000      &  1.27 &    13.89 & 0.04 & 0.49 &      2.09 & 0.09 \\
+2\,000      &  2.97 &    37.41 & 0.08 & 0.96 &      5.24 & 0.21 \\
+5\,000      &  6.74 &   199.81 & 0.21 & 2.04 &     21.97 & 0.40 \\
+10\,000     & 14.15 &   783.96 & 0.43 & 4.69 &     58.82 & 0.87 \\
 \hline
 \end{tabular*}
 \caption{E37: \texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}.
 An \texttt{E}-row sweeping the pattern's alternation width $p$ at fixed input length
-(\texttt{(?:aaaa|aaab|}\dots \texttt{)}, 
-$p$ distinct four-letter alternatives; 
-input \texttt{"aaaa"}, matching the first alternative immediately). 
-Encode grows only mildly with $p$ for both parsers, 
-and is consistently cheaper for \texttt{pderiv\_bc}, 
-whose plain tree clone does less work per node than \texttt{deriv\_bc}'s 
+(\texttt{(?:aaaa|aaab|}\dots \texttt{)},
+$p$ distinct four-letter alternatives;
+input \texttt{"aaaa"}, matching the first alternative immediately).
+Encode grows only mildly with $p$ for both parsers,
+and is consistently cheaper for \texttt{pderiv\_bc},
+whose plain tree clone does less work per node than \texttt{deriv\_bc}'s
 annotated-state construction.
-Decode stays under 0.5\,ms throughout for both. 
-Derive dominates and diverges sharply: 
-\texttt{pderiv\_bc} is 2.9$\times$ \texttt{deriv\_bc}'s derive time at $p=100$, 
-14.7$\times$ by $p=2\,000$, and 37.3$\times$ by $p=10\,000$, 
-since a partial-derivative step touches every live alternative on each character, 
-while \texttt{deriv\_bc} does not enumerate them individually.}
+Decode stays under 1\,ms throughout for both.
+Derive dominates and now diverges in \texttt{deriv\_bc}'s disfavour:
+\texttt{deriv\_bc} is roughly 2.1$\times$ \texttt{pderiv\_bc}'s derive time at $p=100$,
+widening to 7.1$\times$ by $p=2\,000$, and 13.3$\times$ by $p=10\,000$,
+as \texttt{deriv\_bc}'s own $O(p^2)$ branch-deduplication cost
+(\texttt{dedup\_first}, discussed below) grows faster than \texttt{pderiv\_bc}'s
+$O(p)$ hash-based one.}
 \label{tab:patho-phases-e37}
 \end{table}
 
@@ -1469,25 +1487,25 @@ while \texttt{deriv\_bc} does not enumerate them individually.}
 \cline{2-4}\cline{5-7}
 $p$ & Encode (ms) & Derive (ms) & Decode (ms) & Encode (ms) & Derive (ms) & Decode (ms) \\
 \hline
-100         &  0.15 &     1.25 & 0.00 & 0.07 &      3.27 & 0.00 \\
-500         &  0.96 &    17.57 & 0.02 & 0.37 &     71.32 & 0.02 \\
-1\,000      &  2.32 &    68.52 & 0.04 & 0.82 &    280.24 & 0.04 \\
-2\,000      &  4.72 &   275.19 & 0.30 & 1.81 &  1\,124.51 & 0.08 \\
-5\,000      & 11.52 & 1\,702.99 & 0.38 & 4.03 &  7\,997.86 & 0.21 \\
-10\,000     & 21.73 & 6\,935.60 & 0.73 & 7.95 & 48\,678.12 & 0.41 \\
+100         &  0.19 &     1.61 & 0.01 & 0.08 &      0.57 & 0.02 \\
+500         &  1.27 &    17.89 & 0.03 & 0.39 &      2.63 & 0.05 \\
+1\,000      &  2.21 &    65.48 & 0.03 & 0.85 &      4.82 & 0.08 \\
+2\,000      &  4.40 &   250.96 & 0.30 & 1.61 &     10.04 & 0.16 \\
+5\,000      & 10.45 & 1\,637.07 & 0.26 & 3.40 &     33.09 & 0.43 \\
+10\,000     & 19.67 & 6\,699.29 & 0.55 & 7.24 &     94.39 & 0.89 \\
 \hline
 \end{tabular*}
 \caption{E38: \texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}.
-An \texttt{E}-row, sweeping a $p$-way alternation of distinct numbered words 
+An \texttt{E}-row, sweeping a $p$-way alternation of distinct numbered words
 (\texttt{w000001}, \dots, \texttt{w0000}$p$), at fixed input length.
 The matching input is a single word (the first alternative).
-Derive grows with $p$ for both parsers, 
-but the divergence between them is milder and flatter than on E37: 
-\texttt{pderiv\_bc}'s derive time is 2.6$\times$ \texttt{deriv\_bc}'s at $p=100$, 
-climbing only to 7.0$\times$ by $p=10\,000$, 
-against E37's 2.9$\times$ to 37.3$\times$ over the same range. 
-Encode remains cheaper for \texttt{pderiv\_bc} throughout, 
-as on E37, and decode stays under 0.8\,ms for both even at the widest point.}
+Derive grows with $p$ for both parsers,
+and the divergence between them is sharper here than on E37, not milder:
+\texttt{deriv\_bc} is roughly 2.8$\times$ \texttt{pderiv\_bc}'s derive time at $p=100$,
+widening to 71$\times$ by $p=10\,000$,
+against E37's 2.1$\times$ to 13.3$\times$ over the same range.
+Encode remains cheaper for \texttt{pderiv\_bc} throughout,
+as on E37, and decode stays under 1\,ms for both even at the widest point.}
 \label{tab:patho-phases-e38}
 \end{table}
 
@@ -1503,18 +1521,21 @@ as on E37, and decode stays under 0.8\,ms for both even at the widest point.}
 \hline
 $p$ & \texttt{deriv\_std\_rec} & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 \hline
-100         &   1.11 &   1.22 &      1.43 &      3.96 &      3.34 \\
-500         &   5.39 &   5.76 &     18.66 &     75.14 &     71.72 \\
-1\,000      &  12.19 &  12.96 &     71.09 &    302.66 &    281.13 \\
-2\,000      &  29.70 &  29.31 &    280.67 &  1\,275.08 &  1\,126.43 \\
-5\,000      & 113.28 & 114.89 &  1\,716.00 &  9\,273.88 &  8\,002.17 \\
-10\,000     & 381.34 & 346.56 &  6\,960.48 & 41\,637.34 & 48\,686.64 \\
+100         &    1.10 &    1.06 &      1.82 &      0.66 &      0.67 \\
+500         &    5.64 &    5.67 &     19.31 &      3.52 &      3.08 \\
+1\,000      &   11.15 &   12.31 &     67.93 &      6.68 &      5.77 \\
+2\,000      &   26.13 &   26.14 &    256.04 &     12.66 &     11.84 \\
+5\,000      &  103.22 &  104.08 &  1\,648.80 &     32.09 &     37.00 \\
+10\,000     &  369.45 &  363.04 &  6\,721.55 &     59.19 &    102.67 \\
 \hline
 \end{tabular*}
 \caption{Total match-side time (ms) for all five parsers on E38,
-same $p$ sweep as Table~\ref{tab:patho-phases-e38}. The standard pair
-stays cheapest throughout and grows the slowest, showing the
-reverse ranking.}
+same $p$ sweep as Table~\ref{tab:patho-phases-e38}. The partial-derivative
+pair stays cheapest throughout the sweep -- consistent with being fastest
+almost everywhere in the dataset (Section~\ref{sec:eval-timing-pathological})
+-- while \texttt{deriv\_bc} grows the fastest of all five and becomes by far
+the most expensive at the widest point, not the standard pair: there is no
+ranking reversal at wide $p$.}
 \label{tab:patho-e38-all-parsers}
 \end{table}
 
@@ -1522,18 +1543,30 @@ reverse ranking.}
 %
 %
 
-\textbf{The ranking inverts at wide $p$.}
-Table~\ref{tab:patho-e38-all-parsers}
-shows the mean time of all parsers on E38. 
-Past a few thousand alternatives, 
-the two partial-derivative parsers, fastest almost everywhere else become the slowest.
-By $p=10\,000$, \texttt{deriv\_bc} is roughly $18\times$ slower than the standard pair, 
-and the partial-derivative pair over $100\times$ slower. 
-The parsers blow up for different reasons, but the standard pair's
-own advantage here has one cause. 
-Unlike the other three, it does not attempt to simplify the alternation at all, 
-so it never pays for an attempt that could not have paid off anyway, 
+\textbf{\texttt{deriv\_bc}, not the partial-derivative pair, is the one that blows up.}
+Table~\ref{tab:patho-e38-all-parsers} shows the mean time of all parsers
+on E38.
+Past a few thousand alternatives, \texttt{deriv\_bc} is the only parser
+whose cost explodes: by $p=10\,000$ it is roughly $18\times$ slower than
+the standard pair, while the partial-derivative pair (\texttt{pderiv\_std}
+and \texttt{pderiv\_bc}) stays cheapest of all five parsers throughout the
+sweep.
+The standard pair's own advantage has one cause.
+Unlike the other three, it does not attempt to simplify the alternation at all,
+so it never pays for an attempt that could not have paid off anyway,
 since every one of the $p$ alternatives stays genuinely distinct by construction.
+Of those other three, only \texttt{deriv\_bc} pays dearly for its attempt.
+\texttt{pderiv\_std} and \texttt{pderiv\_bc} simplify just as genuinely,
+through \texttt{nub\_tree} and \texttt{nub2},
+but cheaply enough for the cost not to show, for reasons given below.
+\texttt{deriv\_bc} also pays more for the same attempt on E38 than on E37:
+comparing two Cat-chains for \texttt{same\_shape} means walking them node
+by node, and E38's words share a five-character prefix (\texttt{w0000})
+that E37's four-letter words do not, so each comparison walks further
+before reaching the difference that makes it fail.
+That is why \texttt{deriv\_bc} diverges from \texttt{pderiv\_bc} more
+sharply on E38 (Table~\ref{tab:patho-phases-e38}) than on E37
+(Table~\ref{tab:patho-phases-e37}).
 
 \begin{figure}[H]
 \small
@@ -1629,31 +1662,40 @@ result.}
 \label{fig:nub2-rust}
 \end{figure}
 
-The loop in \texttt{step\_frontier} is the real bottleneck.
-For every character, it calls \texttt{pderiv\_bc} separately, once per live residual, 
-rather than walking the whole pattern 
-as one combined tree the way \texttt{deriv\_bc} and the standard pair both do.
-\texttt{nub2} only runs once that loop has already finished, 
-so however cheaply it merges the results, 
-the $p$ separate calls that produced them were already paid for. 
-On E38, the words share the prefix \texttt{w0000\dots}, 
-so many residuals stay alive, undistinguished from each other, 
-for several characters before diverging.
-Each of those extra characters repeats the same once-per-residual loop, 
-multiplying this cost across several steps rather than paying it once. 
-That is consistent with E38 climbing more slowly than E37 
-(Tables~\ref{tab:patho-phases-e37} and~\ref{tab:patho-phases-e38}).
+The real bottleneck used to be a single call, not \texttt{step\_frontier}'s loop.
+Before the pattern's $p$-way alternation has split into separate live
+residuals, the very first call to \texttt{pderiv\_bc} must itself descend
+through the whole $p$-deep nested \texttt{Alt}, since at that point the
+pattern is still one combined tree rather than $p$ separate alternatives.
+An earlier version of \texttt{pderiv\_bc} called \texttt{nub2} once per
+nesting level during that descent -- $p$ calls whose combined cost was
+quadratic in $p$ -- instead of flattening the alternation into its $p$
+leaves first and deduplicating them once, the fix described in
+Section~\ref{sec:pderiv-tree-impl}.
+Measured directly, essentially all of that old cost sat in the single
+first call, not spread across later characters.
+\texttt{step\_frontier}'s own loop, run once the alternation has already
+split into separate residuals, calls \texttt{pderiv\_bc} and then
+\texttt{nub2} exactly once per character, each call linear in the number
+of live residuals.
+On E38, the shared prefix \texttt{w0000\dots} keeps more residuals alive
+and undistinguished for longer, so this linear cost repeats over more
+characters than it does on E37 -- but a linear cost repeated a few extra
+times is nowhere near the quadratic cost the old nesting paid once, which
+is why the partial-derivative pair stays cheap on both.
 The standard pair pays neither cost.
 No cross-branch comparison and no per-residual call.
 
-The improvement for \texttt{deriv\_bc} would be 
-replacing the pairwise \texttt{same\_shape} scan 
-with a hash keyed on bit-code-independent structure, 
-which is the same approach \texttt{nub2} and \texttt{nub\_tree} already take. 
-This would make this dedup $O(p)$ without changing what it computes. 
-The partial-derivative pair's own bottleneck has no equally direct fix,
-since it is the once-per-residual loop itself, 
-not the comparison after it, that costs time.
+The improvement for \texttt{deriv\_bc} would be
+replacing the pairwise \texttt{same\_shape} scan
+with a hash keyed on bit-code-independent structure,
+which is the same approach \texttt{nub2} and \texttt{nub\_tree} already take.
+This would make this dedup $O(p)$ without changing what it computes.
+A fix of the same shape was available for the partial-derivative pair's
+own former bottleneck too, and has already been applied: flattening the
+nested \texttt{Alt} before deduplicating once, rather than once per
+nesting level (Section~\ref{sec:pderiv-tree-impl}).
+\texttt{deriv\_bc}'s own fix above is the one that remains outstanding.
 Batching that loop's work across all live residuals in one pass 
 would require restructuring how they are stored, not just replacing a comparison.
 
@@ -1684,10 +1726,10 @@ Section~\ref{sec:eval-criteria-memory}.
 Parser & Total allocated & Avg/entry & Max live peak \\
 \hline
 \texttt{deriv\_std\_rec}  & 29.19 GB & 2.67 MB & 582.4 MB \\
-\texttt{deriv\_std\_loop} & 29.96 GB & 2.76 MB & 618.2 MB \\
+\texttt{deriv\_std\_loop} & 30.70 GB & 2.82 MB & 737.6 MB \\
 \texttt{deriv\_bc}        & 15.94 GB & 1.37 MB &   5.1 MB \\
-\texttt{pderiv\_std}      &  5.61 GB & 0.48 MB &   2.5 MB \\
-\texttt{pderiv\_bc}       &  4.74 GB & 0.41 MB &   3.8 MB \\
+\texttt{pderiv\_std}      &  5.68 GB & 0.49 MB &   2.5 MB \\
+\texttt{pderiv\_bc}       &  4.70 GB & 0.40 MB &   3.8 MB \\
 \hline
 \end{tabular*}
 \caption{Heap allocation over the default scope of 463 patterns and
@@ -1706,8 +1748,8 @@ a lower bound on the standard variants' true figure.}
 \end{table}
 
 The largest difference is in peak allocation. The standard variants
-reach 582.4 and 618.2\,MB, compared with 5.1\,MB for
-\texttt{deriv\_bc}, a factor of $114$--$121$. The standard parser
+reach 582.4 and 737.6\,MB, compared with 5.1\,MB for
+\texttt{deriv\_bc}, a factor of $114$--$144$. The standard parser
 retains its derivation sequence for the backward pass, whereas
 \texttt{deriv\_bc} stores a flat bit vector. The difference in total
 allocation is smaller, at roughly $1.8$--$1.9\times$.
@@ -1773,13 +1815,13 @@ distinct residuals, rather than a single expression.
 \hline
 Cat. & \texttt{std\_rec/loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 \hline
-A &  553.6 &  12.0 &  90.6 &  10.7 \\
-B &  503.3 &   7.3 &  17.9 &   8.9 \\
-C &  334.7 &  32.8 &   9.8 &  14.3 \\
+A &  704.6 &  12.0 &  90.6 &  10.7 \\
+B &  503.3 &   7.3 &  18.6 &   8.9 \\
+C &  334.8 &  32.8 &   9.9 &  14.3 \\
 D &  638.8 &   2.3 &  18.9 &   5.7 \\
-E &  672.9 &  21.7 &  40.4 &  15.7 \\
-F &  529.0 &   1.0 &  24.7 &  13.0 \\
-H &  423.1 &   2.1 &   3.8 &   1.9 \\
+E &  672.9 &  21.7 &  43.6 &  15.7 \\
+F &  529.0 &   1.0 &  31.1 &  13.0 \\
+H &  423.1 &   2.1 &   4.1 &   1.9 \\
 \hline
 \end{tabular*}
 \renewcommand{\arraystretch}{1}
@@ -1787,7 +1829,7 @@ H &  423.1 &   2.1 &   3.8 &   1.9 \\
 highest live-byte high-water mark (Section~\ref{sec:eval-criteria-memory})
 reached by any entry of that category, timed-out and crashed
 entries excluded. \texttt{std\_rec} and \texttt{std\_loop} are merged
-into one column, agreeing to within 0.1\,MB on every category.
+into one column, agreeing to within 0.3\,MB on every category.
 Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab} report
 peak live memory for the representative rows the same way; cumulative
 allocation for one of them is discussed in prose below.}
@@ -1798,7 +1840,7 @@ The standard pair's peak is at least an order of magnitude above
 every other parser in six of the seven categories, consistent with
 retaining the full derivation sequence regardless of which
 category's mechanism is in play. The exception is A, where the gap
-narrows to 6.1$\times$ -- the same category where, as below,
+narrows to 7.8$\times$ -- the same category where, as below,
 \texttt{pderiv\_std}'s own peak is unusually high. Among the other
 three, \texttt{pderiv\_std} has the highest
 peak in six of the seven categories (A, B, D, E, F, H), sometimes by a
@@ -1808,15 +1850,19 @@ layer per residual kept alive, where \texttt{pderiv\_bc}'s bit vectors
 stay flat regardless of how many residuals survive. \texttt{deriv\_bc}
 is the exception only on C, where its retained history for the
 backward pass costs more than either partial-derivative parser's
-frontier: 32.8\,MB against 9.8 and 14.3\,MB. The margin by which
+frontier: 32.8\,MB against 9.9 and 14.3\,MB. The margin by which
 \texttt{pderiv\_std} leads is itself uneven: narrowest on H, where
-all three stay within 1.9\,MB of each other (1.9 to 3.8), and widest
+all three stay within 2.2\,MB of each other (1.9 to 4.1), and widest
 on A, where its peak is roughly eight times either of the other two
 (90.6 against 12.0 and 10.7). This is the same asymmetry noted for
 total allocation on the real corpus (Section~\ref{sec:eval-cost-partial-derivatives}):
 \texttt{pderiv\_std}'s closures grow with every live residual, so the
 more adversarial a pattern's mechanism, the more that cost compounds
-relative to \texttt{pderiv\_bc}'s flat bit vectors. These peaks are
+relative to \texttt{pderiv\_bc}'s flat bit vectors; the four categories
+built around an alternation (A, B, E, F) are also exactly the ones
+where its peak rose from the previous measurement, consistent with the
+same alternation-specific rise documented for the representative rows
+in Section~\ref{sec:eval-memory-representative}. These peaks are
 measured only over each category's \emph{completed} entries, the
 same caveat the Timing subsection raises for its own tables: a
 category where one parser times out on most of its entries, such as
@@ -1824,9 +1870,9 @@ A's 70\% share for the standard pair, reports a peak drawn from a
 smaller and easier surviving subset than a category where it
 completes nearly everything. The standard pair's own peak also moves
 far less in relative terms across categories than the other three
-do: it stays within a factor of two, from 335 to 673\,MB, where
-\texttt{pderiv\_std} ranges from 1.9 to 90.6\,MB, a factor of close
-to fifty, and \texttt{pderiv\_bc} from 1.9 to 15.7\,MB, a factor of
+do: it varies by a little over a factor of two, from 335 to 705\,MB, where
+\texttt{pderiv\_std} ranges from 4.1 to 90.6\,MB, a factor of roughly
+twenty-two, and \texttt{pderiv\_bc} from 1.9 to 15.7\,MB, a factor of
 roughly eight.
 
 %
@@ -1853,12 +1899,12 @@ Row & Parser & Max input length & Max live peak \\
 \hline
 P60 & \texttt{deriv\_std\_rec}/\texttt{loop}  &      5\,000 & 5.70 GB \\
 P60 & \texttt{deriv\_bc}                      & 10\,000\,000 & 2.64 GB \\
-P60 & \texttt{pderiv\_std}                    & 10\,000\,000 & 2.48 GB \\
+P60 & \texttt{pderiv\_std}                    & 10\,000\,000 & 3.12 GB \\
 P60 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 1.64 GB \\
 \hline
-P61 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 140.0 MB \\
+P61 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 98.3 MB \\
 P61 & \texttt{deriv\_bc}                      & 10\,000\,000 & 3.40 GB \\
-P61 & \texttt{pderiv\_std}                    & 10\,000\,000 & 4.97 GB \\
+P61 & \texttt{pderiv\_std}                    & \shortstack[r]{\checkmark\ 5\,000\,000\\ $\times$\ 10\,000\,000} & 3.12 GB \\
 P61 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 3.27 GB \\
 \hline
 \end{tabular*}
@@ -1867,7 +1913,11 @@ against the largest swept input length each parser completed. Peak is
 the live high-water mark within a single call. The standard variants
 complete only the smallest swept inputs, so their peak is not directly
 comparable with the survivors' peaks and is excluded from the comparison
-in the text.}
+in the text. On P61, \texttt{pderiv\_std} newly crashes against the
+8\,GiB memory cap at the widest swept length on the matching input (it
+still completes there on the non-matching one); the length and peak shown
+are from the largest matching input it still completes, $5\,000\,000$,
+matching Table~\ref{tab:patho-crash-thresholds}'s own threshold for it.}
 \label{tab:patho-memory-e}
 \end{table}
 
@@ -1879,14 +1929,14 @@ in the text.}
 \hline
 Row & Parser & Max input length & Max live peak \\
 \hline
-P01 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         20 & 805.3 MB \\
+P01 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         20 & 402.7 MB \\
 P01 & \texttt{deriv\_bc}                      &     50\,000 &   7.9 MB \\
 P01 & \texttt{pderiv\_std}                    & 10\,000\,000 & 1.68 GB \\
 P01 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 1.14 GB \\
 \hline
-P09 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         25 & 284.3 MB \\
+P09 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         25 & 175.7 MB \\
 P09 & \texttt{deriv\_bc}                      & 10\,000\,000 & 1.69 GB \\
-P09 & \texttt{pderiv\_std}                    & 10\,000\,000 & 1.92 GB \\
+P09 & \texttt{pderiv\_std}                    & 10\,000\,000 & 2.56 GB \\
 P09 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 1.40 GB \\
 \hline
 \end{tabular*}
@@ -1903,21 +1953,42 @@ standard variants' peaks are not directly comparable with the
 survivors' and are excluded from the comparisons below.
 
 Among the survivors, \texttt{pderiv\_bc} has the lowest peak on both
-E-family rows, though the two values diverge at matching input length, 
+E-family rows, though the two values diverge at matching input length,
 ten million characters each: 1.64\,GB on P60 against 3.27\,GB
 on P61. \texttt{deriv\_bc} is lower than
-\texttt{pderiv\_std} on P61 (3.40 against 4.97\,GB) but higher on P60
-(2.64 against 2.48\,GB). \texttt{deriv\_bc}'s own peak on P01 stays
-low at 7.9\,MB, since its timeout threshold keeps the derivative
-sequence short before it collapses to a single residual, consistent
-with its relatively small set of live candidates.
+\texttt{pderiv\_std} on P61 (3.40 against 3.12\,GB, the latter at
+\texttt{pderiv\_std}'s own largest completing length of five million) but
+higher on P60 (2.64 against 3.12\,GB). \texttt{deriv\_bc}'s own peak on
+P01 stays low at 7.9\,MB, since its timeout threshold keeps the
+derivative sequence short before it collapses to a single residual,
+consistent with its relatively small set of live candidates.
 
 Within the partial-derivative pair, bit-coding reduces peak
-allocation on every representative row. This holds across the E
+allocation on every representative row, and by a wider margin than
+before on three of the four. This holds across the E
 family and on P01 and P09. On P09, for example,
 \texttt{pderiv\_bc} peaks at 1.40\,GB, compared with
-1.92\,GB for \texttt{pderiv\_std}. Its memory advantage is
-therefore more consistent than its timing advantage.
+2.56\,GB for \texttt{pderiv\_std}. Its memory advantage is
+therefore more consistent than its timing advantage
+(Section~\ref{sec:eval-timing-representative} finds the latter has
+become close to a coin flip on P60, P61, and P09).
+
+\texttt{pderiv\_std}'s own peak rose on exactly the three rows built
+around an alternation -- P60, P61 (enough to newly cross the memory cap
+at the widest matching input, where it previously completed), and P09 --
+and stayed flat on P01, which has none. \texttt{pderiv\_bc} shows no such
+rise on any of the four, and every other parser's peak at this scale
+reproduces its earlier measurement to within rounding, so ordinary
+measurement noise is not a ready explanation. The likely connection is
+the same flattening change behind Tables~\ref{tab:patho-phases-e37}
+and~\ref{tab:patho-phases-e38} below: it keeps every branch's injection
+closure live together through one combined pass instead of discharging
+each nesting level's closures before building the next, and on an
+alternation re-derived at every step of a long match that difference
+compounds. Confirming the precise mechanism would need profiling beyond
+this evaluation's scope; what the data supports directly is that the
+rise is specific to \texttt{pderiv\_std} and to alternation-shaped
+patterns, not a general effect of the change.
 
 Cumulative allocation is a separate matter. On P60, \texttt{deriv\_bc}
 allocates 169.26\,GB in total over the sweep while holding at most
@@ -1925,6 +1996,93 @@ allocates 169.26\,GB in total over the sweep while holding at most
 every step. This total exceeds the 15.94\,GB allocated across all
 11\,395 real-corpus entries, showing the scale the synthetic set
 reaches; it is allocator churn, not a footprint.
+
+%
+%
+%
+
+\textbf{E37 and E38.} The same two pattern-width rows examined for timing
+(Section~\ref{sec:eval-timing-representative}) are measured for memory
+too, sweeping $p\in\{100,500,1\,000,2\,000,5\,000,10\,000\}$ at fixed
+input length. Unlike every other row in this subsection, neither parser
+fails anywhere in the sweep, so both are reported directly rather than
+against a completion threshold.
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rr rr}
+\hline
+ & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
+\cline{2-3}\cline{4-5}
+$p$ & Avg/entry (MB) & Max peak (MB) & Avg/entry (MB) & Max peak (MB) \\
+\hline
+100         &  0.29 &  0.12 &   0.09 &   0.06 \\
+500         &  1.41 &  0.58 &   0.69 &   0.41 \\
+1\,000      &  2.71 &  1.15 &   1.95 &   1.07 \\
+2\,000      &  5.14 &  2.31 &   6.32 &   3.14 \\
+5\,000      & 12.66 &  5.86 &  34.58 &  15.39 \\
+10\,000     & 25.04 & 11.72 & 131.57 &  55.77 \\
+\hline
+\end{tabular*}
+\caption{E37 memory: \texttt{deriv\_bc} vs.\ \texttt{pderiv\_bc}, same $p$
+sweep as Table~\ref{tab:patho-phases-e37}. \emph{Avg/entry} is the mean
+total allocation of the matching and non-matching entries at each $p$;
+\emph{Max peak} is the larger of their two live high-water marks. Memory
+favours \texttt{pderiv\_bc} at small $p$ but crosses over between
+$p=1\,000$ and $p=2\,000$, the opposite of the timing picture: by
+$p=10\,000$ \texttt{deriv\_bc} is the cheaper of the two, roughly
+$5\times$ lower than \texttt{pderiv\_bc} on both columns (25.04 against
+131.57\,MB average; 11.72 against 55.77\,MB peak).}
+\label{tab:patho-mem-e37}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rr rr}
+\hline
+ & \multicolumn{2}{c}{\texttt{deriv\_bc}} & \multicolumn{2}{c}{\texttt{pderiv\_bc}} \\
+\cline{2-3}\cline{4-5}
+$p$ & Avg/entry (MB) & Max peak (MB) & Avg/entry (MB) & Max peak (MB) \\
+\hline
+100         &  0.95 &  0.18 &   0.34 &   0.10 \\
+500         &  4.42 &  0.91 &   1.99 &   0.63 \\
+1\,000      &  8.76 &  1.82 &   4.95 &   1.50 \\
+2\,000      & 16.38 &  3.65 &  13.51 &   4.00 \\
+5\,000      & 39.95 &  9.22 &  63.54 &  17.55 \\
+10\,000     & 78.76 & 18.44 & 226.70 &  60.09 \\
+\hline
+\end{tabular*}
+\caption{E38 memory, same $p$ sweep as Table~\ref{tab:patho-phases-e38}
+and same columns as Table~\ref{tab:patho-mem-e37}. The crossover comes
+later than on E37, between $p=2\,000$ and $p=5\,000$, and the final gap
+is narrower: \texttt{deriv\_bc} ends up roughly $2.9\times$ cheaper than
+\texttt{pderiv\_bc} at $p=10\,000$ (78.76 against 226.70\,MB average;
+18.44 against 60.09\,MB peak), against E37's $5\times$.}
+\label{tab:patho-mem-e38}
+\end{table}
+
+Both tables invert the timing result above: \texttt{pderiv\_bc} is the
+faster parser at every swept $p$, but \texttt{deriv\_bc} becomes the more
+memory-frugal one past a few thousand alternatives. The cause sits in
+what each representation keeps once the alternation has been
+deduplicated down to its surviving branches. \texttt{pderiv\_bc} tags
+each surviving leaf with its own bit-prefix recording which arm of the
+original alternation it came from; flattening a right-nested $p$-way
+chain (Section~\ref{sec:pderiv-tree-impl}) gives the $k$-th leaf a prefix
+of length $k$, so the prefixes stored across all $p$ leaves together
+total $O(p^2)$ bits even though reaching them now costs only $O(p)$
+calls. \texttt{deriv\_bc} keeps its bit annotations attached to the
+deduplicated tree itself, rather than copying one out per surviving
+branch, so its own memory stays closer to linear in $p$. Trading time for
+memory this way is a genuine property of the two representations, not an
+artefact of either benchmark: \texttt{pderiv\_bc} remains the right
+choice when $p$ is bounded, as it is on the real corpus
+(Section~\ref{sec:eval-s2elab}), but the two synthetic rows show
+that choice does not hold unconditionally as $p$ grows without bound.
 
 %
 %
@@ -1954,7 +2112,7 @@ per entry.
 \hline
 Patterns & Mean (ms) & Max (ms) & Mean nodes & Max nodes \\
 \hline
-463 & 0.017 & 0.570 & 502.5 & 18\,707 \\
+463 & 0.015 & 0.374 & 502.5 & 18\,707 \\
 \hline
 \end{tabular*}
 \caption{Translation cost and output size over the 463 distinct patterns in
@@ -1963,7 +2121,7 @@ the default scope.}
 \end{table}
 
 Translation is inexpensive on the real corpus, with a mean of
-0.017\,ms. The largest pattern, at 18\,707 translated nodes, also
+0.015\,ms. The largest pattern, at 18\,707 translated nodes, also
 translates in under a millisecond. No real-corpus pattern exceeds
 the 20\,000-node cap.
 
@@ -1982,16 +2140,16 @@ the 20\,000-node cap.
 \hline
 Cat. & Name & Rows swept & Rejected & Mean (ms) & Max nodes \\
 \hline
-A & Nested quantifiers             & 16 &  0 & 0.001 &     84 \\
-B & Overlapping alternation        & 15 &  0 & 0.003 &    389 \\
-C & Bounded rep over star          &  7 &  0 & 0.104 &  9\,881 \\
-D & Anchored-failure style         & 20 &  0 & 0.005 &    905 \\
+A & Nested quantifiers             & 16 &  0 & 0.002 &     84 \\
+B & Overlapping alternation        & 15 &  0 & 0.004 &    389 \\
+C & Bounded rep over star          &  7 &  0 & 0.083 &  9\,881 \\
+D & Anchored-failure style         & 20 &  0 & 0.004 &    905 \\
 E & Prefix-overlap alternation     &  8 &  0 & 0.002 &     40 \\
-F & Alternation-star + literal     &  7 &  0 & 0.006 &    756 \\
-H & Many adjacent stars/groups     &  4 &  0 & 0.054 &  3\,889 \\
-I & Trivial pattern, large input   & 10 &  0 & 0.024 &  4\,001 \\
-J & Large pattern, trivial input   & 11 &  0 & 0.382 & 15\,999 \\
-K & Large pattern, large input     &  3 &  0 & 0.103 &  8\,400 \\
+F & Alternation-star + literal     &  7 &  0 & 0.004 &    756 \\
+H & Many adjacent stars/groups     &  4 &  0 & 0.051 &  3\,889 \\
+I & Trivial pattern, large input   & 10 &  0 & 0.017 &  4\,001 \\
+J & Large pattern, trivial input   & 11 &  0 & 0.302 & 15\,999 \\
+K & Large pattern, large input     &  3 &  0 & 0.107 &  8\,400 \\
 L & Trivial pattern, trivial input & 33 &  0 & 0.002 &    388 \\
 \hline
 \end{tabular*}
@@ -2004,14 +2162,15 @@ their sweep, since those rows carry no comparison signal.}
 \end{table}
 
 Category J has the highest translation cost in the table, with a
-mean of 0.382\,ms and 15\,999 maximum nodes -- unsurprising, since
+mean of 0.302\,ms and 15\,999 maximum nodes -- unsurprising, since
 its patterns are deliberately the largest the set sweeps. Category C
-is next, with a mean of 0.104\,ms and 9\,881 maximum nodes,
-consistent with its use of bound unrolling to grow pattern size
-instead. K's maximum nodes (8\,400) rank third, behind J and C, but
-its mean (0.103\,ms) is close to C's despite that gap; like J,
-neither rejects any row, since both are swept only over pattern
-sizes that stay under the cap.
+has the second-highest node count, at 9\,881, consistent with its use
+of bound unrolling to grow pattern size instead, but its mean
+(0.083\,ms) is in fact slightly below K's (0.107\,ms) despite K's
+smaller patterns (8\,400 maximum nodes); both are averaged over very
+few rows (7 and 3 respectively), so a gap this size is not a reliable
+ordering. Like J, neither C nor K rejects any row, since both are
+swept only over pattern sizes that stay under the cap.
 
 %
 %
@@ -2093,7 +2252,7 @@ full-match-only scope as Timing and Memory
 Dataset & Entries & Timeouts & Crashes & Compared & Match agr. & Shape agr. & Shape dis. \\
 \hline
 S2ELab    & 11\,395 &  73 & 0 & 5\,798 & 100.0\% & 99.8\% (5\,784) & 0.2\% (14) \\
-Synthetic &    885 & 451 & 1 &   206 & 100.0\% & 89.8\% (185)   & 10.2\% (21) \\
+Synthetic &    885 & 450 & 1 &   207 & 100.0\% & 89.9\% (186)   & 10.1\% (21) \\
 \hline
 \end{tabular*}
 \caption{Parse agreement over both datasets. \emph{Compared} is the number of
@@ -2135,7 +2294,7 @@ H & \texttt{(\textbackslash w+\textbackslash s\{0,1\})*}   &  28 &  18 &   4 & 1
 I & \texttt{a+}                                            &  60 &  44 &   3 & 100.0\% (3)  &  0.0\% (0) \\
 J & \texttt{(?:a\{1,10\})\{1,100\}}                         &  22 &   4 &   9 & 100.0\% (9)  &  0.0\% (0) \\
 K & \texttt{(?:ab|cd|ef|gh)+}                              &  30 &  24 &   3 & 100.0\% (3)  &  0.0\% (0) \\
-L & \texttt{[a-z]+}                                        & 189 &  20 &  77 & 100.0\% (77) &  0.0\% (0) \\
+L & \texttt{[a-z]+}                                        & 189 &  19 &  78 & 100.0\% (78) &  0.0\% (0) \\
 \hline
 \end{tabular*}
 \caption{Parse agreement by category over the synthetic set. \emph{Pattern}
@@ -2256,8 +2415,8 @@ their state grows linearly with $n$, while the other three variants
 remain bounded in the measured range.
 
 On the full corpus, the standard variants have similar mean times
-(7.751\,ms and 7.454\,ms), but their matching totals differ.
-\texttt{deriv\_std\_loop} takes 70.732\,s, compared with 74.928\,s
+(7.605\,ms and 7.371\,ms), but their matching totals differ.
+\texttt{deriv\_std\_loop} takes 70.321\,s, compared with 73.493\,s
 for \texttt{deriv\_std\_rec}. Their non-match totals are almost
 identical, suggesting that iteration mainly reduces the cost of
 matching. On the representative rows, both variants reach the
@@ -2265,7 +2424,7 @@ memory cap at the same input lengths and have similar allocation
 figures. This points to their shared retention of intermediate
 derivatives rather than recursion depth. The separate stack-depth
 test isolates the other failure mode. Without a memory cap,
-\texttt{deriv\_std\_loop} survives roughly 26 times longer in wall
+\texttt{deriv\_std\_loop} survives roughly 25 times longer in wall
 time before the doubling search's own per-probe cap ends it. Thus, the limiting factor depends on whether
 derivation cost or stack depth grows first.
 
@@ -2278,13 +2437,13 @@ derivation cost or stack depth grows first.
 
 For the standard-derivative family, bit-coding performs better on
 the measured corpus. \texttt{deriv\_bc} has a mean time of
-1.695\,ms, roughly $4$--$4.5\times$ below the standard variants,
-and a peak allocation of 5.1\,MB, about $114$--$121\times$ lower.
+1.646\,ms, roughly $4.5\times$ below the standard variants,
+and a peak allocation of 5.1\,MB, about $114$--$144\times$ lower.
 Its forward pass retains information needed for single-pass
 reconstruction rather than simplifying every redundant branch.
 The decode step adds little time, staying under 0.1\,ms even at
 $p=2\,000$ swept alternatives, while encode grows with pattern size
-alone, from 0.63\,ms at $p=500$ to 2.59\,ms at $p=2\,000$
+alone, from 0.65\,ms at $p=500$ to 2.97\,ms at $p=2\,000$
 (Table~\ref{tab:patho-phases-e37}). At far larger $p$, this same row
 is also where \texttt{deriv\_bc} stops being faster than the standard
 pair at all, discussed below.
@@ -2311,9 +2470,9 @@ alternation growth seen in the standard derivative parser.
 
 Within the pair, bit-coding does not consistently help or hurt.
 On the full corpus, \texttt{pderiv\_bc} is marginally faster
-(0.634 against \texttt{pderiv\_std}'s 0.722\,ms mean) and has
-lower total allocation (4.74 against \texttt{pderiv\_std}'s
-5.61\,GB), though \texttt{pderiv\_std} still has the lower peak
+(0.664 against \texttt{pderiv\_std}'s 0.759\,ms mean) and has
+lower total allocation (4.70 against \texttt{pderiv\_std}'s
+5.68\,GB), though \texttt{pderiv\_std} still has the lower peak
 (2.5 against 3.8\,MB). This asymmetry follows from how the two
 parsers apply the same collapse (Section~\ref{sec:pderiv-tree-impl}):
 \texttt{pderiv\_std}'s nullable-\texttt{Seq} branch builds a
@@ -2324,44 +2483,72 @@ side of the same collapse only removes a wrapper, with no added cost
 on a step where nothing needed collapsing. On the real corpus, where
 that collision is rare, this shows up as a small net loss for
 \texttt{pderiv\_std} and a small net gain for \texttt{pderiv\_bc}.
-The ranking changes again on the representative
-rows: \texttt{pderiv\_std} is faster on P60, yet \texttt{pderiv\_bc}
-still has the lower peak allocation there (1.64 against 2.48\,GB) --
-the two axes do not move together on this row. The peak-memory
-ranking generalizes cleanly: \texttt{pderiv\_bc} has the lower peak
-on every one of the other three rows too (1.14 against 1.68\,GB on
-P01; 1.40 against 1.92\,GB on P09; 3.27 against 4.97\,GB on P61), so its
-lower-peak advantage holds across all four representative rows
-without exception. The speed ranking does not generalize the same
-way: \texttt{pderiv\_std} is faster on P01 and P09, matching
-P60's pattern, while on P61 the two are close enough to trade the
-lead across the sweep without a consistent winner, unlike P60's
-clean ordering. The results suggest that the relative
-cost of bit-coding depends on the pattern and input, not only on
-input length -- consistently so for peak memory, where it always
-helps, but not for speed, where it helps on some patterns and not
-others.
+The ranking on the representative rows is less clean than the
+corpus-wide one, and in a different way than it first appeared. At
+the largest input each parser reaches, the two trade narrow leads
+rather than either holding a stable one: \texttt{pderiv\_bc} is a
+little ahead on P60 (0.685 against \texttt{pderiv\_std}'s 0.722 of
+\texttt{deriv\_bc}'s time), on P61 (0.831 against 0.901, at the
+five-million-character point both still reach there before
+\texttt{pderiv\_std} crashes), and on P09 (0.520 against 0.529),
+while \texttt{pderiv\_std} is the more consistent winner on P01,
+increasingly so from $n=1\,000$ onward. Three of the four rows
+therefore lean the same way as the full corpus; P01, not P61, is the
+one that does not. The peak-memory ranking generalizes more cleanly:
+\texttt{pderiv\_bc} has the lower peak on every one of the four rows
+without exception, compared at the largest input length both reach --
+1.14 against 1.68\,GB on P01; 1.40 against 2.56\,GB on P09; 1.64
+against 3.12\,GB on P60; and 1.64 against 3.12\,GB on P61 at the
+five-million-character point, the largest \texttt{pderiv\_std} still
+reaches there before it crashes. \texttt{pderiv\_std}'s own peak also
+rose from the previous measurement on exactly the three rows built
+around an alternation -- P60, P61, and P09 -- enough on P61 to newly
+cross the memory cap at the input length where it previously
+completed; \texttt{pderiv\_bc} shows no such rise on any row
+(Section~\ref{sec:eval-memory-representative} discusses this
+further). The results suggest that the relative cost of bit-coding
+depends on the pattern and input, not only on input length --
+consistently so for peak memory, where \texttt{pderiv\_bc} always
+helps, but less so for speed, where the margin between the two is
+narrow enough on three of the four representative rows that it reads
+as noise rather than a stable effect, leaving P01 as the only row
+with a clear, consistent winner.
 
 The two bit-coded parsers' phase costs diverge sharply once the
-pattern itself grows wide. On a $p$-way alternation of equal-length
-words (Table~\ref{tab:patho-phases-e37}), \texttt{pderiv\_bc}'s derive
-time grows from $2.9\times$ \texttt{deriv\_bc}'s at $p=100$ to
-$37.3\times$ at $p=10\,000$ on matching input, since a
-partial-derivative step touches every live alternative on each
-character, while \texttt{deriv\_bc}'s symbolic derivative does not
-enumerate them individually -- though both lose to the standard pair
-at this scale, as Section~\ref{sec:eval-timing-representative} shows.
-The gap narrows sharply on non-matching
-input: rejecting \texttt{"zzzz"} still means checking every one of
-the $p$ alternatives, just without the per-character cost a full
-match needs, so both parsers' non-match time keeps growing with $p$
-but far more slowly than on the matching side -- \texttt{deriv\_bc}
-reaches 33.79\,ms and \texttt{pderiv\_bc} 8.96\,ms at $p=10\,000$,
-making \texttt{pderiv\_bc} the faster of the two on this side despite
-trailing badly on the matching one. \texttt{pderiv\_bc}'s own
-encode step is, however, consistently cheaper than \texttt{deriv\_bc}'s,
-since cloning the pattern tree does less work per node than building
-\texttt{deriv\_bc}'s annotated state.
+pattern itself grows wide, but in the opposite direction from before
+the \texttt{Alt}-flattening fix described in
+Section~\ref{sec:pderiv-tree-impl}: it is now \texttt{deriv\_bc}, not
+\texttt{pderiv\_bc}, that falls behind. On a $p$-way alternation of
+equal-length words (Table~\ref{tab:patho-phases-e37}),
+\texttt{deriv\_bc}'s derive time grows from $2.1\times$
+\texttt{pderiv\_bc}'s at $p=100$ to $13.3\times$ at $p=10\,000$ on
+matching input, since \texttt{deriv\_bc}'s own branch-deduplication
+(Figure~\ref{fig:dedup-first-rust}) is still the pairwise $O(p^2)$ scan
+it always was, where \texttt{pderiv\_bc}'s is now a single $O(p)$
+hashed pass over the flattened alternatives. \texttt{deriv\_bc} also
+now loses badly to the standard pair at this scale
+(Section~\ref{sec:eval-timing-representative}), where previously it
+was the other bit-coded parser's own bug that lost there instead;
+\texttt{pderiv\_bc} itself stays well ahead of the standard pair
+throughout.
+Non-matching input tells the opposite story. Rejecting
+\texttt{"zzzz"} still means deriving every one of the $p$ alternatives
+once, but none of them survive, so there is nothing left to
+deduplicate either way -- and here \texttt{pderiv\_bc} is the slower
+parser, not the faster one: 39.51\,ms against \texttt{deriv\_bc}'s
+30.58\,ms at $p=10\,000$. Flattening itself is not free: it builds one
+prefix per leaf before any of them are derived, and a right-nested
+chain gives the $k$-th leaf a prefix of length $k$, so flattening alone
+costs $O(p^2)$ bit-vector copies regardless of whether a single leaf
+survives (the same cost behind the memory rows in
+Section~\ref{sec:eval-memory-representative}). On matching input that
+cost is paid once and is dwarfed by the $O(p^2)$ dedup it replaces; on
+input every alternative rejects immediately, the dedup it replaces was
+already cheap, so flattening has nothing left to offset it against.
+\texttt{pderiv\_bc}'s own encode step remains consistently cheaper
+than \texttt{deriv\_bc}'s regardless of outcome, since cloning the
+pattern tree does less work per node than building \texttt{deriv\_bc}'s
+annotated state.
 
 Both partial-derivative variants produce non-POSIX trees. This is
 a difference in parsing policy, not a correctness defect, and is
@@ -2390,7 +2577,7 @@ at a time, so combinations of stress mechanisms are not directly tested.
 \textbf{Agreement subset.} The \emph{Compared} subset includes
 expected matches completed by every candidate, with both families
 internally consistent. It excludes 71 of 5\,869 S2ELab matches
-(about 1\%) and 237 of 443 synthetic matches (about 53\%).
+(about 1\%) and 236 of 443 synthetic matches (about 53\%).
 The synthetic result is therefore based on a much smaller subset.
 For alternation-heavy categories, the excluded cases may also contain
 more ambiguity because shared prefixes can increase both derivation
