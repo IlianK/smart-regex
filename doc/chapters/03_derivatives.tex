@@ -322,10 +322,12 @@ pub fn deriv(r: &Regex, x: char) -> Regex {
         Regex::Alt(r1, r2) => 
             Regex::alt(deriv(r1, x), deriv(r2, x)),
         Regex::Seq(r1, r2) => {
-            let dr1 = Regex::seq(deriv(r1, x), *r2.clone());
             if nullable(r1) {
+                let dr1 = Regex::seq(deriv(r1, x), *r2.clone());
                 Regex::alt(dr1, deriv(r2, x))
-            } else { dr1 }
+            } else {
+                Regex::seq(deriv(r1, x), *r2.clone())
+            }
         }
         Regex::Star(r1) => 
             Regex::seq(deriv(r1, x), Regex::star(*r1.clone())),
@@ -420,11 +422,11 @@ subsequent derivatives:
 
 To limit expression growth, 
 each derivation step is followed by simplification 
-using identify functions that preserve the original language and eliminate:
-dead concatenations $\emptyset$ ($\mathsf{S}_{1}$), 
+using identity functions that preserve the original language and eliminate 
+dead concatenations with $\emptyset$ ($\mathsf{S}_{1}$), 
 identity concatenations ($\mathsf{S}_{2}$),
-redundant alternatives ($\mathsf{S}_{3}$),
-and hold symmetrically.
+and redundant alternatives ($\mathsf{S}_{3}$),
+each holding symmetrically.
 \begin{equation}\label{eq:simp-identities}
 \emptyset \cdot r = \emptyset \;(\mathsf{S}_{1})
 \qquad
@@ -794,9 +796,11 @@ directly, returning \texttt{Vec::new()} where the equation gives $\{\}$.
 implementing the union of $\mathsf{P}_{+}$. 
 \texttt{Star} maps \texttt{smart\_seq} over $r$'s residuals,
 placing each in front of a fresh \texttt{Regex::star}, 
-and the clone in \texttt{Regex::star(*r.clone())} is needed 
-because the closure owns its result. 
-
+matching $\mathsf{P}_{*}$. 
+The clone in \texttt{Regex::star(*r.clone())} 
+is needed because \texttt{r} is only borrowed 
+and the closure runs once per residual, 
+so a fresh owned copy must be built on every call.
 \texttt{Seq} implements the case split directly.
 The \texttt{map} applies \texttt{smart\_seq} to each residual of the left operand,
 matching $\mathsf{P}_{\mathrm{seq}}$, 
@@ -808,7 +812,6 @@ throughout the recursion and defers deduplication
 to a single \texttt{HashSet} insertion at the top, 
 rather than deduplicating at every \texttt{Alt} 
 or \texttt{Seq} node on the way down.
-
 Every union in \texttt{pderiv} is therefore a vector \texttt{extend}, 
 not a set operation. 
 Duplicate residuals reached by different strands are only merged 
@@ -820,11 +823,8 @@ used by the matcher below to keep the residual generation separate from deduplic
 \begin{verbatim}
 fn pderiv(r: &Regex, x: char) -> Vec<Regex> {
     match r {
-        Regex::Phi => Vec::new(),
-        Regex::Eps => Vec::new(),
-        Regex::Lit(c) => {
-            if *c == x { vec![Regex::Eps] } else { Vec::new() }
-        }
+        Regex::Phi | Regex::Eps => Vec::new(),
+        Regex::Lit(c) => if *c == x { vec![Regex::Eps] } else { Vec::new() },
         Regex::Alt(r, s) => {
             let mut out = pderiv(r, x);
             out.extend(pderiv(s, x));
@@ -835,31 +835,35 @@ fn pderiv(r: &Regex, x: char) -> Vec<Regex> {
                 .into_iter()
                 .map(|r_prime| smart_seq(r_prime, s))
                 .collect();
-            if nullable(r) {
-                out.extend(pderiv(s, x));
-            }
+            if nullable(r) { out.extend(pderiv(s, x)); }
             out
         }
-        Regex::Star(r) => {
-            pderiv(r, x)
-                .into_iter()
-                .map(|r_prime| smart_seq(r_prime, &Regex::star(*r.clone())))
-                .collect()
-        }
+        Regex::Star(r) => pderiv(r, x)
+            .into_iter()
+            .map(|r_prime| smart_seq(r_prime, &Regex::star(*r.clone())))
+            .collect(),
     }
 }
 \end{verbatim}
-\caption{\texttt{pderiv}: Implementing Equation~\eqref{eq:pd} 
-one arm per case of the equation.}
+\caption{\texttt{pderiv}, implementing~\eqref{eq:pd} one arm per case
+of the equation.}
 \label{fig:pderiv-rust}
 \end{figure}
 
 %
 
-\paragraph{Example: No growth under \boldmath$pd$\unboldmath.}
-Consider $(x+y)^{*}$ against $\mathtt{xx}$ under $pd$.
-
-$\mathsf{P}_{*}$ applies with star body $r=x+y$:
+\paragraph{Example: No growth under $pd$.}
+Consider $(x+y)^{*}$ against $\mathtt{xx}$.
+By $\mathsf{P}_{*}$, with body $r=x+y$, 
+the resulting set is $\{(x+y)^{*}\}$. 
+Only the left branch of the body consumes $\mathtt{x}$, 
+so $pd(x+y,\mathtt{x}) = \{\varepsilon\}$, 
+and the smart constructor absorbs that $\varepsilon$ to return the star unchanged. 
+The resulting set is therefore the starting set itself, 
+so deriving the second $\mathtt{x}$ repeats the same computation, 
+and every further symbol yields the same set again. 
+Since $(x+y)^{*}$ is nullable by $\mathsf{N}_{*}$, 
+the matcher accepts, yielding $\mathtt{xx}\in L((x+y)^{*})$.
 \begin{equation}\label{eq:der-15}
 \begin{aligned}
 pd((x+y)^{*},\mathtt{x})
@@ -871,11 +875,6 @@ pd((x+y)^{*},\mathtt{x})
   &&\mathsf{SC},\ r' = \varepsilon.
 \end{aligned}
 \end{equation}
-The set is $\{(x+y)^{*}\}$, 
-so deriving by the second $\mathtt{x}$ repeats the computation, 
-and the final partial derivative accepts $\varepsilon$ 
-since $(x+y)^{*}$ is nullable by $\mathsf{N}_{*}$. 
-So $\mathtt{xx}\in L((x+y)^{*})$.
 
 Equation~\eqref{eq:growth-comparison} traces the derivative 
 and the partial derivative on the same expression:
@@ -907,9 +906,11 @@ so there is nothing to simplify.
 \paragraph{Finiteness.}
 For a regular expression $r$, 
 the number of distinct partial derivatives reachable by any input 
-is bounded by $\|r\|+1$ \citep[Theorem~3.4, p.~309]{antimirov1996}. 
+is bounded by $\|r\|+1$, where $\|r\|$ counts $r$'s literal (alphabet) 
+occurrences rather than the AST node count used above, 
+\citep[Theorem~3.4, p.~309]{antimirov1996}. 
 This is a ceiling, not a guarantee that all $\|r\|+1$ are reached.
-For $(x{+}y)^{*}$, $\|r\| = 2$ the ceiling is $3$, 
+For $(x{+}y)^{*}$, $\|r\| = 2$, so the ceiling is $3$, 
 yet only $(x{+}y)^{*}$ is reachable, 
 since deriving by either $\mathtt{x}$ or $\mathtt{y}$ returns it unchanged.
 
@@ -979,17 +980,19 @@ pub fn match_pderiv(input: &str, r: &Regex) -> bool {
     let mut states: HashSet<Regex> = HashSet::new();
     states.insert(r.clone());
     for c in input.chars() {
-        let mut next: HashSet<Regex> = HashSet::new();
+        let mut next_states: HashSet<Regex> =
+            HashSet::with_capacity(states.len());
         for state in &states {
-            next.extend(pderiv(state, c));
+            next_states.extend(pderiv(state, c));
         }
-        if next.is_empty() { return false; }
-        states = next;
+        if next_states.is_empty() { return false; }
+        states = next_states;
     }
     states.iter().any(nullable)
 }
 \end{verbatim}
-\caption{\texttt{match\_pderiv}: Implementation of the partial-derivative matcher.}
+\caption{\texttt{match\_pderiv}: implementation of the
+partial-derivative matcher.}
 \label{fig:pderiv-loop-rust}
 \end{figure}
 

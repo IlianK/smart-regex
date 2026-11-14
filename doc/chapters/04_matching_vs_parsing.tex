@@ -42,7 +42,7 @@ by the corresponding subexpressions.
 \label{sec:parse-trees-as-evidence}
 \paragraph{Parse Tree.} A parse tree provides a structured witness 
 for such a derivation.
-\citep{sulzmannlu2014} view regular expressions as \emph{types} 
+\citep[Fig.~1]{sulzmannlu2014} view regular expressions as \emph{types} 
 and parse trees as their \emph{values}. 
 The \emph{typing judgment} $\vdash v : r$ states that $v$ 
 is a valid parse tree for $r$, 
@@ -113,19 +113,20 @@ pub enum ParseTree {
 
 The definitions of Equation~\ref{eq:typing-rules} translate directly to Rust, 
 except for the star case.
-$\mathsf{T}{\varepsilon}$ corresponds to \texttt{Empty} for the empty parse, 
+$\mathsf{T}_{\varepsilon}$ corresponds to \texttt{Empty} for the empty parse, 
 $\mathsf{T}_{\mathrm{lit}}$ to \texttt{Char} for a literal,
 $\mathsf{T}_{\mathrm{seq}}$ to \texttt{Pair} for a concatenation of parse trees, and 
 $\mathsf{T}_{+}^{L}$ and $\mathsf{T}_{+}^{R}$ to \texttt{Left} and \texttt{Right}, 
 recording the chosen branch of an alternation. 
-Both star rules are represented by \texttt{Star(vec![])}.
+Both star rules collapse onto the single \texttt{Star(Vec<ParseTree>)} variant: 
+The empty case is \texttt{Star(vec![])}, the cons case a non-empty vector.
 
 %
 
 \paragraph{Flattening.}
 The typing judgment establishes that a parse tree $v$ is valid for
 $r$, but does not explicitly state which word it represents.
-The \emph{flattening} function $|v|$, defined by \citep{sulzmannlu2014}, 
+The \emph{flattening} function $|v|$, defined by \citep[Fig.~1]{sulzmannlu2014},
 maps each parse tree to the word represented by its structure:
 \begin{equation}
 \label{eq:flatten}
@@ -250,9 +251,6 @@ The first decomposition uses the right alternatives of both subexpressions:
 &
 \underbrace{
 \begin{gathered}
-\dfrac{b \in \Sigma}{\vdash b : b}
-\,(\mathsf{T}_{\mathrm{lit}})
-\qquad
 \vdash () : \varepsilon
 \,(\mathsf{T}_{\varepsilon})
 \\[1em]
