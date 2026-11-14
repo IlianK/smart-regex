@@ -174,33 +174,28 @@ producing an expression that describes the language of the remaining suffix.
 \section{Brzozowski Derivatives}
 \label{sec:brzozowski-derivatives}
 
-Brzozowski's derivative of $r$ with respect to a symbol $x$, written
-$r \backslash x$, is the expression describing exactly what remains of
-$r$'s language after consuming the leading symbol $x$ of a word
-$w \in L(r)$ \citep{brzozowski1964}:
-
+Brzozowski's derivative of $r$ with respect to a symbol $x$, 
+written $r \backslash x$, describes what remains of $r$'s language 
+after the leading symbol $x$ is consumed~\citep{brzozowski1964}. 
+For a word $w = x_1x_2\cdots x_n$, one derivative is taken per symbol:
 \begin{equation}\label{eq:der-23}
-L(r \backslash x) \;=\; \{\, w \mid xw \in L(r) \,\}.
+\begin{gathered}
+L(r \backslash x) \;=\; \{\, w \mid xw \in L(r) \,\}, \\[6pt]
+r \;\xrightarrow{\;x_1\;}\; r\backslash x_1
+  \;\xrightarrow{\;x_2\;}\; (r\backslash x_1)\backslash x_2
+  \;\xrightarrow{\;x_3\;}\; \cdots
+\end{gathered}
 \end{equation}
 
-For $w = x_1x_2\cdots x_n$, consume one symbol at a time
-by repeatedly taking derivatives:
-
-
-\[
-r,\quad
-r\backslash x_1,\quad
-(r\backslash x_1)\backslash x_2,\quad \ldots
-\]
+%
 
 \paragraph{Nullability.}
 \label{par:nullability}
-After all symbols have been consumed, the remaining input is
-$\varepsilon$. Thus, the resulting expression must accept $\varepsilon$
-for the original word to belong to $L(r)$. This is the
-question of whether the expression is \emph{nullable}.
+After all symbols have been consumed, the remaining input is $\varepsilon$. 
+Thus, the resulting expression must accept $\varepsilon$ 
+for the original word to belong to $L(r)$. 
+This is the question of whether the expression is \emph{nullable}.
 Let $n(r)$ be true exactly when $\varepsilon \in L(r)$:
-
 \begin{equation}\label{eq:nullability}
 \begin{aligned}
 n(\emptyset) &= \mathrm{false} &&(\mathsf{N}_{\emptyset}) &
@@ -212,22 +207,24 @@ n(r^{*}) &= \mathrm{true} &&(\mathsf{N}_{*})
 \end{aligned}
 \end{equation}
 
-The empty language $\emptyset$ is not nullable because it contains no
-words, including $\varepsilon$, while a literal cannot match the empty
-word. $\varepsilon$ and $r^{*}$ always match $\varepsilon$.
-An alternation is nullable when either branch is nullable, and a
-concatenation only when both components are.
+The empty language $\emptyset$ is not nullable 
+because it contains no words, 
+including $\varepsilon$, while a literal cannot match the empty word. 
+$\varepsilon$ and $r^{*}$ always match $\varepsilon$.
+An alternation is nullable when either branch is nullable, 
+and a concatenation only when both components are.
 
 %
 
 \paragraph{In Rust.}
 \label{par:nullability-rust}
 The definition is transcribed one \texttt{Regex} variant at a time,
-using the enum of Figure~\ref{fig:regex-enum}. The case split of
-~\eqref{eq:nullability} becomes the arms of a \texttt{match},
-shown in Figure~\ref{fig:nullable-rust}.
+using the enum of Figure~\ref{fig:regex-enum}. 
+The case split shown in Equation~\eqref{eq:nullability} 
+are the \texttt{match} arms of Figure~\ref{fig:nullable-rust}.
 
 \begin{figure}[H]
+\small
 \begin{verbatim}
 pub fn nullable(r: &Regex) -> bool {
     match r {
@@ -248,21 +245,20 @@ $\mathsf{N}_{\mathrm{seq}}$ and $\mathsf{N}_{*}$.}
 \end{figure}
 
 The expression is passed by reference because \texttt{nullable} only
-inspects $r$ and does not modify or consume it. The underscores in
-$\mathsf{N}_{\mathrm{lit}}$ and $\mathsf{N}_{*}$ indicate that the
-corresponding operands are irrelevant. A literal is never nullable,
-regardless of its symbol, while a Kleene-star expression is always
-nullable, regardless of its body. The short-circuiting operators
-\texttt{||} and \texttt{\&\&} avoid evaluating the second operand when
-the result is already determined, while preserving the corresponding
-logical semantics.
+inspects $r$ and does not modify or consume it. 
+The underscores in $\mathsf{N}_{\mathrm{lit}}$ and $\mathsf{N}_{*}$ indicate 
+that the corresponding operands are irrelevant. 
+A literal is never nullable, regardless of its symbol, 
+and a Kleene-star expression is always nullable, regardless of its body. 
+The short-circuiting operators \texttt{||} and \texttt{\&\&} 
+avoid evaluating the second operand when the result is already determined.
 
 %
 
 \paragraph{Derivative Rules.}
 \label{par:derivative-rules}
-The rules specify the expression that remains after consuming $x$:
 
+Equation~\ref{eq:derivative} specifies the expression remaining after consuming $x$:
 \begin{equation}\label{eq:derivative}
 \begin{aligned}
 \emptyset \backslash x &= \emptyset &&(\mathsf{D}_{\emptyset}) 
@@ -287,24 +283,36 @@ y \backslash x &= \begin{cases}
 \end{array}
 \end{aligned}
 \end{equation}
-The empty language and $\varepsilon$ cannot consume $x$. 
-A literal $y$ succeeds exactly when $x=y$, leaving $\varepsilon$. 
-Alternation retains both derivatives and for $r^{*}$, 
-one occurrence of $r$ consumes $x$ while further occurrences remain available. 
 
-Concatenation is the only rule that depends on nullability.
-If $r$ is not nullable, $r$ must consume the leading $x$, leaving
-$r\backslash x$ as the remainder of $r$ while $s$ remains untouched.
-If $r$ is nullable, it may either consume $x$ giving $(r\backslash x)\cdot s$,
-or $r$ matches $\varepsilon$ and $s$ consumes $x$ leaving $s\backslash x$.
-Hence the nullable case produces the alternation $(r\backslash x)\cdot s + s\backslash x$.
+The empty language and \(\varepsilon\) cannot consume \(x\). 
+A literal \(y\) succeeds only if \(x=y\), leaving \(\varepsilon\). 
+Alternation retains both derivatives, while for \(r^{*}\), 
+one occurrence of \(r\) consumes \(x\) and further occurrences remain available.
+Concatenation is the only rule that depends on nullability. 
+If \(r\) is not nullable, it must consume the leading \(x\), 
+leaving \((r\backslash x)\cdot s\). 
+If \(r\) is nullable, either \(r\) consumes \(x\), 
+leaving \((r\backslash x)\cdot s\), 
+or \(r\) matches \(\varepsilon\) and \(s\) consumes \(x\), 
+leaving \(s\backslash x\). 
+The resulting derivative is therefore \((r\backslash x)\cdot s + s\backslash x\).
 
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:deriv-rust} implements~\eqref{eq:derivative} similarly, one variant at a time.
+Figure~\ref{fig:deriv-rust} implements Equation~\eqref{eq:derivative} 
+one variant per arm,  with \texttt{Seq} branching on \texttt{nullable(r1)} 
+to select $\mathsf{D}_{\mathrm{seq}}^{\,n}$ or $\mathsf{D}_{\mathrm{seq}}$. 
+Unlike \texttt{nullable}, \texttt{deriv} borrows its input 
+but returns an owned expression. 
+The clones in the \texttt{Seq} and \texttt{Star} arms are needed for $s$ 
+to appear untouched in both branches 
+and also for $r^{*}$ to be preserved both derived and underived. 
+This copying mechanism drives expression growth,
+which is why simplification follows every derivative step.
 
 \begin{figure}[H]
+\small
 \begin{verbatim}
 pub fn deriv(r: &Regex, x: char) -> Regex {
     match r {
@@ -324,22 +332,13 @@ pub fn deriv(r: &Regex, x: char) -> Regex {
     }
 }
 \end{verbatim}
-\caption{\texttt{deriv} implementation with six cases.}
+\caption{\texttt{deriv}: Implementing the derivative algorithm with six cases, 
+one per rule of Equation~\eqref{eq:derivative}.
+The \texttt{Seq} arm branches on \texttt{nullable} 
+to choose between the two concatenation rules, 
+and the clones preserve the untouched operands.}
 \label{fig:deriv-rust}
 \end{figure}
-
-\texttt{deriv} differs from \texttt{nullable} in that it borrows its input
-but returns an owned \texttt{Regex}, since a derivative is a new expression.
-The \texttt{if nullable(r1)} implements the case split of~\eqref{eq:derivative},
-with branches in order $\mathsf{D}_{\mathrm{seq}}^{\,n}$ then $\mathsf{D}_{\mathrm{seq}}$.
-This is the only place where a derivative rule consults nullability and where
-the output can be larger than the input, since the nullable branch produces
-an alternation while the other produces a concatenation.
-
-The cloning in \texttt{*r2.clone()} is necessary because $s$ appears untouched
-in both branches of the concatenation case, and the star arm must preserve $r^{*}$'s
-body both derived and underived. This copying mechanism drives expression growth,
-which justifies simplification after every derivative step.
 
 %
 
@@ -399,13 +398,11 @@ Thus $(x+y)^{*}$ matches $\mathtt{xx}$.
 %
 
 \paragraph{Simplification.}
-Derivatives can grow unboundedly. Repeatedly
-deriving $(x+y)^{*}$ by the same symbol produces expressions of increasing
-size. This growth results from the nullable branch of
-$\mathsf{D}_{\mathrm{seq}}^{\,n}$, which introduces an alternation as a redundant structure
-that is carried into subsequent derivatives. $\varepsilon$ and
-$\emptyset$ accumulate without bound:
-
+As shown in Equation~\ref{eq:der-growth}, repeatedly deriving
+$(x+y)^{*}$ by the same symbol causes unbounded growth as the nullable
+branch of $\mathsf{D}_{\mathrm{seq}}^{\,n}$ introduces redundant
+alternations that accumulate $\varepsilon$ and $\emptyset$ in
+subsequent derivatives:
 \begin{equation}\label{eq:der-growth}
 \begin{aligned}
 & (x+y)^{*} && 4 \\
@@ -421,29 +418,27 @@ $\emptyset$ accumulate without bound:
 \end{aligned}
 \end{equation}
 
-To counter the growth, expressions are simplified
-after each derivative step, using identities that preserve the denoted
-language:
-
+To limit expression growth, 
+each derivation step is followed by simplification 
+using identify functions that preserve the original language and eliminate:
+dead concatenations $\emptyset$ ($\mathsf{S}_{1}$), 
+identity concatenations ($\mathsf{S}_{2}$),
+redundant alternatives ($\mathsf{S}_{3}$),
+and hold symmetrically.
 \begin{equation}\label{eq:simp-identities}
-\begin{aligned}
-\emptyset \cdot r &= \emptyset &&(\mathsf{S}_{1}) \\
-\varepsilon \cdot r &= r       &&(\mathsf{S}_{2}) \\
-\emptyset + r &= r             &&(\mathsf{S}_{3})
-\end{aligned}
+\emptyset \cdot r = \emptyset \;(\mathsf{S}_{1})
+\qquad
+\varepsilon \cdot r = r \;(\mathsf{S}_{2})
+\qquad
+\emptyset + r = r \;(\mathsf{S}_{3})
 \end{equation}
 
-$\mathsf{S}_{1}$ eliminates dead concatenations with $\emptyset$,
-$\mathsf{S}_{2}$ eliminates identity concatenations with $\varepsilon$,
-and $\mathsf{S}_{3}$ eliminates $\emptyset$ from alternations. Each
-holds equally with the unit on the right. 
-
-Applying them to ~\eqref{eq:der-4}, 
-after each step, returns the expression back to $(x+y)^{*}$,
+Applying these identities to Equation~\eqref{eq:der-4} after each step, 
+returns the expression back to $(x+y)^{*}$,
 keeping the size bounded regardless of input length:
 \begin{equation}\label{eq:der-6}
 \begin{aligned}
-&(\emptyset + \emptyset) \cdot (x+y)^{*} + (\varepsilon + \emptyset) \cdot (x+y)^{*} \\
+(\emptyset + \emptyset) \cdot (x+y)^{*} + (\varepsilon + \emptyset) \cdot (x+y)^{*}
   &= \emptyset \cdot (x+y)^{*} + \varepsilon \cdot (x+y)^{*}
   &&\mathsf{S}_{3},\ \text{twice} \\
   &= \emptyset + (x+y)^{*}
@@ -456,49 +451,25 @@ keeping the size bounded regardless of input length:
 %
 
 \paragraph{In Rust.}
-The identities are implemented recursively, applying the rules
-bottom-up over the expression tree. Each arm of the inner match implements
-an identity from ~\eqref{eq:simp-identities}.
+The identities are implemented in \ref{fig:simplify-rust} recursively:
 
-\texttt{simplify} takes ownership of its input and returns simplified subexpressions
-directly, unlike \texttt{deriv}, which borrows and constructs. This model is visible
-where the two compose:
-
-\begin{verbatim}
-current = simplify(deriv(&current, c));
-\end{verbatim}
-
-\texttt{deriv} borrows \texttt{current}, constructs a new expression, and \texttt{simplify}
-takes ownership of that result to return it without additional copying. The recursive
-calls ensure that all dead code is eliminated before an expression is returned, keeping
-size bounded at each step. Together, derive-then-simplify forms the core loop of the
-matcher, transforming and cleaning the expression at every input symbol.
-
-\begin{figure}[H]
+\begin{figure}[ht]
 \small
 \begin{verbatim}
 pub fn simplify(r: Regex) -> Regex {
     match r {
-        Regex::Seq(r, s) => {
-            let r = simplify(*r);
-            let s = simplify(*s);
-            match (&r, &s) {
-                (Regex::Phi, _) | (_, Regex::Phi) => Regex::Phi,
-                (Regex::Eps, _) => s,
-                (_, Regex::Eps) => r,
-                _ => Regex::seq(r, s),
-            }
-        }
-        Regex::Alt(r, s) => {
-            let r = simplify(*r);
-            let s = simplify(*s);
-            match (&r, &s) {
-                (Regex::Phi, _) => s,
-                (_, Regex::Phi) => r,
-                _ if r == s => r,
-                _ => Regex::alt(r, s),
-            }
-        }
+        Regex::Seq(r, s) => match (simplify(*r), simplify(*s)) {
+            (Regex::Phi, _) | (_, Regex::Phi) => Regex::Phi,
+            (Regex::Eps, s) => s,
+            (r, Regex::Eps) => r,
+            (r, s) => Regex::seq(r, s),
+        },
+        Regex::Alt(r, s) => match (simplify(*r), simplify(*s)) {
+            (Regex::Phi, s) => s,
+            (r, Regex::Phi) => r,
+            (r, s) if r == s => r,
+            (r, s) => Regex::alt(r, s),
+        },
         Regex::Star(r) => match simplify(*r) {
             Regex::Eps | Regex::Phi => Regex::Eps,
             r => Regex::star(r),
@@ -507,10 +478,21 @@ pub fn simplify(r: Regex) -> Regex {
     }
 }
 \end{verbatim}
-\caption{Simplification rules: $\mathsf{S}_{1}$ and $\mathsf{S}_{2}$ in concatenation,
-$\mathsf{S}_{3}$ in both branches.}
+\caption{Simplification rules: \texttt{Seq} implements
+$\mathsf{S}_{1}$ and $\mathsf{S}_{2}$, 
+while \texttt{Alt} implements $\mathsf{S}_{3}$ and removes duplicates. 
+\texttt{Star} additionally also reduces $\varepsilon^{*}$ and $\emptyset^{*}$ 
+to $\varepsilon$, since both denote $\{\varepsilon\}$.}
 \label{fig:simplify-rust}
 \end{figure}
+
+The identities are implemented bottom-up, 
+so every dead subexpression is removed before an expression is returned.
+\texttt{simplify} takes ownership of its input, 
+unlike \texttt{deriv}, which borrows and constructs. 
+The two compose directly,
+Together, they form the matcher's core loop, deriving and simplifying
+the expression at each input symbol.
 
 %
 %
@@ -518,11 +500,11 @@ $\mathsf{S}_{3}$ in both branches.}
 
 \paragraph{The matcher.}
 \label{sec:derivative-matcher}
-The implementation can be summarized by the sequence of residual
-expressions produced while consuming the input. For
-$w=x_1x_2\cdots x_n$, the initial residual is $r_0=r$, and each
-subsequent residual is obtained by deriving with respect to the next
-symbol and simplifying the result:
+The implementation is the sequence of residuals produced 
+while consuming the input. 
+For $w=x_1x_2\cdots x_n$, the initial residual is $r_0=r$ 
+and each subsequent residual is obtained by deriving 
+with respect to the next symbol and simplifying the result:
 \begin{equation}
 r_0=r,
 \qquad
@@ -531,43 +513,36 @@ r_i=\operatorname{simplify}(r_{i-1}\backslash x_i)
 \label{eq:derivative-residuals}
 \end{equation}
 
-The residual $r_i$ denotes exactly the set of suffixes that complete the
-consumed prefix $x_1\cdots x_i$ to a word in $L(r)$. Since simplification
-preserves the represented language, each $r_i$ is equivalent to the
-unsimplified derivative after consuming that prefix. After the final
-symbol has been consumed, the matcher accepts when the remaining
-residual is nullable:
+The residual $r_i$ denotes the set of suffixes 
+that complete the consumed prefix $x_1\cdots x_i$ to a word in $L(r)$. 
+Since simplification preserves the language, 
+each $r_i$ is equivalent to the unsimplified derivative, 
+and the matcher accepts exactly when $r_n$ is nullable, so:
+\begin{equation}\label{eq:deriv-accept}
+w\in L(r)\iff n(r_n).
+\end{equation}
 
-\[
-w\in L(r)
-\iff
-n(r_n)=\mathrm{true}.
-\]
-
-Each step depends only on the current residual and the next symbol, so
-the matcher never revisits a prefix and never backtracks into an earlier
-residual. The cost of one step is the cost of \texttt{deriv} on the
-current residual, which is proportional to its size.
-
-So $r_0\xrightarrow{x_1}r_1\xrightarrow{x_2}\cdots\xrightarrow{x_n}r_n$
-can be viewed as a path through a lazily constructed DFA. Each residual
-expression represents a state, and
-$\xrightarrow{x}$ denotes the transition obtained by taking the derivative
-with respect to $x$. Unlike an explicitly constructed DFA, only the states
-reached by the input are constructed. A residual is an accepting state
-exactly when it is nullable, so acceptance is determined by whether the
-final residual is nullable.
+Each step depends only on the current residual 
+and the next symbol, so the matcher never revisits a prefix.
+The cost of one step is the cost of \texttt{deriv} on the current residual, 
+which is proportional to its size.
+The sequence
+$r_0\xrightarrow{x_1}r_1\xrightarrow{x_2}\cdots\xrightarrow{x_n}r_n$ is
+thus a path through a lazily constructed DFA, whose states are residuals
+and whose accepting states are the nullable ones. Only the states reached
+by the input are constructed.
 
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:match-deriv-rust} implements ~\eqref{eq:derivative-residuals}
-by composing \texttt{deriv}, \texttt{simplify}, and \texttt{nullable}.
-The implementation follows the mathematical definition directly. The current
-residual is transformed at each step, and acceptance is determined after the
-complete input has been consumed.
+Figure~\ref{fig:match-deriv-rust} shows the matcher built around
+\texttt{deriv}, \texttt{simplify}, and \texttt{nullable}. 
+It follows the mathematical definition directly, 
+transforming the current residual for each input symbol 
+and checking nullability once the input is consumed.
 
 \begin{figure}[H]
+\small
 \begin{verbatim}
 pub fn match_deriv(input: &str, r: &Regex) -> bool {
     let mut current = r.clone();
@@ -577,24 +552,28 @@ pub fn match_deriv(input: &str, r: &Regex) -> bool {
     nullable(&current)
 }
 \end{verbatim}
-\caption{\texttt{match\_deriv}: the core matcher loop. For each input character,
-derive the current residual expression and simplify it in place. 
-Accept if the final residual is nullable.}
+\caption{\texttt{match\_deriv}: Implementing the derivative matcher. 
+For each input character, 
+derive the current residual and simplify it in place. 
+The updated expression becomes the residual for the next iteration. 
+After the input is consumed, accept if the final residual is nullable.}
 \label{fig:match-deriv-rust}
 \end{figure}
 
-The loop implements the residual sequence. At each iteration,
-\texttt{current} contains the current residual, which is then derived and
-simplified before processing the next input symbol. Only the current
-residual is retained, since the previous residual is dropped when
-\texttt{current} is reassigned. In contrast to parsing, where intermediate
-results may be required to reconstruct a parse tree, Boolean matching
-requires only the final residual.
+Figure~\ref{fig:match-deriv-rust} shows the derivative-based matcher.
+Its loop implements the residual sequence 
+by repeatedly deriving  and simplifying the current expression 
+for each input character. 
+The variable \texttt{current} holds only the latest residual, 
+replacing the previous one at each iteration. 
+Unlike parsing, which may require intermediate results to reconstruct a parse tree, 
+Boolean matching needs only the final residual to determine acceptance.
 
-The derivative-based matcher avoids the exponential backtracking of naive
-matching by transforming the expression rather than searching for
-decompositions. Simplification keeps the resulting expressions compact,
-preventing the growth shown in ~\eqref{eq:der-growth}.
+The derivative-based matcher avoids the exponential backtracking 
+of naive matching by transforming the expression 
+rather than searching for decompositions. 
+Simplification keeps the resulting expressions compact,
+preventing the growth shown in Equation~\eqref{eq:der-growth}.
 
 %
 %
@@ -603,8 +582,8 @@ preventing the growth shown in ~\eqref{eq:der-growth}.
 \paragraph{Worked Example: Applying the derivative-based matcher}
 \label{sec:deriv-worked-example}
 
-Apply \texttt{match\_deriv} to $r_0 = (a + ab)(b + \varepsilon)$ and
-$w = \mathtt{ab}$ with the expression written as:
+Apply \texttt{match\_deriv} to $r_0 = (a + ab)(b + \varepsilon)$ 
+and $w = \mathtt{ab}$ with the expression written as:
 \[
 r_0 = \mathit{Seq}(s,\, t),
 \qquad
@@ -614,16 +593,16 @@ t = b + \varepsilon,
 \]
 
 \paragraph{Derive by $\mathtt{a}$.}
-The first factor $s$ is not nullable, so $\mathsf{D}_{\mathrm{seq}}$
-applies to the sequence $r_0$:
+The first factor $s$ is not nullable, 
+so $\mathsf{D}_{\mathrm{seq}}$ applies to the sequence $r_0$:
 \[
-r_1 = r_0 \backslash \mathtt{a}
+r_0 \backslash \mathtt{a}
   = (s \backslash \mathtt{a}) \cdot t
   \qquad (\mathsf{D}_{\mathrm{seq}}).
 \]
-Since $s$ cannot match the empty word, the second factor $t$ is not
-touched by this derivative and appears unchanged. To derive $s$,
-the alternation rule $\mathsf{D}_{+}$ is applied to give:
+Since $s$ cannot match the empty word, 
+the second factor $t$ is not touched by this derivative and appears unchanged. 
+To derive $s$, the alternation rule $\mathsf{D}_{+}$ is applied to give:
 \[
 s \backslash \mathtt{a}
   = (a \backslash \mathtt{a}) + (ab \backslash \mathtt{a})
@@ -641,8 +620,8 @@ ab \backslash \mathtt{a}
   &&(\mathsf{D}_{\mathrm{seq}},\ \mathsf{D}_{\mathrm{lit}}).
 \end{aligned}
 \]
-Substituting both summands into the alternation and the result into the
-outer sequence:
+Substituting both summands into the alternation 
+and the result into the outer sequence:
 \[
 \begin{aligned}
 s \backslash \mathtt{a}
@@ -653,8 +632,8 @@ r_0 \backslash \mathtt{a}
   &&(\mathsf{D}_{\mathrm{seq}}).
 \end{aligned}
 \]
-Then, applying the simplification rule $\mathsf{S}_{2}$ to the occurrences
-of $\varepsilon \cdot b$, gives the residual:
+Then, applying the simplification rule $\mathsf{S}_{2}$ 
+to the occurrence of $\varepsilon \cdot b$, gives the residual:
 \[
 r_1 = (\varepsilon + b) \cdot t
   \qquad (\mathsf{S}_{2}).
@@ -664,20 +643,22 @@ r_1 = (\varepsilon + b) \cdot t
 
 \paragraph{Derive by $\mathtt{b}$.}
 The residual $r_1$ is again a sequence,
-but now the first factor $\varepsilon + b$ is nullable, so the nullable
-sequence rule $\mathsf{D}_{\mathrm{seq}}^{\,n}$ applies when deriving by $b$:
+but now the first factor $\varepsilon + b$ is nullable, 
+so the nullable sequence rule $\mathsf{D}_{\mathrm{seq}}^{\,n}$ applies 
+when deriving by $b$:
 \[
 r_2 = r_1 \backslash \mathtt{b}
   = \big((\varepsilon + b) \backslash \mathtt{b}\big) \cdot t
     + (t \backslash \mathtt{b})
   \qquad (\mathsf{D}_{\mathrm{seq}}^{\,n}).
 \]
-Since the first factor $\varepsilon + b$ is nullable, it can either
-consume the character itself, leaving $t$ untouched, or match
-$\varepsilon$ and let $t$ consume it. Both are possible, so
-$\mathsf{D}_{\mathrm{seq}}^{\,n}$ produces one summand for each, and
-$\mathsf{D}_{+}$ derives the first factor and $t$ in their respective
-summands:
+Since the first factor $\varepsilon + b$ is nullable, 
+it can either consume the character itself, 
+leaving $t$ untouched, or match $\varepsilon$ and let $t$ consume it. 
+Both are possible, so $\mathsf{D}_{\mathrm{seq}}^{\,n}$ 
+produces one summand for each, 
+and $\mathsf{D}_{+}$ derives the first factor 
+and $t$ in their respective summands:
 \[
 \begin{aligned}
 (\varepsilon + b) \backslash \mathtt{b}
@@ -698,9 +679,9 @@ r_1 \backslash \mathtt{b}
   = (\emptyset + \varepsilon) \cdot t
     + (\varepsilon + \emptyset).
 \]
-Applying the simplification rules $\mathsf{S}_{3}$ and
-$\mathsf{S}_{2}$ to the first summand and $\mathsf{S}_{3}$ to the
-second, gives the final residual after deriving the second character:
+Applying the simplification rules $\mathsf{S}_{3}$ 
+and $\mathsf{S}_{2}$ to the first summand and $\mathsf{S}_{3}$ to the second, 
+gives the final residual after deriving the second character:
 \[
 r_2 
   = t + \varepsilon
@@ -708,9 +689,9 @@ r_2
 \]
 
 \paragraph{Acceptance.}
-The residual $r_2 = (b + \varepsilon) + \varepsilon$ is nullable by
-$\mathsf{N}_{+}$ and $\mathsf{N}_{\varepsilon}$, so
-$\mathtt{ab} \in L(r_0)$.
+The residual $r_2 = (b + \varepsilon) + \varepsilon$ 
+is nullable by $\mathsf{N}_{+}$ and $\mathsf{N}_{\varepsilon}$, 
+so $\mathtt{ab} \in L(r_0)$.
 
 %
 %
@@ -721,11 +702,10 @@ $\mathtt{ab} \in L(r_0)$.
 \section{Antimirov Partial Derivatives}
 \label{sec:antimirov-partial-derivatives}
 
-The derivative of Section~\ref{sec:brzozowski-derivatives} combines
-alternative residuals into a single expression using $+$. Antimirov's
-partial derivatives instead keep them as a \emph{set} of expressions,
-one per strand of nondeterminism \citep{antimirov1996}. Writing
-$pd(r,x)$ for this set:
+The derivative of Section~\ref{sec:brzozowski-derivatives} 
+combines alternative residuals into a single expression using $+$. 
+Antimirov's partial derivatives instead keep them as a set of expressions,
+one per strand of nondeterminism, written $pd(r,x)$~\citep{antimirov1996}.
 \begin{equation}\label{eq:pd}
 \begin{aligned}
 pd(\emptyset, x) &= \{\} &&(\mathsf{P}_{\emptyset}) \\
@@ -750,35 +730,31 @@ pd(r \cdot s, x) &=
 \end{aligned}
 \end{equation}
 
-The empty language and $\varepsilon$ produce the empty set, since
-neither has a residual with respect to $x$: where
-$\mathsf{D}_{\emptyset}$ and $\mathsf{D}_{\varepsilon}$ returned
-$\emptyset$ as a node in the result, $\mathsf{P}_{\emptyset}$ and
-$\mathsf{P}_{\varepsilon}$ return no residual at all. A literal $y$
-gives $\{\varepsilon\}$ when $x=y$ and $\{\}$ otherwise. Alternation
-unions the two residual sets, and for $r^{*}$ one iteration of $r$
-consumes $x$, with each resulting residual placed in front of $r^{*}$
-so the star may continue. None of these alternatives are combined with
-$+$; each stays a separate element of the set.
-
-Concatenation depends on nullability for the same reason as
-$\mathsf{D}_{\mathrm{seq}}$. If $r$ is not nullable it must consume
-$x$, and each of its residuals is concatenated with the untouched $s$.
-If $r$ is nullable, $r$ may instead match $\varepsilon$ and let $s$
-consume $x$, in which case $pd(s,x)$ joins the set. Where
-$\mathsf{D}_{\mathrm{seq}}^{\,n}$ combined the two cases with $+$
-inside one expression, $\mathsf{P}_{\mathrm{seq}}^{\,n}$ keeps them as
-two elements of one set.
+Where $\mathsf{D}_{\emptyset}$ and $\mathsf{D}_{\varepsilon}$
+return $\emptyset$ as a node, $\mathsf{P}_{\emptyset}$ and
+$\mathsf{P}_{\varepsilon}$ return no residual. 
+A literal $y$ yields $\{\varepsilon\}$ if $x=y$ and $\{\}$ otherwise. 
+Alternation unions the residual sets, 
+while for $r^{*}$, each residual of $r$ is concatenated with $r^{*}$ 
+to allow further iterations. 
+Unlike Brzozowski derivatives, 
+these alternatives are not combined with $+$ but remain separate set elements.
+Concatenation branches on nullability as in $\mathsf{D}_{\mathrm{seq}}$. 
+If $r$ is not nullable, each residual of $r$ is concatenated with $s$. 
+If $r$ is nullable, the set also includes $\mathsf{pd}(s,x)$, 
+since $r$ may match $\varepsilon$ and allow $s$ to consume $x$.
+So $\mathsf{D}_{\mathrm{seq}}^{\,n}$ combines both cases with $+$,
+$\mathsf{P}_{\mathrm{seq}}^{\,n}$ keeps them as separate set elements.
 
 %
 
-
 \paragraph{The smart constructor.}
-The concatenation in $\mathsf{P}_{\mathrm{seq}}$ uses an auxiliary
-constructor $\mathit{smartC}$. Since each element of $pd(r,x)$ is a
-separate residual rather than a branch of a sum, $\mathit{smartC}$ is
-applied to each independently. The constructor avoids building
-$\varepsilon \cdot s$:
+The concatenation in $\mathsf{P}_{\mathrm{seq}}$ 
+uses an auxiliary constructor $\mathit{smartC}$. 
+Since each element of $pd(r,x)$ is a separate residual 
+rather than a branch of a sum, 
+$\mathit{smartC}$ is applied to each independently. 
+The constructor avoids building $\varepsilon \cdot s$:
 \begin{equation}\label{eq:smartc}
 \mathit{smartC}(r', s) =
   \begin{cases}
@@ -787,14 +763,14 @@ $\varepsilon \cdot s$:
   \end{cases}
 \end{equation}
 
+%
+
 \paragraph{In Rust.}
-Figure~\ref{fig:smart-seq-rust} implements $\mathit{smartC}$ directly as
-\texttt{smart\_seq}. Matching on \texttt{r} implements the case split of
-\eqref{eq:smartc}: the \texttt{Eps} arm returns a clone of \texttt{s}
-and never builds $\varepsilon \cdot s$, while the second arm wraps
-\texttt{r} in front of a cloned \texttt{s}
+Figure~\ref{fig:smart-seq-rust} implements $\mathit{smartC}$ directly, 
+one arm per case of Equation~\eqref{eq:smartc}:
 
 \begin{figure}[H]
+\small
 \begin{verbatim}
 pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
     match r {
@@ -803,43 +779,41 @@ pub fn smart_seq(r: Regex, s: &Regex) -> Regex {
     }
 }
 \end{verbatim}
-\caption{\texttt{smart\_seq}, the smart constructor $\mathit{smartC}$}
+\caption{\texttt{smart\_seq}: Implementing the smart constructor $\mathit{smartC}$}
 \label{fig:smart-seq-rust}
 \end{figure}
 
 %
 
-Figure~\ref{fig:pderiv-rust} presents the implementation of
-\eqref{eq:pd}, with each \texttt{match} arm corresponding to one case. 
-The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} variants implement
-$\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$, and
-$\mathsf{P}_{\mathrm{lit}}$ directly, returning \texttt{Vec::new()}
-where the equation gives $\{\}$. \texttt{Alt} concatenates the two
-child vectors, implementing the union of $\mathsf{P}_{+}$. 
+Figure~\ref{fig:pderiv-rust} presents the implementation of \eqref{eq:pd}, 
+one arm per case.  
+The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} variants implement 
+$\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$, and $\mathsf{P}_{\mathrm{lit}}$ 
+directly, returning \texttt{Vec::new()} where the equation gives $\{\}$. 
+\texttt{Alt} concatenates the two child vectors, 
+implementing the union of $\mathsf{P}_{+}$. 
+\texttt{Star} maps \texttt{smart\_seq} over $r$'s residuals,
+placing each in front of a fresh \texttt{Regex::star}, 
+and the clone in \texttt{Regex::star(*r.clone())} is needed 
+because the closure owns its result. 
 
-\texttt{Star} maps \texttt{smart\_seq} over $r$'s own residuals,
-matching $\mathsf{P}_{*}$. The star's body is derived, and each
-resulting residual is placed in front of a fresh $\texttt{Regex::star}$
-so the star may continue. \texttt{Regex::star(*r.clone())} clones
-because \texttt{Regex::star} needs an owned \texttt{Regex} and
-\texttt{r} is only borrowed, once per residual since the closure runs
-once for each.
-
-\texttt{Seq} implements the case split directly. The \texttt{map}
-applies \texttt{smart\_seq} to each residual of the left operand,
-matching $\mathsf{P}_{\mathrm{seq}}$, and the guarded
-\texttt{out.extend(pderiv(s, x))} adds $pd(s,x)$ for
-$\mathsf{P}_{\mathrm{seq}}^{\,n}$. Although the mathematical definition
-uses sets, the implementation uses \texttt{Vec<Regex>} throughout the
-recursion and defers deduplication to a single \texttt{HashSet}
-insertion at the top, rather than deduplicating at every \texttt{Alt}
+\texttt{Seq} implements the case split directly.
+The \texttt{map} applies \texttt{smart\_seq} to each residual of the left operand,
+matching $\mathsf{P}_{\mathrm{seq}}$, 
+while the guarded \texttt{out.extend(pderiv(s, x))} adds $pd(s,x)$ 
+for $\mathsf{P}_{\mathrm{seq}}^{\,n}$.
+Although the mathematical definition uses sets, 
+the implementation uses \texttt{Vec<Regex>} 
+throughout the recursion and defers deduplication 
+to a single \texttt{HashSet} insertion at the top, 
+rather than deduplicating at every \texttt{Alt} 
 or \texttt{Seq} node on the way down.
 
-Every union in \texttt{pderiv} is therefore a vector
-\texttt{extend}, not a set operation. Duplicate residuals reached by
-different strands are only merged once inserted into the
-\texttt{HashSet} used by the matcher below to keep the residual
-generation separate from deduplication
+Every union in \texttt{pderiv} is therefore a vector \texttt{extend}, 
+not a set operation. 
+Duplicate residuals reached by different strands are only merged 
+once inserted into the \texttt{HashSet} 
+used by the matcher below to keep the residual generation separate from deduplication.
 
 \begin{figure}[H]
 \small
@@ -875,8 +849,8 @@ fn pderiv(r: &Regex, x: char) -> Vec<Regex> {
     }
 }
 \end{verbatim}
-\caption{\texttt{pderiv}, implementing~\eqref{eq:pd} one arm per case
-of the equation.}
+\caption{\texttt{pderiv}: Implementing Equation~\eqref{eq:pd} 
+one arm per case of the equation.}
 \label{fig:pderiv-rust}
 \end{figure}
 
@@ -897,13 +871,14 @@ pd((x+y)^{*},\mathtt{x})
   &&\mathsf{SC},\ r' = \varepsilon.
 \end{aligned}
 \end{equation}
-The set is $\{(x+y)^{*}\}$, so deriving by the second $\mathtt{x}$
-repeats the computation, and the final partial derivative accepts
-$\varepsilon$ since $(x+y)^{*}$ is nullable by $\mathsf{N}_{*}$. So
-$\mathtt{xx}\in L((x+y)^{*})$.
+The set is $\{(x+y)^{*}\}$, 
+so deriving by the second $\mathtt{x}$ repeats the computation, 
+and the final partial derivative accepts $\varepsilon$ 
+since $(x+y)^{*}$ is nullable by $\mathsf{N}_{*}$. 
+So $\mathtt{xx}\in L((x+y)^{*})$.
 
-Equation~\eqref{eq:growth-comparison} traces the derivative and the
-partial derivative on the same expression:
+Equation~\eqref{eq:growth-comparison} traces the derivative 
+and the partial derivative on the same expression:
 \begin{equation}\label{eq:growth-comparison}
 \begin{aligned}
 \text{Derivative (unsimplified):} &\quad
@@ -921,35 +896,37 @@ partial derivative on the same expression:
 \end{aligned}
 \end{equation}
 
-The unsimplified derivative grows at every step, while the partial derivative
-stays at one element because $\mathsf{P}_{\emptyset}$ and
-$\mathsf{P}_{\varepsilon}$ contribute no residual, so there is nothing
-to simplify.
+The unsimplified derivative grows at every step, 
+while the partial derivative stays at one element 
+because $\mathsf{P}_{\emptyset}$ and $\mathsf{P}_{\varepsilon}$ 
+contribute no residual, 
+so there is nothing to simplify.
 
 %
 
 \paragraph{Finiteness.}
-For a regular expression $r$, the number of distinct partial derivatives
-reachable by any input is bounded by $\|r\|+1$
-\citep[Theorem~3.4, p.~309]{antimirov1996}. This is a ceiling, not a
-guarantee that all $\|r\|+1$ are reached. For $(x{+}y)^{*}$, $\|r\| = 2$
-the ceiling is $3$, yet only $(x{+}y)^{*}$ is reachable, since
-deriving by either $\mathtt{x}$ or $\mathtt{y}$ returns it unchanged.
+For a regular expression $r$, 
+the number of distinct partial derivatives reachable by any input 
+is bounded by $\|r\|+1$ \citep[Theorem~3.4, p.~309]{antimirov1996}. 
+This is a ceiling, not a guarantee that all $\|r\|+1$ are reached.
+For $(x{+}y)^{*}$, $\|r\| = 2$ the ceiling is $3$, 
+yet only $(x{+}y)^{*}$ is reachable, 
+since deriving by either $\mathtt{x}$ or $\mathtt{y}$ returns it unchanged.
 
 Ordinary derivatives need equivalence classes to be finite
 \citep[Theorem~4.3]{brzozowski1964}, giving $d_R \leq 2^{d_P}-1$.
-Simplification removes units and redundant $\emptyset$, but not all
-equivalent forms. 
+Simplification removes units and redundant $\emptyset$, 
+but not all equivalent forms. 
 In contrast the partial-derivative bound is linear without simplification.
 
 %
 
 \paragraph{The matcher.}
 The implementation can be summarized by the sequence of state sets
-produced while consuming the input. For $w=x_1x_2\cdots x_n$, the
-initial state set is $S_0=\{r\}$, and each subsequent set is obtained by
-taking $pd$ of every residual in the previous set and unioning the
-results:
+produced while consuming the input. 
+For $w=x_1x_2\cdots x_n$, the initial state set is $S_0=\{r\}$, 
+and each subsequent set is obtained by taking $pd$ of every residual
+in the previous set and unioning the results:
 \begin{equation}
 S_0=\{r\},
 \qquad
@@ -958,40 +935,42 @@ S_i=\bigcup_{r'\in S_{i-1}} pd(r',x_i)
 \label{eq:pderiv-state-set}
 \end{equation}
 
-The state set $S_i$ collects every residual reachable after consuming
-the prefix $x_1\cdots x_i$. Unlike the derivative matcher's single
-residual $r_i$, no element of $S_i$ grows with the input. The number of
-elements is bounded by $\|r\|+1$ as shown above. After the final symbol
-has been consumed, the matcher accepts when some residual in $S_n$ is
-nullable:
-
+The state set $S_i$ collects every residual reachable 
+after consuming the prefix $x_1\cdots x_i$. 
+Unlike the derivative matcher's single residual $r_i$, 
+no element of $S_i$ grows with the input. 
+The number of elements is bounded by $\|r\|+1$ as shown above. 
+After the final symbol has been consumed, 
+the matcher accepts when some residual in $S_n$ is nullable:
 \[
 w\in L(r)
 \iff
 \exists r_n \in S_n.\ n(r_n)=\mathrm{true}.
 \]
 
-So $S_0\xrightarrow{x_1}S_1\xrightarrow{x_2}\cdots\xrightarrow{x_n}S_n$
-can be viewed as a path through a lazily constructed NFA. Each state set
-represents the set of NFA states reachable after reading the corresponding
-prefix, and $\xrightarrow{x}$ denotes the transition obtained by taking
-$pd$ with respect to $x$ and unioning. Unlike an explicitly constructed
-NFA, only the states reached by the input are constructed. A state set is
-accepting exactly when it contains at least one nullable residual, so
-acceptance is determined by whether the final state set contains a
-nullable residual.
+$S_0\xrightarrow{x_1}S_1\xrightarrow{x_2}\cdots\xrightarrow{x_n}S_n$
+can be viewed as a path through a lazily constructed NFA. 
+Each state set represents the set of NFA states reachable 
+after reading the corresponding prefix, 
+and $\xrightarrow{x}$ denotes the transition obtained by taking $pd$ 
+with respect to $x$ and unioning. 
+Unlike an explicitly constructed NFA, 
+only the states reached by the input are constructed. 
+A state set is accepting exactly when it contains at least one nullable residual, 
+so acceptance is determined by whether the final state set contains a nullable residual.
 
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:pderiv-loop-rust}
-implements~\eqref{eq:pderiv-state-set} with a \texttt{HashSet<Regex>},
+Figure~\ref{fig:pderiv-loop-rust} implements Equation~\eqref{eq:pderiv-state-set}
+with a \texttt{HashSet<Regex>},
 whose \texttt{Hash} and \texttt{Eq} implementations collapse residuals
-reached by different paths. The early return when the set empties
-follows from construction: an empty set has no states to derive. The
-final \texttt{any(nullable)} checks whether some residual is nullable.
-Where the derivative matcher holds one growing \texttt{Regex}, this holds
-a set of small residuals that never need simplification.
+reached by different paths. 
+The early return when the set empties follows from construction.
+An empty set has no states to derive. 
+The final \texttt{any(nullable)} checks whether some residual is nullable.
+Where \texttt{match\_deriv} holds one growing \texttt{Regex}, 
+\texttt{match\_pderiv} holds a set of small residuals that never need simplification.
 
 \begin{figure}[ht]
 \small
@@ -1010,7 +989,7 @@ pub fn match_pderiv(input: &str, r: &Regex) -> bool {
     states.iter().any(nullable)
 }
 \end{verbatim}
-\caption{The partial-derivative matcher.}
+\caption{\texttt{match\_pderiv}: Implementation of the partial-derivative matcher.}
 \label{fig:pderiv-loop-rust}
 \end{figure}
 

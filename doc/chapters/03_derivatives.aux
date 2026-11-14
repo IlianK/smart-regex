@@ -19,7 +19,7 @@
 \newlabel{eq:der-23}{{3.2}{9}{Brzozowski Derivatives}{equation.3.2}{}}
 \@writefile{toc}{\contentsline {paragraph}{Nullability.}{9}{equation.3.2}\protected@file@percent }
 \newlabel{par:nullability}{{3.2}{9}{Nullability}{equation.3.2}{}}
-\newlabel{eq:nullability}{{3.3}{10}{Nullability}{equation.3.3}{}}
+\newlabel{eq:nullability}{{3.3}{9}{Nullability}{equation.3.3}{}}
 \@writefile{toc}{\contentsline {paragraph}{In Rust.}{10}{equation.3.3}\protected@file@percent }
 \newlabel{par:nullability-rust}{{3.2}{10}{In Rust}{equation.3.3}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces \texttt  {nullable} implementation and its six cases: $\mathsf  {N}_{\emptyset }$, $\mathsf  {N}_{\varepsilon }$, $\mathsf  {N}_{\mathrm  {lit}}$, $\mathsf  {N}_{+}$, $\mathsf  {N}_{\mathrm  {seq}}$ and $\mathsf  {N}_{*}$.}}{10}{figure.caption.7}\protected@file@percent }
@@ -27,61 +27,62 @@
 \@writefile{toc}{\contentsline {paragraph}{Derivative Rules.}{10}{figure.caption.7}\protected@file@percent }
 \newlabel{par:derivative-rules}{{3.2}{10}{Derivative Rules}{figure.caption.7}{}}
 \newlabel{eq:derivative}{{3.4}{10}{Derivative Rules}{equation.3.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{11}{equation.3.4}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces \texttt  {deriv} implementation with six cases.}}{11}{figure.caption.8}\protected@file@percent }
-\newlabel{fig:deriv-rust}{{3.4}{11}{\texttt {deriv} implementation with six cases}{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{10}{equation.3.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces \texttt  {deriv}: Implementing the derivative algorithm with six cases, one per rule of Equation~\eqref  {eq:derivative}. The \texttt  {Seq} arm branches on \texttt  {nullable} to choose between the two concatenation rules, and the clones preserve the untouched operands.}}{11}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:deriv-rust}{{3.4}{11}{\texttt {deriv}: Implementing the derivative algorithm with six cases, one per rule of Equation~\eqref {eq:derivative}. The \texttt {Seq} arm branches on \texttt {nullable} to choose between the two concatenation rules, and the clones preserve the untouched operands}{figure.caption.8}{}}
 \@writefile{toc}{\contentsline {paragraph}{Example: Growth without simplification.}{11}{figure.caption.8}\protected@file@percent }
 \newlabel{eq:der-3}{{3.5}{11}{Example: Growth without simplification}{equation.3.5}{}}
 \newlabel{eq:der-4}{{3.6}{11}{Example: Growth without simplification}{equation.3.6}{}}
-\newlabel{eq:der-5}{{3.7}{12}{Example: Growth without simplification}{equation.3.7}{}}
+\newlabel{eq:der-5}{{3.7}{11}{Example: Growth without simplification}{equation.3.7}{}}
 \@writefile{toc}{\contentsline {paragraph}{Simplification.}{12}{equation.3.7}\protected@file@percent }
 \newlabel{eq:der-growth}{{3.8}{12}{Simplification}{equation.3.8}{}}
 \newlabel{eq:simp-identities}{{3.9}{12}{Simplification}{equation.3.9}{}}
 \newlabel{eq:der-6}{{3.10}{12}{Simplification}{equation.3.10}{}}
 \@writefile{toc}{\contentsline {paragraph}{In Rust.}{12}{equation.3.10}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces Simplification rules: $\mathsf  {S}_{1}$ and $\mathsf  {S}_{2}$ in concatenation, $\mathsf  {S}_{3}$ in both branches.}}{13}{figure.caption.9}\protected@file@percent }
-\newlabel{fig:simplify-rust}{{3.5}{13}{Simplification rules: $\mathsf {S}_{1}$ and $\mathsf {S}_{2}$ in concatenation, $\mathsf {S}_{3}$ in both branches}{figure.caption.9}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces Simplification rules: \texttt  {Seq} implements $\mathsf  {S}_{1}$ and $\mathsf  {S}_{2}$, while \texttt  {Alt} implements $\mathsf  {S}_{3}$ and removes duplicates. \texttt  {Star} additionally also reduces $\varepsilon ^{*}$ and $\emptyset ^{*}$ to $\varepsilon $, since both denote $\{\varepsilon \}$.}}{12}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:simplify-rust}{{3.5}{12}{Simplification rules: \texttt {Seq} implements $\mathsf {S}_{1}$ and $\mathsf {S}_{2}$, while \texttt {Alt} implements $\mathsf {S}_{3}$ and removes duplicates. \texttt {Star} additionally also reduces $\varepsilon ^{*}$ and $\emptyset ^{*}$ to $\varepsilon $, since both denote $\{\varepsilon \}$}{figure.caption.9}{}}
 \@writefile{toc}{\contentsline {paragraph}{The matcher.}{13}{figure.caption.9}\protected@file@percent }
 \newlabel{sec:derivative-matcher}{{3.2}{13}{The matcher}{figure.caption.9}{}}
 \newlabel{eq:derivative-residuals}{{3.11}{13}{The matcher}{equation.3.11}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{14}{equation.3.11}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.6}{\ignorespaces \texttt  {match\_deriv}: the core matcher loop. For each input character, derive the current residual expression and simplify it in place. Accept if the final residual is nullable.}}{14}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:match-deriv-rust}{{3.6}{14}{\texttt {match\_deriv}: the core matcher loop. For each input character, derive the current residual expression and simplify it in place. Accept if the final residual is nullable}{figure.caption.10}{}}
+\newlabel{eq:deriv-accept}{{3.12}{13}{The matcher}{equation.3.12}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{13}{equation.3.12}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.6}{\ignorespaces \texttt  {match\_deriv}: Implementing the derivative matcher. For each input character, derive the current residual and simplify it in place. The updated expression becomes the residual for the next iteration. After the input is consumed, accept if the final residual is nullable.}}{13}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:match-deriv-rust}{{3.6}{13}{\texttt {match\_deriv}: Implementing the derivative matcher. For each input character, derive the current residual and simplify it in place. The updated expression becomes the residual for the next iteration. After the input is consumed, accept if the final residual is nullable}{figure.caption.10}{}}
+\citation{antimirov1996}
 \@writefile{toc}{\contentsline {paragraph}{Worked Example: Applying the derivative-based matcher}{14}{figure.caption.10}\protected@file@percent }
 \newlabel{sec:deriv-worked-example}{{3.2}{14}{Worked Example: Applying the derivative-based matcher}{figure.caption.10}{}}
 \@writefile{toc}{\contentsline {paragraph}{Derive by $\mathtt  {a}$.}{14}{figure.caption.10}\protected@file@percent }
-\citation{antimirov1996}
-\@writefile{toc}{\contentsline {paragraph}{Derive by $\mathtt  {b}$.}{15}{figure.caption.10}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Acceptance.}{15}{figure.caption.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Derive by $\mathtt  {b}$.}{14}{figure.caption.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Acceptance.}{14}{figure.caption.10}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {3.3}Antimirov Partial Derivatives}{15}{section.3.3}\protected@file@percent }
 \newlabel{sec:antimirov-partial-derivatives}{{3.3}{15}{Antimirov Partial Derivatives}{section.3.3}{}}
-\newlabel{eq:pd}{{3.12}{15}{Antimirov Partial Derivatives}{equation.3.12}{}}
-\@writefile{toc}{\contentsline {paragraph}{The smart constructor.}{16}{equation.3.12}\protected@file@percent }
-\newlabel{eq:smartc}{{3.13}{16}{The smart constructor}{equation.3.13}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{16}{equation.3.13}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.7}{\ignorespaces \texttt  {smart\_seq}, the smart constructor $\mathit  {smartC}$}}{16}{figure.caption.11}\protected@file@percent }
-\newlabel{fig:smart-seq-rust}{{3.7}{16}{\texttt {smart\_seq}, the smart constructor $\mathit {smartC}$}{figure.caption.11}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.8}{\ignorespaces \texttt  {pderiv}, implementing~\eqref  {eq:pd} one arm per case of the equation.}}{17}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:pderiv-rust}{{3.8}{17}{\texttt {pderiv}, implementing~\eqref {eq:pd} one arm per case of the equation}{figure.caption.12}{}}
-\@writefile{toc}{\contentsline {paragraph}{Example: No growth under \boldmath  $pd$\unboldmath  .}{17}{figure.caption.12}\protected@file@percent }
-\newlabel{eq:der-15}{{3.14}{17}{Example: No growth under \boldmath $pd$\unboldmath }{equation.3.14}{}}
+\newlabel{eq:pd}{{3.13}{15}{Antimirov Partial Derivatives}{equation.3.13}{}}
+\@writefile{toc}{\contentsline {paragraph}{The smart constructor.}{15}{equation.3.13}\protected@file@percent }
+\newlabel{eq:smartc}{{3.14}{15}{The smart constructor}{equation.3.14}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{15}{equation.3.14}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.7}{\ignorespaces \texttt  {smart\_seq}: Implementing the smart constructor $\mathit  {smartC}$}}{15}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:smart-seq-rust}{{3.7}{15}{\texttt {smart\_seq}: Implementing the smart constructor $\mathit {smartC}$}{figure.caption.11}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.8}{\ignorespaces \texttt  {pderiv}: Implementing Equation~\eqref  {eq:pd} one arm per case of the equation.}}{16}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:pderiv-rust}{{3.8}{16}{\texttt {pderiv}: Implementing Equation~\eqref {eq:pd} one arm per case of the equation}{figure.caption.12}{}}
+\@writefile{toc}{\contentsline {paragraph}{Example: No growth under \boldmath  $pd$\unboldmath  .}{16}{figure.caption.12}\protected@file@percent }
+\newlabel{eq:der-15}{{3.15}{16}{Example: No growth under \boldmath $pd$\unboldmath }{equation.3.15}{}}
 \citation{antimirov1996}
 \citation{brzozowski1964}
-\newlabel{eq:growth-comparison}{{3.15}{18}{Example: No growth under \boldmath $pd$\unboldmath }{equation.3.15}{}}
-\@writefile{toc}{\contentsline {paragraph}{Finiteness.}{18}{equation.3.15}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{The matcher.}{18}{equation.3.15}\protected@file@percent }
-\newlabel{eq:pderiv-state-set}{{3.16}{18}{The matcher}{equation.3.16}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{18}{equation.3.16}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.9}{\ignorespaces The partial-derivative matcher.}}{19}{figure.caption.13}\protected@file@percent }
-\newlabel{fig:pderiv-loop-rust}{{3.9}{19}{The partial-derivative matcher}{figure.caption.13}{}}
-\@writefile{toc}{\contentsline {paragraph}{Worked Example: Applying the partial-derivative-based matcher}{19}{figure.caption.13}\protected@file@percent }
-\newlabel{sec:pderiv-worked-example}{{3.3}{19}{Worked Example: Applying the partial-derivative-based matcher}{figure.caption.13}{}}
-\@writefile{toc}{\contentsline {paragraph}{Derive by $\mathtt  {a}$.}{19}{figure.caption.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Derive by $\mathtt  {b}$.}{19}{figure.caption.13}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Acceptance.}{19}{figure.caption.13}\protected@file@percent }
+\newlabel{eq:growth-comparison}{{3.16}{17}{Example: No growth under \boldmath $pd$\unboldmath }{equation.3.16}{}}
+\@writefile{toc}{\contentsline {paragraph}{Finiteness.}{17}{equation.3.16}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{The matcher.}{17}{equation.3.16}\protected@file@percent }
+\newlabel{eq:pderiv-state-set}{{3.17}{17}{The matcher}{equation.3.17}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{17}{equation.3.17}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.9}{\ignorespaces \texttt  {match\_pderiv}: Implementation of the partial-derivative matcher.}}{18}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:pderiv-loop-rust}{{3.9}{18}{\texttt {match\_pderiv}: Implementation of the partial-derivative matcher}{figure.caption.13}{}}
+\@writefile{toc}{\contentsline {paragraph}{Worked Example: Applying the partial-derivative-based matcher}{18}{figure.caption.13}\protected@file@percent }
+\newlabel{sec:pderiv-worked-example}{{3.3}{18}{Worked Example: Applying the partial-derivative-based matcher}{figure.caption.13}{}}
+\@writefile{toc}{\contentsline {paragraph}{Derive by $\mathtt  {a}$.}{18}{figure.caption.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Derive by $\mathtt  {b}$.}{18}{figure.caption.13}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Acceptance.}{18}{figure.caption.13}\protected@file@percent }
 \@setckpt{chapters/03_derivatives}{
-\setcounter{page}{20}
-\setcounter{equation}{16}
+\setcounter{page}{19}
+\setcounter{equation}{17}
 \setcounter{enumi}{0}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}

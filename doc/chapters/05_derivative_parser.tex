@@ -1,17 +1,20 @@
 \chapter{Derivative-Based Parser}
 \label{sec:derivative-parser}
 
-Chapter~\ref{sec:derivatives} showed how a Brzozowski-derivative matcher
-determines whether $w \in L(r)$ and Chapter~
-\ref{sec:matching-vs-parsing} showed that a matching word may admit multiple
-valid parse trees. A parser must therefore select a single parse tree
-according to a disambiguation policy.
+Chapter~\ref{sec:derivatives} introduced \texttt{match\_deriv},
+a matcher that uses Brzozowski derivatives to decide $w \in L(r)$. 
+Chapter~\ref{sec:matching-vs-parsing} showed 
+that a word may admit multiple valid parse trees for the same expression
+and that a parser must select one according to a \emph{disambiguation policy}.
 
-Following Sulzmann and Lu \citep{sulzmannlu2014}, this chapter presents two
-derivative-based methods for constructing POSIX parse trees. The direct
-method performs a forward derivative pass followed by a backward pass for tree
-reconstruction. The bit-coded method records parse-tree information during
-the forward pass, avoiding a separate backward pass.
+Following \citep{sulzmannlu2014}, 
+this chapter presents two derivative-based methods 
+for constructing POSIX parse trees. 
+The direct method performs a forward derivative pass 
+followed by a backward pass for tree reconstruction. 
+The bit-coded method records 
+parse-tree information during the forward pass, 
+avoiding a separate backward pass.
 
 %
 %

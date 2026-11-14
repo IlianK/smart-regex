@@ -1,11 +1,13 @@
 \chapter{Matching and Parsing}
 \label{sec:matching-vs-parsing}
 
-Chapter~\ref{sec:derivatives} established matching with a Boolean
-answer: $w \in L(r)$. A matcher only answers whether
-the input is accepted by the regular expression. 
-Parsing identifies the evidence for the match and
-\emph{parse trees} act as their structured witnesses.
+Chapter~\ref{sec:derivatives} showed how 
+derivative- and partial-derivative-based algorithms 
+can be used to decide whether $w \in L(r)$.
+These matchers only return match or no match. 
+This chapter shows what parsing requires beyond that decision, 
+namely the evidence for a match, 
+which \emph{parse trees} record as structured witnesses.
 
 %
 
@@ -13,7 +15,8 @@ Parsing identifies the evidence for the match and
 \label{sec:matching-problem}
 
 Consider $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$. 
-The matcher can determine $w \in L(r)$ using the algorithms of Chapter~\ref{sec:derivatives}. 
+The matcher can determine $w \in L(r)$ 
+using the algorithms of Chapter~\ref{sec:derivatives}. 
 There are, however, two ways in which $r$ can match $w$:
 \begin{equation}
 \begin{aligned}
@@ -28,21 +31,23 @@ Both choices establish the same membership result,
 but assign the input differently to the subexpressions of $r$.
 The Boolean result alone cannot distinguish these cases,
 so the matcher cannot reveal which decomposition was chosen.
-
-Parsing makes this additional structure explicit, by showing
-which alternatives were chosen and which parts of the input were
-consumed by the corresponding subexpressions.
+Parsing makes this additional structure explicit, 
+by showing which alternatives were chosen 
+and which parts of the input were consumed 
+by the corresponding subexpressions.
 
 %
 
 \section{Parsing: Parse Trees as Matching Evidence}
 \label{sec:parse-trees-as-evidence}
-\paragraph{Parse Tree.} A \emph{parse tree} provides a structured witness for such a derivation.
-Sulzmann and Lu view regular expressions as types and \emph{parse trees} as their
-values \citep{sulzmannlu2014}. The judgment $\vdash v : r$ states that $v$ is a
-valid parse tree for $r$, recording which alternatives were chosen and how each
-part of the input was consumed during matching:
-
+\paragraph{Parse Tree.} A parse tree provides a structured witness 
+for such a derivation.
+\citep{sulzmannlu2014} view regular expressions as \emph{types} 
+and parse trees as their \emph{values}. 
+The \emph{typing judgment} $\vdash v : r$ states that $v$ 
+is a valid parse tree for $r$, 
+recording which alternatives were chosen 
+and how each part of the input was consumed during matching:
 \begin{equation}
 \label{eq:typing-rules}
 \begin{aligned}
@@ -84,13 +89,11 @@ part of the input was consumed during matching:
 \end{aligned}
 \end{equation}
 
-
-
 %
 
 \paragraph{In Rust.}
 Figure~\ref{fig:parsetree-enum}
-shows the parse-tree type, with one variant for each constructor.
+shows the parse-tree type, with one variant for each constructor:
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -108,22 +111,22 @@ pub enum ParseTree {
 \label{fig:parsetree-enum}
 \end{figure}
 
-The definitions above translate directly to Rust, except for the star case.
-$\mathsf{T}{\varepsilon}$ corresponds to \texttt{Empty} for the empty
-parse, $\mathsf{T}_{\mathrm{lit}}$ to \texttt{Char} for a literal,
-$\mathsf{T}_{\mathrm{seq}}$ to \texttt{Pair} for a concatenation of
-parse trees, and $\mathsf{T}_{+}^{L}$ and $\mathsf{T}_{+}^{R}$ to
-\texttt{Left} and \texttt{Right}, recording the chosen branch of an
-alternation. Both star rules are represented
-by \texttt{Star(vec![])}.
+The definitions of Equation~\ref{eq:typing-rules} translate directly to Rust, 
+except for the star case.
+$\mathsf{T}{\varepsilon}$ corresponds to \texttt{Empty} for the empty parse, 
+$\mathsf{T}_{\mathrm{lit}}$ to \texttt{Char} for a literal,
+$\mathsf{T}_{\mathrm{seq}}$ to \texttt{Pair} for a concatenation of parse trees, and 
+$\mathsf{T}_{+}^{L}$ and $\mathsf{T}_{+}^{R}$ to \texttt{Left} and \texttt{Right}, 
+recording the chosen branch of an alternation. 
+Both star rules are represented by \texttt{Star(vec![])}.
 
 %
 
 \paragraph{Flattening.}
-The typing judgment describes the structure of a match, but a parse tree
-must also be related to the word that it matches. For this purpose, they
-define a \emph{flattening} function $\lvert v\rvert$ that maps a parse
-tree to the word represented by its structure:
+The typing judgment establishes that a parse tree $v$ is valid for
+$r$, but does not explicitly state which word it represents.
+The \emph{flattening} function $|v|$, defined by \citep{sulzmannlu2014}, 
+maps each parse tree to the word represented by its structure:
 \begin{equation}
 \label{eq:flatten}
 \begin{aligned}
@@ -157,7 +160,6 @@ tree to the word represented by its structure:
 The flattening function directly connects parse trees to $L(r)$,
 and thus validates that a parse tree witnesses membership in $L(r)$,
 serving as an correctness check:
-
 \begin{equation}\label{eq:mvp-5}
 L(r)
 =
@@ -167,11 +169,11 @@ L(r)
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:flatten-rust} shows how \texttt{flatten} recursively
-traverses the parse tree and concatenates its leaf characters. The
-function borrows the tree to allow subsequent inspection and comparison.
-The \texttt{Pair} case concatenates the results of flattening both
-children, while \texttt{Left} and \texttt{Right} delegate to their child,
+Figure~\ref{fig:flatten-rust} shows how \texttt{flatten} 
+recursively traverses the parse tree and concatenates its leaf characters. 
+The function borrows the tree to allow subsequent inspection and comparison.
+The \texttt{Pair} case concatenates the results of flattening both children, 
+while \texttt{Left} and \texttt{Right} delegate to their child,
 and \texttt{Star} concatenates the results for each element.
 \begin{figure}[H]
 \small
@@ -198,8 +200,8 @@ pub fn flatten(v: &ParseTree) -> String {
 Consider $r = ab$ and $w = \mathtt{ab}$. 
 Since each subexpression is a literal, the rule $\mathsf{T}_{\mathrm{lit}}$ 
 gives each literal a unique witness.
-Then $\mathsf{T}_{\mathrm{seq}}$ requires 
-the parse tree for $a$ to be followed by the parse tree for $b$,
+Then $\mathsf{T}_{\mathrm{seq}}$ requires the parse tree for $a$ 
+to be followed by the parse tree for $b$,
 combining them into a parse tree for $ab$:
 \begin{equation}\label{eq:mvp-6}
 \dfrac{a \in \Sigma}{\vdash a : a}\;(\mathsf{T}_{\mathrm{lit}})
@@ -216,15 +218,16 @@ combining them into a parse tree for $ab$:
 The parse tree $v=(a,b)$ flattens to $\lvert (a,b)\rvert = \mathtt{ab}$.
 
 %
+
 \paragraph{Ambiguous Example.}
 \label{par:ambiguous-example}
 
-Recall $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$ from
-Section~\ref{sec:matching-problem}. The word admits two distinct
-decompositions, corresponding to different parse trees.
+Recall $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$ 
+from Section~\ref{sec:matching-problem}. 
+The word admits two distinct decompositions, 
+corresponding to different parse trees.
 
-The first decomposition uses the right alternatives of both
-subexpressions:
+The first decomposition uses the right alternatives of both subexpressions:
 \[
 \begin{array}{c@{\qquad\qquad}c}
 \underbrace{
@@ -261,9 +264,7 @@ subexpressions:
 \end{array}
 \]
 
-By $\mathsf{T}_{\mathrm{seq}}$, these derivations combine into
-the parse tree:
-
+By $\mathsf{T}_{\mathrm{seq}}$, these derivations combine into the parse tree:
 \begin{equation}
 \label{eq:decomposition-right}
 \begin{gathered}
@@ -284,9 +285,7 @@ v_1 =
 \end{gathered}
 \end{equation}
 
-The second decomposition uses the left alternatives of both
-subexpressions:
-
+The second decomposition uses the left alternatives of both subexpressions:
 \[
 \begin{array}{c@{\qquad\qquad}c}
 \underbrace{
@@ -313,9 +312,7 @@ subexpressions:
 \end{array}
 \]
 
-By $\mathsf{T}_{\mathrm{seq}}$, these derivations combine into
-the second parse tree:
-
+By $\mathsf{T}_{\mathrm{seq}}$, these derivations combine into the second parse tree:
 \begin{equation}
 \label{eq:decomposition-left}
 \begin{gathered}
@@ -332,7 +329,10 @@ v_2 =
 \end{gathered}
 \end{equation}
 
-Both trees are valid parse trees for the same expression and word,
-yet they differ in structure. The typing judgment alone does not
-determine which parse tree should be selected. A
-\emph{disambiguation policy} specifies this choice.
+The typing judgments establish
+that both parse trees are valid for the same expression, 
+while flattening confirms that they represent the same word. 
+However, neither the typing judgments 
+nor the flattening function specifies which tree should be selected 
+when multiple valid parses exist. 
+A \emph{disambiguation policy} determines this choice.
