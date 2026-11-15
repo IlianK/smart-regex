@@ -1337,12 +1337,12 @@ undermining the efficiency of the persistent \texttt{Bits} representation
 \subsection{Decoding Bits}
 \label{sec:decode}
 
-$\mathit{decode}_r$ reconstructs a \texttt{ParseTree} from the bit
-sequence of $\mathit{mkEpsBC}$, walking $r$ with one bit per
-alternation to choose a branch~\citep[Fig.~4]{sulzmannlu2014}.
-Its worker $\mathit{decodeInner}$
-returns the current tree and the remaining bits, so the recursion
-continues at the correct position:
+$\mathit{decode}_r$ reconstructs a \texttt{ParseTree} 
+from the bit sequence of $\mathit{mkEpsBC}$, 
+walking $r$ with one bit per alternation 
+to choose a branch~\citep[Fig.~4]{sulzmannlu2014}.
+Its worker $\mathit{decodeInner}$ returns the current tree 
+and the remaining bits, so the recursion continues at the correct position:
 {\small
 \begin{equation}\label{eq:decode}
 \begin{aligned}
@@ -1372,12 +1372,13 @@ continues at the correct position:
 }
 
 %
+
 \paragraph{In Rust.}
-\texttt{decode}, shown in Figure~\ref{fig:decode-rust}, is the public
-entry point: it calls \texttt{decode\_inner} and asserts that no bits
-remain afterward. This assertion is the side condition under which
-$\mathit{decode}_r$ is defined: the worker must consume the entire
-bit-string.
+\texttt{decode}, shown in Figure~\ref{fig:decode-rust}, 
+is the public entry point.
+It calls \texttt{decode\_inner} and asserts that no bits remain afterward. 
+This assertion is the side condition under which $\mathit{decode}_r$ is defined.
+The worker must consume the entire bit-string.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1399,17 +1400,19 @@ pub fn decode(r: &Regex, bs: &[bool]) -> ParseTree {
 
 %
 
-Figure~\ref{fig:decode-inner-rust} shows \texttt{decode\_inner}, the
-worker behind \texttt{decode}, one arm per expression form. It consumes
-the \texttt{\&[bool]} one bit per step using Rust's slice patterns:
-\texttt{[false, rest @ ..]} binds a leading \texttt{false} and the
-remainder to \texttt{rest}, and \texttt{[true, rest @ ..]} does the same
-for \texttt{true}. The \texttt{Alt} arm reads the leading bit and recurses
-into the named branch, leaving \texttt{rest}: only that bit belongs to
-the alternation. \texttt{Seq} recurses twice, so the worker returns a
-pair: the first factor's bits tell the second where to continue.
-\texttt{Star}'s iteration count is encoded in the bits: each leading
-\texttt{false} recurses once more, resuming from the bits it returns,
+Figure~\ref{fig:decode-inner-rust} shows \texttt{decode\_inner}, 
+the worker behind \texttt{decode}, one arm per expression form. 
+It consumes the \texttt{\&[bool]} one bit per step using Rust's slice patterns:
+\texttt{[false, rest @ ..]} binds a leading \texttt{false} 
+and the remainder to \texttt{rest}, 
+and \texttt{[true, rest @ ..]} does the same for \texttt{true}. 
+The \texttt{Alt} arm reads the leading bit and recurses into the named branch, 
+leaving \texttt{rest}.
+Only that bit belongs to the alternation. 
+\texttt{Seq} recurses twice, so the worker returns a pair.
+The first factor's bits tell the second where to continue.
+\texttt{Star}'s iteration count is encoded in the bits.
+Each leading \texttt{false} recurses once more, resuming from the bits it returns,
 until \texttt{mk\_eps\_bc}'s trailing \texttt{true} ends the loop.
 
 \begin{figure}[H]
@@ -1469,14 +1472,17 @@ one arm per expression form.}
 \subsection{Parser}
 \label{sec:deriv-bc-driver}
 
-The bit-coded parser performs three steps on the input. First,
-$\mathit{internalize}$ converts the pattern $r$ into an annotated
-expression $\mathit{ri}$. Then, for each input character $c$, the parser
-takes the annotated derivative $\mathit{ri} \backslash_b c$ and simplifies
-it, replacing $\mathit{ri}$ with $\mathit{simp}(\mathit{ri} \backslash_b c)$.
-After the last character, the parser checks whether the final $\mathit{ri}$
-is nullable. If it is, the parser extracts the bits with
-$\mathit{mkEpsBC}$ and decodes them against the original $r$:
+The bit-coded parser performs three steps on the input. 
+First, $\mathit{internalize}$ converts the pattern $r$ 
+into an annotated expression $\mathit{ri}$. 
+Then, for each input character $c$, 
+the parser takes the annotated derivative $\mathit{ri} \backslash_b c$ 
+and simplifies it, 
+replacing $\mathit{ri}$ with $\mathit{simp}(\mathit{ri} \backslash_b c)$.
+After the last character, 
+the parser checks whether the final $\mathit{ri}$ is nullable. 
+If it is, the parser extracts the bits with $\mathit{mkEpsBC}$ 
+and decodes them against the original $r$:
 \begin{equation}\label{eq:bitcoded-driver}
 \begin{aligned}
 \mathit{ri}_0 &= \mathit{internalize}(r), \\
@@ -1491,11 +1497,13 @@ $\mathit{mkEpsBC}$ and decodes them against the original $r$:
 \end{aligned}
 \end{equation}
 
-The loop holds only the current $\mathit{ri}$. Unlike the standard
-derivative parser, which keeps a growing vector of residuals for the
-backward reconstruction, the bit-coded parser needs no history. The bits
-record everything needed to decode, so the forward pass can discard each
-intermediate expression as soon as the next one is computed.
+The loop holds only the current $\mathit{ri}$. 
+Unlike the standard derivative parser, 
+which keeps a growing vector of residuals for the backward reconstruction, 
+the bit-coded parser needs no history. 
+The bits record everything needed to decode, 
+so the forward pass can discard each intermediate expression 
+as soon as the next one is computed.
 
 %
 
@@ -1527,10 +1535,10 @@ it reaches \texttt{ri} in the first place.}
 \label{fig:deriv-bc-loop-rust}
 \end{figure}
 
-The loop matches the three cases of~\eqref{eq:bitcoded-driver} one for
-one. \texttt{internalize} initialises \texttt{ri}, \texttt{derive\_and\_simplify}
-applies \texttt{simp(deriv\_bc(ri, l))} to each character and the
-nullability check gates the final \texttt{decode(mk\_eps\_bc(ri))}.
+The loop matches the three cases of~\eqref{eq:bitcoded-driver} one for one. 
+\texttt{internalize} initialises \texttt{ri}, \texttt{derive\_and\_simplify}
+applies \texttt{simp(deriv\_bc(ri, l))} to each character 
+and the nullability check gates the final \texttt{decode(mk\_eps\_bc(ri))}.
 
 %
 
@@ -1544,8 +1552,8 @@ $r_0=(a+ab)(b+\varepsilon)$ as in Section~\ref{sec:worked-example}.
 %
 
 \paragraph{Internalize.}
-Before consuming input, $\mathit{internalize}$ tags each alternative with
-$[0]$ for the left branch and $[1]$ for the right branch:
+Before consuming input, $\mathit{internalize}$ tags each alternative 
+with $[0]$ for the left branch and $[1]$ for the right branch:
 \begin{equation}\label{eq:dpbc-internalize}
 \mathit{internalize}(r_0) = \mathit{ri}_0 =
 [\,]@\big(
@@ -1558,10 +1566,11 @@ $[0]$ for the left branch and $[1]$ for the right branch:
 %
 
 \paragraph{Bit-Threaded Derivatives.}
-Each input symbol is consumed by a bit-threaded derivative, with
-$\mathit{simp}$ applied after each step. The first uses
-$\mathsf{B}_{\mathrm{seq}}$; once $\mathtt{a}$ makes the first factor
-nullable, the second uses $\mathsf{B}_{\mathrm{seq}}^{\,n}$:
+Each input symbol is consumed by a bit-threaded derivative, 
+with $\mathit{simp}$ applied after each step. 
+The first uses $\mathsf{B}_{\mathrm{seq}}$.
+Once $\mathtt{a}$ makes the first factor nullable, 
+the second uses $\mathsf{B}_{\mathrm{seq}}^{\,n}$:
 {\small
 \begin{equation}\label{eq:dpbc-forward}
 \begin{aligned}
@@ -1593,29 +1602,32 @@ nullable, the second uses $\mathsf{B}_{\mathrm{seq}}^{\,n}$:
 \end{equation}
 }
 
-Each disjunct of $\mathit{ri}_2'$ has a dead branch. In $X$, the first
-factor's derivative by $\mathtt{b}$ is $\emptyset \oplus
-[1]@\varepsilon$: $[0]$ cannot consume $\mathtt{b}$, and $[1]$ still owes
-one. In $Y$, the second factor's derivative by $\mathtt{b}$ is
-$[0]@\varepsilon \oplus \emptyset$: $[0]$ matches, $[1]$ cannot. $Y$'s
-outer $[0]$ is the bit $\mathsf{B}_{\mathrm{seq}}^{\,n}$ fused on from
-the first factor's empty match.
+Each disjunct of $\mathit{ri}_2'$ has a dead branch. 
+In $X$, the first factor's derivative 
+by $\mathtt{b}$ is $\emptyset \oplus [1]@\varepsilon$: 
+$[0]$ cannot consume $\mathtt{b}$, and $[1]$ still owes one. 
+In $Y$, the second factor's derivative by $\mathtt{b}$ 
+is $[0]@\varepsilon \oplus \emptyset$: $[0]$ matches, $[1]$ cannot. 
+$Y$'s outer $[0]$ is the bit $\mathsf{B}_{\mathrm{seq}}^{\,n}$ 
+fused on from the first factor's empty match.
 
-$\mathit{simp}$ drops the dead branches. $X$'s survivor is
-$[1]@\varepsilon$; since $\varepsilon$ contributes nothing to the
-concatenation, its $[1]$ carries onto the second factor, giving
-$[1]@([0]@b \oplus [1]@\varepsilon)$. $Y$'s survivor is $[0]@\varepsilon$;
-its outer and inner $[0]$s merge into $[0,0]@\varepsilon$. These two
-results become the disjuncts of $\mathit{ri}_2$, recording both bits so
-the tree can later be decoded from them alone.
+$\mathit{simp}$ drops the dead branches. 
+$X$'s survivor is $[1]@\varepsilon$.
+Since $\varepsilon$ contributes nothing to the concatenation, 
+its $[1]$ carries onto the second factor, 
+giving $[1]@([0]@b \oplus [1]@\varepsilon)$. 
+$Y$'s survivor is $[0]@\varepsilon$.
+Its outer and inner $[0]$s merge into $[0,0]@\varepsilon$. 
+These two results become the disjuncts of $\mathit{ri}_2$, 
+recording both bits so the tree can later be decoded from them alone.
 
 %
 
 \paragraph{Extracting the bits.}
-Both disjuncts of $\mathit{ri}_2$ are nullable, so
-$\mathsf{EB}_{+}^{L}$ selects the left one. Inside, $b$ is not nullable
-while $\varepsilon$ is, so $\mathsf{EB}_{+}^{R}$ contributes its $[1]$
-tag:
+Both disjuncts of $\mathit{ri}_2$ are nullable, 
+so $\mathsf{EB}_{+}^{L}$ selects the left one. 
+Inside, $b$ is not nullable while $\varepsilon$ is, 
+so $\mathsf{EB}_{+}^{R}$ contributes its $[1]$ tag:
 {\small
 \begin{equation}\label{eq:dpbc-mkepsbc}
 \mathit{mkEpsBC}(\mathit{ri}_2)
@@ -1627,15 +1639,16 @@ tag:
   [1,1].
 \end{equation}
 }
+
 Unlike $\mathit{mkEps}$, which builds a partial parse tree,
 $\mathit{mkEpsBC}$ extracts only the committed choices, as a bit-string.
 
 %
 
 \paragraph{Decoding the bits.}
-The decoder reads $[1,1]$ against $r_0$: the first bit takes the right
-branch of $a+ab$ (giving $ab$), the second the right branch of
-$b+\varepsilon$:
+The decoder reads $[1,1]$ against $r_0$: 
+The first bit takes the right branch of $a+ab$ (giving $ab$), 
+the second the right branch of $b+\varepsilon$ (giving $\varepsilon$):
 \begin{equation}\label{eq:dpbc-decode}
 \mathit{decode}_{r_0}(\,[1,1]\,)
   = \big(
@@ -1644,18 +1657,13 @@ $b+\varepsilon$:
     \big)
   = v_0.
 \end{equation}
-The decoder consumes bits left to right, one per alternation, in the
-order $\mathit{internalize}$ introduced them; since $\mathit{mkEpsBC}$
-preserves that order when fusing and prepending bits, the first bit
-always belongs to the outermost alternation, and so on inward.
+The decoder consumes bits left to right, one per alternation, 
+in the order $\mathit{internalize}$ introduced them.
+Since $\mathit{mkEpsBC}$ preserves that order when fusing and prepending bits, 
+the first bit always belongs to the outermost alternation, and so on inward.
 
 Flattening gives $\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon = \mathtt{ab}$,
-confirming the parse. The bit-coded construction yields the same tree as
-the direct one, but stores only $\mathit{ri}_2$: one expression bounded
-by the pattern, not one residual per character. That bound is on the
-live expression's size, not total memory, since each node's bit-sequence
-is still built by the persistent, \texttt{Rc}-backed cons list of
-Section~\ref{sec:annotated-expressions} and accumulates across the run.
-Chapter~\ref{sec:evaluation}'s \emph{total} and \emph{max peak} columns
-for \texttt{deriv\_bc} separate exactly this: a peak bounded by the
-pattern, a total that still grows with the input.
+confirming the parse. 
+The bit-coded construction yields the same tree as the direct one, 
+but stores only $\mathit{ri}_2$:
+One expression bounded by the pattern, not one residual per character. 
