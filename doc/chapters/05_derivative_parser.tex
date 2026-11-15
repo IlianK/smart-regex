@@ -1232,36 +1232,33 @@ avoiding a slice conversion and copy of the accumulated bit history.
 
 %
 
-Equation~\eqref{eq:simp-theory} uses list-based alternation.
-\texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}).
-The implementation therefore flattens nested \texttt{Alt} nodes 
-before applying the theory's \texttt{map}, \texttt{filter}, and \texttt{nub} operations, 
-then reconstructs the binary tree. 
-The helper functions \texttt{collect\_alt\_branches} and \texttt{push\_branches} 
-perform the flattening (Figure~\ref{fig:collect-alt-branches-rust}), 
-while \texttt{fold\_alt} rebuilds the tree (Figure~\ref{fig:fold-alt-rust}).
-The \texttt{map} and \texttt{filter} operations follow the theory directly.
-However, \citep[Fig.~6]{sulzmannlu2014} does not specify 
-what counts as a duplicate among annotated expressions. 
-Here, bits are ignored when comparing expressions, 
-following the pattern equality in \citep[Fig.~9]{sulzmannlu2012}.
+Equation~\eqref{eq:simp-theory}'s alternation is list-based, but
+\texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}), so the
+implementation flattens nested \texttt{Alt} nodes before applying the
+theory's \texttt{map}, \texttt{filter}, and \texttt{nub}, then rebuilds it:
+\texttt{collect\_alt\_branches} and \texttt{push\_branches} flatten
+(Figure~\ref{fig:collect-alt-branches-rust}), \texttt{fold\_alt} rebuilds
+(Figure~\ref{fig:fold-alt-rust}). \texttt{map} and \texttt{filter} follow
+the theory directly; only \texttt{nub}'s notion of `duplicate' is left
+unspecified by \citep[Fig.~6]{sulzmannlu2014}. Here, bits are ignored
+when comparing expressions, following the pattern equality in
+\citep[Fig.~9]{sulzmannlu2012}. Because \texttt{simp} compares branches
+within one expression, not states in a set, no greedy-versus-POSIX
+question arises: it merges only provably identical sub-expressions of
+the same tree.
 
-\texttt{collect\_alt\_branches} recursively 
-flattens nested \texttt{Alt} nodes into a single list. 
-Its worker, \texttt{push\_branches}, 
-fuses each node's bits onto its children using \texttt{fuse\_bits} before descending, 
-preserving all recorded choices. 
-Nodes that are not \texttt{Alt} are appended as leaves. 
-The resulting list allows \texttt{dedup\_first} to compare all branches together, 
-rather than deduplicating separately at each nesting level.
+\texttt{collect\_alt\_branches} recursively flattens nested \texttt{Alt}
+nodes into a single list; its worker \texttt{push\_branches} fuses each
+node's bits onto its children via \texttt{fuse\_bits} before descending so
+no recorded choice is lost, appending any non-\texttt{Alt} node as a leaf.
+The result lets \texttt{dedup\_first} compare every branch together, not
+once per nesting level.
 
-Simplification removes dead branches and collapses degenerate ones, 
-but distinct surviving branches may still have the same underlying regex.
-The implementation therefore applies \texttt{dedup\_first} 
-immediately after simplification in the \texttt{Alt} arm of \texttt{simp\_once}
-(Figure~\ref{fig:simp-rust}). 
-This helper in Figure~\ref{fig:dedup-first-rust}, 
-removes such duplicates while preserving the first occurrence.
+Simplification removes dead branches and collapses degenerate ones, but
+distinct survivors can still share the same underlying regex: that is
+\texttt{dedup\_first}'s job, called right after simplification in
+\texttt{simp\_once}'s \texttt{Alt} arm (Figure~\ref{fig:simp-rust}),
+shown in full in Figure~\ref{fig:dedup-first-rust}.
 
 \begin{figure}[H]
 \small
@@ -1291,16 +1288,15 @@ fn push_branches(ri: ARegex, out: &mut Vec<ARegex>) {
 }
 \end{verbatim}
 \caption{\texttt{collect\_alt\_branches} and \texttt{push\_branches}:
-flattening a nested \texttt{Alt} chain into one list,
-fusing a parent's bits onto each child before descending.}
+flattening nested \texttt{Alt} chains into one list,
+fusing a parent's bits onto each child first.}
 \label{fig:collect-alt-branches-rust}
 \end{figure}
 
 %
 
-Figure~\ref{fig:fold-alt-rust} shows \texttt{fold\_alt}: reversing the list
-then folding rebuilds a right-associated \texttt{Alt} tree in the original
-left-to-right order.
+Figure~\ref{fig:fold-alt-rust} shows \texttt{fold\_alt}, rebuilding a
+right-associated \texttt{Alt} tree in the original left-to-right order.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1318,16 +1314,14 @@ deduplicated branch list into a right-associated \texttt{Alt}.}
 \label{fig:fold-alt-rust}
 \end{figure}
 
-The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot \varepsilon = r$,
-but asymmetrically: the right-hand collapse only fires when $r_2$'s bits are empty,
-since $\mathit{mkEpsBC}$ concatenates left to right, so fusing $r_2$'s bits the same
-way would misplace them before $r_1$'s own instead of after.
-\texttt{same\_shape}, used by both the fixpoint check and \texttt{dedup\_first}, applies
-the same bits-discarding comparison from above (Section~\ref{sec:simp-impl}): branches
-with matching shape collapse regardless of their bits. This also keeps the fixpoint
-check cheap, avoiding the full bit-list copy a derived structural equality would force
-every iteration -- the $O(n^2)$ cost \texttt{Bits} (Section~\ref{sec:aregex-type}) exists
-to avoid.
+The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot \varepsilon = r$, but
+asymmetrically: the right-hand collapse only fires when $r_2$'s bits are empty, since
+$\mathit{mkEpsBC}$ concatenates left to right and fusing $r_2$'s bits the same way would
+misplace them before $r_1$'s own instead of after. \texttt{same\_shape}, used by both the
+fixpoint check and \texttt{dedup\_first}, applies the same bits-discarding comparison from
+above (Section~\ref{sec:simp-impl}), which also keeps the fixpoint check cheap: a derived
+structural equality would force a full bit-list copy every iteration, the $O(n^2)$ cost
+\texttt{Bits} (Section~\ref{sec:aregex-type}) exists to avoid.
 
 %
 
