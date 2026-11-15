@@ -1376,7 +1376,7 @@ continues at the correct position:
 \texttt{decode}, shown in Figure~\ref{fig:decode-rust}, is the public
 entry point: it calls \texttt{decode\_inner} and asserts that no bits
 remain afterward. This assertion is the side condition under which
-$\mathit{decode}_r$ is defined -- the worker must consume the entire
+$\mathit{decode}_r$ is defined: the worker must consume the entire
 bit-string.
 \begin{figure}[H]
 \small
@@ -1400,12 +1400,17 @@ pub fn decode(r: &Regex, bs: &[bool]) -> ParseTree {
 %
 
 Figure~\ref{fig:decode-inner-rust} shows \texttt{decode\_inner}, the
-worker behind \texttt{decode}, one arm per expression form.
-
-The worker consumes the \texttt{\&[bool]} one bit per step using Rust's
-slice patterns: \texttt{[false, rest @ ..]} matches a bit-string whose
-first element is \texttt{false} and binds the remainder to \texttt{rest},
-and \texttt{[true, rest @ ..]} does the same for \texttt{true}.
+worker behind \texttt{decode}, one arm per expression form. It consumes
+the \texttt{\&[bool]} one bit per step using Rust's slice patterns:
+\texttt{[false, rest @ ..]} binds a leading \texttt{false} and the
+remainder to \texttt{rest}, and \texttt{[true, rest @ ..]} does the same
+for \texttt{true}. The \texttt{Alt} arm reads the leading bit and recurses
+into the named branch, leaving \texttt{rest}: only that bit belongs to
+the alternation. \texttt{Seq} recurses twice, so the worker returns a
+pair: the first factor's bits tell the second where to continue.
+\texttt{Star}'s iteration count is encoded in the bits: each leading
+\texttt{false} recurses once more, resuming from the bits it returns,
+until \texttt{mk\_eps\_bc}'s trailing \texttt{true} ends the loop.
 
 \begin{figure}[H]
 \small
@@ -1458,30 +1463,9 @@ one arm per expression form.}
 \label{fig:decode-inner-rust}
 \end{figure}
 
-The \texttt{Alt} arm matches the leading bit with
-\texttt{[false, rest @ ..]} or \texttt{[true, rest @ ..]} and recurses
-into the branch it names, returning \texttt{rest} as the remaining bits,
-since only the leading bit belongs to the alternation.
-
-The \texttt{Seq} arm shows why the worker returns a pair. It recurses into
-the first factor, receives both a tree and the bits the first factor left
-unconsumed, and passes those bits to the second factor. The second factor
-then returns its own tree and the bits that follow it, which are the bits
-for any enclosing expression. Returning only the tree would leave the
-second recursion with no way to know where to start.
-
-The \texttt{Star} arm loops, since the number of iterations is not known
-in advance and is itself encoded in the bits. Each leading
-\texttt{false} is matched by \texttt{[false, rest @ ..]} and corresponds to
-one iteration, so the arm recurses into the body and continues the loop
-from whatever bits the body left behind. The loop ends at the leading
-\texttt{true} matched by \texttt{[true, rest @ ..]}, which
-\texttt{mk\_eps\_bc} appended.
-
-%
-%
 %
 
+\newpage
 \subsection{Parser}
 \label{sec:deriv-bc-driver}
 
@@ -1549,8 +1533,8 @@ applies \texttt{simp(deriv\_bc(ri, l))} to each character and the
 nullability check gates the final \texttt{decode(mk\_eps\_bc(ri))}.
 
 %
-%
-%
+
+\newpage
 \subsection{Worked Example: Applying the Bitcoded Parser}
 \label{sec:deriv-bc-worked}
 
@@ -1574,11 +1558,11 @@ $[0]$ for the left branch and $[1]$ for the right branch:
 %
 
 \paragraph{Bit-Threaded Derivatives.}
-The two input symbols are consumed by successive bit-threaded derivatives
-with $\mathit{simp}$ applied after each step. The first derivative uses
-$\mathsf{B}_{\mathrm{seq}}$. After consuming $\mathtt{a}$, the first
-factor becomes nullable, so the second derivative uses
-$\mathsf{B}_{\mathrm{seq}}^{\,n}$:
+Each input symbol is consumed by a bit-threaded derivative, with
+$\mathit{simp}$ applied after each step. The first uses
+$\mathsf{B}_{\mathrm{seq}}$; once $\mathtt{a}$ makes the first factor
+nullable, the second uses $\mathsf{B}_{\mathrm{seq}}^{\,n}$:
+{\small
 \begin{equation}\label{eq:dpbc-forward}
 \begin{aligned}
 \mathit{ri}_0
@@ -1607,25 +1591,23 @@ $\mathsf{B}_{\mathrm{seq}}^{\,n}$:
   \big).
 \end{aligned}
 \end{equation}
+}
 
 Each disjunct of $\mathit{ri}_2'$ has a dead branch. In $X$, the first
 factor's derivative by $\mathtt{b}$ is $\emptyset \oplus
-[1]@\varepsilon$: the $[0]$ side cannot consume $\mathtt{b}$, the $[1]$
-side owes one. In $Y$, the second factor's derivative by $\mathtt{b}$ is
-$[0]@\varepsilon \oplus \emptyset$: the $[0]$ side matches, the $[1]$
-side cannot. The outer $[0]$ on $Y$ is the bit that
-$\mathsf{B}_{\mathrm{seq}}^{\,n}$ fused on from the first factor's empty
-match.
+[1]@\varepsilon$: $[0]$ cannot consume $\mathtt{b}$, and $[1]$ still owes
+one. In $Y$, the second factor's derivative by $\mathtt{b}$ is
+$[0]@\varepsilon \oplus \emptyset$: $[0]$ matches, $[1]$ cannot. $Y$'s
+outer $[0]$ is the bit $\mathsf{B}_{\mathrm{seq}}^{\,n}$ fused on from
+the first factor's empty match.
 
-$\mathit{simp}$ drops the dead branches. From $X$, the survivor is
-$[1]@\varepsilon$, and since $\varepsilon$ contributes nothing to the
-concatenation, the $[1]$ is carried onto the second factor, giving
-$[1]@([0]@b \oplus [1]@\varepsilon)$. From $Y$, the survivor is
-$[0]@\varepsilon$; the outer $[0]$ is merged with the inner $[0]$ and
-the resulting $[0,0]$ is carried onto the $\varepsilon$, giving
-$[0,0]@\varepsilon$. The two results are the disjuncts of
-$\mathit{ri}_2$, so both bits are recorded there and the tree can later
-be decoded from the bits alone.
+$\mathit{simp}$ drops the dead branches. $X$'s survivor is
+$[1]@\varepsilon$; since $\varepsilon$ contributes nothing to the
+concatenation, its $[1]$ carries onto the second factor, giving
+$[1]@([0]@b \oplus [1]@\varepsilon)$. $Y$'s survivor is $[0]@\varepsilon$;
+its outer and inner $[0]$s merge into $[0,0]@\varepsilon$. These two
+results become the disjuncts of $\mathit{ri}_2$, recording both bits so
+the tree can later be decoded from them alone.
 
 %
 
@@ -1634,6 +1616,7 @@ Both disjuncts of $\mathit{ri}_2$ are nullable, so
 $\mathsf{EB}_{+}^{L}$ selects the left one. Inside, $b$ is not nullable
 while $\varepsilon$ is, so $\mathsf{EB}_{+}^{R}$ contributes its $[1]$
 tag:
+{\small
 \begin{equation}\label{eq:dpbc-mkepsbc}
 \mathit{mkEpsBC}(\mathit{ri}_2)
   \xrightarrow{\mathsf{EB}_{+}^{L}}
@@ -1643,15 +1626,16 @@ tag:
   \xrightarrow{\mathsf{EB}_{+}^{R}}
   [1,1].
 \end{equation}
-Unlike $\mathit{mkEps}$, which constructs a partial parse tree,
-$\mathit{mkEpsBC}$ extracts only the committed choices as a bit-string.
+}
+Unlike $\mathit{mkEps}$, which builds a partial parse tree,
+$\mathit{mkEpsBC}$ extracts only the committed choices, as a bit-string.
 
 %
 
 \paragraph{Decoding the bits.}
-The decoder interprets $[1,1]$ against the original $r_0$: the first
-bit selects the right branch of $a+ab$ (producing $ab$), and the second
-selects the right branch of $b+\varepsilon$:
+The decoder reads $[1,1]$ against $r_0$: the first bit takes the right
+branch of $a+ab$ (giving $ab$), the second the right branch of
+$b+\varepsilon$:
 \begin{equation}\label{eq:dpbc-decode}
 \mathit{decode}_{r_0}(\,[1,1]\,)
   = \big(
@@ -1660,23 +1644,18 @@ selects the right branch of $b+\varepsilon$:
     \big)
   = v_0.
 \end{equation}
-The decoder consumes the bits left to right, one per alternation it
-encounters, in the same order that $\mathit{internalize}$ introduced
-them. Because $\mathit{mkEpsBC}$ preserved that order when it fused and
-prepended bits, the first bit always belongs to the outermost
-alternation, and so on down. 
+The decoder consumes bits left to right, one per alternation, in the
+order $\mathit{internalize}$ introduced them; since $\mathit{mkEpsBC}$
+preserves that order when fusing and prepending bits, the first bit
+always belongs to the outermost alternation, and so on inward.
 
 Flattening gives $\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon = \mathtt{ab}$,
-confirming the parse.
-The bit-coded construction produces the same tree as the direct
-construction, but stores only $\mathit{ri}_2$, a single expression
-bounded by the pattern instead of one residual per character.
-That bound is on the live expression's size, not on total memory: each
-node's bit-sequence is itself built by the persistent, \texttt{Rc}-backed
-cons list of Section~\ref{sec:annotated-expressions}, so holding one
-bounded expression across an $n$-character run still allocates
-cumulatively in $n$, it just never holds more than one expression's worth
-at once. Chapter~\ref{sec:evaluation}'s \emph{total} and \emph{max peak}
-columns for \texttt{deriv\_bc} separate exactly this: a peak bounded by
-the pattern next to a total that still grows with how much input it
-consumed.
+confirming the parse. The bit-coded construction yields the same tree as
+the direct one, but stores only $\mathit{ri}_2$: one expression bounded
+by the pattern, not one residual per character. That bound is on the
+live expression's size, not total memory, since each node's bit-sequence
+is still built by the persistent, \texttt{Rc}-backed cons list of
+Section~\ref{sec:annotated-expressions} and accumulates across the run.
+Chapter~\ref{sec:evaluation}'s \emph{total} and \emph{max peak} columns
+for \texttt{deriv\_bc} separate exactly this: a peak bounded by the
+pattern, a total that still grows with the input.
