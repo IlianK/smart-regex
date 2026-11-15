@@ -1119,6 +1119,19 @@ single bottom-up pass does not always reach a fixpoint -- collapsing a
 branch at one level can expose a new collapse at the level above -- so
 $\mathit{simp}$ re-applies itself until the shape stops changing.
 
+How many times \texttt{simp\_once} must re-apply before the shape stops
+changing is itself data-dependent, so the fixpoint's actual cost -- and
+how it weighs against the memory it saves by keeping every intermediate
+residual small -- is exactly the kind of trade-off
+Chapter~\ref{sec:evaluation} measures directly rather than assumes. The
+\texttt{Alt} case's own cost follows the same logic: flattening a nested
+alternation into one list before deduplicating, as Figure~\ref{fig:simp-rust}
+does, keeps the cost of checking $p$ alternatives linear in $p$;
+deduplicating pairwise at each level of nesting instead would multiply
+that cost by the chain's own depth, exactly the pattern
+Chapter~\ref{sec:evaluation}'s widest alternation cases are built to
+stress.
+
 %
 
 \paragraph{In Rust.}
@@ -1127,6 +1140,23 @@ Figure~\ref{fig:simp-rust} shows \texttt{simp\_once}'s \texttt{Seq} and
 \texttt{Alt} cases, the two that do real work; \texttt{Phi}, \texttt{Eps},
 and \texttt{Lit} are already simplified, and \texttt{Star} only recurses
 into its body. \texttt{simp} is the fixpoint loop around it.
+
+The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot
+\varepsilon = r$, but asymmetrically: the right-hand collapse only fires
+when $r_2$'s own bits are empty, since $\mathit{mkEpsBC}$ concatenates
+bits left to right, so fusing $r_2$'s bits onto $r_1$ the same way the left
+case does would place them before $r_1$'s own bits instead of after.
+\texttt{same\_shape}, used by both the fixpoint check and
+\texttt{dedup\_first}, compares expressions while ignoring their bit
+annotations: two branches denoting the same future language collapse into
+one even if they recorded different choices so far, the same exclusion
+the reference's $\mathit{nub2}$ makes and that
+\S\ref{sec:pderiv-bc-state-set} relies on for the bit-coded
+partial-derivative parser. Comparing by shape alone also keeps the
+fixpoint check itself cheap: the derived structural equality would
+otherwise force a full bit-list materialization at every node on every
+iteration, reintroducing the $O(n^2)$ cost \texttt{Bits}
+(\S\ref{sec:aregex-type}) exists to avoid.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1182,27 +1212,7 @@ materialized.}
 \label{fig:simp-rust}
 \end{figure}
 
-The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot
-\varepsilon = r$, but asymmetrically: the right-hand collapse only fires
-when $r_2$'s own bits are empty, since $\mathit{mkEpsBC}$ concatenates
-bits left to right, so fusing $r_2$'s bits onto $r_1$ the same way the left
-case does would place them before $r_1$'s own bits instead of after.
-\texttt{same\_shape}, used by both the fixpoint check and
-\texttt{dedup\_first}, compares expressions while ignoring their bit
-annotations: two branches denoting the same future language collapse into
-one even if they recorded different choices so far, the same exclusion
-the reference's $\mathit{nub2}$ makes and that
-\S\ref{sec:pderiv-bc-state-set} relies on for the bit-coded
-partial-derivative parser. Comparing by shape alone also keeps the
-fixpoint check itself cheap: the derived structural equality would
-otherwise force a full bit-list materialization at every node on every
-iteration, reintroducing the $O(n^2)$ cost \texttt{Bits}
-(\S\ref{sec:aregex-type}) exists to avoid.
-
-%
-%
-%
-
+\clearpage
 \subsection{Decoding Bits}
 \label{sec:decode}
 
