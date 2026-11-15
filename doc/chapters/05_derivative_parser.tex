@@ -1232,33 +1232,36 @@ avoiding a slice conversion and copy of the accumulated bit history.
 
 %
 
-Equation~\eqref{eq:simp-theory}'s alternation is list-based, but
-\texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}): the
-implementation flattens nested \texttt{Alt} nodes before applying the
-theory's \texttt{map}, \texttt{filter}, and \texttt{nub}, then rebuilds the
-binary tree -- \texttt{collect\_alt\_branches}/\texttt{push\_branches}
-flatten (Figure~\ref{fig:collect-alt-branches-rust}), \texttt{fold\_alt}
-rebuilds (Figure~\ref{fig:fold-alt-rust}).
-\texttt{map} and \texttt{filter} are exactly these list operations; what
-\texttt{nub} treats as a `duplicate' for annotated expressions is the one
-piece \citep[Fig.~6]{sulzmannlu2014} leaves unstated. This resolves it as
-Sulzmann and Lu do elsewhere -- discarding the bits and comparing only the
-underlying regex, as their pattern equality (\citep[Fig.~9]{sulzmannlu2012})
-and \texttt{nub2} (Section~\ref{sec:pderiv-bc-state-set}) both do.
+Equation~\eqref{eq:simp-theory} uses list-based alternation.
+\texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}).
+The implementation therefore flattens nested \texttt{Alt} nodes 
+before applying the theory's \texttt{map}, \texttt{filter}, and \texttt{nub} operations, 
+then reconstructs the binary tree. 
+The helper functions \texttt{collect\_alt\_branches} and \texttt{push\_branches} 
+perform the flattening (Figure~\ref{fig:collect-alt-branches-rust}), 
+while \texttt{fold\_alt} rebuilds the tree (Figure~\ref{fig:fold-alt-rust}).
+The \texttt{map} and \texttt{filter} operations follow the theory directly.
+However, \citep[Fig.~6]{sulzmannlu2014} does not specify 
+what counts as a duplicate among annotated expressions. 
+Here, bits are ignored when comparing expressions, 
+following the pattern equality in \citep[Fig.~9]{sulzmannlu2012}.
 
-\texttt{collect\_alt\_branches} recursively flattens nested \texttt{Alt}
-nodes into a single list; its worker \texttt{push\_branches} fuses each
-node's bits onto its children via \texttt{fuse\_bits} before descending so
-no recorded choice is lost, and appends a non-\texttt{Alt} node as a leaf.
-The result is a flat list \texttt{dedup\_first} deduplicates in one pass
-instead of once per nesting level.
+\texttt{collect\_alt\_branches} recursively 
+flattens nested \texttt{Alt} nodes into a single list. 
+Its worker, \texttt{push\_branches}, 
+fuses each node's bits onto its children using \texttt{fuse\_bits} before descending, 
+preserving all recorded choices. 
+Nodes that are not \texttt{Alt} are appended as leaves. 
+The resulting list allows \texttt{dedup\_first} to compare all branches together, 
+rather than deduplicating separately at each nesting level.
 
-The branches this produces still need deduplicating via \texttt{dedup\_first}:
-simplification collapses dead or degenerate branches, but two survivors can
-still denote the same language differently -- that's deduplication's job,
-not simplification's. \texttt{dedup\_first}, called right after in
-\texttt{simp\_once}'s \texttt{Alt} arm (Figure~\ref{fig:simp-rust}), is
-detailed later in Figure~\ref{fig:dedup-first-rust}.
+Simplification removes dead branches and collapses degenerate ones, 
+but distinct surviving branches may still have the same underlying regex.
+The implementation therefore applies \texttt{dedup\_first} 
+immediately after simplification in the \texttt{Alt} arm of \texttt{simp\_once}
+(Figure~\ref{fig:simp-rust}). 
+This helper in Figure~\ref{fig:dedup-first-rust}, 
+removes such duplicates while preserving the first occurrence.
 
 \begin{figure}[H]
 \small
