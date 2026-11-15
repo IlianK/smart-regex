@@ -1141,16 +1141,19 @@ instead would multiply that cost by the chain's own depth.
 
 We assume $\oplus$ takes a list of operands, written $bs@\oplus\,[\mathit{ri}_1,\ldots,\mathit{ri}_n]$.
 
+{\small
 \begin{equation}\label{eq:simp-theory}
 \begin{aligned}
-\mathit{simp}(bs@(bs'@\varepsilon)\,\mathit{ri}) &= \emptyset
-  &&\mathit{isPhi}(\mathit{ri}) \\
-\mathit{simp}(bs@(bs'@\varepsilon)\,\mathit{ri}) &= \mathit{fuse}(bs \mathbin{+\!\!+} bs',\ \mathit{ri})
-  &&\text{otherwise} \\
-\mathit{simp}(bs@\mathit{ri}_1\,\mathit{ri}_2) &= \emptyset
-  &&\mathit{isPhi}(\mathit{ri}_1) \lor \mathit{isPhi}(\mathit{ri}_2) \\
-\mathit{simp}(bs@\mathit{ri}_1\,\mathit{ri}_2) &= bs@(\mathit{simp}(\mathit{ri}_1))\,(\mathit{simp}(\mathit{ri}_2))
-  &&\text{otherwise} \\
+\mathit{simp}(bs@(bs'@\varepsilon)\,\mathit{ri}) &=
+  \begin{cases}
+    \emptyset & \text{if } \mathit{isPhi}(\mathit{ri}) \\
+    \mathit{fuse}(bs \mathbin{+\!\!+} bs',\ \mathit{ri}) & \text{otherwise}
+  \end{cases} \\[8pt]
+\mathit{simp}(bs@\mathit{ri}_1\,\mathit{ri}_2) &=
+  \begin{cases}
+    \emptyset & \text{if } \mathit{isPhi}(\mathit{ri}_1) \lor \mathit{isPhi}(\mathit{ri}_2) \\
+    bs@(\mathit{simp}(\mathit{ri}_1))\,(\mathit{simp}(\mathit{ri}_2)) & \text{otherwise}
+  \end{cases} \\[8pt]
 \mathit{simp}(bs@\oplus\,[\,]) &= \emptyset \\
 \mathit{simp}(bs@\oplus\,((bs'@\oplus\,\mathit{rsi}_1) : \mathit{rsi}_2)) &=
   bs@\oplus\,\bigl(\mathit{map}(\mathit{fuse}\ bs')(\mathit{rsi}_1) \mathbin{+\!\!+} \mathit{rsi}_2\bigr) \\
@@ -1160,11 +1163,33 @@ We assume $\oplus$ takes a list of operands, written $bs@\oplus\,[\mathit{ri}_1,
   (\mathit{simp}(\mathit{ri}) : \mathit{map}(\mathit{simp})(\mathit{rsi})))\bigr)
 \end{aligned}
 \end{equation}
+}
 
 %
 
 \paragraph{In Rust.}
 \label{sec:simp-impl}
+\texttt{simp}, shown in Figure~\ref{fig:simp-loop-rust}, is the fixpoint
+loop, re-applying \texttt{simp\_once} until \texttt{same\_shape} reports
+no further change.
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn simp(ri: ARegex) -> ARegex {
+    let mut cur = ri;
+    loop {
+        let next = simp_once(cur.clone());
+        if same_shape(&next, &cur) { return next; }
+        cur = next;
+    }
+}
+\end{verbatim}
+\caption{\texttt{simp}: Implementation of the fixpoint loop around \texttt{simp\_once}.}
+\label{fig:simp-loop-rust}
+\end{figure}
+
+%
+
 Figure~\ref{fig:simp-rust} shows \texttt{simp\_once}'s simplification arms:
 \begin{figure}[H]
 \small
@@ -1200,36 +1225,15 @@ fn simp_once(ri: ARegex) -> ARegex {
     }
 }
 \end{verbatim}
-\caption{\texttt{simp\_once}: Implementation of the simplification 
-of annotated concatenations and alternations. 
-\texttt{Seq} removes dead ($\emptyset$) or already-\texttt{Eps} operands, 
+\caption{\texttt{simp\_once}: Implementation of the simplification
+of annotated concatenations and alternations.
+\texttt{Seq} removes dead ($\emptyset$) or already-\texttt{Eps} operands,
 while \texttt{Alt} removes dead and duplicate branches.
 Removed bits are transferred using \texttt{fuse\_bits},
 the \texttt{Bits}-native counterpart of \texttt{fuse} (Section~\ref{sec:fuse}),
 avoiding a slice conversion and copy of the accumulated bit history.
 }
 \label{fig:simp-rust}
-\end{figure}
-
-%
-
-\texttt{simp}, shown implemented in Figure~\ref{fig:simp-loop-rust}, 
-is the fixpoint loop, re-applying \texttt{simp\_once} 
-until \texttt{same\_shape} reports no further change.
-\begin{figure}[H]
-\small
-\begin{verbatim}
-pub fn simp(ri: ARegex) -> ARegex {
-    let mut cur = ri;
-    loop {
-        let next = simp_once(cur.clone());
-        if same_shape(&next, &cur) { return next; }
-        cur = next;
-    }
-}
-\end{verbatim}
-\caption{\texttt{simp}: Implementation of the fixpoint loop around \texttt{simp\_once}.}
-\label{fig:simp-loop-rust}
 \end{figure}
 
 %
