@@ -66,32 +66,34 @@
 \newlabel{fig:fuse-rust}{{5.7}{30}{\texttt {fuse}: prepend a bit-list to the annotation of the top node}{figure.caption.22}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.3}Internalizing Expressions}{30}{subsection.5.2.3}\protected@file@percent }
 \newlabel{sec:internalize}{{5.2.3}{30}{Internalizing Expressions}{subsection.5.2.3}{}}
+\newlabel{eq:internalize}{{5.9}{30}{Internalizing Expressions}{equation.5.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{30}{equation.5.9}\protected@file@percent }
+\newlabel{sec:internalize-impl}{{5.2.3}{30}{In Rust}{equation.5.9}{}}
 \citation{sulzmannlu2014}
-\newlabel{eq:internalize}{{5.9}{31}{Internalizing Expressions}{equation.5.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{31}{equation.5.9}\protected@file@percent }
-\newlabel{sec:internalize-impl}{{5.2.3}{31}{In Rust}{equation.5.9}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces \texttt  {internalize} converts a \texttt  {Regex} into an \texttt  {ARegex}. Each alternation branch receives a tag recording its side, and the two \texttt  {fuse} calls are the only points where new bits are introduced.}}{31}{figure.caption.23}\protected@file@percent }
 \newlabel{fig:internalize-rust}{{5.8}{31}{\texttt {internalize} converts a \texttt {Regex} into an \texttt {ARegex}. Each alternation branch receives a tag recording its side, and the two \texttt {fuse} calls are the only points where new bits are introduced}{figure.caption.23}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.4}Extracting Bits}{31}{subsection.5.2.4}\protected@file@percent }
 \newlabel{sec:mkepsbc-theory}{{5.2.4}{31}{Extracting Bits}{subsection.5.2.4}{}}
-\newlabel{eq:mkepsbc}{{5.10}{32}{Extracting Bits}{equation.5.10}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{32}{equation.5.10}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces \texttt  {mk\_eps\_bc} implements \eqref  {eq:mkepsbc}. \texttt  {Phi} and \texttt  {Lit} panic, since neither can be nullable.}}{32}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:mkepsbc-rust}{{5.9}{32}{\texttt {mk\_eps\_bc} implements \eqref {eq:mkepsbc}. \texttt {Phi} and \texttt {Lit} panic, since neither can be nullable}{figure.caption.24}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.5}Annotated Derivatives}{33}{subsection.5.2.5}\protected@file@percent }
-\newlabel{sec:deriv-bc-theory}{{5.2.5}{33}{Annotated Derivatives}{subsection.5.2.5}{}}
-\newlabel{eq:bderiv}{{5.11}{33}{Annotated Derivatives}{equation.5.11}{}}
+\newlabel{eq:mkepsbc}{{5.10}{31}{Extracting Bits}{equation.5.10}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{31}{equation.5.10}\protected@file@percent }
+\citation{sulzmannlu2014}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces \texttt  {mk\_eps\_bc} implements Equation~\eqref  {eq:mkepsbc}. \texttt  {Phi}, \texttt  {Lit} panic, since neither is nullable.}}{32}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:mkepsbc-rust}{{5.9}{32}{\texttt {mk\_eps\_bc} implements Equation~\eqref {eq:mkepsbc}. \texttt {Phi}, \texttt {Lit} panic, since neither is nullable}{figure.caption.24}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.5}Annotated Derivatives}{32}{subsection.5.2.5}\protected@file@percent }
+\newlabel{sec:deriv-bc-theory}{{5.2.5}{32}{Annotated Derivatives}{subsection.5.2.5}{}}
+\newlabel{eq:bderiv}{{5.11}{32}{Annotated Derivatives}{equation.5.11}{}}
+\citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {paragraph}{In Rust.}{33}{equation.5.11}\protected@file@percent }
 \newlabel{sec:deriv-bc-impl}{{5.2.5}{33}{In Rust}{equation.5.11}{}}
-\citation{sulzmannlu2014}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Annotated derivative \texttt  {deriv\_bc}, implementing $\mathsf  {B}_{\emptyset }$, $\mathsf  {B}_{\varepsilon }$, $\mathsf  {B}_{\mathrm  {lit}}$, $\mathsf  {B}_{+}$, $\mathsf  {B}_{\mathrm  {seq}}/\mathsf  {B}_{\mathrm  {seq}}^{\,n}$, $\mathsf  {B}_{*}$.}}{34}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:derivbc-rust}{{5.10}{34}{Annotated derivative \texttt {deriv\_bc}, implementing $\mathsf {B}_{\emptyset }$, $\mathsf {B}_{\varepsilon }$, $\mathsf {B}_{\mathrm {lit}}$, $\mathsf {B}_{+}$, $\mathsf {B}_{\mathrm {seq}}/\mathsf {B}_{\mathrm {seq}}^{\,n}$, $\mathsf {B}_{*}$}{figure.caption.25}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Annotated derivative \texttt  {deriv\_bc}, implementing $\mathsf  {B}_{+}$, $\mathsf  {B}_{\mathrm  {seq}}/\mathsf  {B}_{\mathrm  {seq}}^{\,n}$, and $\mathsf  {B}_{*}$. The cases $\mathsf  {B}_{\emptyset }$, $\mathsf  {B}_{\varepsilon }$, and $\mathsf  {B}_{\mathrm  {lit}}$ are omitted from the figure.}}{33}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:derivbc-rust}{{5.10}{33}{Annotated derivative \texttt {deriv\_bc}, implementing $\mathsf {B}_{+}$, $\mathsf {B}_{\mathrm {seq}}/\mathsf {B}_{\mathrm {seq}}^{\,n}$, and $\mathsf {B}_{*}$. The cases $\mathsf {B}_{\emptyset }$, $\mathsf {B}_{\varepsilon }$, and $\mathsf {B}_{\mathrm {lit}}$ are omitted from the figure}{figure.caption.25}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.6}Simplification}{34}{subsection.5.2.6}\protected@file@percent }
 \newlabel{sec:simp}{{5.2.6}{34}{Simplification}{subsection.5.2.6}{}}
 \@writefile{toc}{\contentsline {paragraph}{In Rust.}{34}{subsection.5.2.6}\protected@file@percent }
 \newlabel{sec:simp-impl}{{5.2.6}{34}{In Rust}{subsection.5.2.6}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces \texttt  {simp} and \texttt  {simp\_once}: the fixpoint loop and its two non-trivial cases. \texttt  {collect\_alt\_branches}, \texttt  {dedup\_first}, and \texttt  {fold\_alt} implement flattening, deduplication, and rebuilding an $n$-ary alternation, omitted here for space; each does no more than its name says. \texttt  {fuse\_bits} is \texttt  {fuse}'s (\S  \ref {sec:fuse}) counterpart for the native \texttt  {Bits} type, avoiding a conversion back to a slice that would force the entire accumulated history to be materialized.}}{35}{figure.caption.26}\protected@file@percent }
 \newlabel{fig:simp-rust}{{5.11}{35}{\texttt {simp} and \texttt {simp\_once}: the fixpoint loop and its two non-trivial cases. \texttt {collect\_alt\_branches}, \texttt {dedup\_first}, and \texttt {fold\_alt} implement flattening, deduplication, and rebuilding an $n$-ary alternation, omitted here for space; each does no more than its name says. \texttt {fuse\_bits} is \texttt {fuse}'s (\S \ref {sec:fuse}) counterpart for the native \texttt {Bits} type, avoiding a conversion back to a slice that would force the entire accumulated history to be materialized}{figure.caption.26}{}}
+\citation{sulzmannlu2014}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.7}Decoding Bits}{36}{subsection.5.2.7}\protected@file@percent }
 \newlabel{sec:decode}{{5.2.7}{36}{Decoding Bits}{subsection.5.2.7}{}}
 \newlabel{eq:decode}{{5.12}{36}{Decoding Bits}{equation.5.12}{}}

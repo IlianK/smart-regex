@@ -101,9 +101,9 @@ The following sections present the standard derivative parser operations in more
 \subsection{Building the Empty-Word Tree}
 \label{sec:mkeps-theory}
 
-The backward pass starts with $\mathit{mkEps}$, 
+The backward pass starts with $\mathit{mkEps}$ ~\citep[Fig.~3]{sulzmannlu2014}, 
 which recursively constructs an empty-word parse tree 
-from the final nullable expression (cf.~\citep[Fig.~3]{sulzmannlu2014}):
+from the final nullable expression:
 \begin{equation}\label{eq:mkeps}
 \begin{aligned}
 \mathit{mkEps}_{\varepsilon} &= () &&(\mathsf{E}_{\varepsilon}) \\
@@ -292,7 +292,7 @@ move directly into the rebuilt tree rather than being copied.
 
 In the concatenation arms where the right operand was not derived,
 \texttt{v2} moves directly into the new pair, 
-since Equation~~\eqref{eq:inj} leaves it unchanged. 
+since Equation~\eqref{eq:inj} leaves it unchanged. 
 The \texttt{Right} arm of concatenation is the only case that synthesizes content, 
 calling \texttt{mk\_eps(r1)} because the derivative skipped \texttt{r1} 
 and the forward pass produced no tree for that half of the pair. 
@@ -302,15 +302,13 @@ when it chose between $\mathsf{D}_{\mathrm{seq}}$ and $\mathsf{D}_{\mathrm{seq}}
 But carrying it as a flag would require additional storage, 
 and \texttt{nullable} is cheap to evaluate on demand.
 
-Appending rather than prepending makes each injection step $O(1)$,
-but leaves a \texttt{Star}'s iterations in reverse chronological order. 
-After the backward walk, \texttt{reverse\_stars} 
-restores their order by reversing each \texttt{Star}'s items exactly once.
-Both parser entry points apply it before returning. 
-Thus, the backward pass remains $O(n)$.
-Prepending at every step, as Equation~\eqref{eq:inj} suggests literally,
-would instead copy the already-built tail on each call, 
-raising the cost to $O(n^2)$.
+Appending rather than prepending makes each injection step $O(1)$, 
+but leaves a \texttt{Star}'s iterations in reverse chronological order.
+\texttt{reverse\_stars} reverses each \texttt{Star}'s items exactly once
+after the backward walk, and both entry points apply it before returning,
+so the pass remains $O(n)$. 
+Prepending at every step, as Equation~\eqref{eq:inj} suggests literally, 
+would instead copy the already-built tail on each call, raising the cost to $O(n^2)$.
 
 \begin{figure}[H]
 \small
@@ -326,10 +324,13 @@ pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
             _ => panic!("inject/Alt: want Left|Right"),
         },
         Regex::Star(r1) => match v {
-            ParseTree::Pair(v1, ParseTree::Star(mut rest)) => {
-                rest.push(inject(r1, l, *v1));
-                ParseTree::Star(rest)
-            }
+            ParseTree::Pair(v1, vs) => match *vs {
+                ParseTree::Star(mut rest) => {
+                    rest.push(inject(r1, l, *v1));
+                    ParseTree::Star(rest)
+                }
+                _ => panic!("inject/Star: want Star tail"),
+            },
             _ => panic!("inject/Star: want Pair"),
         },
         Regex::Seq(r1, r2) => match (nullable(r1), v) {
@@ -353,8 +354,6 @@ pub fn inject(r: &Regex, l: char, v: ParseTree) -> ParseTree {
 Reinserts a character into a parse tree.}
 \label{fig:inject-rust}
 \end{figure}
-
-
 %
 
 \subsection{Parser}
@@ -682,12 +681,9 @@ whereas the direct construction reverses the residuals step by step.
 \subsection{Annotated Expressions}
 \label{sec:annotated-expressions}
 
-Building parse-tree information during the forward pass extends the
-derivative computation with bit-sequence annotations, propagated by the
-bit-threaded derivative $\mathit{ri}\backslash_b l$.
-An annotated expression $\mathit{ri}$ extends $r$ by associating each
-non-$\emptyset$ node with a bit-sequence $bs$ recording the reconstruction
-choices made during the forward pass.
+An annotated expression $\mathit{ri}$ extends $r$ 
+by associating each non-$\emptyset$ node with a bit-sequence $bs$ 
+that records the reconstruction choices made during the forward pass:
 \begin{equation}\label{eq:aregex-grammar}
 \mathit{ri} ::= \emptyset \mid (bs@\varepsilon) \mid (bs@x) \mid
 (bs@\mathit{ri}_1 \oplus \mathit{ri}_2) \mid
@@ -699,14 +695,14 @@ choices made during the forward pass.
 
 \paragraph{In Rust.}
 \label{sec:aregex-type}
-Figure~\ref{fig:aregex-enum} defines \texttt{ARegex}, the annotated
-counterpart of \texttt{Regex}. Every variant except \texttt{Phi} carries
-a leading \texttt{Bits} field (cf.\ \eqref{eq:aregex-grammar}).
-\texttt{Bits} is a persistent, \texttt{Rc}-backed cons list, not a
-\texttt{Vec<bool>}: prepending a prefix costs only the prefix,
-independent of the accumulated history. A \texttt{Vec<bool>} would copy
-the entire prefix on every derivative step, making an $n$-character run
-cost $O(n^2)$. the persistent representation keeps it $O(n)$.
+Figure~\ref{fig:aregex-enum} defines \texttt{ARegex}, 
+the annotated counterpart of \texttt{Regex}, 
+in which every variant except \texttt{Phi} carries a leading \texttt{Bits} field
+(Equation~\eqref{eq:aregex-grammar}). 
+\texttt{Bits} is a persistent, 
+\texttt{Rc}-backed cons list rather than a \texttt{Vec<bool>}, 
+so prepending costs only the new prefix and not the accumulated history,
+which keeps an $n$-character run $O(n)$ rather than $O(n^2)$.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -723,10 +719,8 @@ bit-sequence, \texttt{Bits}.}
 \label{fig:aregex-enum}
 \end{figure}
 
-All following operations act on this \texttt{ARegex}. Since derivative and
-simplification steps remove nodes while the bits attached to them must
-survive, each operation needs a way to transfer those bits onto the node
-that remains. The helper $\mathit{fuse}$ provides this transfer.
+Every subsequent operation uses this type 
+and must preserve annotations when derivative or simplification steps remove nodes. 
 
 %
 %
@@ -734,11 +728,13 @@ that remains. The helper $\mathit{fuse}$ provides this transfer.
 
 \subsection{Fusing Bit-Lists}
 \label{sec:fuse}
-$\mathit{fuse}$, defined in \citep[Fig.~5]{sulzmannlu2014}, transfers
-bits from a node that is about to be removed onto the node that survives
-in its place. It prepends $bs$ to the top node's annotation $bs'$ without
-descending into its children, so outer reconstruction choices precede
-those already recorded in the subtree.
+$\mathit{fuse}$, defined in \citep[Fig.~5]{sulzmannlu2014}, 
+transfers bits from a node that is about to be removed 
+onto the node that survives in its place. 
+It prepends $bs$ to the top node's annotation $bs'$ 
+without descending into its children, 
+so outer reconstruction choices precede those 
+already recorded in the subtree.
 \begin{equation}\label{eq:fuse}
 \begin{aligned}
 \mathit{fuse}(bs, \emptyset) &= \emptyset \\
@@ -758,10 +754,32 @@ those already recorded in the subtree.
 \paragraph{In Rust.}
 \label{sec:fuse-impl}
 
-Figure~\ref{fig:fuse-rust} implements the six rules of~\eqref{eq:fuse},
-one per variant. The helper \texttt{Bits::prepend} corresponds to the
-concatenation $\mathbin{+\!\!+}$ and places \texttt{bs} before the node's
-existing bits:
+Figure~\ref{fig:fuse-rust} implements the six rules of 
+Equation~\eqref{eq:fuse}, one per variant. 
+All arms except \texttt{Phi} prepend \texttt{bs} to the top node's own annotation 
+and moves its children through unchanged.
+Because the operation touches exactly one node 
+regardless of the size of the subtree below it, 
+\texttt{fuse} is non-recursive and no subtree is copied. 
+\texttt{ri} is consumed by value,
+so its untouched children move into the rebuilt node without a clone.
+\texttt{Bits::prepend} wraps the existing chain 
+in a new \texttt{Rc} rather than copying it, 
+so the allocation is proportional to the length of \texttt{bs} alone, 
+independent of how many bits the node already carries. 
+Concretely, \texttt{Bits} is backed by a persistent \texttt{Node} enum:
+\texttt{Node::Prepend} stores only the new prefix 
+plus an \texttt{Rc} link to the previous chain, 
+not a flattened copy. 
+So reconstructing the full sequence later walks this chain once,
+from newest to oldest. 
+
+That walk is deferred to the end of parsing
+rather than repeated at every \texttt{fuse} call.
+With a plain \texttt{Vec<bool>}, 
+prepending would instead copy the combined content on every call, 
+and since a node's history grows with the input consumed so far, 
+a single \texttt{fuse} would cost as much as the whole parse up to that point. 
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -778,8 +796,6 @@ pub fn fuse(bs: &[bool], ri: ARegex) -> ARegex {
 }
 
 impl Bits {
-    // prefix ++ self, O(prefix.len()) regardless of how long self
-    // already is -- the existing chain is shared, not copied.
     pub fn prepend(&self, prefix: &[bool]) -> Bits {
         if prefix.is_empty() { return self.clone(); }
         Bits(Rc::new(Node::Prepend(Rc::from(prefix), self.0.clone())))
@@ -791,31 +807,6 @@ top node.}
 \label{fig:fuse-rust}
 \end{figure}
 
-The \texttt{Phi} arm is the only case that returns without calling
-\texttt{prepend}, because \texttt{Phi} represents the empty language and
-carries no annotation slot, so there is no bit-list for \texttt{fuse} to
-prepend to. Every other arm rebuilds the top node with a combined
-annotation and moves its two children, or single child in the star case,
-unchanged. Since \texttt{fuse} prepends \texttt{bs} only to the top node's
-annotation, the bits carried by its children are not touched, and the
-operation rewrites exactly one node regardless of how large the subtree
-below it is.
-
-The function is therefore non-recursive, and no subtree needs to be
-copied. The implementation realizes this directly, since \texttt{ri} is
-consumed by value and its untouched children move into the rebuilt node
-without a clone. \texttt{Bits::prepend} wraps the node's existing chain
-in a new \texttt{Rc}, sharing rather than copying it: the allocation is
-proportional only to \texttt{bs}'s length, independent of how many bits
-the node already carries. This is why \texttt{Bits} replaces a plain
-\texttt{Vec<bool>} here: with a \texttt{Vec}, \texttt{prepend} would have
-to copy the existing content on every call, a cost proportional to the
-combined length of the two bit-lists -- the node's own history can grow
-with every character consumed so far, which would make a single
-\texttt{fuse} call as expensive as the whole parse up to that point. An
-empty \texttt{bs} is the one case that still skips any work, since
-prepending an empty prefix returns the node's existing chain unchanged.
-
 %
 %
 %
@@ -826,8 +817,7 @@ prepending an empty prefix returns the node's existing chain unchanged.
 The forward pass operates on annotated expressions, but the input is a
 plain expression, so $r$ must first be converted into its annotated
 counterpart $\mathit{ri}$. The function $\mathit{internalize}$, following
-\citep[Fig.~5]{sulzmannlu2014}, performs this conversion recursively, and
-it is the only step that introduces new bits:
+\citep[Fig.~5]{sulzmannlu2014}, performs this conversion recursively.
 \begin{equation}\label{eq:internalize}
 \begin{aligned}
 \mathit{internalize}(\emptyset) &= \emptyset \\
@@ -842,12 +832,11 @@ it is the only step that introduces new bits:
 \end{aligned}
 \end{equation}
 
-The tags $[0]$ and $[1]$ on the two branches of $r_1+r_2$ mark the left and
-right branch respectively, so the decoder can later recover which one was
-taken. Every other case
-introduces no new bit and uses only the empty list $[\,]$. The two
-calls to $\mathit{fuse}$ in ~\eqref{eq:internalize} are the only
-points in the construction where new bits are introduced.
+The tags $[0]$ and $[1]$ mark the left and right branch of an alternation, 
+so the decoder can later recover which one was taken. 
+Every other case uses only the empty list, 
+so the two $\mathit{fuse}$ calls in the alternation case 
+are the only points where new bits are introduced.
 
 %
 
@@ -856,9 +845,12 @@ points in the construction where new bits are introduced.
 
 Figure~\ref{fig:internalize-rust} directly maps the constructors of
 \texttt{Regex} to their annotated counterparts.
-Each recursive call applies \texttt{internalize} to the corresponding
-subexpression, preserving the structure of the original expression in
-the annotated representation.
+Each recursive call applies \texttt{internalize} to the corresponding subexpression, 
+preserving the structure of the original expression in the annotated representation.
+\texttt{Alt} is the only case that calls \texttt{fuse} with a non-empty bit-list, 
+matching Equation~\eqref{eq:internalize}.
+Star iteration choices are determined later, during derivative computation,
+since the iteration count is not known until the input is actually consumed.
 
 \begin{figure}[H]
 \small
@@ -886,16 +878,7 @@ Each alternation branch receives a tag recording its side, and the two
 \label{fig:internalize-rust}
 \end{figure}
 
-The \texttt{Alt} case calls \texttt{fuse} with a non-empty bit-list,
-tagging the left operand with \texttt{[false]} and the right with
-\texttt{[true]} before wrapping them in a \texttt{Alt} with an empty
-outer bit-list. Every later bit originates from one of these two tags and
-is propagated during derivation.
 
-The \texttt{Phi}, \texttt{Eps}, \texttt{Lit}, \texttt{Seq}, and
-\texttt{Star} cases use an empty bit-list, since they introduce no
-disambiguation choice at this stage. Star iteration choices are instead
-determined during derivative computation.
 
 %
 %
@@ -904,10 +887,11 @@ determined during derivative computation.
 \subsection{Extracting Bits}
 \label{sec:mkepsbc-theory}
 
-$\mathit{mkEpsBC}$, from \citep[Fig.~5]{sulzmannlu2014}, is the bit-list
-counterpart of $\mathit{mkEps}$. It keeps the left preference and star
-closing bit, but extracts bits instead of building a tree. Each rule
-prepends the current node's bits to those returned recursively.
+$\mathit{mkEpsBC}$, from \citep[Fig.~5]{sulzmannlu2014}, 
+is the bit-list counterpart of $\mathit{mkEps}$. 
+It keeps the left preference and star closing bit, 
+but extracts bits instead of building a tree. 
+Each rule prepends the current node's bits to those returned recursively.
 \begin{equation}\label{eq:mkepsbc}
 \begin{aligned}
 \mathit{mkEpsBC}_{(bs@\varepsilon)} &= bs \\[2pt]
@@ -925,24 +909,29 @@ prepends the current node's bits to those returned recursively.
 \end{equation}
 
 As with $\mathit{mkEps}$, the rules cover only the four nullable forms.
-$\emptyset$ and literals cannot match the empty word, so
-$\mathit{mkEpsBC}$ is called only on nullable expressions and both are
-handled as preconditions.
+$\emptyset$ and literals cannot match the empty word, 
+so $\mathit{mkEpsBC}$ is called only on nullable expressions 
+and both are handled as preconditions.
 
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:mkepsbc-rust} implements \texttt{mk\_eps\_bc} alongside
-\texttt{mk\_eps} (Figure~\ref{fig:mkeps-rust}), with one difference. Where
-\texttt{mk\_eps} builds a \texttt{ParseTree}, \texttt{mk\_eps\_bc}
-concatenates bit-lists, calling \texttt{bs.to\_vec()} where \texttt{mk\_eps}
-would borrow or clone: this is the point where a node's \texttt{Bits}
-chain (Section~\ref{sec:aregex-type}) is finally walked and materialized
-into a concrete \texttt{Vec<bool>}, something \texttt{fuse} deliberately
-avoids doing on every derivative step. The \texttt{Star} arm also does
-not recurse, since a star matching the empty word uses zero iterations,
-so it only appends
-the closing \texttt{true} and never examines the child expression:
+Figure~\ref{fig:mkepsbc-rust} implements \texttt{mk\_eps\_bc} 
+alongside \texttt{mk\_eps} (Figure~\ref{fig:mkeps-rust}), 
+with one difference. 
+Where \texttt{mk\_eps} builds a \texttt{ParseTree}, 
+\texttt{mk\_eps\_bc} concatenates bit-lists, 
+calling \texttt{bs.to\_vec()} where \texttt{mk\_eps} would borrow or clone.
+This is the point where a node's \texttt{Bits} chain (Section~\ref{sec:aregex-type}) 
+is walked and materialized into a concrete \texttt{Vec<bool>}, 
+something \texttt{fuse} deliberately avoids doing on every derivative step. 
+Like \texttt{mk\_eps}'s own \texttt{Star} arm, 
+this one does not recurse into the child expression either.
+A star matching the empty word always represents zero iterations 
+regardless of what its body is, 
+so there is nothing in the body left to inspect. 
+It therefore only appends the closing \texttt{true} bit to \texttt{bs.to\_vec()}, 
+a constant-cost step no matter how large the body's own subtree is.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -953,11 +942,8 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
         ARegex::Eps(bs) => bs.to_vec(),
         ARegex::Alt(bs, r1, r2) => {
             let mut result = bs.to_vec();
-            if nullable_bc(r1) {
-                result.extend(mk_eps_bc(r1));
-            } else {
-                result.extend(mk_eps_bc(r2));
-            }
+            if nullable_bc(r1) { result.extend(mk_eps_bc(r1)); } 
+            else { result.extend(mk_eps_bc(r2)); }
             result
         }
         ARegex::Seq(bs, r1, r2) => {
@@ -974,8 +960,8 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
     }
 }
 \end{verbatim}
-\caption{\texttt{mk\_eps\_bc} implements \eqref{eq:mkepsbc}. \texttt{Phi}
-and \texttt{Lit} panic, since neither can be nullable.}
+\caption{\texttt{mk\_eps\_bc} implements Equation~\eqref{eq:mkepsbc}. 
+\texttt{Phi}, \texttt{Lit} panic, since neither is nullable.}
 \label{fig:mkepsbc-rust}
 \end{figure}
 
@@ -986,10 +972,9 @@ and \texttt{Lit} panic, since neither can be nullable.}
 \subsection{Annotated Derivatives}
 \label{sec:deriv-bc-theory}
 
-$\mathit{ri}\backslash_b l$ has the same case structure as the plain
-derivative~\eqref{eq:derivative}, but extended with bits threaded through
-the rules. Each rule corresponds to its unannotated
-counterpart:
+$\mathit{ri}\backslash_b l$ has the same case structure 
+as the plain derivative in Equation~\eqref{eq:derivative}, 
+but extended with bits threaded through the rules~\citep[Fig.~5]{sulzmannlu2014}.
 \begin{equation}\label{eq:bderiv}
 \begin{aligned}
 \emptyset \backslash_b x &= \emptyset
@@ -1023,62 +1008,66 @@ counterpart:
 \end{aligned}
 \end{equation}
 
-The rules $\mathsf{B}_{+}$, $\mathsf{B}_{\mathrm{seq}}$, and
-$\mathsf{B}_{*}$ preserve the outer $bs$, since derivation changes the
-residual but not the choices already recorded above it. 
-
-The nullable
-sequence case $\mathsf{B}_{\mathrm{seq}}^{\,n}$ is the exception. Since
-$\mathit{ri}_1$ is nullable, $x$ may be matched by either factor, so the
-rule introduces a new alternation. Its left branch continues into
-$\mathit{ri}_1$, while its right branch recurses into $\mathit{ri}_2$,
-with the empty match's bits extracted by $\mathit{mkEpsBC}$ and fused onto
-$\mathit{ri}_2$'s derivative, so the choice inside $\mathit{ri}_1$
-survives. This performs during the forward pass what
-$\mathsf{I}_{\mathrm{seq}}^{R}$ performs during injection. The outer $bs$
-attaches to the new alternation, since the alternation as a whole is what
-$\mathit{ri}_1\,\mathit{ri}_2$ derived into.
+The rules $\mathsf{B}_{+}$, $\mathsf{B}_{\mathrm{seq}}$, 
+and $\mathsf{B}_{*}$ preserve the outer $bs$, 
+since derivation changes the residual but not the choices already recorded above it. 
+The nullable sequence case $\mathsf{B}_{\mathrm{seq}}^{\,n}$ is the exception. 
+Since $\mathit{ri}_1$ is nullable, $x$ may be matched by either factor, 
+so the rule introduces a new alternation. 
+Its left branch continues into $\mathit{ri}_1$, 
+while its right branch recurses into $\mathit{ri}_2$, 
+with the empty match's bits extracted by $\mathit{mkEpsBC}$ 
+and fused onto $\mathit{ri}_2$'s derivative, 
+so the choice inside $\mathit{ri}_1$ survives. 
+This mirrors the role of $\mathsf{I}_{\mathrm{seq}}^{R}$ during injection.
+The outer $bs$ attaches to the new alternation,
+since it is the derivative of $\mathit{ri}_1\,\mathit{ri}_2$.
 
 %
 
 \paragraph{In Rust.}
 \label{sec:deriv-bc-impl}
 
-Figure~\ref{fig:derivbc-rust} implements~\eqref{eq:bderiv}, following the
-case structure of plain \texttt{deriv} with bits threaded through the
-constructors. The base cases \texttt{Phi}, \texttt{Eps}, and \texttt{Lit}
-match plain \texttt{deriv}, except that \texttt{Lit} carries its bit-list
-onto the resulting \texttt{Eps}.
-
+Figure~\ref{fig:derivbc-rust} implements Equation~\eqref{eq:bderiv}, 
+following the case structure of plain \texttt{deriv} 
+with bits threaded through the constructors. 
+The base cases \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} match plain \texttt{deriv}, 
+except that \texttt{Lit} carries its bit-list onto the resulting \texttt{Eps}.
 The \texttt{Alt} arm derives both operands and rebuilds the alternation
 with the outer \texttt{bs} on the wrapper, not pushed into either branch.
-This matches $\mathsf{B}_{+}$, where the recorded choice belongs to the
-alternation itself and derivation does not change it, so the bit stays on
-the outer constructor until the decoder reads it.
+This matches $\mathsf{B}_{+}$, 
+where the recorded choice belongs to the alternation itself 
+and derivation does not change it, 
+so the bit stays on the outer constructor until the decoder reads it.
 
-The \texttt{Seq} arm reflects $\mathsf{B}_{\mathrm{seq}}$ and
-$\mathsf{B}_{\mathrm{seq}}^{\,n}$. In the non-nullable case, \texttt{r1}
-must consume the character, so only its derivative is needed and
-\texttt{r2} moves directly into the rebuilt sequence. In the nullable
-case, both alternatives are possible. The bits of \texttt{r1}'s empty
-match are extracted by \texttt{mk\_eps\_bc} \emph{before} \texttt{r1} is
-consumed by \texttt{deriv\_bc}, since after that call the original
-\texttt{r1} is gone. Those bits are then fused onto the derivative of
-\texttt{r2}, so the choice made inside \texttt{r1} reaches the surviving
-branch. The left branch is wrapped in a fresh \texttt{Seq} with an empty
-bit-list, since the outer \texttt{bs} moves to the new \texttt{Alt}
-wrapper, matching $\mathsf{B}_{\mathrm{seq}}^{\,n}$. Two clones are
-therefore needed. \texttt{r2.clone()} provides one copy for the left
-branch and one for its own derivative, and \texttt{nullable\_bc} borrows
-\texttt{r1} before \texttt{deriv\_bc} consumes it.
+The \texttt{Seq} arm reflects $\mathsf{B}_{\mathrm{seq}}$ 
+and $\mathsf{B}_{\mathrm{seq}}^{\,n}$. 
+In the non-nullable case, \texttt{r1} must consume the character, 
+so only its derivative is needed 
+and \texttt{r2} moves directly into the rebuilt sequence. 
+In the nullable case, both alternatives are possible. 
+The bits of \texttt{r1}'s empty match are extracted 
+by \texttt{mk\_eps\_bc} \emph{before} \texttt{r1} is consumed 
+by \texttt{deriv\_bc}, since after that call the original \texttt{r1} is gone. 
+Those bits are then fused onto the derivative of \texttt{r2}, 
+so the choice made inside \texttt{r1} reaches the surviving branch. 
+The left branch is wrapped in a fresh \texttt{Seq} with an empty bit-list, 
+since the outer \texttt{bs} moves to the new \texttt{Alt} wrapper, 
+matching $\mathsf{B}_{\mathrm{seq}}^{\,n}$. \texttt{r2} is needed twice. 
+Once moved into the left branch, once cloned to compute its own derivative, 
+so exactly one clone (\texttt{r2.clone()}) is required, 
+while \texttt{nullable\_bc} only borrows \texttt{r1} 
+before \texttt{deriv\_bc} consumes it.
 
-The \texttt{Star} arm follows the same pattern as the nullable case of
-\texttt{Seq}. The body is needed both for its derivative and for the
-reconstructed star, so \texttt{r.clone()} provides the second copy, and
-the reconstructed star is wrapped in a fresh \texttt{Star} with an empty
-bit-list for the same reason as the left branch above. The leading
-\texttt{[false]} prepended to the derivative marks one more iteration,
-matching the outermost bit in $\mathsf{B}_{*}$
+The \texttt{Star} arm follows the same pattern as the nullable case of \texttt{Seq}. 
+The body is needed twice: 
+once cloned to compute its own derivative (\texttt{r.clone()}), and 
+once moved, unchanged, into the reconstructed \texttt{Star}, 
+wrapped with an empty bit-list for the same reason as the left branch above.
+The leading \texttt{[false]} prepended to the derivative 
+matches the \texttt{[0]} that $\mathsf{B}_{*}$ 
+fuses onto $\mathit{ri}\backslash_b x$ itself, 
+not the outer $bs$, which the Rust code leaves untouched on the surrounding \texttt{Seq}.
 
 \begin{figure}[H]
 \small
@@ -1086,38 +1075,31 @@ matching the outermost bit in $\mathsf{B}_{*}$
 pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
     match ri {
         // ...
-        ARegex::Alt(bs, r1, r2) => {
-            let d1 = deriv_bc(*r1, l);
-            let d2 = deriv_bc(*r2, l);
-            ARegex::Alt(bs, Box::new(d1), Box::new(d2))
-        }
+        ARegex::Alt(bs, r1, r2) => ARegex::Alt(bs,
+            Box::new(deriv_bc(*r1, l)), Box::new(deriv_bc(*r2, l))),
         ARegex::Seq(bs, r1, r2) => {
             if nullable_bc(&r1) {
                 let eps_bits = mk_eps_bc(&r1);
-                let d1 = deriv_bc(*r1, l);
                 let d2 = deriv_bc(*r2.clone(), l);
-                let left_branch = ARegex::Seq(Bits::empty(), Box::new(d1), r2);
-                let right_branch = fuse(&eps_bits, d2);
-                ARegex::Alt(bs, Box::new(left_branch), Box::new(right_branch))
+                let left = ARegex::Seq(Bits::empty(),
+                    Box::new(deriv_bc(*r1, l)), r2);
+                ARegex::Alt(bs, Box::new(left),
+                    Box::new(fuse(&eps_bits, d2)))
             } else {
-                let d1 = deriv_bc(*r1, l);
-                ARegex::Seq(bs, Box::new(d1), r2)
+                ARegex::Seq(bs, Box::new(deriv_bc(*r1, l)), r2)
             }
         }
-        ARegex::Star(bs, r) => {
-            let d = deriv_bc(*r.clone(), l);
-            let fused = fuse(&[false], d);
-            let new_star = ARegex::Star(Bits::empty(), r);
-            ARegex::Seq(bs, Box::new(fused), Box::new(new_star))
-        }
+        ARegex::Star(bs, r) => ARegex::Seq(bs,
+            Box::new(fuse(&[false], deriv_bc(*r.clone(), l))),
+            Box::new(ARegex::Star(Bits::empty(), r))),
     }
 }
 \end{verbatim}
 \caption{Annotated derivative \texttt{deriv\_bc}, implementing
-$\mathsf{B}_{\emptyset}$, $\mathsf{B}_{\varepsilon}$,
-$\mathsf{B}_{\mathrm{lit}}$, $\mathsf{B}_{+}$,
-$\mathsf{B}_{\mathrm{seq}}/\mathsf{B}_{\mathrm{seq}}^{\,n}$,
-$\mathsf{B}_{*}$.}
+$\mathsf{B}_{+}$, $\mathsf{B}_{\mathrm{seq}}/\mathsf{B}_{\mathrm{seq}}^{\,n}$,
+and $\mathsf{B}_{*}$. The cases $\mathsf{B}_{\emptyset}$,
+$\mathsf{B}_{\varepsilon}$, and $\mathsf{B}_{\mathrm{lit}}$ are omitted
+from the figure.}
 \label{fig:derivbc-rust}
 \end{figure}
 
@@ -1226,7 +1208,8 @@ iteration, reintroducing the $O(n^2)$ cost \texttt{Bits}
 
 $\mathit{decode}_r$ reconstructs a \texttt{ParseTree} from the bit
 sequence of $\mathit{mkEpsBC}$, walking $r$ with one bit per
-alternation to choose a branch. Its worker $\mathit{decodeInner}$
+alternation to choose a branch~\citep[Fig.~4]{sulzmannlu2014}.
+Its worker $\mathit{decodeInner}$
 returns the current tree and the remaining bits, so the recursion
 continues at the correct position:
 {\small
