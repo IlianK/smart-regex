@@ -89,33 +89,39 @@
 \newlabel{fig:derivbc-rust}{{5.10}{33}{Annotated derivative \texttt {deriv\_bc}, implementing $\mathsf {B}_{+}$, $\mathsf {B}_{\mathrm {seq}}/\mathsf {B}_{\mathrm {seq}}^{\,n}$, and $\mathsf {B}_{*}$. The cases $\mathsf {B}_{\emptyset }$, $\mathsf {B}_{\varepsilon }$, and $\mathsf {B}_{\mathrm {lit}}$ are omitted from the figure}{figure.caption.25}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.6}Simplification}{34}{subsection.5.2.6}\protected@file@percent }
 \newlabel{sec:simp}{{5.2.6}{34}{Simplification}{subsection.5.2.6}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{34}{subsection.5.2.6}\protected@file@percent }
-\newlabel{sec:simp-impl}{{5.2.6}{34}{In Rust}{subsection.5.2.6}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces \texttt  {simp} and \texttt  {simp\_once}: the fixpoint loop and its two non-trivial cases. \texttt  {collect\_alt\_branches}, \texttt  {dedup\_first}, and \texttt  {fold\_alt} implement flattening, deduplication, and rebuilding an $n$-ary alternation, omitted here for space; each does no more than its name says. \texttt  {fuse\_bits} is \texttt  {fuse}'s (\S  \ref {sec:fuse}) counterpart for the native \texttt  {Bits} type, avoiding a conversion back to a slice that would force the entire accumulated history to be materialized.}}{35}{figure.caption.26}\protected@file@percent }
-\newlabel{fig:simp-rust}{{5.11}{35}{\texttt {simp} and \texttt {simp\_once}: the fixpoint loop and its two non-trivial cases. \texttt {collect\_alt\_branches}, \texttt {dedup\_first}, and \texttt {fold\_alt} implement flattening, deduplication, and rebuilding an $n$-ary alternation, omitted here for space; each does no more than its name says. \texttt {fuse\_bits} is \texttt {fuse}'s (\S \ref {sec:fuse}) counterpart for the native \texttt {Bits} type, avoiding a conversion back to a slice that would force the entire accumulated history to be materialized}{figure.caption.26}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces \texttt  {simp\_once}: Implementation of the simplification of annotated concatenations and alternations. \texttt  {Seq} removes dead or nullable operands, while \texttt  {Alt} removes dead and duplicate branches. Removed nodes' bits are transferred using \texttt  {fuse\_bits}, the \texttt  {Bits}-native counterpart of \texttt  {fuse} (Section~\ref {sec:fuse}), avoiding a slice conversion and copy of the accumulated bit history. }}{34}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:simp-rust}{{5.11}{34}{\texttt {simp\_once}: Implementation of the simplification of annotated concatenations and alternations. \texttt {Seq} removes dead or nullable operands, while \texttt {Alt} removes dead and duplicate branches. Removed nodes' bits are transferred using \texttt {fuse\_bits}, the \texttt {Bits}-native counterpart of \texttt {fuse} (Section~\ref {sec:fuse}), avoiding a slice conversion and copy of the accumulated bit history}{figure.caption.26}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{35}{figure.caption.26}\protected@file@percent }
+\newlabel{sec:simp-impl}{{5.2.6}{35}{In Rust}{figure.caption.26}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.12}{\ignorespaces \texttt  {simp}: Implementation of the fixpoint loop around \texttt  {simp\_once}.}}{35}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:simp-loop-rust}{{5.12}{35}{\texttt {simp}: Implementation of the fixpoint loop around \texttt {simp\_once}}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.13}{\ignorespaces \texttt  {collect\_alt\_branches} and its worker \texttt  {push\_branches}: Flattening a nested \texttt  {Alt} chain into one list, fusing bits onto a child before descending into it when the parent carries any.}}{35}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:collect-alt-branches-rust}{{5.13}{35}{\texttt {collect\_alt\_branches} and its worker \texttt {push\_branches}: Flattening a nested \texttt {Alt} chain into one list, fusing bits onto a child before descending into it when the parent carries any}{figure.caption.28}{}}
 \citation{sulzmannlu2014}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.14}{\ignorespaces \texttt  {fold\_alt}: rebuilds a flat, deduplicated branch list into a right-associated \texttt  {Alt}.}}{36}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:fold-alt-rust}{{5.14}{36}{\texttt {fold\_alt}: rebuilds a flat, deduplicated branch list into a right-associated \texttt {Alt}}{figure.caption.29}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.7}Decoding Bits}{36}{subsection.5.2.7}\protected@file@percent }
 \newlabel{sec:decode}{{5.2.7}{36}{Decoding Bits}{subsection.5.2.7}{}}
 \newlabel{eq:decode}{{5.12}{36}{Decoding Bits}{equation.5.12}{}}
 \@writefile{toc}{\contentsline {paragraph}{In Rust.}{36}{equation.5.12}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.12}{\ignorespaces \texttt  {decode\_inner}: the worker behind \texttt  {decode}, one arm per expression form.}}{37}{figure.caption.27}\protected@file@percent }
-\newlabel{fig:decode-rust}{{5.12}{37}{\texttt {decode\_inner}: the worker behind \texttt {decode}, one arm per expression form}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.15}{\ignorespaces \texttt  {decode\_inner}: the worker behind \texttt  {decode}, one arm per expression form.}}{37}{figure.caption.30}\protected@file@percent }
+\newlabel{fig:decode-rust}{{5.15}{37}{\texttt {decode\_inner}: the worker behind \texttt {decode}, one arm per expression form}{figure.caption.30}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.8}Parser}{38}{subsection.5.2.8}\protected@file@percent }
 \newlabel{sec:deriv-bc-driver}{{5.2.8}{38}{Parser}{subsection.5.2.8}{}}
 \newlabel{eq:bitcoded-driver}{{5.13}{38}{Parser}{equation.5.13}{}}
 \@writefile{toc}{\contentsline {paragraph}{In Rust.}{38}{equation.5.13}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.13}{\ignorespaces \texttt  {parse\_bitcoded\_loop}: the bit-coded parser's driver. \texttt  {derive\_and\_simplify} is factored out because the recursive entry point (\S  \ref {sec:deriv-std-parser}'s counterpart for this parser) shares the same per-character stepping and differs only in how it reaches \texttt  {ri} in the first place.}}{38}{figure.caption.28}\protected@file@percent }
-\newlabel{fig:deriv-bc-loop-rust}{{5.13}{38}{\texttt {parse\_bitcoded\_loop}: the bit-coded parser's driver. \texttt {derive\_and\_simplify} is factored out because the recursive entry point (\S \ref {sec:deriv-std-parser}'s counterpart for this parser) shares the same per-character stepping and differs only in how it reaches \texttt {ri} in the first place}{figure.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.16}{\ignorespaces \texttt  {parse\_bitcoded\_loop}: the bit-coded parser's driver. \texttt  {derive\_and\_simplify} is factored out because the recursive entry point (\S  \ref {sec:deriv-std-parser}'s counterpart for this parser) shares the same per-character stepping and differs only in how it reaches \texttt  {ri} in the first place.}}{39}{figure.caption.31}\protected@file@percent }
+\newlabel{fig:deriv-bc-loop-rust}{{5.16}{39}{\texttt {parse\_bitcoded\_loop}: the bit-coded parser's driver. \texttt {derive\_and\_simplify} is factored out because the recursive entry point (\S \ref {sec:deriv-std-parser}'s counterpart for this parser) shares the same per-character stepping and differs only in how it reaches \texttt {ri} in the first place}{figure.caption.31}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {5.2.9}Worked Example: Applying the Bitcoded Parser}{39}{subsection.5.2.9}\protected@file@percent }
 \newlabel{sec:deriv-bc-worked}{{5.2.9}{39}{Worked Example: Applying the Bitcoded Parser}{subsection.5.2.9}{}}
 \@writefile{toc}{\contentsline {paragraph}{Internalize.}{39}{subsection.5.2.9}\protected@file@percent }
 \newlabel{eq:dpbc-internalize}{{5.14}{39}{Internalize}{equation.5.14}{}}
 \@writefile{toc}{\contentsline {paragraph}{Bit-Threaded Derivatives.}{39}{equation.5.14}\protected@file@percent }
 \newlabel{eq:dpbc-forward}{{5.15}{39}{Bit-Threaded Derivatives}{equation.5.15}{}}
-\@writefile{toc}{\contentsline {paragraph}{Extracting the bits.}{39}{equation.5.15}\protected@file@percent }
-\newlabel{eq:dpbc-mkepsbc}{{5.16}{39}{Extracting the bits}{equation.5.16}{}}
-\@writefile{toc}{\contentsline {paragraph}{Decoding the bits.}{39}{equation.5.16}\protected@file@percent }
-\newlabel{eq:dpbc-decode}{{5.17}{39}{Decoding the bits}{equation.5.17}{}}
+\@writefile{toc}{\contentsline {paragraph}{Extracting the bits.}{40}{equation.5.15}\protected@file@percent }
+\newlabel{eq:dpbc-mkepsbc}{{5.16}{40}{Extracting the bits}{equation.5.16}{}}
+\@writefile{toc}{\contentsline {paragraph}{Decoding the bits.}{40}{equation.5.16}\protected@file@percent }
+\newlabel{eq:dpbc-decode}{{5.17}{40}{Decoding the bits}{equation.5.17}{}}
 \@setckpt{chapters/05_derivative_parser}{
 \setcounter{page}{41}
 \setcounter{equation}{17}
@@ -132,7 +138,7 @@
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{13}
+\setcounter{figure}{16}
 \setcounter{table}{0}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}

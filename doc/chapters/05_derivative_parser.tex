@@ -1110,65 +1110,31 @@ from the figure.}
 \subsection{Simplification}
 \label{sec:simp}
 
-$\mathit{simp}$, from \citep[Fig.~6]{sulzmannlu2014}, keeps the annotated
-expression's size bounded as derivation proceeds: it discards dead
-($\emptyset$) branches, collapses an $\varepsilon$ operand out of a
-concatenation, and removes duplicate alternation branches, fusing
-(\S\ref{sec:fuse}) each removed node's bits onto whatever replaces it. A
-single bottom-up pass does not always reach a fixpoint -- collapsing a
-branch at one level can expose a new collapse at the level above -- so
-$\mathit{simp}$ re-applies itself until the shape stops changing.
-
-How many times \texttt{simp\_once} must re-apply before the shape stops
-changing is itself data-dependent, so the fixpoint's actual cost -- and
-how it weighs against the memory it saves by keeping every intermediate
-residual small -- is exactly the kind of trade-off
-Chapter~\ref{sec:evaluation} measures directly rather than assumes. The
-\texttt{Alt} case's own cost follows the same logic: flattening a nested
-alternation into one list before deduplicating, as Figure~\ref{fig:simp-rust}
-does, keeps the cost of checking $p$ alternatives linear in $p$;
-deduplicating pairwise at each level of nesting instead would multiply
-that cost by the chain's own depth, exactly the pattern
-Chapter~\ref{sec:evaluation}'s widest alternation cases are built to
-stress.
+$\mathit{simp}$, from \citep[Fig.~6]{sulzmannlu2014}, 
+keeps the annotated expression's size bounded as derivation proceeds.
+It discards dead ($\emptyset$) branches, 
+collapses an $\varepsilon$ operand out of a concatenation, 
+and removes duplicate alternation branches, 
+fusing (Section~\ref{sec:fuse}) each removed node's bits onto whatever replaces it. 
+A single bottom-up pass does not always reach a fixpoint.
+Collapsing a branch at one level can expose a new collapse at the level above,
+so $\mathit{simp}$ re-applies itself until the shape stops changing.
+How many times \texttt{simp\_once} must re-apply 
+before the shape stops changing depends on the expression's own structure, 
+not a number fixed in advance. 
+The \texttt{Alt} case's own cost follows the same logic.
+Flattening a nested alternation into one list before deduplicating, 
+as Figure~\ref{fig:simp-rust} does, 
+keeps the cost of checking $p$ alternatives linear in $p$.
+Deduplicating pairwise at each level of nesting 
+instead would multiply that cost by the chain's own depth.
 
 %
 
-\paragraph{In Rust.}
-\label{sec:simp-impl}
-Figure~\ref{fig:simp-rust} shows \texttt{simp\_once}'s \texttt{Seq} and
-\texttt{Alt} cases, the two that do real work; \texttt{Phi}, \texttt{Eps},
-and \texttt{Lit} are already simplified, and \texttt{Star} only recurses
-into its body. \texttt{simp} is the fixpoint loop around it.
-
-The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot
-\varepsilon = r$, but asymmetrically: the right-hand collapse only fires
-when $r_2$'s own bits are empty, since $\mathit{mkEpsBC}$ concatenates
-bits left to right, so fusing $r_2$'s bits onto $r_1$ the same way the left
-case does would place them before $r_1$'s own bits instead of after.
-\texttt{same\_shape}, used by both the fixpoint check and
-\texttt{dedup\_first}, compares expressions while ignoring their bit
-annotations: two branches denoting the same future language collapse into
-one even if they recorded different choices so far, the same exclusion
-the reference's $\mathit{nub2}$ makes and that
-\S\ref{sec:pderiv-bc-state-set} relies on for the bit-coded
-partial-derivative parser. Comparing by shape alone also keeps the
-fixpoint check itself cheap: the derived structural equality would
-otherwise force a full bit-list materialization at every node on every
-iteration, reintroducing the $O(n^2)$ cost \texttt{Bits}
-(\S\ref{sec:aregex-type}) exists to avoid.
+Figure~\ref{fig:simp-rust} shows \texttt{simp\_once}'s simplification arms:
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub fn simp(ri: ARegex) -> ARegex {
-    let mut cur = ri;
-    loop {
-        let next = simp_once(cur.clone());
-        if same_shape(&next, &cur) { return next; }
-        cur = next;
-    }
-}
-
 fn simp_once(ri: ARegex) -> ARegex {
     match ri {
         ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => ri,
@@ -1186,7 +1152,6 @@ fn simp_once(ri: ARegex) -> ARegex {
         }
 
         ARegex::Alt(bs, r1, r2) => {
-            // flatten nested Alt, drop dead branches, dedup by shape
             let mut branches: Vec<ARegex> = collect_alt_branches(*r1, *r2)
                 .into_iter().map(simp_once).filter(|b| !is_phi(b)).collect();
             dedup_first(&mut branches);
@@ -1201,18 +1166,135 @@ fn simp_once(ri: ARegex) -> ARegex {
     }
 }
 \end{verbatim}
-\caption{\texttt{simp} and \texttt{simp\_once}: the fixpoint loop and its two
-non-trivial cases. \texttt{collect\_alt\_branches}, \texttt{dedup\_first},
-and \texttt{fold\_alt} implement flattening, deduplication, and rebuilding
-an $n$-ary alternation, omitted here for space; each does no more than its
-name says. \texttt{fuse\_bits} is \texttt{fuse}'s (\S\ref{sec:fuse})
-counterpart for the native \texttt{Bits} type, avoiding a conversion back
-to a slice that would force the entire accumulated history to be
-materialized.}
+\caption{\texttt{simp\_once}: Implementation of the simplification 
+of annotated concatenations and alternations. 
+\texttt{Seq} removes dead or nullable operands, while
+\texttt{Alt} removes dead and duplicate branches. 
+Removed nodes' bits are transferred using \texttt{fuse\_bits},
+the \texttt{Bits}-native counterpart of \texttt{fuse} (Section~\ref{sec:fuse}),
+avoiding a slice conversion and copy of the accumulated bit history.
+}
 \label{fig:simp-rust}
 \end{figure}
 
-\clearpage
+%
+
+\paragraph{In Rust.}
+\label{sec:simp-impl}
+\texttt{simp}, shown implemented in Figure~\ref{fig:simp-loop-rust}, 
+is the fixpoint loop, re-applying \texttt{simp\_once} 
+until \texttt{same\_shape} reports no further change.
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn simp(ri: ARegex) -> ARegex {
+    let mut cur = ri;
+    loop {
+        let next = simp_once(cur.clone());
+        if same_shape(&next, &cur) { return next; }
+        cur = next;
+    }
+}
+\end{verbatim}
+\caption{\texttt{simp}: Implementation of the fixpoint loop around \texttt{simp\_once}.}
+\label{fig:simp-loop-rust}
+\end{figure}
+
+%
+
+Flattening happens before deduplication.
+\texttt{collect\_alt\_branches} turns a chain 
+of nested \texttt{Alt} nodes into one list before \texttt{dedup\_first} ever runs, 
+so deduplication happens once over every branch 
+rather than once per nesting level. 
+Its worker \texttt{push\_branches} always recurses through an \texttt{Alt} node, 
+whatever its bit-list.
+When the bit-list is empty it recurses directly into both children, 
+and when it isn't, 
+it first fuses those bits onto each child so they are not lost before recursing.
+A node that is not an \texttt{Alt} is a leaf, 
+and is pushed onto the output list as-is.
+\begin{figure}[H]
+\small
+\begin{verbatim}
+fn collect_alt_branches(r1: ARegex, r2: ARegex) -> Vec<ARegex> {
+    let mut out = Vec::new();
+    push_branches(r1, &mut out);
+    push_branches(r2, &mut out);
+    out
+}
+
+fn push_branches(ri: ARegex, out: &mut Vec<ARegex>) {
+    match ri {
+        ARegex::Alt(bs, r1, r2) => {
+            if bs.is_empty() {
+                push_branches(*r1, out);
+                push_branches(*r2, out);
+            } else {
+                let r1f = fuse_bits(&bs, *r1);
+                let r2f = fuse_bits(&bs, *r2);
+                push_branches(r1f, out);
+                push_branches(r2f, out);
+            }
+        }
+        other => out.push(other),
+    }
+}
+\end{verbatim}
+\caption{\texttt{collect\_alt\_branches} and its worker \texttt{push\_branches}: 
+Flattening a nested \texttt{Alt} chain into one list, 
+fusing bits onto a child before descending into it when the parent carries any.}
+\label{fig:collect-alt-branches-rust}
+\end{figure}
+
+%
+
+\texttt{fold\_alt} reverses the direction \texttt{collect\_alt\_branches}
+flattened in: it rebuilds the already-deduplicated list back into a
+binary \texttt{Alt} chain, since \texttt{ARegex::Alt} only ever has two
+children. Reversing first and folding from there keeps the result
+right-associated with the branches in their original left-to-right
+order: the first branch becomes the outermost \texttt{Alt}, and each
+later branch nests one level deeper on the right.
+\begin{figure}[H]
+\small
+\begin{verbatim}
+fn fold_alt(mut branches: Vec<ARegex>) -> ARegex {
+    branches.reverse();
+    let mut acc = branches.remove(0);
+    for b in branches {
+        acc = ARegex::Alt(Bits::empty(), Box::new(b), Box::new(acc));
+    }
+    acc
+}
+\end{verbatim}
+\caption{\texttt{fold\_alt}: rebuilds a flat, 
+deduplicated branch list into a right-associated \texttt{Alt}.}
+\label{fig:fold-alt-rust}
+\end{figure}
+
+The \texttt{Seq} case mirrors 
+$\varepsilon \cdot r = r$ and $r \cdot \varepsilon = r$, 
+but asymmetrically.
+The right-hand collapse only fires when $r_2$'s own bits are empty, 
+since $\mathit{mkEpsBC}$ concatenates bits left to right, 
+so fusing $r_2$'s bits onto $r_1$ the same way the left case does 
+would place them before $r_1$'s own bits instead of after.
+\texttt{same\_shape}, used by both the fixpoint check and \texttt{dedup\_first}, 
+compares expressions while ignoring their bit annotations.
+Two branches denoting the same future language collapse into one 
+even if they recorded different choices so far, 
+the same exclusion the reference's $\mathit{nub2}$ makes 
+and that Section~\ref{sec:pderiv-bc-state-set} relies on 
+for the bit-coded partial-derivative parser. 
+Comparing by shape alone also keeps the fixpoint check itself cheap.
+The derived structural equality would otherwise force a full bit-list materialization 
+at every node on every iteration, 
+reintroducing the $O(n^2)$ cost \texttt{Bits} 
+(Section~\ref{sec:aregex-type}) exists to avoid.
+
+%
+
 \subsection{Decoding Bits}
 \label{sec:decode}
 
