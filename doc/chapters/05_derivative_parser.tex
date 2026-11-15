@@ -1232,28 +1232,32 @@ avoiding a slice conversion and copy of the accumulated bit history.
 
 %
 
-Equation~\eqref{eq:simp-theory} uses list-based alternation, whereas
-\texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}), so the
-implementation must flatten nested \texttt{Alt} nodes before applying the
-theory's \texttt{map}, \texttt{filter}, and \texttt{nub}, then rebuild the
-binary tree afterwards: \texttt{collect\_alt\_branches} and
-\texttt{push\_branches} flatten (Figure~\ref{fig:collect-alt-branches-rust}),
+Equation~\eqref{eq:simp-theory} uses list-based alternation, 
+whereas \texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}), 
+so the implementation must flatten nested \texttt{Alt} nodes 
+before applying the theory's \texttt{map}, \texttt{filter}, and \texttt{nub}, 
+then rebuild the binary tree afterwards: 
+\texttt{collect\_alt\_branches} and \texttt{push\_branches} 
+flatten (Figure~\ref{fig:collect-alt-branches-rust}),
 and \texttt{fold\_alt} rebuilds (Figure~\ref{fig:fold-alt-rust}).
 
-\texttt{collect\_alt\_branches} collects all alternatives into a single list
-by recursively traversing nested \texttt{Alt} nodes; its worker
-\texttt{push\_branches} transfers each node's annotation to its children via
-\texttt{fuse\_bits} before descending, so flattening does not lose recorded
-choices. A node that is not \texttt{Alt} is appended as a leaf. The result is
-a flat list \texttt{dedup\_first} can deduplicate in one pass, rather than
-once per nesting level.
+\texttt{collect\_alt\_branches} collects all alternatives 
+into a single list by recursively traversing nested \texttt{Alt} nodes.
+Its worker \texttt{push\_branches} transfers each node's annotation 
+to its children via \texttt{fuse\_bits} before descending, 
+so flattening does not lose recorded choices. 
+A node that is not \texttt{Alt} is appended as a leaf. 
+The result is a flat list \texttt{dedup\_first} can deduplicate in one pass, 
+rather than once per nesting level.
 
-The branches this produces still need deduplicating via \texttt{dedup\_first}:
-simplification collapses branches that are dead or degenerate, but two
-surviving branches can still denote the same language in different shapes --
-removing those is deduplication's job, not simplification's.
-\texttt{dedup\_first}, called right after in \texttt{simp\_once}'s \texttt{Alt}
-arm (Figure~\ref{fig:simp-rust}), is detailed later in Figure~\ref{fig:dedup-first-rust}.
+The branches this produces still need deduplicating via \texttt{dedup\_first}.
+Simplification collapses branches that are dead or degenerate, 
+but two surviving branches can still denote the same language in different shapes.
+Removing those is done by deduplication, not simplification.
+\texttt{dedup\_first}, 
+called right after in \texttt{simp\_once}'s \texttt{Alt}
+arm (Figure~\ref{fig:simp-rust}), 
+is detailed later in Figure~\ref{fig:dedup-first-rust}.
 
 \begin{figure}[H]
 \small
@@ -1290,10 +1294,10 @@ fusing bits onto a child before descending into it when the parent carries any.}
 
 %
 
-Figure~\ref{fig:fold-alt-rust} shows \texttt{fold\_alt}, rebuilding the
-binary \texttt{Alt} tree from the deduplicated list: reversing before
-folding keeps the original left-to-right order while producing a
-right-associated tree.
+Figure~\ref{fig:fold-alt-rust} shows \texttt{fold\_alt}, 
+rebuilding the binary \texttt{Alt} tree from the deduplicated list.
+Then reversing before folding keeps the original left-to-right order 
+while producing a right-associated tree.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1311,17 +1315,23 @@ deduplicated branch list into a right-associated \texttt{Alt}.}
 \label{fig:fold-alt-rust}
 \end{figure}
 
-The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot \varepsilon = r$,
-but asymmetrically: the right-hand collapse only fires when $r_2$'s bits are empty,
-since $\mathit{mkEpsBC}$ concatenates left to right, so fusing $r_2$'s bits the same
-way would misplace them before $r_1$'s own instead of after.
-\texttt{same\_shape}, used by both the fixpoint check and \texttt{dedup\_first}, ignores
-bit annotations, so two branches recording different choices so far still collapse into
-one once they denote the same future language -- the same exclusion the reference's
-$\mathit{nub2}$ makes, which Section~\ref{sec:pderiv-bc-state-set} relies on for the
-bit-coded partial-derivative parser. This also keeps the fixpoint check cheap: a derived
-structural equality would instead force a full bit-list materialization every iteration,
-reintroducing the $O(n^2)$ cost \texttt{Bits} (Section~\ref{sec:aregex-type}) exists to avoid.
+The \texttt{Seq} case mirrors $\varepsilon 
+\cdot r = r$ and $r \cdot \varepsilon = r$, but asymmetrically.
+The right-hand collapse only fires when $r_2$'s bits are empty,
+since $\mathit{mkEpsBC}$ concatenates left to right, 
+so fusing $r_2$'s bits the same way would misplace them 
+before $r_1$'s own instead of after.
+\texttt{same\_shape}, used by both the fixpoint check and \texttt{dedup\_first}, 
+ignores bit annotations, 
+so two branches recording different choices so far 
+still collapse into one once they denote the same future language.
+The same exclusion the reference's $\mathit{nub2}$ makes, 
+which Section~\ref{sec:pderiv-bc-state-set} relies on 
+for the bit-coded partial-derivative parser. 
+This also keeps the fixpoint check cheap.
+A derived structural equality would instead force a full bit-list copy every iteration,
+reintroducing the $O(n^2)$ cost \texttt{Bits} 
+(Section~\ref{sec:aregex-type}) exists to avoid.
 
 %
 
