@@ -561,14 +561,14 @@ hand-curated or generated pattern definitions; \emph{Entries} counts the
 \section{Performance Analysis}
 \label{sec:eval-performance}
 
-This section compares the candidates on both datasets in terms of 
-execution time (\ref{sec:eval-timing}), 
-memory use (\ref{sec:eval-memory}), and 
-translation cost (\ref{sec:eval-translate}). 
-Each subsection presents the real-corpus results first, 
-followed by the synthetic results and 
+This section compares the candidates on both datasets in terms of
+execution time (Section~\ref{sec:eval-timing}),
+memory use (Section~\ref{sec:eval-memory}), and
+translation cost (Section~\ref{sec:eval-translate}).
+Each subsection presents the real-corpus results first,
+followed by the synthetic results and
 some representative patterns with their individual measurements.
-The test on stack depth (\ref{sec:eval-stack-depth}) precedes these measurements.
+The test on stack depth (Section~\ref{sec:eval-stack-depth}) precedes these measurements.
 
 %
 %
@@ -643,11 +643,10 @@ This measurement establishes the input length at which the stack becomes
 the binding constraint for the recursive form. On crash resistance the
 iterative form is therefore preferable even where the derivative step is
 cheap, since it has no stack-depth limit within the sweep range.
-Whether it is preferable overall depends on which cost matters more 
-for a given input, 
-which will be examined further through the memory measurements 
-presented later in Section~\ref{sec:eval-memory}
-
+Whether it is preferable overall depends on which cost matters more
+for a given input,
+which is examined through the memory measurements
+in Section~\ref{sec:eval-memory}.
 
 %
 %
@@ -723,8 +722,10 @@ Table~\ref{tab:corpus-timing}.}
 \label{tab:corpus-timing-outcome}
 \end{table}
 
-For every parser, matching entries take roughly $3$--$8\times$ as much
-total time as non-matches. The asymmetry is expected. 
+Table~\ref{tab:corpus-timing-outcome} breaks the same run down by
+verified outcome. For every parser, matching entries take roughly
+$3$--$8\times$ as much total time as non-matches. The asymmetry is
+expected.
 A non-match can be rejected as soon as any character fails to match, 
 whereas a match requires the parser to consume 
 the whole input and construct a tree. The
@@ -971,36 +972,34 @@ one that dominates, examined in Table~\ref{tab:patho-e38-all-parsers}.
 \subsubsection{Representative Patterns}
 \label{sec:eval-timing-representative}
 
-Six representative rows are drawn from the categories above.
-Four are swept past their baseline values in input length $n$,
-reaching millions of characters or thousands of repetitions,
-so that each row crosses from measured to failing within its own range.
-The other two, E37 and E38,
-instead sweep the pattern's own alternation width $p$ at fixed input length,
-isolating compile-size cost from input length.
-Row selection and sweep points were set empirically as each row’s cost became clear.
-Since the four $n$-sweep rows’ inputs exceed the default 2 s budget,
-each uses a fixed 120 s deadline and an 8 GiB memory cap,
-so that its largest point can finish.
+Six representative rows are drawn from the categories above. Four are
+swept past their baseline values in input length $n$, reaching millions
+of characters or thousands of repetitions, so each row crosses from
+measured to failing within its own range. The other two, E37 and E38,
+instead sweep the pattern's own alternation width $p$ at fixed input
+length, isolating compile-size cost from input length; row selection and
+sweep points were set empirically as each row's cost became clear. The
+four $n$-sweep rows exceed the default 2\,s budget, so each uses a fixed
+120\,s deadline and an 8\,GiB memory cap to let its largest point finish;
 E37 and E38 stay within the default budget and need neither override.
-Table~\ref{tab:patho-crash-thresholds} summarises how far each parser gets on them, 
-in terms of the largest $n$ or $p$ it completes and the first value at which it fails.
+Table~\ref{tab:patho-crash-thresholds} summarises how far each parser
+gets on them, in terms of the largest $n$ or $p$ it completes and the
+first value at which it fails.
 
-The standard pair fails earliest on every row, by crashing rather than timing out. 
-Since both run on the 256\,MiB worker stack with the 8\,GiB heap cap enabled, 
-they have more stack headroom than in the bench of \ref{sec:eval-stack-depth}.
-They still reach the cap at the same $n$ with nearly identical allocation.
-Recursion depth is therefore not the cause, but the heap is.
-Both keep the derivation sequence for the backward pass 
-and its size grows with the input. 
-With the standard pair ruled out, 
-the remaining question is how \texttt{deriv\_bc} and the partial-derivative pair compare. 
-On P01 the pair outlasts \texttt{deriv\_bc},
-while on P60 and P09 all three reach the sweep maximum without failing.
-P61 is the exception: \texttt{deriv\_bc} and \texttt{pderiv\_bc} both
-still reach the maximum, but \texttt{pderiv\_std} now crashes there
-instead, the only failure among these three parsers on any of the six
-rows.
+The standard pair fails earliest on every row, by crashing rather than
+timing out: both run on the 256\,MiB worker stack with the 8\,GiB heap
+cap enabled, giving more stack headroom than the
+Section~\ref{sec:eval-stack-depth} bench, yet they still reach the cap
+at the same $n$ with nearly identical allocation, so recursion depth is
+not the cause, the heap is. Both keep the derivation sequence for the
+backward pass, and its size grows with the input. With the standard
+pair ruled out, the remaining question is how \texttt{deriv\_bc} and the
+partial-derivative pair compare: on P01 the pair outlasts
+\texttt{deriv\_bc}, while on P60 and P09 all three reach the sweep
+maximum without failing. P61 is the exception: \texttt{deriv\_bc} and
+\texttt{pderiv\_bc} both still reach the maximum, but
+\texttt{pderiv\_std} now crashes there instead, the only failure among
+these three parsers on any of the six rows.
 
 \begin{table}[H]
 \centering
@@ -1747,7 +1746,8 @@ a lower bound on the standard variants' true figure.}
 \label{tab:memory}
 \end{table}
 
-The largest difference is in peak allocation. The standard variants
+Table~\ref{tab:memory} shows the largest difference in peak
+allocation. The standard variants
 reach 582.4 and 737.6\,MB, compared with 5.1\,MB for
 \texttt{deriv\_bc}, a factor of $114$--$144$. The standard parser
 retains its derivation sequence for the backward pass, whereas
@@ -1788,7 +1788,8 @@ Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
 \label{tab:growth}
 \end{table}
 
-On \texttt{a\*}, the \texttt{deriv\_std} state grows linearly with $n$,
+Table~\ref{tab:growth} shows that on \texttt{a\*}, the
+\texttt{deriv\_std} state grows linearly with $n$,
 while the other three remain bounded. Its two-pass structure retains
 every intermediate expression until the backward pass, making state
 size depend on input length. On \texttt{(a+(b+ab))\*},
@@ -1836,8 +1837,9 @@ allocation for one of them is discussed in prose below.}
 \label{tab:patho-memory-baseline}
 \end{table}
 
-The standard pair's peak is at least an order of magnitude above
-every other parser in six of the seven categories, consistent with
+Table~\ref{tab:patho-memory-baseline} shows the standard pair's peak
+at least an order of magnitude above every other parser in six of the
+seven categories, consistent with
 retaining the full derivation sequence regardless of which
 category's mechanism is in play. The exception is A, where the gap
 narrows to 7.8$\times$ -- the same category where, as below,
@@ -2065,7 +2067,8 @@ is narrower: \texttt{deriv\_bc} ends up roughly $2.9\times$ cheaper than
 \label{tab:patho-mem-e38}
 \end{table}
 
-Both tables invert the timing result above: \texttt{pderiv\_bc} is the
+Tables~\ref{tab:patho-mem-e37} and~\ref{tab:patho-mem-e38} invert the
+timing result above: \texttt{pderiv\_bc} is the
 faster parser at every swept $p$, but \texttt{deriv\_bc} becomes the more
 memory-frugal one past a few thousand alternatives. The cause sits in
 what each representation keeps once the alternation has been
@@ -2120,8 +2123,9 @@ the default scope.}
 \label{tab:translate-cost}
 \end{table}
 
-Translation is inexpensive on the real corpus, with a mean of
-0.015\,ms. The largest pattern, at 18\,707 translated nodes, also
+Table~\ref{tab:translate-cost} shows translation is inexpensive on the
+real corpus, with a mean of 0.015\,ms. The largest pattern, at 18\,707
+translated nodes, also
 translates in under a millisecond. No real-corpus pattern exceeds
 the 20\,000-node cap.
 
@@ -2161,7 +2165,8 @@ their sweep, since those rows carry no comparison signal.}
 \label{tab:translate-cost-patho}
 \end{table}
 
-Category J has the highest translation cost in the table, with a
+In Table~\ref{tab:translate-cost-patho}, Category J has the highest
+translation cost, with a
 mean of 0.302\,ms and 15\,999 maximum nodes -- unsurprising, since
 its patterns are deliberately the largest the set sweeps. Category C
 has the second-highest node count, at 9\,881, consistent with its use
@@ -2263,8 +2268,9 @@ over \emph{Entries}.}
 \label{tab:agreement}
 \end{table}
 
-All completed entries show membership agreement across the candidates.
-No membership errors were observed. The 73 S2ELab timeouts indicate
+Table~\ref{tab:agreement} shows all completed entries agreeing on
+membership across the candidates. No membership errors were observed.
+The 73 S2ELab timeouts indicate
 patterns that the slower candidates could not finish within the budget.
 The synthetic set's 451 timeouts and single crash are expected outcomes
 of its deliberately difficult inputs.
@@ -2308,7 +2314,8 @@ test cases Table~\ref{tab:patho-categories} counts for the category.}
 \label{tab:agreement-patho-categories}
 \end{table}
 
-Category B accounts for 18 of the 21 disagreements, or 64.3\% of
+In Table~\ref{tab:agreement-patho-categories}, Category B accounts for
+18 of the 21 disagreements, or 64.3\% of
 its 28 compared matches. Its alternatives share a prefix under a
 quantifier, creating ambiguity between possible decompositions.
 Categories E and F contribute two and one disagreements,
