@@ -111,9 +111,9 @@ state set:
 \end{equation}
 The first state now has residual $\varepsilon$, meaning every input
 character has been consumed, and is accepting; the second has residual
-$\varepsilon \cdot (b + \varepsilon)$ -- the second factor is untouched
+$\varepsilon \cdot (b + \varepsilon)$: the second factor is untouched
 by $\mathtt{b}$, since it was the first factor's leftover $b$ that
-matched -- which is also accepting. Selection walks the state set
+matched, and so it too is accepting. Selection walks the state set
 in generation order and returns the first accepting state. Applying its
 injection to $\mathit{mkEps}_\varepsilon = ()$ yields
 $(\mathit{Left}\,a, \mathit{Left}\,b)$, the leftmost alternative at every
@@ -174,7 +174,7 @@ produces several successors, they are appended in the order the rules
 generate them, with the left alternative first, so the leftmost path
 appears earliest. Second, when two states share a residual,
 $\mathit{nub}$ keeps the first and discards the later one with its
-injection, so the earlier path wins ties -- the frontier-wide
+injection, so the earlier path wins ties: the frontier-wide
 deduplication rule stated as Definition~8 of \citep{sulzmannlu2012}. Both
 mechanisms favour the
 leftmost alternative at every choice over the longest one, which is what
@@ -257,8 +257,8 @@ apart the original expression: where the derivative of $r + s$ produces a
 single alternation, the partial derivative produces separate states for each
 branch, and the outer alternation disappears from the residual.
 
-Rule $(\mathsf{P}_{\mathrm{seq}})$ -- the only one present regardless of
-nullability -- passes the outer pair through unchanged, with the recursive
+Rule $(\mathsf{P}_{\mathrm{seq}})$, the only one present regardless of
+nullability, passes the outer pair through unchanged, with the recursive
 injection applied to the first component only. When $r$ is nullable, rule
 $(\mathsf{P}_{\mathrm{seq}}^{\,n})$ additionally unions in the states that
 skip $r$ entirely, using $\mathit{mkEps}_{r}$ to synthesise its empty match
@@ -292,16 +292,16 @@ performance rather than semantics.
 First, \texttt{pderiv\_tree} itself builds only \emph{one} transition's
 closure, type \texttt{InjStep}, a reference-counted closure exactly as
 before. The accumulated injection a state carries across many
-characters -- what the equations call $\iota$ once composition has
-happened several times -- is a separate type, \texttt{Inj}, described in
+characters, what the equations call $\iota$ once composition has
+happened several times, is a separate type, \texttt{Inj}, described in
 Section~\ref{sec:pderiv-state-set}: a persistent list of \texttt{InjStep}s
 rather than a nested closure, so that applying or dropping a
 long-lived \texttt{Inj} does not recurse one native stack frame per
 character.
 
-Second, the \texttt{Seq} and \texttt{Star} arms use \texttt{smart\_seq}
--- the Rust counterpart of $\mathit{smartC}$ used by \texttt{pderiv} in
-Figure~\ref{fig:pderiv-rust} -- wherever the equations build
+Second, the \texttt{Seq} and \texttt{Star} arms use \texttt{smart\_seq},
+the Rust counterpart of $\mathit{smartC}$ used by \texttt{pderiv} in
+Figure~\ref{fig:pderiv-rust}, wherever the equations build
 $\varepsilon \cdot s$, including \texttt{Seq}'s nullable branch's
 continue-strand. Collapsing $\varepsilon \cdot s$ to $s$ changes the shape
 the next transition's closure must match against, so each arm that uses
@@ -455,9 +455,9 @@ list of (residual, injection-step) states.}
 \label{fig:pderiv-tree-rust}
 \end{figure}
 
-The \texttt{Phi}, \texttt{Eps}, and \texttt{Lit} arms implement
-$\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$, and
-$\mathsf{P}_{\mathrm{lit}}$ directly, matching the same arms of
+In Figure~\ref{fig:pderiv-tree-rust}, the \texttt{Phi}, \texttt{Eps}, and
+\texttt{Lit} arms implement $\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$,
+and $\mathsf{P}_{\mathrm{lit}}$ directly, matching the same arms of
 \texttt{pderiv} in Figure~\ref{fig:pderiv-rust}, except that each returns a
 closure alongside its residual instead of nothing. The \texttt{Alt} arm
 implements $\mathsf{P}_{+}$ and is where the partial derivative visibly
@@ -475,13 +475,11 @@ empty tree once with \texttt{mk\_eps} and captures a clone of it in
 every skip-strand closure, then deduplicates the combined list. The
 non-nullable branch, by contrast, does use \texttt{smart\_seq}, with the
 closure split on whether the residual collapsed to \texttt{Eps}, as
-explained above.
-
-The \texttt{Star} arm implements $\mathsf{P}_{*}$, with the closure
-appending the reconstructed iteration to the star's list (left-to-right
-order, reversed once at the end by \texttt{select} rather than paying
-\texttt{insert(0, ..)}'s cost on every iteration), again split on
-whether \texttt{smart\_seq} collapsed the residual.
+explained above. The \texttt{Star} arm implements $\mathsf{P}_{*}$, with
+the closure appending the reconstructed iteration to the star's list
+(left-to-right order, reversed once at the end by \texttt{select} rather
+than paying \texttt{insert(0, ..)}'s cost on every iteration), again
+split on whether \texttt{smart\_seq} collapsed the residual.
 
 \subsection{State Sets and Selection}
 \label{sec:pderiv-state-set}
@@ -489,7 +487,7 @@ whether \texttt{smart\_seq} collapsed the residual.
 The parser maintains a state set of $(\text{residual}, \text{injection})$
 configurations. For each input character, every configuration in the state set
 is transitioned with \texttt{pderiv\_tree}, and the resulting configurations
-are collected into a new state set, replacing the old one -- unlike the
+are collected into a new state set, replacing the old one: unlike the
 standard derivative parser, nothing from earlier state sets is retained once
 the next one has been computed. A configuration's parent injection is
 composed with the transition injection, so that at the end the state set's
@@ -500,8 +498,8 @@ $(r, \mathit{inj}_p)$ transitions to $(r', \mathit{inj}_s)$, the new
 configuration's injection is
 $\lambda v.\, \mathit{inj}_p(\mathit{inj}_s(v))$. Composing this way as
 nested closures, however, makes both calling the result and dropping it
-recurse one native stack frame per character -- fine at tens of
-thousands of characters, a real stack-overflow risk beyond that. The
+recurse one native stack frame per character: fine at tens of
+thousands of characters, but a real stack-overflow risk beyond that. The
 \texttt{Inj} type instead stores a configuration's accumulated steps as
 a persistent cons-list and applies them in an explicit loop:
 \begin{verbatim}
@@ -533,6 +531,9 @@ chain is. \texttt{Inj} also has its own iterative \texttt{Drop}, for the
 same reason \texttt{Bits}'s does: the derived recursive drop glue would
 walk the chain one stack frame per character too.
 
+Figure~\ref{fig:step-frontier-rust} shows \texttt{step\_frontier}, which
+applies \texttt{pderiv\_tree} to every configuration in the state set and
+composes each resulting step onto that configuration's \texttt{Inj}.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -553,7 +554,7 @@ single character. The function name retains the older ``frontier''
 terminology; it computes the successor state set $\delta(S, x)$. The
 final \texttt{nub\_tree} deduplicates \emph{across} parent configurations,
 not just within one parent's own expansion (which \texttt{pderiv\_tree}
-already does on its own output) -- without it, two strands that
+already does on its own output): without it, two strands that
 independently derive to the same residual both survive, and the state
 set can double every character on an ambiguous pattern even though the
 number of distinct residuals stays bounded by the pattern's own size.}
@@ -561,7 +562,8 @@ number of distinct residuals stays bounded by the pattern's own size.}
 \end{figure}
 
 After the input is exhausted, selection walks the state set in priority order
-and returns the tree for the first accepting configuration:
+and returns the tree for the first accepting configuration, shown in
+Figure~\ref{fig:select-rust}:
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -630,7 +632,7 @@ pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
 The loop computes $S_0, \ldots, S_n$ in place, overwriting
 \texttt{frontier} on every iteration rather than appending to a growing
 \texttt{Vec} the way \texttt{parse\_deriv\_std\_loop}
-(Figure~\ref{fig:deriv-std-drivers-rust}) does -- nothing from an earlier
+(Figure~\ref{fig:deriv-std-drivers-rust}) does: nothing from an earlier
 state set is retained once the next one exists. The early return on an
 empty frontier corresponds to $S_i = \{\}$: no configuration can consume
 the current character, so the input cannot be matched. The final
@@ -654,8 +656,8 @@ Transitioning with respect to $\mathtt{a}$:
 \[
 \begin{aligned}
 \mathit{pderiv}(r_0, \mathtt{a})
-  &= \mathit{pderiv}\bigl(\mathit{Alt}(a, ab), \mathtt{a}\bigr)
-     \cdot \mathit{Alt}(b, \varepsilon).
+  &= \mathit{pderiv}(a + ab,\ \mathtt{a})
+     \cdot (b + \varepsilon).
 \end{aligned}
 \]
 Inside the first factor:
@@ -860,7 +862,8 @@ $\mathit{decode}$.
 
 The bit-coded partial derivative $\mathit{pderivBC}(r, x)$ returns a list of
 $(\text{residual}, \text{bit-sequence})$ pairs. It follows the same case
-structure as~\eqref{eq:pderiv-tree}, with one difference: where the standard
+structure as Equations~\ref{eq:pderiv-tree-base}
+and~\ref{eq:pderiv-tree-seq}, with one difference: where the standard
 version builds an injection closure, the bit-coded version prepends a fixed
 bit-sequence to the configuration's existing bits.
 
@@ -906,13 +909,12 @@ its empty match are extracted with $\mathit{mkEpsBC}_{r_1}$ and prepended to
 the second factor's bits, so the choice made inside the first factor survives
 in the surviving configuration.
 
-The reference teaching material's own derivation keeps a trace of why this
-prefix is necessary: an earlier draft of this clause, kept only as a
-comment, used the jump strand's residual with no bits prepended, annotated
-\emph{bug spotted by clause}; the live version was corrected to the
-$\mathit{mkEpsBC}_{r_1}$-prefixed form given here~\citep{sulzmann_slides},
-which is what~\eqref{eq:pderiv-bc} and Figure~\ref{fig:pderiv-bc-rust}
-below implement.
+Why this prefix is necessary is documented in the reference teaching
+material itself~\citep{sulzmann_slides}: an earlier draft of this clause
+used the jump strand's residual with no bits prepended, a bug later
+corrected to the $\mathit{mkEpsBC}_{r_1}$-prefixed form given here.
+Equation~\eqref{eq:pderiv-bc} and Figure~\ref{fig:pderiv-bc-rust} below
+implement this corrected form.
 
 %
 
@@ -991,8 +993,8 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
 
 The \texttt{Seq} arm uses \texttt{smart\_seq} in both the nullable and the
 non-nullable case: $r_1$'s own derivative can be $\varepsilon$ regardless of
-whether $r_1$ itself is nullable -- a literal's derivative is $\varepsilon$
-the moment it matches, even though the literal itself never is -- so both
+whether $r_1$ itself is nullable: a literal's derivative is $\varepsilon$
+the moment it matches, even though the literal itself never is, so both
 branches need the same collapse. Unlike \texttt{pderiv\_tree}
 (Section~\ref{sec:pderiv-tree-impl}), no companion adjustment is needed
 here: bits ride alongside the residual as a separate value rather than
@@ -1026,7 +1028,8 @@ parse tree.
 The alternation rule reproduces the left preference of $\mathit{mkEps}$,
 emitting $\mathit{false}$ when the left branch is nullable and $\mathit{true}$
 otherwise. The star rule emits a single terminating $\mathit{true}$, since a
-star matching the empty word uses zero iterations.
+star matching the empty word uses zero iterations. Figure~\ref{fig:mk-eps-bits-rust}
+implements~\eqref{eq:pderiv-mkepsbc} directly.
 
 \begin{figure}[H]
 \small
@@ -1074,14 +1077,15 @@ State-set transition for the bit-coded parser mirrors the standard version,
 with bit-list concatenation replacing closure composition. Each
 configuration's bits accumulate across the whole input so far, so a
 plain \texttt{Vec<bool>} clone-then-extend on every transition is
-O(current length) per step, $O(n^2)$ over n characters --
+O(current length) per step, $O(n^2)$ over $n$ characters,
 the same cost \texttt{Bits}/\texttt{Inj} avoid elsewhere in this and the
 previous chapter. \texttt{AppendBits} is the append-optimized mirror of
 \texttt{Bits} (Section~\ref{sec:aregex-type}): it stores the reverse of
 the real sequence internally, so appending a suffix becomes prepending
 its reverse, reusing \texttt{Bits::prepend}'s O(suffix length) guarantee,
 and materializes the sequence back into a plain \texttt{Vec<bool>} only
-once, when the bits are actually consumed:
+once, when the bits are actually consumed. Figure~\ref{fig:step-frontier-bc-rust}
+shows the resulting \texttt{step\_frontier}.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1101,11 +1105,12 @@ pub(super) fn step_frontier(
 parser's version, \texttt{nub2} deduplicates across the whole combined
 state set, not just within one configuration's own expansion (which
 \texttt{pderiv\_bc} already does via its own \texttt{nub2} call).}
+\label{fig:step-frontier-bc-rust}
 \end{figure}
 
 Selection walks the state set in priority order and returns the bits of the
 first accepting configuration, extended with $\mathit{mkEpsBC}$ of the
-residual:
+residual, as shown in Figure~\ref{fig:select-bits-rust}:
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1120,6 +1125,10 @@ pub(super) fn select_bits(
     None
 }
 \end{verbatim}
+\caption{\texttt{select\_bits}: the bit-coded counterpart of
+\texttt{select} (Figure~\ref{fig:select-rust}), returning the bit-sequence
+of the first accepting configuration instead of applying an injection.}
+\label{fig:select-bits-rust}
 \end{figure}
 
 The resulting bit-sequence is interpreted by the shared \texttt{decode}
@@ -1132,9 +1141,9 @@ iteration.
 \subsection{Parser}
 \label{sec:pderiv-bc-parser}
 
-The parser composes \texttt{step\_frontier} over the input, checks that the
-state set is non-empty, and calls \texttt{select\_bits} followed by
-\texttt{decode}.
+The parser, shown in Figure~\ref{fig:pderiv-bc-parser-rust}, composes
+\texttt{step\_frontier} over the input, checks that the state set is
+non-empty, and calls \texttt{select\_bits} followed by \texttt{decode}.
 
 \begin{figure}[H]
 \small
