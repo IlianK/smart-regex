@@ -1128,8 +1128,43 @@ keeps the cost of checking $p$ alternatives linear in $p$.
 Deduplicating pairwise at each level of nesting
 instead would multiply that cost by the chain's own depth.
 
+\begin{equation}\label{eq:isphi}
+\begin{aligned}
+\mathit{isPhi}(\emptyset) &= \mathrm{true} \\
+\mathit{isPhi}(bs@\varepsilon) &= \mathrm{false} \\
+\mathit{isPhi}(bs@x) &= \mathrm{false} \\
+\mathit{isPhi}(bs@\mathit{ri}_1\,\mathit{ri}_2) &= \mathit{isPhi}(\mathit{ri}_1) \lor \mathit{isPhi}(\mathit{ri}_2) \\
+\mathit{isPhi}(bs@\mathit{ri}_1 \oplus \mathit{ri}_2) &= \mathit{isPhi}(\mathit{ri}_1) \land \mathit{isPhi}(\mathit{ri}_2) \\
+\mathit{isPhi}(bs@\mathit{ri}^{*}) &= \mathrm{false}
+\end{aligned}
+\end{equation}
+
+We assume $\oplus$ takes a list of operands, written $bs@\oplus\,[\mathit{ri}_1,\ldots,\mathit{ri}_n]$.
+
+\begin{equation}\label{eq:simp-theory}
+\begin{aligned}
+\mathit{simp}(bs@(bs'@\varepsilon)\,\mathit{ri}) &= \emptyset
+  &&\mathit{isPhi}(\mathit{ri}) \\
+\mathit{simp}(bs@(bs'@\varepsilon)\,\mathit{ri}) &= \mathit{fuse}(bs \mathbin{+\!\!+} bs',\ \mathit{ri})
+  &&\text{otherwise} \\
+\mathit{simp}(bs@\mathit{ri}_1\,\mathit{ri}_2) &= \emptyset
+  &&\mathit{isPhi}(\mathit{ri}_1) \lor \mathit{isPhi}(\mathit{ri}_2) \\
+\mathit{simp}(bs@\mathit{ri}_1\,\mathit{ri}_2) &= bs@(\mathit{simp}(\mathit{ri}_1))\,(\mathit{simp}(\mathit{ri}_2))
+  &&\text{otherwise} \\
+\mathit{simp}(bs@\oplus\,[\,]) &= \emptyset \\
+\mathit{simp}(bs@\oplus\,((bs'@\oplus\,\mathit{rsi}_1) : \mathit{rsi}_2)) &=
+  bs@\oplus\,\bigl(\mathit{map}(\mathit{fuse}\ bs')(\mathit{rsi}_1) \mathbin{+\!\!+} \mathit{rsi}_2\bigr) \\
+\mathit{simp}(bs@\oplus\,[\mathit{ri}]) &= \mathit{fuse}(bs,\ \mathit{simp}(\mathit{ri})) \\
+\mathit{simp}(bs@\oplus\,(\mathit{ri} : \mathit{rsi})) &=
+  bs@\oplus\,\bigl(\mathit{nub}(\mathit{filter}(\lnot\,\mathit{isPhi})
+  (\mathit{simp}(\mathit{ri}) : \mathit{map}(\mathit{simp})(\mathit{rsi})))\bigr)
+\end{aligned}
+\end{equation}
+
 %
 
+\paragraph{In Rust.}
+\label{sec:simp-impl}
 Figure~\ref{fig:simp-rust} shows \texttt{simp\_once}'s simplification arms:
 \begin{figure}[H]
 \small
@@ -1167,9 +1202,9 @@ fn simp_once(ri: ARegex) -> ARegex {
 \end{verbatim}
 \caption{\texttt{simp\_once}: Implementation of the simplification 
 of annotated concatenations and alternations. 
-\texttt{Seq} removes dead ($\emptyset$) or already-\texttt{Eps} operands, while
-\texttt{Alt} removes dead and duplicate branches.
-Removed nodes' bits are transferred using \texttt{fuse\_bits},
+\texttt{Seq} removes dead ($\emptyset$) or already-\texttt{Eps} operands, 
+while \texttt{Alt} removes dead and duplicate branches.
+Removed bits are transferred using \texttt{fuse\_bits},
 the \texttt{Bits}-native counterpart of \texttt{fuse} (Section~\ref{sec:fuse}),
 avoiding a slice conversion and copy of the accumulated bit history.
 }
@@ -1178,8 +1213,6 @@ avoiding a slice conversion and copy of the accumulated bit history.
 
 %
 
-\paragraph{In Rust.}
-\label{sec:simp-impl}
 \texttt{simp}, shown implemented in Figure~\ref{fig:simp-loop-rust}, 
 is the fixpoint loop, re-applying \texttt{simp\_once} 
 until \texttt{same\_shape} reports no further change.
@@ -1248,8 +1281,7 @@ fusing bits onto a child before descending into it when the parent carries any.}
 
 The branches this produces still need deduplicating via \texttt{dedup\_first},
 called right after in \texttt{simp\_once}'s \texttt{Alt} arm (Figure~\ref{fig:simp-rust}).
-Its own cost is detailed later, in Chapter~\ref{sec:evaluation}
-(Figure~\ref{fig:dedup-first-rust}).
+Its own cost is detailed later, in Figure~\ref{fig:dedup-first-rust}.
 
 %
 
