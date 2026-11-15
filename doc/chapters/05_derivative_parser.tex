@@ -1123,10 +1123,9 @@ How many times \texttt{simp\_once} must re-apply
 before the shape stops changing depends on the expression's own structure, 
 not a number fixed in advance. 
 The \texttt{Alt} case's own cost follows the same logic.
-Flattening a nested alternation into one list before deduplicating, 
-as Figure~\ref{fig:simp-rust} does, 
+Flattening a nested alternation into one list before deduplicating
 keeps the cost of checking $p$ alternatives linear in $p$.
-Deduplicating pairwise at each level of nesting 
+Deduplicating pairwise at each level of nesting
 instead would multiply that cost by the chain's own depth.
 
 %
@@ -1168,8 +1167,8 @@ fn simp_once(ri: ARegex) -> ARegex {
 \end{verbatim}
 \caption{\texttt{simp\_once}: Implementation of the simplification 
 of annotated concatenations and alternations. 
-\texttt{Seq} removes dead or nullable operands, while
-\texttt{Alt} removes dead and duplicate branches. 
+\texttt{Seq} removes dead ($\emptyset$) or already-\texttt{Eps} operands, while
+\texttt{Alt} removes dead and duplicate branches.
 Removed nodes' bits are transferred using \texttt{fuse\_bits},
 the \texttt{Bits}-native counterpart of \texttt{fuse} (Section~\ref{sec:fuse}),
 avoiding a slice conversion and copy of the accumulated bit history.
@@ -1246,6 +1245,11 @@ Flattening a nested \texttt{Alt} chain into one list,
 fusing bits onto a child before descending into it when the parent carries any.}
 \label{fig:collect-alt-branches-rust}
 \end{figure}
+
+The branches this produces still need deduplicating via \texttt{dedup\_first},
+called right after in \texttt{simp\_once}'s \texttt{Alt} arm (Figure~\ref{fig:simp-rust}).
+Its own cost is detailed later, in Chapter~\ref{sec:evaluation}
+(Figure~\ref{fig:dedup-first-rust}).
 
 %
 
@@ -1334,11 +1338,34 @@ continues at the correct position:
 
 %
 \paragraph{In Rust.}
-Figure~\ref{fig:decode-rust} shows \texttt{decode\_inner}, the worker
-behind \texttt{decode}. The public entry point \texttt{decode} wraps it
-and asserts that no bits remain. This assertion is the side condition
-under which $\mathit{decode}_r$ is defined. The worker must consume the
-entire bit-string.
+\texttt{decode}, shown in Figure~\ref{fig:decode-rust}, is the public
+entry point: it calls \texttt{decode\_inner} and asserts that no bits
+remain afterward. This assertion is the side condition under which
+$\mathit{decode}_r$ is defined -- the worker must consume the entire
+bit-string.
+\begin{figure}[H]
+\small
+\begin{verbatim}
+pub fn decode(r: &Regex, bs: &[bool]) -> ParseTree {
+    let (v, rest) = decode_inner(r, bs);
+    assert!(
+        rest.is_empty(),
+        "decode: {} leftover bit(s) after decoding {:?}",
+        rest.len(),
+        r
+    );
+    v
+}
+\end{verbatim}
+\caption{\texttt{decode}: the public entry point, asserting that
+\texttt{decode\_inner} consumed every bit.}
+\label{fig:decode-rust}
+\end{figure}
+
+%
+
+Figure~\ref{fig:decode-inner-rust} shows \texttt{decode\_inner}, the
+worker behind \texttt{decode}, one arm per expression form.
 
 The worker consumes the \texttt{\&[bool]} one bit per step using Rust's
 slice patterns: \texttt{[false, rest @ ..]} matches a bit-string whose
@@ -1393,7 +1420,7 @@ fn decode_inner<'a>(r: &Regex, bs: &'a [bool]) -> (ParseTree, &'a [bool]) {
 \end{verbatim}
 \caption{\texttt{decode\_inner}: the worker behind \texttt{decode},
 one arm per expression form.}
-\label{fig:decode-rust}
+\label{fig:decode-inner-rust}
 \end{figure}
 
 The \texttt{Alt} arm matches the leading bit with
