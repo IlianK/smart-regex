@@ -187,24 +187,23 @@ from the POSIX tree of Chapter~\ref{sec:derivative-parser}.
 \subsection{Partial Derivatives with Injections}
 \label{sec:pderiv-tree-theory}
 
-A partial derivative of an expression $r$ with respect to a character $x$ is
-not a single expression but a set of pairs. Each pair consists of a residual
-expression $r'$ whose language is one component of the left quotient, together
-with an injection closure $\iota$ that maps a parse tree for $r'$ back
-to a parse tree for $r$. Stripped of the injection, the residual side of this
-definition is exactly $pd$, the Antimirov partial derivative already used by
-the matcher of Section~\ref{sec:antimirov-partial-derivatives}
-\citep{antimirov1996}, so $\mathit{pderiv}$ reuses its rule names
-$\mathsf{P}_{\emptyset}, \mathsf{P}_{\varepsilon}, \mathsf{P}_{\mathrm{lit}},
-\mathsf{P}_{+}, \mathsf{P}_{\mathrm{seq}}, \mathsf{P}_{\mathrm{seq}}^{\,n},
-\mathsf{P}_{*}$ from Equation~\ref{eq:pd}, each now additionally threading an
-injection alongside its residual. The idea of pairing a residual with a
-reconstruction function is, in turn, in the style of Sulzmann and Lu's pattern
-partial derivative \citep[Fig.~11]{sulzmannlu2012}, which pairs a residual
-\emph{pattern} with a function building a variable-binding environment; here
-the same idea builds a $\mathit{ParseTree}$ instead.
+A partial derivative of $r$ with respect to a character $x$ produces a set
+of pairs rather than a single expression. 
+Each pair holds a residual $r'$,
+whose language is one component of the left quotient, 
+and an injection $\iota$ that maps a parse tree for $r'$ back to one for $r$. 
+Stripped of the injection, 
+these residuals are exactly those of $pd$ 
+from Section~\ref{sec:antimirov-partial-derivatives}~\citep{antimirov1996}, 
+so $\mathit{pderiv}$ reuses $pd$'s rules (Equation~\ref{eq:pd}), 
+threading an injection alongside each one. 
+Pairing a residual with a reconstruction function follows 
+\citet[Fig.~11]{sulzmannlu2012}, 
+whose partial derivatives pair a residual pattern 
+with a function that builds a variable-binding environment; 
+$\mathit{pderiv}$ applies the same pairing to reconstruct a parse tree.
 
-The rules that do not depend on whether their operand is nullable are:
+The rules that do not depend on nullability are:
 \begin{equation}\label{eq:pderiv-tree-base}
 \begin{aligned}
 \mathit{pderiv}(\emptyset, x) &= \{\} &&(\mathsf{P}_{\emptyset}) \\
@@ -229,12 +228,15 @@ The rules that do not depend on whether their operand is nullable are:
   &&(\mathsf{P}_{*})
 \end{aligned}
 \end{equation}
-exactly as in $pd$, with the recursive call's injection wrapped by
-$\mathit{Left}$, $\mathit{Right}$, or prepended to the iteration list. No
-rule is needed for $\emptyset$ or $\varepsilon$ beyond their empty results,
-since neither can consume a character.
 
-Concatenation alone must branch on $n(r)$, so it is shown separately:
+Unlike the derivative of $r+s$, which produces a single alternation,
+the partial derivative produces separate states for each branch,
+removing the alternation from the residual.
+$\mathsf{P}_{+}$ wraps each recursive injection 
+in $\mathit{Left}$ or $\mathit{Right}$ to record the chosen branch, 
+and $\mathsf{P}_{*}$ prepends each recursive injection's result to the iteration list. 
+
+Concatenation needs a separate rule since it branches on $n(r)$:
 \begin{equation}\label{eq:pderiv-tree-seq}
 \mathit{pderiv}(r \cdot s, x) =
   \begin{cases}
@@ -250,39 +252,30 @@ Concatenation alone must branch on $n(r)$, so it is shown separately:
       & \neg\, n(r)\quad(\mathsf{P}_{\mathrm{seq}})
   \end{cases}
 \end{equation}
-After expansion, each rule's result is deduplicated by residual, keeping the
-first occurrence; this is $\mathit{nub}$, applied wherever a transition can
-produce two states with the same residual, namely $\mathsf{P}_{+}$,
-$\mathsf{P}_{\mathrm{seq}}^{\,n}$, and $\mathsf{P}_{*}$. $\mathsf{P}_{\mathrm{seq}}$
-has only one source of states and needs no deduplication of its own, since its
-single recursive call is already duplicate-free. This is the step that breaks
-apart the original expression: where the derivative of $r + s$ produces a
-single alternation, the partial derivative produces separate states for each
-branch, and the outer alternation disappears from the residual.
 
-Rule $(\mathsf{P}_{\mathrm{seq}})$, the only one present regardless of
-nullability, passes the outer pair through unchanged, with the recursive
-injection applied to the first component only. When $r$ is nullable, rule
-$(\mathsf{P}_{\mathrm{seq}}^{\,n})$ additionally unions in the states that
-skip $r$ entirely, using $\mathit{mkEps}_{r}$ to synthesise its empty match
-for the first component. Rule $(\mathsf{P}_{+})$ wraps the recursive
-injection in a $\mathit{Left}$ or $\mathit{Right}$ node, reinserting the
-alternation choice. Rule~$(\mathsf{P}_{*})$ reconstructs the current
-iteration by applying the recursive injection and prepending it to the
-remaining iterations.
+For concatenation, $\mathsf{P}_{\mathrm{seq}}$ passes the outer pair through, 
+applying the recursive injection only to its first component. 
+When $r$ is nullable, $\mathsf{P}_{\mathrm{seq}}^{\,n}$ 
+also includes states that skip $r$, 
+using $\mathit{mkEps}_r$ to construct its empty parse tree.
+Each rule's result is deduplicated by residual, 
+keeping the first occurrence. 
+This applies to $\mathsf{P}_{+}$, $\mathsf{P}_{\mathrm{seq}}^{\,n}$, and $\mathsf{P}_{*}$.
+The non-nullable concatenation rule $\mathsf{P}_{\mathrm{seq}}$
+has only one source of states and needs no deduplication.
 
-Unlike $pd$, which applies the smart constructor $\mathit{smartC}$ in
-$\mathsf{P}_{\mathrm{seq}}$ and $\mathsf{P}_{*}$ to avoid building
-$\varepsilon \cdot s$ (Equation~\ref{eq:smartc}), $\mathit{pderiv}$ never
-simplifies: $r' \cdot s$ above is built with the plain pairing constructor,
-even when $r' = \varepsilon$. A simplified residual would collapse exactly
-the pair-shaped node that the injection above pattern-matches on, so
-$\mathit{pderiv}$ trades the smaller residuals $pd$ produces for residuals
-whose shape the injection can always follow. This is the same tradeoff the
-standard derivative parser makes by never simplifying
-(Section~\ref{sec:core-algorithm}), for the same reason: $\mathit{inj}$ there
-pattern-matches on the derivative's structure just as $\iota$ does
-here.
+Unlike $pd$ (Equation~\ref{eq:pd}), 
+which uses the smart constructor $\mathit{smartC}$ (Equation~\ref{eq:smartc})
+in $\mathsf{P}_{\mathrm{seq}}$ and $\mathsf{P}_{*}$ 
+to avoid building $\varepsilon \cdot s$, $\mathit{pderiv}$ never simplifies. 
+A simplified residual would collapse the very pair-shaped node 
+the injection pattern-matches on, 
+so $\mathit{pderiv}$ trades smaller residuals 
+for residuals the injection can always follow. 
+The standard derivative parser makes the same tradeoff, 
+for the same reason as shown with Equation~\ref{eq:mkeps-simp}.
+
+%
 
 \paragraph{In Rust.}
 \label{sec:pderiv-tree-impl}
@@ -336,8 +329,6 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
                 Rc::new(move |v| ParseTree::Right(Box::new(inj(v)))) as InjStep)))
             .collect()
         ),
-
-        // Seq and Star arms: see next figure.
         ...
     }
 }
@@ -445,6 +436,8 @@ the closure appending the reconstructed iteration to the star's list
 than paying \texttt{insert(0, ..)}'s cost on every iteration), again
 split on whether \texttt{smart\_seq} collapsed the residual
 (Figure~\ref{fig:pderiv-tree-seqstar-rust}).
+
+%
 
 \subsection{State Sets and Selection}
 \label{sec:pderiv-state-set}
