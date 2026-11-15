@@ -188,19 +188,18 @@ from the POSIX tree of Chapter~\ref{sec:derivative-parser}.
 \label{sec:pderiv-tree-theory}
 
 A partial derivative of $r$ with respect to a character $x$ produces a set
-of pairs rather than a single expression. 
-Each pair holds a residual $r'$,
-whose language is one component of the left quotient, 
-and an injection $\iota$ that maps a parse tree for $r'$ back to one for $r$. 
-Stripped of the injection, 
-these residuals are exactly those of $pd$ 
-from Section~\ref{sec:antimirov-partial-derivatives}~\citep{antimirov1996}, 
-so $\mathit{pderiv}$ reuses $pd$'s rules (Equation~\ref{eq:pd}), 
-threading an injection alongside each one. 
-Pairing a residual with a reconstruction function follows 
-\citet[Fig.~11]{sulzmannlu2012}, 
-whose partial derivatives pair a residual pattern 
-with a function that builds a variable-binding environment; 
+of pairs rather than a single expression.
+Each pair holds a residual $r'$, one component of the left quotient,
+and an injection $\iota$ mapping a parse tree for $r'$ back to one for $r$.
+Stripped of the injection,
+these residuals are exactly those of $pd$
+from Section~\ref{sec:antimirov-partial-derivatives}~\citep{antimirov1996},
+so $\mathit{pderiv}$ reuses $pd$'s rules (Equation~\ref{eq:pd}),
+threading an injection alongside each one.
+Pairing a residual with a reconstruction function follows
+\citet[Fig.~11]{sulzmannlu2012},
+whose partial derivatives pair a residual pattern
+with a function building a variable-binding environment;
 $\mathit{pderiv}$ applies the same pairing to reconstruct a parse tree.
 
 The rules that do not depend on nullability are:
@@ -227,7 +226,7 @@ The rules that do not depend on nullability are:
      \lambda(v, \mathit{Star}(vs)).\,
      \mathit{Star}([\iota\,v] \mathbin{+\!\!+} vs))
     \mid (r', \iota) \in \mathit{pderiv}(r, x)\,\}
-  &&(\mathsf{P}_{*}) \\[7pt]
+  &&(\mathsf{P}_{*}) \\[4pt]
 \end{aligned}
 \end{equation}
 
@@ -249,10 +248,10 @@ Concatenation needs a separate rule since it branches on $n(r)$:
     &\{\,(s',\, \lambda v.\, (\mathit{mkEps}_{r},\, \iota\,v))
       \mid (s', \iota) \in \mathit{pderiv}(s, x)\,\}
     \end{aligned}
-      & n(r) & (\mathsf{P}_{\mathrm{seq}}^{\,n}) \\[2.3em]
+      & n(r) & (\mathsf{P}_{\mathrm{seq}}^{\,n}) \\[12pt]
     \{\,(r'\,s,\, \lambda(v_1, v_2).\, (\iota\,v_1,\, v_2))
       \mid (r', \iota) \in \mathit{pderiv}(r, x)\,\}
-      & \neg\, n(r) & (\mathsf{P}_{\mathrm{seq}}) \\[7pt]
+      & \neg\, n(r) & (\mathsf{P}_{\mathrm{seq}}) \\[4pt]
   \end{array}
   \right.
 \end{equation}
@@ -262,9 +261,9 @@ applying the recursive injection only to its first component.
 When $r$ is nullable, $\mathsf{P}_{\mathrm{seq}}^{\,n}$ 
 also includes states that skip $r$, 
 using $\mathit{mkEps}_r$ to construct its empty parse tree.
-The skip-strand's injection pairs that empty tree with the tree for $s$,
-so the reconstructed result keeps the concatenation shape
-even though the consumed character never entered $r$.
+The skip-strand's injection pairs that empty tree with $s$'s own,
+keeping the concatenation shape even though the consumed character
+never entered $r$.
 Each rule's result is deduplicated by residual, 
 keeping the first occurrence. 
 This applies to $\mathsf{P}_{+}$, $\mathsf{P}_{\mathrm{seq}}^{\,n}$, and $\mathsf{P}_{*}$.
@@ -275,15 +274,12 @@ Unlike $pd$ (Equation~\ref{eq:pd}),
 which uses the smart constructor $\mathit{smartC}$ (Equation~\ref{eq:smartc})
 in $\mathsf{P}_{\mathrm{seq}}$ and $\mathsf{P}_{*}$ 
 to avoid building $\varepsilon \cdot s$, $\mathit{pderiv}$ never simplifies. 
-A simplified residual would collapse the very pair-shaped node 
-the injection pattern-matches on.
-Since the injection destructures a $\mathit{Pair}$,
-a residual without a pair at its top would leave the closure
-with nothing to match on.
-So $\mathit{pderiv}$ trades smaller residuals 
-for residuals the injection can always follow. 
-The standard derivative parser makes the same tradeoff, 
-for the same reason as shown with the example in Equation~\ref{eq:mkeps-simp}.
+A simplified residual would collapse the very $\mathit{Pair}$ node
+the injection destructures, leaving nothing to match on.
+So $\mathit{pderiv}$ trades smaller residuals
+for residuals the injection can always follow,
+the same tradeoff the standard derivative parser makes
+for the same reason (Equation~\ref{eq:mkeps-simp}).
 
 %
 
@@ -291,59 +287,55 @@ for the same reason as shown with the example in Equation~\ref{eq:mkeps-simp}.
 \label{sec:pderiv-tree-impl}
 
 Equations~\ref{eq:pderiv-tree-base} and~\ref{eq:pderiv-tree-seq} are
-implemented directly, with three departures from the literal equations,
-all for performance rather than semantics. First, \texttt{pderiv\_tree}
-builds only one transition's closure, of type \texttt{InjStep}. The
-injection a state accumulates across characters ($\iota$ after several
-compositions) is a separate type \texttt{Inj}: a persistent list of
-\texttt{InjStep}s rather than a nested closure. Composing steps as nested
-closures made both calling and dropping the result recurse one stack frame
-per character, which crashed empirically on a 100K-character input with a
-default-size stack; \texttt{Inj} applies and drops its chain in an explicit
-loop instead.
+implemented directly, with three departures for performance, not
+semantics.
 
-Second, the \texttt{Seq} and \texttt{Star} arms use \texttt{smart\_seq}
-wherever the equations build $\varepsilon \cdot s$, a collapse PPDP12
-itself licenses (Fig.~10). Collapsing $\varepsilon \cdot s$ to $s$ changes
-the shape the closure must match, so every arm that uses it branches on
-whether the residual collapsed (\texttt{r1\_ == Regex::Eps}) and builds the
-closure for that shape specifically. Without this, two strands that derive
-to the same residual through different wrapper shapes would not dedup, and
-the frontier could grow unboundedly on an ambiguous pattern even though the
-number of distinct residuals stays bounded. In the \texttt{Seq} arm's
-nullable case, this split applies to the continue-strand exactly as in the
-non-nullable case; the additional skip-strand, which skips $r$ entirely
-using \texttt{mk\_eps}, carries no such wrapper and always uses the plain
-pairing constructor.
+First, \texttt{pderiv\_tree} builds only \emph{one} transition's closure,
+type \texttt{InjStep}. The injection a state accumulates across
+characters, $\iota$ after several compositions, is a separate type,
+\texttt{Inj} (Section~\ref{sec:pderiv-state-set}): a persistent list of
+\texttt{InjStep}s rather than a nested closure. Composing steps as nested
+closures recursed one stack frame per character on both call and drop,
+crashing empirically at 100K characters on a default-size stack;
+applying or dropping \texttt{Inj} is instead an explicit loop.
+
+Second, the \texttt{Seq} and \texttt{Star} arms use \texttt{smart\_seq},
+the Rust counterpart of $\mathit{smartC}$ used by \texttt{pderiv} in
+Figure~\ref{fig:pderiv-rust}, wherever the equations build
+$\varepsilon \cdot s$, a collapse PPDP12 licenses (Fig.~10). Each such arm
+branches on whether the residual collapsed (\texttt{r1\_ == Regex::Eps})
+and builds the closure for that shape, since otherwise two strands reaching
+the same residual through different wrapper shapes would not dedup,
+letting the frontier grow unboundedly on an ambiguous pattern despite a
+bounded number of distinct residuals.
 
 Third, the \texttt{Alt} arm flattens a chain of nested \texttt{Alt}s into
-its leaves before deriving, instead of recursing into each branch and
-deduplicating at every level. The two are semantically equivalent, by the
-same "keep first occurrence" argument either way, but recursing one level
-at a time costs $O(p)$ redundant deduplication passes for a $p$-wide
-alternation; flattening first and deduplicating once gives the same result
-for a fraction of the cost.
+its leaves before deriving, rather than recursing branch by branch and
+deduplicating at every level. The two give the same result, but
+flattening once avoids $O(p)$ redundant dedup passes on a $p$-wide
+alternation.
 
 In Figure~\ref{fig:pderiv-tree-rust}, the base arms implement
 $\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$, and
-$\mathsf{P}_{\mathrm{lit}}$ directly, with a closure returned alongside each
-residual. The \texttt{Alt} arm implements $\mathsf{P}_{+}$, tagging each
-leaf by the composed \emph{Left}/\emph{Right} path its position in the
-flattened chain assigns, then deduplicating once with \texttt{nub\_tree}.
+$\mathsf{P}_{\mathrm{lit}}$ directly, each returning a closure alongside
+its residual. The \texttt{Alt} arm implements $\mathsf{P}_{+}$: it
+flattens the chain into leaves tagged by their composed
+\emph{Left}/\emph{Right} path, derives each leaf once, and deduplicates
+once with \texttt{nub\_tree}.
 
 The \texttt{Seq} arm's \texttt{if nullable(r1)} selects between
-$\mathsf{P}_{\mathrm{seq}}^{\,n}$ and $\mathsf{P}_{\mathrm{seq}}$. Both
-branches' continue-strand split on whether \texttt{smart\_seq} collapsed
-the residual, as explained above; the nullable branch's skip-strand
-computes \texttt{r1}'s empty tree once with \texttt{mk\_eps} and clones it
-into every skip-strand closure, then deduplicates the combined list. The
-\texttt{Star} arm implements $\mathsf{P}_{*}$, appending each reconstructed
-iteration to the star's list (left-to-right, reversed once at the end by
-\texttt{select} rather than paying \texttt{insert(0, ..)} per iteration),
-again split on the \texttt{smart\_seq} collapse.
+$\mathsf{P}_{\mathrm{seq}}^{\,n}$ and $\mathsf{P}_{\mathrm{seq}}$, each
+splitting its continue-strand the same way; the nullable branch's extra
+skip-strand computes \texttt{r1}'s empty tree once with \texttt{mk\_eps}
+and clones it into every skip-strand closure, then deduplicates the
+combined list. The \texttt{Star} arm implements $\mathsf{P}_{*}$,
+appending each iteration to the star's list (reversed once at the end by
+\texttt{select}, avoiding \texttt{insert(0, ..)}'s per-iteration cost),
+again split on the \texttt{smart\_seq} collapse
+(Figure~\ref{fig:pderiv-tree-seqstar-rust}).
 
 \begin{figure}[H]
-\footnotesize
+\scriptsize
 \begin{verbatim}
 pub(crate) type InjStep = Rc<dyn Fn(ParseTree) -> ParseTree>;
 
@@ -354,13 +346,19 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
             Rc::new(move |_| ParseTree::Char(x)) as InjStep)],
         Regex::Lit(_) => vec![],
 
-        Regex::Alt(r1, r2) => nub_tree(
-            pderiv_tree(r1, x).into_iter().map(|(r, inj)| (r,
-                Rc::new(move |v| ParseTree::Left(Box::new(inj(v)))) as InjStep))
-            .chain(pderiv_tree(r2, x).into_iter().map(|(r, inj)| (r,
-                Rc::new(move |v| ParseTree::Right(Box::new(inj(v)))) as InjStep)))
-            .collect()
-        ),
+        Regex::Alt(_, _) => {
+            let mut leaves: Vec<(&Regex, InjStep)> = Vec::new();
+            let identity: InjStep = Rc::new(|v| v);
+            flatten_alt(r, &identity, &mut leaves);
+            let mut out: Vec<(Regex, InjStep)> = Vec::new();
+            for (leaf, wrap) in leaves {
+                for (r_, inj) in pderiv_tree(leaf, x) {
+                    let w = wrap.clone();
+                    out.push((r_, Rc::new(move |v| w(inj(v))) as InjStep));
+                }
+            }
+            nub_tree(out)
+        }
         ...
     }
 }
@@ -373,7 +371,7 @@ Figure~\ref{fig:pderiv-tree-seqstar-rust}.}
 \end{figure}
 
 \begin{figure}[H]
-\footnotesize
+\scriptsize
 \begin{verbatim}
 pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
