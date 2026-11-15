@@ -337,6 +337,36 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
             .collect()
         ),
 
+        // Seq and Star arms: see next figure.
+        ...
+    }
+}
+\end{verbatim}
+\caption{\texttt{pderiv\_tree}, \texttt{Phi}/\texttt{Eps}/\texttt{Lit}/\texttt{Alt}
+arms: one partial-derivative transition, producing a list of (residual,
+injection-step) states. The \texttt{Seq} and \texttt{Star} arms continue in
+Figure~\ref{fig:pderiv-tree-seqstar-rust}.}
+\label{fig:pderiv-tree-rust}
+\end{figure}
+
+In Figure~\ref{fig:pderiv-tree-rust}, the \texttt{Phi}, \texttt{Eps}, and
+\texttt{Lit} arms implement $\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$,
+and $\mathsf{P}_{\mathrm{lit}}$ directly, matching the same arms of
+\texttt{pderiv} in Figure~\ref{fig:pderiv-rust}, except that each returns a
+closure alongside its residual instead of nothing. The \texttt{Alt} arm
+implements $\mathsf{P}_{+}$ and is where the partial derivative visibly
+breaks apart the expression: each branch produces its own states, tagged by
+$\mathit{Left}$ or $\mathit{Right}$ in the injection, then deduplicated by
+\texttt{nub\_tree}.
+
+\begin{figure}[H]
+\scriptsize
+\begin{verbatim}
+pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
+    match r {
+        // Phi, Eps, Lit, and Alt arms: see previous figure.
+        ...
+
         Regex::Seq(r1, r2) => {
             let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x).into_iter()
                 .map(|(r1_, inj1)| {
@@ -394,20 +424,10 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     }
 }
 \end{verbatim}
-\caption{\texttt{pderiv\_tree}: one partial-derivative transition, producing a
-list of (residual, injection-step) states.}
-\label{fig:pderiv-tree-rust}
+\caption{\texttt{pderiv\_tree}, \texttt{Seq}/\texttt{Star} arms, continued
+from Figure~\ref{fig:pderiv-tree-rust}.}
+\label{fig:pderiv-tree-seqstar-rust}
 \end{figure}
-
-In Figure~\ref{fig:pderiv-tree-rust}, the \texttt{Phi}, \texttt{Eps}, and
-\texttt{Lit} arms implement $\mathsf{P}_{\emptyset}$, $\mathsf{P}_{\varepsilon}$,
-and $\mathsf{P}_{\mathrm{lit}}$ directly, matching the same arms of
-\texttt{pderiv} in Figure~\ref{fig:pderiv-rust}, except that each returns a
-closure alongside its residual instead of nothing. The \texttt{Alt} arm
-implements $\mathsf{P}_{+}$ and is where the partial derivative visibly
-breaks apart the expression: each branch produces its own states, tagged by
-$\mathit{Left}$ or $\mathit{Right}$ in the injection, then deduplicated by
-\texttt{nub\_tree}.
 
 The \texttt{Seq} arm's \texttt{if nullable(r1)} matches the case split
 between $\mathsf{P}_{\mathrm{seq}}^{\,n}$ and $\mathsf{P}_{\mathrm{seq}}$.
@@ -423,7 +443,8 @@ explained above. The \texttt{Star} arm implements $\mathsf{P}_{*}$, with
 the closure appending the reconstructed iteration to the star's list
 (left-to-right order, reversed once at the end by \texttt{select} rather
 than paying \texttt{insert(0, ..)}'s cost on every iteration), again
-split on whether \texttt{smart\_seq} collapsed the residual.
+split on whether \texttt{smart\_seq} collapsed the residual
+(Figure~\ref{fig:pderiv-tree-seqstar-rust}).
 
 \subsection{State Sets and Selection}
 \label{sec:pderiv-state-set}
@@ -523,7 +544,7 @@ pub(super) fn select(frontier: &[(Regex, Inj)]) -> Option<ParseTree> {
 \caption{\texttt{select}: return the tree for the first accepting
 configuration in the state set. \texttt{reverse\_stars} undoes, in one
 O(total output size) pass, the left-to-right-via-push construction order
-\texttt{pderiv\_tree}'s \texttt{Star} arm uses (Figure~\ref{fig:pderiv-tree-rust}).}
+\texttt{pderiv\_tree}'s \texttt{Star} arm uses (Figure~\ref{fig:pderiv-tree-seqstar-rust}).}
 \label{fig:select-rust}
 \end{figure}
 
