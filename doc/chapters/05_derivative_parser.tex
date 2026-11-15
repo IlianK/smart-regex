@@ -681,9 +681,10 @@ whereas the direct construction reverses the residuals step by step.
 \subsection{Annotated Expressions}
 \label{sec:annotated-expressions}
 
-An annotated expression $\mathit{ri}$ extends $r$ 
-by associating each non-$\emptyset$ node with a bit-sequence $bs$ 
-that records the reconstruction choices made during the forward pass:
+An annotated expression $\mathit{ri}$ extends $r$
+by associating each non-$\emptyset$ node with a bit-sequence $bs$
+that records the reconstruction choices made during the forward pass
+\citep[Fig.~5]{sulzmannlu2014}:
 \begin{equation}\label{eq:aregex-grammar}
 \mathit{ri} ::= \emptyset \mid (bs@\varepsilon) \mid (bs@x) \mid
 (bs@\mathit{ri}_1 \oplus \mathit{ri}_2) \mid
@@ -1238,17 +1239,24 @@ avoiding a slice conversion and copy of the accumulated bit history.
 
 %
 
-Flattening happens before deduplication.
-\texttt{collect\_alt\_branches} turns a chain 
-of nested \texttt{Alt} nodes into one list before \texttt{dedup\_first} ever runs, 
-so deduplication happens once over every branch 
-rather than once per nesting level. 
-Its worker \texttt{push\_branches} always recurses through an \texttt{Alt} node, 
-whatever its bit-list.
-When the bit-list is empty it recurses directly into both children, 
-and when it isn't, 
+$\oplus$ in \eqref{eq:simp-theory} only behaves like a flat list of
+operands by convention -- the paper itself calls this a convenience, since
+$\oplus$ stays strictly binary in the underlying grammar
+(\eqref{eq:aregex-grammar}). \texttt{ARegex::Alt} is binary for the same
+reason, so nothing in the paper names the conversion between the two
+views; Figure~\ref{fig:collect-alt-branches-rust} shows
+\texttt{collect\_alt\_branches} and its worker \texttt{push\_branches}
+making it concrete instead of leaving it implicit.
+\texttt{collect\_alt\_branches} turns a chain
+of nested \texttt{Alt} nodes into one list before \texttt{dedup\_first} ever runs,
+so deduplication happens once over every branch
+rather than once per nesting level.
+\texttt{push\_branches} always recurses through an \texttt{Alt} node,
+whatever its bit-list:
+when the bit-list is empty it recurses directly into both children,
+and when it isn't,
 it first fuses those bits onto each child so they are not lost before recursing.
-A node that is not an \texttt{Alt} is a leaf, 
+A node that is not an \texttt{Alt} is a leaf,
 and is pushed onto the output list as-is.
 \begin{figure}[H]
 \small
@@ -1289,10 +1297,12 @@ Its own cost is detailed later, in Figure~\ref{fig:dedup-first-rust}.
 
 %
 
-\texttt{fold\_alt} reverses the direction \texttt{collect\_alt\_branches}
-flattened in: it rebuilds the already-deduplicated list back into a
-binary \texttt{Alt} chain, since \texttt{ARegex::Alt} only ever has two
-children. Reversing first and folding from there keeps the result
+Figure~\ref{fig:fold-alt-rust} shows \texttt{fold\_alt}, the matching
+conversion on the way back: it reverses the direction
+\texttt{collect\_alt\_branches} flattened in, rebuilding the
+already-deduplicated list into the binary \texttt{Alt} chain the grammar
+actually has, since \texttt{ARegex::Alt} only ever holds two children.
+Reversing first and folding from there keeps the result
 right-associated with the branches in their original left-to-right
 order: the first branch becomes the outermost \texttt{Alt}, and each
 later branch nests one level deeper on the right.
