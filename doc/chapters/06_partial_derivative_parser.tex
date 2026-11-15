@@ -3,121 +3,39 @@
 \chapter{Partial-Derivative-Based Parser}
 \label{sec:partial-derivative-parser}
 
-Chapter~\ref{sec:derivative-parser} presented two derivative-based
-methods for constructing POSIX parse trees. The standard parser stores
-the derivation sequence and reconstructs the tree in a backward pass
-using $\mathit{mkEps}$ and the injections. The bit-coded parser records
-the choices as bits during the forward pass and decodes them against the
-original expression at the end.
-
-This chapter presents the partial-derivative alternative of Sulzmann and
-Lu~\citep{sulzmannlu2012}. Instead of one residual per step, the partial
-derivative produces a set of states, each pairing a residual expression with
-the reconstruction information for one path through the original expression.
-The parser maintains this set as an NFA state set, and at the end walks it in
-generation order, taking the first accepting state. Because partial
-derivatives break apart the structure of the original expression, this walk
-yields the leftmost alternative at every choice rather than the longest one,
-and therefore a non-POSIX parse tree.
-
-As in Chapter~\ref{sec:derivative-parser}, two variants are presented. The
-standard parser attaches an injection closure to each state. The bit-coded
-parser replaces these closures with bit-sequences. Both compute the same
-parse tree.
+This chapter presents the partial-derivative approach to parse-tree construction, 
+following \citep{sulzmannlu2012}. 
+Unlike ordinary derivatives, partial derivatives produce a set of residual states,
+each pairing an expression with the reconstruction information 
+for one path through the original expression. 
+The parser maintains this set as an NFA state set 
+and selects the first accepting state in generation order. 
+Since partial derivatives lose the original expression's structure, 
+this favours leftmost alternatives over the longest match, 
+resulting in non-POSIX parse trees.
+As in Chapter~\ref{sec:derivative-parser}, two variants are considered. 
+The standard parser attaches an injection closure to each state, 
+while the bit-coded parser replaces these closures with bit sequences. 
+Both produce the same parse tree.
 
 %
 %
 %
 %
 %
+
 \section{The Standard Partial-Derivative Parser}
 \label{sec:pderiv-std}
 
-Consider again $r_0 = (a + ab)(b + \varepsilon)$ with input
-$w = \mathtt{ab}$. Where $\mathit{deriv}$ reduces $r_0$ to a single
-residual at each step, Antimirov's partial derivative $\mathit{pderiv}$
-reduces it to a \emph{set} of states, one per way the next character can
-be consumed. Each state pairs a residual expression with an injection
-that rebuilds a parse tree for $r_0$ from a parse tree for that residual.
-The injection is attached to its state as soon as the state is created,
-rather than recovered afterwards from a stored sequence the way
-$\mathit{inj}$ was for the standard derivative parser in
-Section~\ref{sec:core-algorithm}.
-
-Deriving $r_0$ by $\mathtt{a}$ produces two states, one for each way
-$\mathtt{a}$ can be consumed:
-\begin{equation}\label{eq:pderiv-std-example}
-\begin{aligned}
-\mathit{pderiv}(r_0, \mathtt{a}) =
-  \bigl\{
-    &(\;\varepsilon \cdot (b + \varepsilon),\;
-       \lambda(\_, v_2).\; (\mathit{Left}\,a,\, v_2)\;), \\[2pt]
-    &(\;(\varepsilon \cdot b)\,(b + \varepsilon),\;
-       \lambda((v_1, v_2), v_2').\; (\mathit{Right}(a, v_2),\, v_2')\;)
-  \bigr\}.
-\end{aligned}
-\end{equation}
-A state is a pair: a residual expression describing what is left to
-match, and an injection rebuilding a parse tree of the original
-expression from a parse tree of the residual. The two states above
-correspond to the two branches of the alternation $a + ab$ in the first
-factor. The second factor $b + \varepsilon$ is untouched in both and
-appears as the trailing component of each residual.
-
-Each residual has the shape $r' \cdot (b + \varepsilon)$: the derivative of
-the first factor, followed by the untouched second factor, never simplified. The
-leading $\varepsilon$ in each $r'$ records that the consumed character
-matched a leading literal and left nothing behind in that position; it is
-not removed, because the injection below pattern-matches on exactly this
-pair shape.
-
-The first state's residual $\varepsilon \cdot (b + \varepsilon)$ is a
-sequence, so its tree is a pair $(v_1, v_2)$: $v_1$ is the tree of the
-leading $\varepsilon$, which is necessarily $\mathit{Empty}$, and $v_2$
-is the tree of the untouched second factor $b + \varepsilon$. The closure
-returns $(\mathit{Left}(a), v_2)$. It discards $v_1$ because the tree of
-$\varepsilon$ carries no information, and replaces the first position with
-$\mathit{Left}(a)$ to record that the left branch of the alternation
-$a + ab$ was taken. The second factor's tree $v_2$ is passed through
-unchanged.
-
-The second state's residual $(\varepsilon \cdot b)\,(b + \varepsilon)$
-is a sequence whose first component is itself a sequence, so its tree is
-a pair $((v_1, v_2), v_2')$: the inner pair $(v_1, v_2)$ is the tree of
-$\varepsilon \cdot b$, with $v_1$ the tree of the leading $\varepsilon$
-and $v_2$ the tree of the trailing $b$; the outer $v_2'$ is the tree of
-the untouched second factor. The closure returns
-$(\mathit{Right}(a, v_2), v_2')$. It rebuilds the consumed $a$ (which
-the leading $\varepsilon$ records) and the still-owed $b$ (which $v_2$
-records) as the pair $(a, v_2)$, places that pair inside a right
-injection to record that the right branch $ab$ of the alternation was
-taken, and passes the second factor's tree $v_2'$ through unchanged. The
-binder $v_1$ is bound but not used in the body, for the same reason as
-the first state's \texttt{\_}: the tree of $\varepsilon$ carries no
-information.
-
-Transitioning both states on the second character $\mathtt{b}$ gives a new
-state set:
-\begin{equation}\label{eq:pderiv-std-step2}
-\begin{aligned}
-\mathit{pderiv}(r_0, \mathtt{a}, \mathtt{b}) =
-  \bigl\{
-    &(\;\varepsilon,\;
-       \lambda \_.\; (\mathit{Left}\,a,\, \mathit{Left}\,b)\;), \\[2pt]
-    &(\;\varepsilon \cdot (b + \varepsilon),\;
-       \lambda(\_, v_2).\; (\mathit{Right}(a,b),\, v_2)\;)
-  \bigr\}.
-\end{aligned}
-\end{equation}
-The first state now has residual $\varepsilon$, meaning every input
-character has been consumed, and is accepting; the second has residual
-$\varepsilon \cdot (b + \varepsilon)$: the second factor is untouched
-by $\mathtt{b}$, since it was the first factor's leftover $b$ that
-matched, and so it too is accepting. Selection walks the state set
-in generation order and returns the first accepting state. Applying its
-injection to $\mathit{mkEps}_\varepsilon = ()$ yields
-$(\mathit{Left}\,a, \mathit{Left}\,b)$, the leftmost alternative at every
-choice (Figure~\ref{fig:pderiv-std-overview}).
+Consider again $r_0 = (a + ab)(b + \varepsilon)$ with input $w = \mathtt{ab}$. 
+Whereas $\mathit{deriv}$ produces a single residual at each step, 
+$\mathit{pderiv}$ produces a \emph{set} of states, 
+one per way the next character can be consumed.
+Each state pairs a residual with an injection 
+that reconstructs a parse tree of $r_0$ from one of that residual. 
+Unlike $\mathit{inj}$, this injection is attached 
+when the state is created rather than recovered from a stored sequence.
+Figure~\ref{fig:pderiv-std-overview} shows the process.
 
 \begin{figure}[ht]
 \centering
@@ -158,28 +76,113 @@ choice (Figure~\ref{fig:pderiv-std-overview}).
 \draw[->] (s1b) -- node[lbl, right] {$\mathit{pderiv}(-,\mathtt{b})$} (s2b);
 \draw[->] (s2a) -- node[lbl, right] {$\mathit{select}$} (r);
 \end{tikzpicture}
-\caption{The standard partial-derivative parser on
-$r_0 = (a + ab)(b + \varepsilon)$ with input $\mathtt{ab}$. Each box is a
-state $(r, \iota)$: a residual and an injection, both shown without any
-simplification. $\mathit{pderiv}(-,x)$
-advances every state by one character; $\mathit{select}$ takes the first
-accepting state and applies its injection to $\mathit{mkEps}$ of its
-residual.}
+\caption{The standard partial-derivative parser for
+$r_0 = (a + ab)(b + \varepsilon)$ and input $\mathtt{ab}$.
+Each box shows a state $(r,\iota)$, pairing a residual with
+its injection. 
+$\mathit{pderiv}(-,x)$
+advances each state by $x$, while $\mathit{select}$ applies
+the injection of the first accepting state to
+$\mathit{mkEps}$ of its residual.}
 \label{fig:pderiv-std-overview}
 \end{figure}
 
-Two properties of the state set determine which tree is selected. First,
-the order of states in the set encodes the preference. When a state
-produces several successors, they are appended in the order the rules
-generate them, with the left alternative first, so the leftmost path
-appears earliest. Second, when two states share a residual,
-$\mathit{nub}$ keeps the first and discards the later one with its
-injection, so the earlier path wins ties: the frontier-wide
-deduplication rule stated as Definition~8 of \citep{sulzmannlu2012}. Both
-mechanisms favour the
-leftmost alternative at every choice over the longest one, which is what
-distinguishes the tree this parser returns from the POSIX tree of
-Chapter~\ref{sec:derivative-parser}.
+Deriving $r_0$ by $\mathtt{a}$ produces the two states of $S_1$, 
+one for each way $\mathtt{a}$ can be consumed:
+\begin{equation}\label{eq:pderiv-std-example}
+\begin{aligned}
+\mathit{pderiv}(r_0, \mathtt{a}) =
+  \bigl\{
+    &(\;\varepsilon \cdot (b + \varepsilon),\;
+       \lambda(\_, v_2).\; (\mathit{Left}\,a,\, v_2)\;), \\[2pt]
+    &(\;(\varepsilon \cdot b)\,(b + \varepsilon),\;
+       \lambda((v_1, v_2), v_2').\; (\mathit{Right}(a, v_2),\, v_2')\;)
+  \bigr\}.
+\end{aligned}
+\end{equation}
+
+A state is a pair of a residual expression describing what is left to match,
+and an injection that reconstructs the original parse tree 
+from a parse tree of the residual.
+The two states of $S_1$ correspond to the two branches 
+of $a + ab$ in the first factor. 
+The second factor $b + \varepsilon$ is untouched in both 
+and appears as the trailing component of each residual: $r' \cdot (b + \varepsilon)$.
+The leading $\varepsilon$ in each $r'$ records  
+that the consumed character matched a leading literal.
+
+The first state's residual $\varepsilon \cdot (b + \varepsilon)$ is a sequence, 
+so its tree is a pair $(v_1, v_2)$: 
+$v_1$ is the tree of the leading $\varepsilon$, 
+which is necessarily $\mathit{Empty}$, 
+and $v_2$ is the tree of the untouched second factor $b + \varepsilon$. 
+The closure returns $(\mathit{Left}(a), v_2)$. 
+It discards $v_1$ because the tree of $\varepsilon$ carries no information, 
+and replaces the first position with $\mathit{Left}(a)$ 
+to record that the left branch of $a + ab$ was taken. 
+The second factor's tree $v_2$ is passed through unchanged.
+
+The second state's residual $(\varepsilon \cdot b)\,(b + \varepsilon)$
+is a sequence whose first component is itself a sequence, 
+so its tree is a pair $((v_1, v_2), v_2')$. 
+The inner pair $(v_1, v_2)$ is the tree of $\varepsilon \cdot b$, 
+with $v_1$ the tree of the leading $\varepsilon$ 
+and $v_2$ the tree of the trailing $b$. 
+The outer $v_2'$ is the tree of the untouched second factor. 
+The closure returns $(\mathit{Right}(a, v_2), v_2')$. 
+It rebuilds the consumed $a$ (which the leading $\varepsilon$ records) 
+and the still-owed $b$ (which $v_2$ records) as the pair $(a, v_2)$.
+It places that pair inside a right injection to record 
+that the right branch $ab$ of the alternation was taken, 
+and passes the second factor's tree $v_2'$ through unchanged. 
+The binder $v_1$ is bound but not used in the body, 
+as again the tree of $\varepsilon$ carries no information.
+
+%
+
+Transitioning both states on the second character $\mathtt{b}$ gives a new
+state set:
+\begin{equation}\label{eq:pderiv-std-step2}
+\begin{aligned}
+\mathit{pderiv}(r_0, \mathtt{a}, \mathtt{b}) =
+  \bigl\{
+    &(\;\varepsilon,\;
+       \lambda \_.\; (\mathit{Left}\,a,\, \mathit{Left}\,b)\;), \\[2pt]
+    &(\;\varepsilon \cdot (b + \varepsilon),\;
+       \lambda(\_, v_2).\; (\mathit{Right}(a,b),\, v_2)\;)
+  \bigr\}.
+\end{aligned}
+\end{equation}
+
+The first state now has residual $\varepsilon$, 
+meaning every input character has been consumed, and is accepting. 
+The second has the residual $\varepsilon \cdot (b + \varepsilon)$, 
+corresponding to the $ab$ branch of the first factor.
+That branch consumed both characters, leaving $\varepsilon$, 
+and the second factor $b + \varepsilon$ is untouched. 
+So the remaining language still acceptable is $L(b + \varepsilon) = \{\varepsilon, b\}$.
+The state is accepting as well, 
+since $\varepsilon$ completes $\mathtt{ab}$ to a full match, 
+Selection walks the whole state set in generation order 
+and returns the first accepting state. 
+Applying its injection to $\mathit{mkEps}_\varepsilon = ()$ 
+gives $(\mathit{Left}\,a, \mathit{Left}\,b)$, 
+the leftmost alternative at every choice.
+
+Two properties of the state set determine which tree is selected. 
+First, the order of states encodes the preference.
+When a state produces several successors, 
+they are appended in the order the rules generate them, 
+with the left alternative first, 
+so the leftmost path appears earliest.
+Second, when two states share a residual, 
+only the first is kept and the later one is discarded together with its injection, 
+so the earlier path wins ties (Definition~8 of~\citealp{sulzmannlu2012}). 
+Both mechanisms favour the leftmost alternative at every choice over the longest one,
+which is what distinguishes the tree this parser returns 
+from the POSIX tree of Chapter~\ref{sec:derivative-parser}.
+
+%
 
 \subsection{Partial Derivatives with Injections}
 \label{sec:pderiv-tree-theory}
@@ -315,138 +318,79 @@ ambiguous pattern even though the number of distinct residuals stays
 bounded.
 
 \begin{figure}[H]
-\small
+\footnotesize
 \begin{verbatim}
 pub(crate) type InjStep = Rc<dyn Fn(ParseTree) -> ParseTree>;
 
 pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
         Regex::Eps | Regex::Phi => vec![],
+        Regex::Lit(c) if *c == x => vec![(Regex::Eps,
+            Rc::new(move |_| ParseTree::Char(x)) as InjStep)],
+        Regex::Lit(_) => vec![],
 
-        Regex::Lit(c) => {
-            if *c == x {
-                vec![(Regex::Eps,
-                      Rc::new(move |_| ParseTree::Char(x))) as InjStep]
-            } else { vec![] }
-        }
-
-        Regex::Alt(r1, r2) => {
-            let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
-                .into_iter()
-                .map(|(r1_, inj1)| {
-                    let f: InjStep = Rc::new(move |v| {
-                        ParseTree::Left(Box::new(inj1(v)))
-                    });
-                    (r1_, f)
-                })
-                .collect();
-            out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
-                let f: InjStep = Rc::new(move |v| {
-                    ParseTree::Right(Box::new(inj2(v)))
-                });
-                (r2_, f)
-            }));
-            nub_tree(out)
-        }
+        Regex::Alt(r1, r2) => nub_tree(
+            pderiv_tree(r1, x).into_iter().map(|(r, inj)| (r,
+                Rc::new(move |v| ParseTree::Left(Box::new(inj(v)))) as InjStep))
+            .chain(pderiv_tree(r2, x).into_iter().map(|(r, inj)| (r,
+                Rc::new(move |v| ParseTree::Right(Box::new(inj(v)))) as InjStep)))
+            .collect()
+        ),
 
         Regex::Seq(r1, r2) => {
+            let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x).into_iter()
+                .map(|(r1_, inj1)| {
+                    let r2c = (**r2).clone();
+                    if r1_ == Regex::Eps {
+                        (r2c, Rc::new(move |v2| ParseTree::Pair(
+                            Box::new(inj1(ParseTree::Empty)),
+                            Box::new(v2))) as InjStep)
+                    } else {
+                        (smart_seq(r1_, &r2c), Rc::new(move |v| match v {
+                            ParseTree::Pair(v1, v2) =>
+                                ParseTree::Pair(Box::new(inj1(*v1)), v2),
+                            _ => panic!("pderiv_tree/Seq: want Pair"),
+                        }) as InjStep)
+                    }
+                }).collect();
             if nullable(r1) {
-                let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
-                    .into_iter()
-                    .map(|(r1_, inj1)| {
-                        let r2c = (**r2).clone();
-                        // smart_seq collapse, same split as below.
-                        if r1_ == Regex::Eps {
-                            let f: InjStep = Rc::new(move |v2| {
-                                let v1 = inj1(ParseTree::Empty);
-                                ParseTree::Pair(Box::new(v1), Box::new(v2))
-                            });
-                            (r2c, f)
-                        } else {
-                            let f: InjStep = Rc::new(move |v| match v {
-                                ParseTree::Pair(v1, v2) =>
-                                    ParseTree::Pair(Box::new(inj1(*v1)), v2),
-                                _ => panic!("pderiv_tree/Seq: want Pair"),
-                            });
-                            (smart_seq(r1_, &r2c), f)
-                        }
-                    })
-                    .collect();
-
-                let v1_eps = mk_eps(r1);
-                out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| {
-                    let v1c = v1_eps.clone();
-                    let f: InjStep = Rc::new(move |v2| {
-                        ParseTree::Pair(Box::new(v1c.clone()),
-                                        Box::new(inj2(v2)))
-                    });
-                    (r2_, f)
-                }));
+                let v1 = mk_eps(r1);
+                out.extend(pderiv_tree(r2, x).into_iter().map(|(r2_, inj2)| (
+                    r2_,
+                    Rc::new(move |v2| ParseTree::Pair(
+                        Box::new(v1.clone()),
+                        Box::new(inj2(v2)))) as InjStep
+                )));
                 nub_tree(out)
-            } else {
-                pderiv_tree(r1, x)
-                    .into_iter()
-                    .map(|(r1_, inj1)| {
-                        let r2c = (**r2).clone();
-                        // smart_seq collapses Eps.r2c to r2c alone, so
-                        // the closure must inject directly instead of
-                        // destructuring a Pair that no longer exists.
-                        if r1_ == Regex::Eps {
-                            let f: InjStep = Rc::new(move |v2| {
-                                let v1 = inj1(ParseTree::Empty);
-                                ParseTree::Pair(Box::new(v1), Box::new(v2))
-                            });
-                            (r2c, f)
-                        } else {
-                            let f: InjStep = Rc::new(move |v| match v {
-                                ParseTree::Pair(v1, v2) =>
-                                    ParseTree::Pair(Box::new(inj1(*v1)), v2),
-                                _ => panic!("pderiv_tree/Seq: want Pair"),
-                            });
-                            (smart_seq(r1_, &r2c), f)
-                        }
-                    })
-                    .collect()
-            }
+            } else { out }
         }
 
-        Regex::Star(r1) => {
-            let out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x)
-                .into_iter()
-                .map(|(r1_, inj1)| {
-                    let r1c = (**r1).clone();
-                    // items.push, not insert(0, ..): injection unwinds
-                    // in reverse temporal order, so building the Star
-                    // left-to-right needs each new iteration prepended
-                    // to what inj applies first. push is O(1) amortized;
-                    // select reverses every Star's items once at the
-                    // end instead of paying insert(0, ..)'s O(n) per call.
-                    if r1_ == Regex::Eps {
-                        let f: InjStep = Rc::new(move |vs| match vs {
-                            ParseTree::Star(mut items) => {
-                                items.push(inj1(ParseTree::Empty));
-                                ParseTree::Star(items)
+        Regex::Star(r1) => nub_tree(
+            pderiv_tree(r1, x).into_iter().map(|(r1_, inj1)| {
+                if r1_ == Regex::Eps {
+                    (Regex::star((**r1).clone()),
+                     Rc::new(move |vs| match vs {
+                        ParseTree::Star(mut it) => {
+                            it.push(inj1(ParseTree::Empty));
+                            ParseTree::Star(it)
+                        }
+                        _ => panic!("pderiv_tree/Star: want Star"),
+                    }) as InjStep)
+                } else {
+                    (smart_seq(r1_, &Regex::star((**r1).clone())),
+                     Rc::new(move |v| match v {
+                        ParseTree::Pair(v1, vs) => match *vs {
+                            ParseTree::Star(mut it) => {
+                                it.push(inj1(*v1));
+                                ParseTree::Star(it)
                             }
                             _ => panic!("pderiv_tree/Star: want Star"),
-                        });
-                        (Regex::star(r1c), f)
-                    } else {
-                        let f: InjStep = Rc::new(move |v| match v {
-                            ParseTree::Pair(v1, vs) => match *vs {
-                                ParseTree::Star(mut items) => {
-                                    items.push(inj1(*v1));
-                                    ParseTree::Star(items)
-                                }
-                                _ => panic!("pderiv_tree/Star: want Star"),
-                            },
-                            _ => panic!("pderiv_tree/Star: want Pair"),
-                        });
-                        (smart_seq(r1_, &Regex::star(r1c)), f)
-                    }
-                })
-                .collect();
-            nub_tree(out)
-        }
+                        },
+                        _ => panic!("pderiv_tree/Star: want Pair"),
+                    }) as InjStep)
+                }
+            }).collect()
+        ),
     }
 }
 \end{verbatim}
