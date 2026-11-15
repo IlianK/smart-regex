@@ -1232,42 +1232,30 @@ avoiding a slice conversion and copy of the accumulated bit history.
 
 %
 
-Equation~\eqref{eq:simp-theory}'s alternation is list-based, 
-but \texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}).
-So the implementation uses 
-\texttt{collect\_alt\_branches}/\texttt{push\_branches} 
-((Figure~\ref{fig:collect-alt-branches-rust}))
-to flatten nested \texttt{Alt} nodes.
+Equation~\eqref{eq:simp-theory}'s alternation is list-based, but
+\texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}), so the
+implementation flattens nested \texttt{Alt} nodes, applies \texttt{map},
+\texttt{filter}, and \texttt{nub}, then rebuilds the tree:
+\texttt{collect\_alt\_branches}/\texttt{push\_branches} flatten
+(Figure~\ref{fig:collect-alt-branches-rust}), \texttt{fold\_alt} rebuilds it
+(Figure~\ref{fig:fold-alt-rust}). \texttt{map} and \texttt{filter} are
+exactly \texttt{.map(simp\_once)} and \texttt{.filter(|b| !is\_phi(b))} in
+Figure~\ref{fig:simp-rust}'s \texttt{Alt} arm; \texttt{nub} is
+\texttt{dedup\_first}, called right after. Only \texttt{nub}'s notion of
+`duplicate' is left unspecified by \citep[Fig.~6]{sulzmannlu2014}; here,
+bits are ignored when comparing expressions, following the pattern equality
+in \citep[Fig.~9]{sulzmannlu2012}. Because \texttt{simp} compares branches
+within one expression, not states in a set, and \texttt{same\_shape}
+requires exact structural identity, merged branches derive and decode
+identically, raising no disambiguation question.
 
-
-applies \texttt{map}, \texttt{filter}, 
-and \texttt{nub}, then rebuilds the binary tree:
-\texttt{collect\_alt\_branches}/\texttt{push\_branches} flatten 
-(Figure~\ref{fig:collect-alt-branches-rust}) 
-and \texttt{fold\_alt} rebuilds it (Figure~\ref{fig:fold-alt-rust}). 
-\texttt{map} and \texttt{filter} follow the theory directly.
-Only \texttt{nub}'s notion of `duplicate' is left unspecified 
-by \citep[Fig.~6]{sulzmannlu2014}. 
-Here, bits are ignored when comparing expressions,
-following the pattern equality in \citep[Fig.~9]{sulzmannlu2012}.
-This is not a form of disambiguation.
-\texttt{simp} compares branches within one expression, 
-not states in a set, 
-and since \texttt{same\_shape} requires exact structural identity, 
-merged branches derive and decode identically,
-so discarding either cannot change the final parse.
-\texttt{collect\_alt\_branches} recursively flattens nested \texttt{Alt}
-nodes into a single list.
-Its worker \texttt{push\_branches} fuses each node's bits
-onto its children via \texttt{fuse\_bits} before descending
-so no choice is lost, appending a non-\texttt{Alt} node as a leaf.
-The result lets \texttt{dedup\_first} compare every branch together, 
-not once per nesting level.
-Simplification removes dead branches and collapses degenerate ones, 
-but distinct survivors can still share the same underlying regex.
-That is done by \texttt{dedup\_first}, 
-called right after simplification in \texttt{simp\_once}'s \texttt{Alt} arm 
-(Figure~\ref{fig:simp-rust}), detailed in Figure~\ref{fig:dedup-first-rust}.
+\texttt{collect\_alt\_branches} flattens nested \texttt{Alt} nodes via
+\texttt{push\_branches}, fusing each node's bits onto its children so no
+choice is lost, so \texttt{dedup\_first} compares every branch together,
+not once per nesting level, removing survivors sharing the same regex;
+it is called right after simplification in \texttt{simp\_once}'s
+\texttt{Alt} arm (Figure~\ref{fig:simp-rust}), detailed in
+Figure~\ref{fig:dedup-first-rust}.
 
 \begin{figure}[H]
 \small
@@ -1323,18 +1311,14 @@ deduplicated branch list into a right-associated \texttt{Alt}.}
 \label{fig:fold-alt-rust}
 \end{figure}
 
-The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot \varepsilon = r$, 
-but asymmetrically.
-The right-hand collapse only fires when $r_2$'s bits are empty, 
-since $\mathit{mkEpsBC}$ concatenates left to right 
-and fusing $r_2$'s bits the same way would misplace them 
-before $r_1$'s own instead of after. 
-\texttt{same\_shape}, used by both the fixpoint check 
-and \texttt{dedup\_first}, 
-applies the same bits-discarding comparison from above (Section~\ref{sec:simp-impl}), 
-which also keeps the fixpoint check cheap.
-A derived structural equality would force a full bit-list copy every iteration, 
-the $O(n^2)$ cost \texttt{Bits} (Section~\ref{sec:aregex-type}) exists to avoid.
+The \texttt{Seq} case mirrors $\varepsilon \cdot r = r$ and $r \cdot \varepsilon = r$, but only
+on the right: $r_2$'s bits collapse out just when they are empty, since
+$\mathit{mkEpsBC}$'s left-to-right concatenation would otherwise place them before
+$r_1$'s own. \texttt{same\_shape}, shared by the fixpoint check and \texttt{dedup\_first},
+is this same bits-discarding comparison (Section~\ref{sec:simp-impl}); it also keeps the
+fixpoint check cheap, since a derived structural equality would instead force a full
+bit-list copy every iteration, the $O(n^2)$ cost \texttt{Bits}
+(Section~\ref{sec:aregex-type}) exists to avoid.
 
 %
 
