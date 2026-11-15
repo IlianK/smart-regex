@@ -1119,12 +1119,11 @@ fusing (Section~\ref{sec:fuse}) each removed node's bits onto whatever replaces 
 A single bottom-up pass does not always reach a fixpoint.
 Collapsing a branch at one level can expose a new collapse at the level above,
 so $\mathit{simp}$ re-applies itself until the shape stops changing.
-The \texttt{Alt} case's own cost follows the same logic: flattening a
-nested alternation into one list before deduplicating keeps the cost of
-checking $p$ alternatives linear in $p$, rather than multiplying it by
-the chain's own depth the way deduplicating pairwise at each level of
-nesting would.
-
+The \texttt{Alt} case's own cost follows the same logic: 
+Flattening a nested alternation into one list 
+before deduplicating keeps the cost of checking $p$ alternatives linear in $p$, 
+rather than multiplying it by the chain's own depth 
+the way deduplicating pairwise at each level of nesting would.
 \begin{equation}\label{eq:isphi}
 \begin{aligned}
 \mathit{isPhi}(\emptyset) &= \mathrm{true} \\
@@ -1137,7 +1136,6 @@ nesting would.
 \end{equation}
 
 We assume $\oplus$ takes a list of operands, written $bs@\oplus\,[\mathit{ri}_1,\ldots,\mathit{ri}_n]$.
-
 {\small
 \begin{equation}\label{eq:simp-theory}
 \begin{aligned}
@@ -1166,9 +1164,10 @@ We assume $\oplus$ takes a list of operands, written $bs@\oplus\,[\mathit{ri}_1,
 
 \paragraph{In Rust.}
 \label{sec:simp-impl}
-\texttt{simp}, shown in Figure~\ref{fig:simp-loop-rust}, is the fixpoint
-loop, re-applying \texttt{simp\_once} until \texttt{same\_shape} reports
-no further change.
+\texttt{simp}, shown in Figure~\ref{fig:simp-loop-rust}, 
+is the fixpoint loop, re-applying \texttt{simp\_once} 
+until \texttt{same\_shape} reports no further change.
+Figure~\ref{fig:simp-rust} shows \texttt{simp\_once} simplification arms.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1187,7 +1186,6 @@ pub fn simp(ri: ARegex) -> ARegex {
 
 %
 
-Figure~\ref{fig:simp-rust} shows \texttt{simp\_once}'s simplification arms:
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1234,30 +1232,33 @@ avoiding a slice conversion and copy of the accumulated bit history.
 
 %
 
-\texttt{collect\_alt\_branches}, \texttt{push\_branches}, and
-\texttt{fold\_alt} have no equation in \eqref{eq:simp-theory}, because the
-paper never actually builds the list its own equations assume: it states
-``we assume $\oplus$ takes a list of operands, instead of just two'' and
-then applies $\mathit{map}(\mathit{simp})$ to simplify every branch,
-$\mathit{filter}(\lnot\,\mathit{isPhi})$ to drop the dead ones, and
-$\mathit{nub}$ to drop duplicates -- the same three steps
-Figure~\ref{fig:simp-rust}'s \texttt{Alt} arm runs as
-\texttt{.map(simp\_once)}, \texttt{.filter(|b| !is\_phi(b))}, and
-\texttt{dedup\_first} -- without saying how a binary $\mathit{ri}_1 \oplus
-\mathit{ri}_2$ (\eqref{eq:aregex-grammar}) becomes the list they run on.
-\texttt{ARegex::Alt} really is binary, so Rust cannot skip that step:
-Figure~\ref{fig:collect-alt-branches-rust} builds the list before
-\texttt{simp\_once} filters and deduplicates it, and
-Figure~\ref{fig:fold-alt-rust}, below, converts the result back.
+Equation~\eqref{eq:simp-theory} uses list-based alternation,
+whereas \texttt{ARegex::Alt} is binary (Section~\ref{sec:aregex-type}). 
+The implementation therefore needs to flatten nested \texttt{Alt} nodes 
+before applying the theory's \texttt{map}, 
+\texttt{filter}, and \texttt{nub} operations, 
+then rebuild the binary representation afterwards.
+\texttt{collect\_alt\_branches} and \texttt{push\_branches} perform
+the flattening (Figure~\ref{fig:collect-alt-branches-rust}),
+while \texttt{fold\_alt} reconstructs the binary tree
+(Figure~\ref{fig:fold-alt-rust}).
 
-\texttt{collect\_alt\_branches} flattens nested \texttt{Alt} nodes into
-one list before \texttt{dedup\_first} runs,
-so deduplication happens once over every branch rather than once per nesting level.
-\texttt{push\_branches} always recurses through an \texttt{Alt} node,
-whatever its bit-list: when empty it recurses directly into both
-children; otherwise it first fuses those bits onto each child so they
-are not lost. A node that is not an \texttt{Alt} is a leaf, pushed onto
-the output list as-is.
+\texttt{collect\_alt\_branches} collects all alternatives 
+into a single list by recursively traversing nested \texttt{Alt} nodes.
+Its worker, \texttt{push\_branches}, 
+transfers each node's annotation to its children 
+using \texttt{fuse\_bits} before descending, 
+ensuring that flattening does not lose recorded choices. 
+Nodes that are not \texttt{Alt} are appended to the list as leaves. 
+This produces a flat list over which \texttt{dedup\_first} 
+can remove duplicates in a single pass, 
+rather than deduplicating separately at each nesting level.
+
+The branches this produces still need deduplicating via \texttt{dedup\_first},
+which is called right after in \texttt{simp\_once}'s \texttt{Alt} arm 
+(Figure~\ref{fig:simp-rust}) 
+and detailed later in Figure~\ref{fig:dedup-first-rust}.
+
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -1291,17 +1292,12 @@ fusing bits onto a child before descending into it when the parent carries any.}
 \label{fig:collect-alt-branches-rust}
 \end{figure}
 
-The branches this produces still need deduplicating via \texttt{dedup\_first} --
-called right after in \texttt{simp\_once}'s \texttt{Alt} arm (Figure~\ref{fig:simp-rust})
-and detailed later in Figure~\ref{fig:dedup-first-rust}.
-
 %
 
-Figure~\ref{fig:fold-alt-rust} shows \texttt{fold\_alt}, rebuilding the
-deduplicated list back into a binary \texttt{Alt} chain. Reversing first
-and folding from there keeps the branches right-associated in their
-original left-to-right order: the first branch becomes the outermost
-\texttt{Alt}, each later branch nesting one level deeper on the right.
+Figure~\ref{fig:fold-alt-rust} shows \texttt{fold\_alt}, 
+which reconstructs the binary \texttt{Alt} tree from the deduplicated list. 
+Reversing the list before folding preserves its original left-to-right order 
+while producing a right-associated tree.
 \begin{figure}[H]
 \small
 \begin{verbatim}
