@@ -1517,11 +1517,10 @@ $p$ & \texttt{deriv\_std\_rec} & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} 
 \end{tabular*}
 \caption{Total match-side time (ms) for all five parsers on E38,
 same $p$ sweep as Table~\ref{tab:patho-phases-e38}. The partial-derivative
-pair stays cheapest throughout the sweep -- consistent with being fastest
-almost everywhere in the dataset (Section~\ref{sec:eval-timing-pathological})
--- while \texttt{deriv\_bc} grows the fastest of all five and becomes by far
-the most expensive at the widest point, not the standard pair: there is no
-ranking reversal at wide $p$.}
+pair stays cheapest throughout the sweep, consistent with being fastest
+almost everywhere in the dataset (Section~\ref{sec:eval-timing-pathological}),
+while \texttt{deriv\_bc} grows the fastest of all five and becomes the most
+expensive at the widest point. The standard pair never overtakes it.}
 \label{tab:patho-e38-all-parsers}
 \end{table}
 
@@ -1530,28 +1529,19 @@ ranking reversal at wide $p$.}
 %
 
 \textbf{Blow up.}
-Table~\ref{tab:patho-e38-all-parsers} shows the mean time of all parsers
-on E38.
 Past a few thousand alternatives, \texttt{deriv\_bc} is the only parser
-whose cost explodes: by $p=10\,000$ it is roughly $18\times$ slower than
-the standard pair, while the partial-derivative pair (\texttt{pderiv\_std}
-and \texttt{pderiv\_bc}) stays cheapest of all five parsers throughout the
-sweep.
-The standard pair's own advantage has one cause.
-Unlike the other three, it does not attempt to simplify the alternation at all,
-so it never pays for an attempt that could not have paid off anyway,
-since every one of the $p$ alternatives stays genuinely distinct by construction.
-Of those other three, only \texttt{deriv\_bc} pays dearly for its attempt.
-\texttt{pderiv\_std} and \texttt{pderiv\_bc} simplify just as genuinely,
-through \texttt{nub\_tree} and \texttt{nub2},
-but cheaply enough for the cost not to show, for reasons given below.
-\texttt{deriv\_bc} also pays more for the same attempt on E38 than on E37:
-comparing two Cat-chains for \texttt{same\_shape} means walking them node
-by node, and E38's words share a five-character prefix (\texttt{w0000})
-that E37's four-letter words do not, so each comparison walks further
-before reaching the difference that makes it fail.
-That is why \texttt{deriv\_bc} diverges from \texttt{pderiv\_bc} more
-sharply on E38 (Table~\ref{tab:patho-phases-e38}).
+whose cost explodes, growing roughly $18\times$ slower than the standard
+pair by $p=10\,000$.
+The standard pair never attempts to simplify the alternation, so it
+never pays for an attempt that could not have succeeded, since every
+one of the $p$ alternatives stays genuinely distinct by construction.
+Of the other three, only \texttt{deriv\_bc} pays dearly for it, while
+\texttt{pderiv\_std} and \texttt{pderiv\_bc} simplify just as genuinely
+but far more cheaply, as explained below.
+\texttt{deriv\_bc} also pays more on E38 than on E37, since
+\texttt{same\_shape} walks two Cat-chains node by node, and E38's
+shared five-character prefix (\texttt{w0000}) makes each comparison walk
+further before failing than E37's four-letter words.
 
 \begin{figure}[H]
 \small
@@ -1571,46 +1561,40 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
     }
 }
 \end{verbatim}
-\caption{\texttt{dedup\_first}: the nested loop behind Figure~\ref{fig:simp-rust}'s 
-own \texttt{dedup\_first} call. 
-Every branch is compared against every later branch via \texttt{same\_shape}, 
-removing a match in place.}
+\caption{\texttt{dedup\_first}'s nested loop (Figure~\ref{fig:simp-rust}),
+comparing every branch against every later branch via \texttt{same\_shape}
+and removing matches in place.}
 \label{fig:dedup-first-rust}
 \end{figure}
 
-Figure~\ref{fig:dedup-first-rust}'s nested loop compares branch $i$
-against every later branch $j$.
-With $p$ branches, that is roughly $p^2/2$ calls to \texttt{same\_shape}, 
-every single character. 
-For $p$ genuinely distinct words, 
-\texttt{same\_shape} is essentially always false, 
-so nothing is ever removed.
-The full $O(p^2)$ cost is paid every character for zero branches removed.
-This directly implements the \texttt{nub} call in the choice case of
-\citet[sect.~3, Fig.~6]{sulzmannlu2014}'s simplification:
+Figure~\ref{fig:dedup-first-rust}'s loop compares branch $i$ against every
+later branch $j$, roughly $p^2/2$ calls to \texttt{same\_shape} per character.
+For $p$ genuinely distinct words, \texttt{same\_shape} is essentially
+always false, so the full $O(p^2)$ cost is paid every character for
+zero branches removed.
+This implements the \texttt{nub} call in the choice case of
+\citet[sect.~3, Fig.~6]{sulzmannlu2014}'s simplification,
 \[
 simp\ (bs@{\oplus}(ri : rsi)) = bs@{\oplus}\bigl(\mathit{nub}\
 (\mathit{filter}\ (\neg\,\mathit{isPhi})\ ((simp\ ri) : \mathit{map}\
 simp\ rsi))\bigr),
 \]
-Haskell's \texttt{nub} is quadratic for the same reason.
-With only an \texttt{Eq} instance available, 
-it keeps the first occurrence of each element 
+and Haskell's \texttt{nub} is quadratic for the same reason, since with
+only an \texttt{Eq} instance it keeps the first occurrence of each element
 by comparing it against every element already kept.
-\texttt{same\_shape} is this same equality test, 
-made insensitive to bit-code history 
-so that identical branches merge regardless of parse path. 
-The paper's complexity claim covers input length rather than pattern width, 
-so this result does not contradict it.
+\texttt{same\_shape} is this same equality test made insensitive to
+bit-code history, so identical branches merge regardless of parse path,
+and since the paper's complexity claim covers input length rather than
+pattern width, this result does not contradict it.
 
 %
 
-The partial-derivative pair deduplicates differently, and more cheaply: 
-\texttt{nub2} and \texttt{nub\_tree} are both hash-based and $O(p)$.
-The two differ only in what carries along with each residual, 
-a bit vector in \texttt{pderiv\_bc} and an injection closure in \texttt{pderiv\_std}.
-Since the mechanism is otherwise the same, 
-only \texttt{pderiv\_bc}'s is shown (Figure~\ref{fig:nub2-rust}). 
+The partial-derivative pair deduplicates differently and more cheaply,
+since \texttt{nub2} and \texttt{nub\_tree} are both hash-based and $O(p)$,
+differing only in what carries along with each residual (a bit vector
+in \texttt{pderiv\_bc}, an injection closure in \texttt{pderiv\_std}).
+Since the mechanism is otherwise the same, only \texttt{pderiv\_bc}'s is
+shown (Figure~\ref{fig:nub2-rust}).
 
 \begin{figure}[H]
 \small
@@ -1637,52 +1621,35 @@ pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
     out
 }
 \end{verbatim}
-\caption{\texttt{pderiv\_bc}'s own \texttt{step\_frontier} and
-\texttt{nub2}: each live residual steps through its own
-\texttt{pderiv\_bc} call, then the combined results are deduplicated
-once via a \texttt{HashSet} keyed on the residual alone,
-implementing the rule of \citet{sulzmannlu2012}, Definition~8: keep
-only the first occurrence of each residual across the whole combined
-result.}
+\caption{\texttt{pderiv\_bc}'s \texttt{step\_frontier} and \texttt{nub2}.
+Each residual steps through \texttt{pderiv\_bc}, then the results are
+deduplicated once via a \texttt{HashSet} keyed on the residual,
+implementing \citet{sulzmannlu2012}'s Definition~8 (keep only the first
+occurrence of each residual).}
 \label{fig:nub2-rust}
 \end{figure}
 
-The real bottleneck used to be a single call, not \texttt{step\_frontier}'s loop.
-Before the pattern's $p$-way alternation has split into separate live
-residuals, the very first call to \texttt{pderiv\_bc} must itself descend
-through the whole $p$-deep nested \texttt{Alt}, since at that point the
-pattern is still one combined tree rather than $p$ separate alternatives.
-An earlier version of \texttt{pderiv\_bc} called \texttt{nub2} once per
-nesting level during that descent -- $p$ calls whose combined cost was
-quadratic in $p$ -- instead of flattening the alternation into its $p$
-leaves first and deduplicating them once, the fix described in
+\texttt{pderiv\_bc} once had an analogous bottleneck.
+Before the alternation splits into separate residuals, the first call
+must descend through the whole $p$-deep nested \texttt{Alt} as one tree.
+An earlier version called \texttt{nub2} once per nesting level there,
+$p$ calls costing quadratic in $p$, instead of flattening the alternation
+into its $p$ leaves and deduplicating once, the fix described in
 Section~\ref{sec:pderiv-tree-impl}.
-Measured directly, essentially all of that old cost sat in the single
-first call, not spread across later characters.
-\texttt{step\_frontier}'s own loop, run once the alternation has already
-split into separate residuals, calls \texttt{pderiv\_bc} and then
-\texttt{nub2} exactly once per character, each call linear in the number
-of live residuals.
-On E38, the shared prefix \texttt{w0000\dots} keeps more residuals alive
-and undistinguished for longer, so this linear cost repeats over more
-characters than it does on E37 -- but a linear cost repeated a few extra
-times is nowhere near the quadratic cost the old nesting paid once, which
-is why the partial-derivative pair stays cheap on both.
-The standard pair pays neither cost.
-No cross-branch comparison and no per-residual call.
+Measured directly, nearly all of that old cost sat in this first call.
+\texttt{step\_frontier}'s loop then calls \texttt{pderiv\_bc} and
+\texttt{nub2} once per character, linear in the live residuals, and
+E38's longer shared prefix repeats this cost more often than E37, though
+still far cheaper than the old quadratic cost.
+The standard pair pays neither cost, making no cross-branch or
+per-residual comparison at all.
 
-The improvement for \texttt{deriv\_bc} would be
-replacing the pairwise \texttt{same\_shape} scan
-with a hash keyed on bit-code-independent structure,
-which is the same approach \texttt{nub2} and \texttt{nub\_tree} already take.
-This would make this dedup $O(p)$ without changing what it computes.
-A fix of the same shape was available for the partial-derivative pair's
-own former bottleneck too, and has already been applied: flattening the
-nested \texttt{Alt} before deduplicating once, rather than once per
-nesting level (Section~\ref{sec:pderiv-tree-impl}).
-\texttt{deriv\_bc}'s own fix above is the one that remains outstanding.
-Batching that loop's work across all live residuals in one pass 
-would require restructuring how they are stored, not just replacing a comparison.
+\texttt{deriv\_bc} could be fixed the same way, replacing its pairwise
+\texttt{same\_shape} scan with a hash keyed on bit-code-independent
+structure as \texttt{nub2} and \texttt{nub\_tree} already do, making the
+dedup $O(p)$ without changing what it computes.
+Doing so would need restructuring how residuals are stored, not just
+swapping the comparison, so it remains the one bottleneck still unfixed.
 
 %
 %
