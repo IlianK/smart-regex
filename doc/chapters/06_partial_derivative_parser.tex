@@ -198,6 +198,7 @@ This injection is $\mathit{inj}$ from Equation~\ref{eq:inj},
 already used by the standard derivative parser (Chapter~\ref{sec:derivative-parser}) 
 to wrap alternatives in $\mathit{Left}$ or $\mathit{Right}$ 
 and to build concatenation and star trees from $\mathit{mkEps}$.
+
 This construction has no explicit rules in the source papers. 
 The pattern partial derivatives of \citet[Fig.~11]{sulzmannlu2012} 
 pair a residual with a variable-binding environment, 
@@ -266,51 +267,53 @@ except $\mathsf{P}_{\mathrm{seq}}$, whose single source of states needs none.
 
 Equation~\ref{eq:pderiv-tree} keeps $\varepsilon \cdot s$ unsimplified,
 unlike $pd$ (Equation~\ref{eq:pd}),
-which uses $\mathit{smartC}$ (Equation~\ref{eq:smartc}).
-The reason is the injection: rule $\mathsf{I}_{\mathrm{seq}}$ from Equation~\ref{eq:inj}
-destructures a $\mathit{Pair}$ from the residual's tree,
-which $\varepsilon \cdot s$ produces but $s$ does not,
-so simplifying while keeping the injection unchanged
-leaves no $\mathit{Pair}$ to match on ---
-the same restriction Equation~\ref{eq:mkeps-simp} already showed
-for the standard derivative parser.
-
-\citet[Fig.~10]{sulzmannlu2012} present plain partial derivatives
-without an injection, and apply exactly this simplification themselves,
-noting only that they
-``omit some obvious simplifications, e.g.\ $(\varepsilon, A^*) \to A^*$,
-to reduce the number of partial derivatives''.
-That costs them nothing; $\mathit{pderiv}$, which does carry an injection,
-may apply the same simplification only if the injection is rebuilt for the simplified shape.
+which uses $\mathit{smartC}$.
+The reason is the injection: 
+rule $\mathsf{I}_{\mathrm{seq}}$ from Equation~\ref{eq:inj}
+destructures a $\mathit{Pair}$ from the residual's tree.
+$\varepsilon \cdot s$ would simplify to $\varepsilon$,
+but the injection would no longer have the $\mathit{Pair}$ to match on.
+This is a similar structure loss as shown in Equation~\ref{eq:mkeps-simp}
+for the standard derivative parser, 
+which makes it impossible to reconstruct the parse tree. 
+However, simplification can still be used,
+when the injection for the simplified shape is rebuild,
+similarly to the bit-coded parser that rebuilds its
+bits onto the surviving node.
 
 %
 
 \paragraph{In Rust.}
 \label{sec:pderiv-tree-impl}
 
-\texttt{pderiv\_tree} implements Equation~\ref{eq:pderiv-tree} for a single character.
-It returns a list of $(\text{residual}, \iota)$ pairs, where each $\iota$ is an
-\texttt{InjStep}: a closure that takes a tree for the residual and returns a tree
-for the original expression.
+\texttt{pderiv\_tree} implements Equation~\ref{eq:pderiv-tree}.
+It returns a list of $(\text{residual}, \iota)$ pairs,
+where each $\iota$ is a closure of type \texttt{InjStep},
+\texttt{Rc<dyn Fn(ParseTree) -> ParseTree>}, 
+taking a tree for the residual and returning a tree for the original expression.
 
-The implementation simplifies $\varepsilon \cdot s$ to $s$ through \texttt{smart\_seq}
-(Equation~\ref{eq:smartc}), the same way Section~\ref{sec:simp}'s bit-coded parser
-simplifies its residual. The motivation is deduplication. \texttt{nub\_tree} implements
-Chapter~\ref{sec:derivative-parser}'s $\mathit{nub}$ (Equation~\ref{eq:simp-theory}),
-comparing residuals by structural equality and ignoring injections, keeping the first
-state of each residual and discarding the rest. Without the collapse, a strand that
-reaches $\varepsilon \cdot s$ and a strand that reaches $s$ would be treated as distinct
-even though they describe the same language, which could exceed the finite bound on
-distinct residuals that the theory guarantees. Collapsing both to $s$ makes them
-identical, and \texttt{nub\_tree} reduces them to one. The collapse is safe because the
-injection is rebuilt alongside the residual, the same reason the bit-coded parser's
-simplification is safe: its bits are moved onto the surviving node rather than discarded
-(Section~\ref{sec:simp}).
+The implementation simplifies $\varepsilon \cdot s$ to $s$ through
+\texttt{smart\_seq} (Equation~\ref{eq:smartc}), 
+as the bit-coded parser does (Section~\ref{sec:simp}). 
+The simplification is safe for the same reason.
+The reconstruction information is rebuilt for the new shape rather than discarded.
+(the bits there and the injection here).
+The simplification also serves deduplication. 
+After derivation, the states are deduplicated by \texttt{nub\_tree}, 
+which implements the $\mathit{nub}$ of Chapter~\ref{sec:derivative-parser}'s 
+simplification (Equation~\ref{eq:simp-theory}).
+This keeps the first state of each residual and discards the rest, 
+comparing residuals by structural equality and ignoring injections. 
+Without the collapse, 
+$\varepsilon \cdot s$ and $s$ are structurally distinct. 
+Deduplication would keep both, even though they describe the same language. 
+The state set could then exceed the finite bound on distinct residuals.
 
-Simplifying the residual on its own, without rebuilding the injection, would leave the
-equation's injection expecting a $\mathit{Pair}$ that is no longer there. In \texttt{Seq}
-and \texttt{Star}, \texttt{pderiv\_tree} avoids this by branching on whether the residual
-collapsed to \texttt{Regex::Eps}:
+Simplifying the residual on its own, 
+without rebuilding the injection, 
+would leave the equation's injection expecting a $\mathit{Pair}$ that is no longer there. 
+In \texttt{Seq} and \texttt{Star}, \texttt{pderiv\_tree} avoids this 
+by branching on whether the residual collapsed to \texttt{Regex::Eps}:
 \begin{itemize}
   \item When it did (\texttt{r1\_ == Regex::Eps}), the closure takes a tree $v$ for $s$
         directly and returns $\mathit{Pair}(\mathit{inj}_1(\mathit{Empty}), v)$.
@@ -318,21 +321,9 @@ collapsed to \texttt{Regex::Eps}:
         $\mathit{Pair}(\mathit{inj}_1(v_1), v_2)$, as Equation~\ref{eq:pderiv-tree}
         specifies.
 \end{itemize}
-Both closures rebuild the same tree for $r_1 \cdot s$, so the residual-injection
-relation is preserved regardless of which case fired.
-
-The $\mathsf{P}_{+}$ rule specifies how to derive two alternatives, but
-does not prescribe how a longer chain is traversed. \texttt{pderiv\_tree}
-flattens a chain $r_1 + \cdots + r_p$ into its leaves before deriving
-them, then deduplicates the resulting states once with
-\texttt{nub\_tree}, rather than deriving one $+$ at a time and
-deduplicating at every level. The two strategies give the same result,
-since flattening preserves left-to-right order and \texttt{nub\_tree}
-keeps the first occurrence; flattening once avoids repeated
-deduplication over the whole chain.
 
 \begin{figure}[H]
-\scriptsize
+\small
 \begin{verbatim}
 pub(crate) type InjStep = Rc<dyn Fn(ParseTree) -> ParseTree>;
 
@@ -356,7 +347,7 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
             }
             nub_tree(out)
         }
-        ...
+        // ...
     }
 }
 \end{verbatim}
@@ -368,7 +359,7 @@ Figure~\ref{fig:pderiv-tree-seqstar-rust}.}
 \end{figure}
 
 \begin{figure}[H]
-\scriptsize
+\footnotesize
 \begin{verbatim}
 pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
