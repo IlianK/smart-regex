@@ -43,41 +43,40 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.1.4}Worked Example: Standard Partial-Derivative Parser}{48}{subsection.6.1.4}\protected@file@percent }
 \newlabel{sec:pderiv-std-worked}{{6.1.4}{48}{Worked Example: Standard Partial-Derivative Parser}{subsection.6.1.4}{}}
 \@writefile{toc}{\contentsline {paragraph}{Forward pass.}{48}{subsection.6.1.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Selection.}{49}{subsection.6.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Selection.}{48}{subsection.6.1.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {6.2}The Bit-Coded Partial-Derivative Parser}{49}{section.6.2}\protected@file@percent }
 \newlabel{sec:pderiv-bc}{{6.2}{49}{The Bit-Coded Partial-Derivative Parser}{section.6.2}{}}
 \newlabel{eq:pderiv-bc-overview}{{6.5}{49}{The Bit-Coded Partial-Derivative Parser}{equation.6.5}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.8}{\ignorespaces Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt  {ab}$. Each box is a configuration: a residual expression and a bit-sequence, written $0$ for $\mathit  {false}$ and $1$ for $\mathit  {true}$. Selection takes the first accepting configuration in $S_2$ and appends $\mathit  {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit  {decode}_{r_0}$ reads against the original expression.}}{50}{figure.caption.40}\protected@file@percent }
-\newlabel{fig:pderiv-bc-overview}{{6.8}{50}{Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt {ab}$. Each box is a configuration: a residual expression and a bit-sequence, written $0$ for $\mathit {false}$ and $1$ for $\mathit {true}$. Selection takes the first accepting configuration in $S_2$ and appends $\mathit {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit {decode}_{r_0}$ reads against the original expression}{figure.caption.40}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.8}{\ignorespaces Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt  {ab}$. Each box is a pair: a residual expression and a bit-sequence, written $0$ for $\mathit  {false}$ and $1$ for $\mathit  {true}$. Selection takes the first accepting pair in $S_2$ and appends $\mathit  {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit  {decode}_{r_0}$ reads against the original expression.}}{49}{figure.caption.40}\protected@file@percent }
+\newlabel{fig:pderiv-bc-overview}{{6.8}{49}{Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt {ab}$. Each box is a pair: a residual expression and a bit-sequence, written $0$ for $\mathit {false}$ and $1$ for $\mathit {true}$. Selection takes the first accepting pair in $S_2$ and appends $\mathit {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit {decode}_{r_0}$ reads against the original expression}{figure.caption.40}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}Bit-Coded Partial Derivatives}{50}{subsection.6.2.1}\protected@file@percent }
 \newlabel{sec:pderiv-bc-theory}{{6.2.1}{50}{Bit-Coded Partial Derivatives}{subsection.6.2.1}{}}
 \newlabel{eq:pderiv-bc}{{6.6}{50}{Bit-Coded Partial Derivatives}{equation.6.6}{}}
-\citation{sulzmann_slides}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{51}{equation.6.6}\protected@file@percent }
-\newlabel{sec:pderiv-bc-impl}{{6.2.1}{51}{In Rust}{equation.6.6}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.9}{\ignorespaces \texttt  {pderiv\_bc}: one bit-coded partial-derivative transition.}}{52}{figure.caption.41}\protected@file@percent }
-\newlabel{fig:pderiv-bc-rust}{{6.9}{52}{\texttt {pderiv\_bc}: one bit-coded partial-derivative transition}{figure.caption.41}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Extracting Bits}{53}{subsection.6.2.2}\protected@file@percent }
-\newlabel{sec:pderiv-bc-mkeps}{{6.2.2}{53}{Extracting Bits}{subsection.6.2.2}{}}
-\newlabel{eq:pderiv-mkepsbc}{{6.7}{53}{Extracting Bits}{equation.6.7}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.10}{\ignorespaces \texttt  {mk\_eps\_bits}: the bit-string analogue of \texttt  {mk\_eps} for plain \texttt  {Regex}.}}{53}{figure.caption.42}\protected@file@percent }
-\newlabel{fig:mk-eps-bits-rust}{{6.10}{53}{\texttt {mk\_eps\_bits}: the bit-string analogue of \texttt {mk\_eps} for plain \texttt {Regex}}{figure.caption.42}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}State Sets and Selection}{54}{subsection.6.2.3}\protected@file@percent }
-\newlabel{sec:pderiv-bc-state-set}{{6.2.3}{54}{State Sets and Selection}{subsection.6.2.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.11}{\ignorespaces \texttt  {step\_frontier} (bit-coded): as with the standard parser's version, \texttt  {nub2} deduplicates across the whole combined state set, not just within one configuration's own expansion (which \texttt  {pderiv\_bc} already does via its own \texttt  {nub2} call).}}{54}{figure.caption.43}\protected@file@percent }
-\newlabel{fig:step-frontier-bc-rust}{{6.11}{54}{\texttt {step\_frontier} (bit-coded): as with the standard parser's version, \texttt {nub2} deduplicates across the whole combined state set, not just within one configuration's own expansion (which \texttt {pderiv\_bc} already does via its own \texttt {nub2} call)}{figure.caption.43}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.12}{\ignorespaces \texttt  {select\_bits}: the bit-coded counterpart of \texttt  {select} (Figure~\ref {fig:select-rust}), returning the bit-sequence of the first accepting configuration instead of applying an injection.}}{54}{figure.caption.44}\protected@file@percent }
-\newlabel{fig:select-bits-rust}{{6.12}{54}{\texttt {select\_bits}: the bit-coded counterpart of \texttt {select} (Figure~\ref {fig:select-rust}), returning the bit-sequence of the first accepting configuration instead of applying an injection}{figure.caption.44}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}Parser}{55}{subsection.6.2.4}\protected@file@percent }
-\newlabel{sec:pderiv-bc-parser}{{6.2.4}{55}{Parser}{subsection.6.2.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.13}{\ignorespaces The bit-coded partial-derivative parser.}}{55}{figure.caption.45}\protected@file@percent }
-\newlabel{fig:pderiv-bc-parser-rust}{{6.13}{55}{The bit-coded partial-derivative parser}{figure.caption.45}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.5}Worked Example: Ambiguous Expression}{55}{subsection.6.2.5}\protected@file@percent }
-\newlabel{sec:pderiv-bc-worked}{{6.2.5}{55}{Worked Example: Ambiguous Expression}{subsection.6.2.5}{}}
-\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{55}{subsection.6.2.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Selection and decoding.}{56}{subsection.6.2.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{50}{equation.6.6}\protected@file@percent }
+\newlabel{sec:pderiv-bc-impl}{{6.2.1}{50}{In Rust}{equation.6.6}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.9}{\ignorespaces \texttt  {pderiv\_bc}: one bit-coded partial-derivative transition.}}{51}{figure.caption.41}\protected@file@percent }
+\newlabel{fig:pderiv-bc-rust}{{6.9}{51}{\texttt {pderiv\_bc}: one bit-coded partial-derivative transition}{figure.caption.41}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Extracting Bits}{52}{subsection.6.2.2}\protected@file@percent }
+\newlabel{sec:pderiv-bc-mkeps}{{6.2.2}{52}{Extracting Bits}{subsection.6.2.2}{}}
+\newlabel{eq:pderiv-mkepsbc}{{6.7}{52}{Extracting Bits}{equation.6.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.10}{\ignorespaces \texttt  {mk\_eps\_bits}: the bit-string analogue of \texttt  {mk\_eps} for plain \texttt  {Regex}.}}{52}{figure.caption.42}\protected@file@percent }
+\newlabel{fig:mk-eps-bits-rust}{{6.10}{52}{\texttt {mk\_eps\_bits}: the bit-string analogue of \texttt {mk\_eps} for plain \texttt {Regex}}{figure.caption.42}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}State Sets and Selection}{52}{subsection.6.2.3}\protected@file@percent }
+\newlabel{sec:pderiv-bc-state-set}{{6.2.3}{52}{State Sets and Selection}{subsection.6.2.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.11}{\ignorespaces \texttt  {step\_frontier} (bit-coded): as with the standard parser's version, \texttt  {nub2} deduplicates across the whole combined state set, not just within one configuration's own expansion (which \texttt  {pderiv\_bc} already does via its own \texttt  {nub2} call).}}{53}{figure.caption.43}\protected@file@percent }
+\newlabel{fig:step-frontier-bc-rust}{{6.11}{53}{\texttt {step\_frontier} (bit-coded): as with the standard parser's version, \texttt {nub2} deduplicates across the whole combined state set, not just within one configuration's own expansion (which \texttt {pderiv\_bc} already does via its own \texttt {nub2} call)}{figure.caption.43}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.12}{\ignorespaces \texttt  {select\_bits}: the bit-coded counterpart of \texttt  {select} (Figure~\ref {fig:select-rust}), returning the bit-sequence of the first accepting configuration instead of applying an injection.}}{53}{figure.caption.44}\protected@file@percent }
+\newlabel{fig:select-bits-rust}{{6.12}{53}{\texttt {select\_bits}: the bit-coded counterpart of \texttt {select} (Figure~\ref {fig:select-rust}), returning the bit-sequence of the first accepting configuration instead of applying an injection}{figure.caption.44}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}Parser}{53}{subsection.6.2.4}\protected@file@percent }
+\newlabel{sec:pderiv-bc-parser}{{6.2.4}{53}{Parser}{subsection.6.2.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.13}{\ignorespaces The bit-coded partial-derivative parser.}}{54}{figure.caption.45}\protected@file@percent }
+\newlabel{fig:pderiv-bc-parser-rust}{{6.13}{54}{The bit-coded partial-derivative parser}{figure.caption.45}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.5}Worked Example: Ambiguous Expression}{54}{subsection.6.2.5}\protected@file@percent }
+\newlabel{sec:pderiv-bc-worked}{{6.2.5}{54}{Worked Example: Ambiguous Expression}{subsection.6.2.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{54}{subsection.6.2.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Selection and decoding.}{54}{subsection.6.2.5}\protected@file@percent }
 \@setckpt{chapters/06_partial_derivative_parser}{
-\setcounter{page}{57}
+\setcounter{page}{56}
 \setcounter{equation}{7}
 \setcounter{enumi}{0}
 \setcounter{enumii}{0}

@@ -599,15 +599,19 @@ since $S_i = \{\}$ means no pair can consume the character and the input fails.
 Otherwise \texttt{select} returns the first accepting tree in $S_n$, or \texttt{None}.
 
 %
+%
+%
 
 \subsection{Worked Example: Standard Partial-Derivative Parser}
 \label{sec:pderiv-std-worked}
 
-Recall the ambiguous example $r_0 = (a + ab)(b + \varepsilon)$ on input
-$\mathtt{ab}$.
+Recall the ambiguous example $r_0 = (a + ab)(b + \varepsilon)$ 
+on input $\mathtt{ab}$.
+
+%
 
 \paragraph{Forward pass.}
-The initial state set holds a single configuration:
+The initial state set holds a single pair:
 \[
 S_0 = \bigl[(r_0,\ \mathit{id})\bigr].
 \]
@@ -629,8 +633,8 @@ Inside the first factor:
   &= \bigl[(\mathit{Seq}(\varepsilon, b),\ \lambda(v_1, v_2).\, (a, v_2))\bigr].
 \end{aligned}
 \]
-After the alternation rule wraps each state with $\mathit{Left}$ or
-$\mathit{Right}$:
+After the alternation rule wraps each state with $\mathit{Left}$ 
+or $\mathit{Right}$:
 \[
 \begin{aligned}
 \mathit{pderiv}(a + ab, \mathtt{a})
@@ -652,9 +656,9 @@ S_1
 \end{aligned}
 \]
 
-Transitioning with respect to $\mathtt{b}$ steps both configurations. For the
-first, the left factor $\varepsilon$ is nullable, so the sequence rule
-produces the state that jumps directly into the second factor:
+Transitioning with $\mathtt{b}$ steps both pairs. 
+For the first, the left factor $\varepsilon$ is nullable, 
+so the sequence rule produces the state that jumps directly into the second factor:
 \[
 \mathit{pderiv}(b + \varepsilon, \mathtt{b})
   = \bigl[(\varepsilon,\ \lambda v.\, \mathit{Left}\,b)\bigr].
@@ -664,17 +668,20 @@ of the pair:
 \[
 \mathit{inj}_1(\mathit{Left}\,b) = (\mathit{Left}\,a,\, \mathit{Left}\,b).
 \]
-For the second configuration, the leading $\mathit{Seq}(\varepsilon, b)$ is
-not nullable ($\varepsilon$ is, but $b$ is not), so rule
-$(\mathsf{P}_{\mathrm{seq}})$ fires and the derivative continues inside $b$:
+For the second pair, 
+the leading $\mathit{Seq}(\varepsilon, b)$ is not nullable 
+($\varepsilon$ is, but $b$ is not), 
+so rule $(\mathsf{P}_{\mathrm{seq}})$ fires 
+and the derivative continues inside $b$:
 \[
 \mathit{pderiv}(\mathit{Seq}(\varepsilon, b), \mathtt{b})
   = \bigl[(\varepsilon,\ \lambda\_.\, ((), b))\bigr],
 \]
-and the outer sequence rule rebuilds the pair \emph{without} simplifying the
-leading $\varepsilon$ away, giving the second configuration's residual
-$\varepsilon \cdot (b + \varepsilon)$, not $b + \varepsilon$. The two
-resulting state-set entries are:
+The outer sequence rule rebuilds the pair 
+\emph{without} simplifying the leading $\varepsilon$ away, 
+giving the second pair's residual 
+$\varepsilon \cdot (b + \varepsilon)$, not $b + \varepsilon$. 
+The two resulting state-set entries are:
 \[
 \begin{aligned}
 S_2
@@ -685,15 +692,20 @@ S_2
 \end{aligned}
 \]
 
+%
+
 \paragraph{Selection.}
-The residual $\varepsilon$ is nullable, so selection returns immediately and
-flattens to the non-POSIX tree:
-$\mathit{select}(S_2) = (\lambda\_.\,(\mathit{Left}\,a, \mathit{Left}\,b))(\mathit{mkEps}_\varepsilon)
-= (\mathit{Left}\,a, \mathit{Left}\,b) \rightsquigarrow \mathtt{ab}$.
-The second configuration ($\varepsilon \cdot (b + \varepsilon)$, also
-nullable) is never inspected, since generation order already favoured the
-first. Chapter~\ref{sec:derivative-parser}'s POSIX parser instead returns
-$(\mathit{Right}(a,b), \mathit{Right}())$, the longer alternative $ab$.
+The residual $\varepsilon$ is nullable, so selection returns immediately 
+and flattens to the non-POSIX tree:
+$\mathit{select}(S_2) = (\lambda\_.\,(\mathit{Left}\,a, 
+\mathit{Left}\,b))(\mathit{mkEps}_\varepsilon) = (\mathit{Left}\,a, 
+\mathit{Left}\,b) \rightsquigarrow \mathtt{ab}$.
+The second pair ($\varepsilon \cdot (b + \varepsilon)$, 
+also nullable) is never inspected, 
+since generation order already favoured the first. 
+The POSIX parser of Chapter~\ref{sec:derivative-parser} 
+by contrast returns $(\mathit{Right}(a,b), \mathit{Right}())$, 
+the longer alternative $ab$.
 
 
 %
@@ -703,23 +715,25 @@ $(\mathit{Right}(a,b), \mathit{Right}())$, the longer alternative $ab$.
 \section{The Bit-Coded Partial-Derivative Parser}
 \label{sec:pderiv-bc}
 
-The standard partial-derivative parser carries a closure per configuration,
-which accumulates the reconstruction path during the forward pass. The
-bit-coded variant replaces closures with bit-sequences: each configuration's
-annotation records the choices made so far, and decoding the final
-bit-sequence against the original expression yields the parse tree.
+The standard partial-derivative parser carries a closure per pair,
+which accumulates the reconstruction path during the forward pass. 
+The bit-coded variant replaces closures with bit-sequences: 
+Each pair's annotation records the choices made so far, 
+and decoding the final bit-sequence against the original expression 
+gives the parse tree.
 
-Unlike the bit-coded \emph{derivative} parser of
-Chapter~\ref{sec:derivative-parser}, this construction has no
-\texttt{internalize} step and builds no annotated \texttt{ARegex} type. A
-partial derivative already returns one residual per surviving strand, so
-each strand's bits thread alongside its plain \texttt{Regex} residual as
-a separate value (\texttt{AppendBits}, \S\ref{sec:pderiv-bc-state-set})
-rather than being embedded in the expression tree itself. There is
-accordingly no $\mathit{fuse}$ step either: $\mathit{fuse}$ exists to
-carry bits from a node a shared annotated tree is about to lose onto the
+Unlike the bit-coded \emph{derivative} parser of Chapter~\ref{sec:derivative-parser}, 
+this construction has no \texttt{internalize} step 
+and builds no annotated \texttt{ARegex} type. 
+A partial derivative already returns one residual per surviving strand, 
+so each strand's bits thread 
+alongside its plain \texttt{Regex} residual as a separate value 
+(\texttt{AppendBits}, Section~\ref{sec:pderiv-bc-state-set}) 
+rather than being embedded in the expression tree itself. 
+There is no $\mathit{fuse}$ step either: 
+$\mathit{fuse}$ exists to carry bits from a node 
+a shared annotated tree is about to lose onto the
 node that replaces it, and no such tree is ever built here.
-
 Transitioning $w = \mathtt{ab}$ from $r_0 = (a + ab)(b + \varepsilon)$ gives:
 \begin{equation}\label{eq:pderiv-bc-overview}
 \begin{aligned}
@@ -735,17 +749,15 @@ S_0 &= \bigl[(r_0,\, [\,])\bigr] \\[2pt]
 \end{aligned}
 \end{equation}
 
-The first configuration of $S_1$ records that the character $\mathtt{a}$ was
-matched by the left branch of the first factor's alternation. The second
-configuration records that it was matched by the right branch, leaving the
-residual $b$ to be consumed later. After the second character, only the first
-configuration is accepting, and its bits
-$[\mathit{false}, \mathit{false}]$ decode to
-$(\mathit{Left}\,a, \mathit{Left}\,b)$.
-
-Figure~\ref{fig:pderiv-bc-overview} shows this transition together with the
-selection and decode steps.
-
+The first pair of $S_1$ records that the character $\mathtt{a}$ 
+was matched by the left branch of the first factor's alternation. 
+The second pair records that it was matched by the right branch, 
+leaving the residual $b$ to be consumed later. 
+After the second character, only the first pair is accepting, 
+and its bits $[\mathit{false}, 
+\mathit{false}]$ decode to $(\mathit{Left}\,a, \mathit{Left}\,b)$.
+Figure~\ref{fig:pderiv-bc-overview} shows this transition together 
+with the selection and decode steps.
 \begin{figure}[ht]
 \centering
 \begin{tikzpicture}[
@@ -787,37 +799,39 @@ selection and decode steps.
 \draw[->] (s2a) -- node[lbl, right, pos=0.5] {$\mathit{decode}$} (r);
 \end{tikzpicture}
 \caption{Overview of the bit-coded partial-derivative parser on the ambiguous
-example $r_0 = (a + ab)(b + \varepsilon)$ with input $\mathtt{ab}$. Each box
-is a configuration: a residual expression and a bit-sequence, written
+example $r_0 = (a + ab)(b + \varepsilon)$ with input $\mathtt{ab}$. 
+Each box is a pair: a residual expression and a bit-sequence, written
 $0$ for $\mathit{false}$ and $1$ for $\mathit{true}$. Selection takes the
-first accepting configuration in $S_2$ and appends $\mathit{mkEpsBC}$ of its
+first accepting pair in $S_2$ and appends $\mathit{mkEpsBC}$ of its
 residual, yielding the bit-string $[0,0]$, which
 $\mathit{decode}_{r_0}$ reads against the original expression.}
 \label{fig:pderiv-bc-overview}
 \end{figure}
 
 The bit-coded parser keeps the same state-set structure as the standard one.
-Only the configuration's annotation changes, from a closure to a sequence of
-bits, and the final step changes from applying an injection to calling
-$\mathit{decode}$.
+Only the pair's annotation changes, 
+from a closure to a sequence of bits, 
+and the final step changes from applying an injection to calling $\mathit{decode}$.
 
+%
+%
 %
 
 \subsection{Bit-Coded Partial Derivatives}
 \label{sec:pderiv-bc-theory}
 
-The bit-coded partial derivative $\mathit{pderivBC}(r, x)$ returns a list of
-$(\text{residual}, \text{bit-sequence})$ pairs. It follows the same case
-structure as Equations~\ref{eq:pderiv-tree}, with one difference: where the standard
-version builds an injection closure, the bit-coded version prepends a fixed
-bit-sequence to the configuration's existing bits.
-
-The bit conventions are inherited from
-Chapter~\ref{sec:bitcoded-construction-formal}. Each alternation contributes a
-leading $\mathit{false}$ for the left branch or a leading $\mathit{true}$ for
-the right branch. Each star iteration contributes a leading $\mathit{false}$,
-and each star termination contributes a $\mathit{true}$. Concatenation
-contributes no bits of its own.
+The bit-coded partial derivative $\mathit{pderivBC}(r, x)$ 
+returns a list of $(\text{residual}, \text{bit-sequence})$ pairs. 
+It follows the same case structure as Equations~\ref{eq:pderiv-tree}, 
+with one difference:
+Where the standard version builds an injection closure, 
+the bit-coded version prepends a fixed bit-sequence to the pair's existing bits.
+The bit conventions are inherited from Chapter~\ref{sec:bitcoded-construction-formal}. 
+Each alternation contributes a leading $\mathit{false}$ 
+for the left branch or a leading $\mathit{true}$ for the right branch. 
+Each star iteration contributes a leading $\mathit{false}$, 
+and each star termination contributes a $\mathit{true}$. 
+Concatenation contributes no bits of its own.
 \begin{equation}\label{eq:pderiv-bc}
 \begin{aligned}
 \mathit{pderivBC}(\phi, x) &= \emptyset \\
@@ -825,7 +839,7 @@ contributes no bits of its own.
 \mathit{pderivBC}(c, x) &=
   \begin{cases}
     \{(\varepsilon,\, [\,])\} & c = x \\
-    \emptyset & \text{otherwise}
+    \emptyset & \text{else}
   \end{cases} \\[4pt]
 \mathit{pderivBC}(r_1 + r_2, x) &=
   \{\,(r_1',\, [\mathit{false}] \mathbin{+\!\!+} bs)
@@ -838,42 +852,49 @@ contributes no bits of its own.
   &\cup \begin{cases}
     \{\,(r_2',\, \mathit{mkEpsBC}_{r_1} \mathbin{+\!\!+} bs)
       \mid (r_2', bs) \in \mathit{pderivBC}(r_2, x)\,\} & n(r_1) \\
-    \emptyset & \text{otherwise}
+    \emptyset & \text{else}
   \end{cases} \\[4pt]
 \mathit{pderivBC}(r^{*}, x) &=
   \{\,(\mathit{seq}(r', r^{*}),\, [\mathit{false}] \mathbin{+\!\!+} bs)
     \mid (r', bs) \in \mathit{pderivBC}(r, x)\,\}.
 \end{aligned}
 \end{equation}
-As in the standard version, the result is deduplicated by residual, keeping
-the first occurrence.
 
-The bit-coded sequence rule is the counterpart of the injection rule in the
-standard version. When the first factor is nullable, the bits recorded inside
-its empty match are extracted with $\mathit{mkEpsBC}_{r_1}$ and prepended to
-the second factor's bits, so the choice made inside the first factor survives
-in the surviving configuration.
-
-Why this prefix is necessary is documented in the reference teaching
-material itself~\citep{sulzmann_slides}: an earlier draft of this clause
-used the jump strand's residual with no bits prepended, a bug later
-corrected to the $\mathit{mkEpsBC}_{r_1}$-prefixed form given here.
-Equation~\eqref{eq:pderiv-bc} and Figure~\ref{fig:pderiv-bc-rust} below
-implement this corrected form.
+As in the standard version, 
+the result is deduplicated by residual, keeping the first occurrence.
+The bit-coded sequence rule is the counterpart 
+of the injection rule in the standard version. 
+When the first factor is nullable, 
+the bits recorded inside its empty match are extracted 
+with $\mathit{mkEpsBC}_{r_1}$ and prepended to the second factor's bits, 
+so the choice made inside the first factor survives in the surviving configuration.
 
 %
 
 \paragraph{In Rust.}
 \label{sec:pderiv-bc-impl}
 
-Figure~\ref{fig:pderiv-bc-rust} implements~\eqref{eq:pderiv-bc} directly. The
-base cases and the alternation case mirror the standard version with
-bit-lists in place of closures. The sequence case inlines both the
-non-nullable and nullable paths. The star case prepends the leading
-$\mathit{false}$ that marks one more iteration.
+Figure~\ref{fig:pderiv-bc-rust} implements Equation~\eqref{eq:pderiv-bc} directly. 
+The base cases and the alternation case mirror the standard version 
+with bit-lists in place of closures. 
+The sequence case inlines both the non-nullable and nullable paths. 
+The star case prepends the leading $\mathit{false}$ that marks one more iteration.
+
+The \texttt{Seq} arm uses \texttt{smart\_seq} in both the nullable 
+and the non-nullable case: 
+$r_1$'s own derivative can be $\varepsilon$ 
+regardless of whether $r_1$ itself is nullable.
+A literal's derivative is $\varepsilon$ the moment it matches, 
+even though the literal itself never is, 
+so both branches need the same collapse. 
+Unlike \texttt{pderiv\_tree} (Section~\ref{sec:pderiv-tree-impl}), 
+no companion adjustment is needed here,
+The bits ride alongside the residual as a separate value 
+rather than being stored on it.
+This means collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
 
 \begin{figure}[H]
-\small
+\footnotesize
 \begin{verbatim}
 pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
     match r {
@@ -936,15 +957,6 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
 \label{fig:pderiv-bc-rust}
 \end{figure}
 
-The \texttt{Seq} arm uses \texttt{smart\_seq} in both the nullable and the
-non-nullable case: $r_1$'s own derivative can be $\varepsilon$ regardless of
-whether $r_1$ itself is nullable: a literal's derivative is $\varepsilon$
-the moment it matches, even though the literal itself never is, so both
-branches need the same collapse. Unlike \texttt{pderiv\_tree}
-(Section~\ref{sec:pderiv-tree-impl}), no companion adjustment is needed
-here: bits ride alongside the residual as a separate value rather than
-being stored on it, so collapsing $\varepsilon \cdot s$ to $s$ leaves
-\texttt{bs} untouched.
 
 %
 
@@ -965,7 +977,7 @@ parse tree.
 \mathit{mkEpsBC}_{r_1 + r_2} &=
   \begin{cases}
     [\mathit{false}] \mathbin{+\!\!+} \mathit{mkEpsBC}_{r_1} & n(r_1) \\
-    [\mathit{true}] \mathbin{+\!\!+} \mathit{mkEpsBC}_{r_2} & \text{otherwise.}
+    [\mathit{true}] \mathbin{+\!\!+} \mathit{mkEpsBC}_{r_2} & \text{else.}
   \end{cases}
 \end{aligned}
 \end{equation}
@@ -977,7 +989,7 @@ star matching the empty word uses zero iterations. Figure~\ref{fig:mk-eps-bits-r
 implements~\eqref{eq:pderiv-mkepsbc} directly.
 
 \begin{figure}[H]
-\small
+\footnotesize
 \begin{verbatim}
 pub fn mk_eps_bits(r: &Regex) -> Vec<bool> {
     match r {
@@ -1032,7 +1044,7 @@ and materializes the sequence back into a plain \texttt{Vec<bool>} only
 once, when the bits are actually consumed. Figure~\ref{fig:step-frontier-bc-rust}
 shows the resulting \texttt{step\_frontier}.
 \begin{figure}[H]
-\small
+\footnotesize
 \begin{verbatim}
 pub(super) fn step_frontier(
     frontier: &[(Regex, AppendBits)], x: char
@@ -1057,7 +1069,7 @@ Selection walks the state set in priority order and returns the bits of the
 first accepting configuration, extended with $\mathit{mkEpsBC}$ of the
 residual, as shown in Figure~\ref{fig:select-bits-rust}:
 \begin{figure}[H]
-\small
+\footnotesize
 \begin{verbatim}
 pub(super) fn select_bits(
     frontier: &[(Regex, AppendBits)]
@@ -1091,7 +1103,7 @@ The parser, shown in Figure~\ref{fig:pderiv-bc-parser-rust}, composes
 non-empty, and calls \texttt{select\_bits} followed by \texttt{decode}.
 
 \begin{figure}[H]
-\small
+\footnotesize
 \begin{verbatim}
 pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
     let mut frontier = vec![(r.clone(), AppendBits::empty())];
