@@ -270,11 +270,11 @@ fn node_count(r: &Regex, cap: usize) -> usize {
 /// Reject before translating if estimated depth exceeds this.
 const MAX_CORE_DEPTH: usize = 2_000;
 
-/// Coarser cap on the translated pattern's node count, protecting the
-/// dataset pipeline against unexpectedly huge real-world patterns.
-/// Overridable via `CORE_REGEX_MAX_NODES` for a deliberate, controlled
-/// sweep (e.g. a pattern-size benchmark) that wants to push past it on
-/// purpose; every other caller keeps the same default as before.
+/// Coarser cap on the translated pattern's node count, protecting the dataset
+/// pipeline against unexpectedly huge real-world patterns. Overridable via
+/// `CORE_REGEX_MAX_NODES` for a deliberate, controlled sweep (e.g. a
+/// pattern-size benchmark) that wants to push past it on purpose; every
+/// other caller keeps the plain default.
 fn max_core_nodes() -> usize {
     std::env::var("CORE_REGEX_MAX_NODES")
         .ok()

@@ -16,16 +16,9 @@ use crate::regex::decode::decode;
 
 // RECURSIVE BITCODED PARSER
 //
-// ("Recursive" is this parser's long-standing name in ALL/the CLI/the
-// benches, kept for compatibility -- the per-character stepping below
-// is a loop, not recursion over position. An earlier version called
-// itself once per input character; that put one stack frame per
-// character on the call stack, a latent stack-overflow risk that the
-// O(n^2) bits-materialization bug above it masked by failing on
-// memory/time first, long before reaching the millions-of-characters
-// depth where this would actually bite -- confirmed empirically: fixing
-// that bug let deriv_bc reach ~1M characters, where recursing hit a real
-// stack overflow at 5M that a plain loop does not.)
+// Named "Recursive" for compatibility with ALL/the CLI/the benches; the
+// per-character stepping below is actually a loop, not recursion over
+// position, so it stays stack-safe on multi-million-character inputs.
 fn derive_and_simplify(ri: ARegex, chars: &[char]) -> ARegex {
     let mut cur = ri;
     for &l in chars {

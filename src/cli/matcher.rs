@@ -1,6 +1,7 @@
 //! src/cli/matcher.rs
 //!
-//! `match` subcommand: boolean match only, no diagnostics. `--matcher all`
+//! `match` subcommand: boolean match only, no diagnostics.
+//! `--matcher all` runs every matcher and checks they agree.
 
 use regex_engine::matchers::MatcherType;
 use regex_engine::frontend::parse_pattern;

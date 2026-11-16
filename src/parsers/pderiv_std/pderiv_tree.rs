@@ -15,7 +15,7 @@ use super::inject::{InjStep, nub_tree};
 
 /// Flattens a chain of nested `Alt`s into its leaves, pairing each leaf
 /// with the composed injection closure its position in the chain
-/// assigns (wrapping in `Left`/`Right` down the spine). Same fix, same
+/// assigns (wrapping in `Left`/`Right` down the spine). Same approach, same
 /// reasoning, as `pderiv_bc::pderiv::flatten_alt`: recursing through
 /// `Alt` one level at a time and calling `nub_tree` at every level is
 /// semantically fine (same "keep first occurrence" composition
@@ -223,10 +223,10 @@ pub fn pderiv_tree_residuals(r: &Regex, x: char) -> Vec<Regex> {
 mod tests {
     use super::*;
 
-    // (eps+a)b | ab, derived by 'a': the nullable Seq branch's first strand
-    // used to build a raw Seq(Eps, Lit('b')) instead of collapsing it via
-    // smart_seq, so this and the second alternative's own Lit('b') survived
-    // nub_tree as two syntactically distinct residuals for the same state.
+    // (eps+a)b | ab, derived by 'a': without smart_seq collapsing the
+    // nullable Seq branch's first strand, it and the second alternative's
+    // own Lit('b') would survive nub_tree as two syntactically distinct
+    // residuals for the same state.
     #[test]
     fn seq_nullable_branch_dedups_against_sibling_alternative() {
         let left = Regex::seq(Regex::alt(Regex::Eps, Regex::lit('a')), Regex::lit('b'));
@@ -238,13 +238,12 @@ mod tests {
 
     // Same hand-traced case as pderiv_bc's own
     // nested_alt_three_leaves_prefix_matches_hand_trace_and_dedups_leftmost,
-    // checked here on the actual parse tree the surviving closure
-    // produces rather than on a bit prefix. This is the case that
-    // caught the composition-order bug (`w(Left(v))` vs `Left(w(v))`)
-    // before it ever reached the real implementation: getting the
-    // order backwards doesn't panic, it silently builds a tree shaped
-    // like Left(Right(Char('a'))) instead of Left(Char('a')), so this
-    // has to be checked against a known tree, not just "does it run".
+    // checked here on the actual parse tree the surviving closure produces
+    // rather than on a bit prefix. Getting the wrap order backwards
+    // (`Left(w(v))` vs `w(Left(v))`) doesn't panic, it silently builds a
+    // tree shaped like Left(Right(Char('a'))) instead of Left(Char('a')),
+    // so this has to be checked against a known tree, not just "does it
+    // run".
     #[test]
     fn nested_alt_three_leaves_dedups_leftmost_and_wraps_correctly() {
         // a + (a + b) on 'a': the left 'a' must win the tie over the

@@ -28,7 +28,7 @@ pub fn run_parser(regex_str: &str, r: &Regex, input: &str, config: &DiagConfig) 
     w.flush();
 }
 
-/// Shared by all 
+/// Shared by every level-3 renderer.
 pub(super) fn timestamp() -> String {
     chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }

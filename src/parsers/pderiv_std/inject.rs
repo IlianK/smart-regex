@@ -64,7 +64,7 @@ impl Inj {
 
     /// Applies every step in one iterative pass, in the order they were
     /// added (each character's step runs on the result of the ones
-    /// added after it, matching the old `parent(step(v))` composition)
+    /// added after it, matching `parent(step(v))` composition order)
     /// -- O(chain length), no recursive calls regardless of how long
     /// the chain is.
     pub(crate) fn apply(&self, v: ParseTree) -> ParseTree {
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn steps_apply_in_the_order_they_were_added() {
         // then(wrap_a).then(wrap_b).apply(v) should equal wrap_a(wrap_b(v)),
-        // matching the old `parent(step(v))` composition order.
+        // matching `parent(step(v))` composition order.
         let inj = Inj::identity()
             .then(Rc::new(|v| ParseTree::Left(Box::new(v))))
             .then(Rc::new(|v| ParseTree::Right(Box::new(v))));

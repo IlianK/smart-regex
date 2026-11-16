@@ -21,8 +21,8 @@ use crate::parsers::deriv_bc::internalize::fuse_bits;
 /// Using the derived `==` here would force a full `Bits::to_vec()` at
 /// every node on every iteration -- exactly the per-step materialization
 /// the `Bits` type exists to avoid, reintroducing an O(n^2) cost over n
-/// characters (confirmed empirically: memory/time blew up superlinearly
-/// until this was switched).
+/// characters (confirmed empirically to blow up memory and time
+/// superlinearly).
 pub fn simp(ri: ARegex) -> ARegex {
     let mut cur = ri;
     loop {
