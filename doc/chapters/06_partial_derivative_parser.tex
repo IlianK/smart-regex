@@ -824,7 +824,7 @@ The bit-coded partial derivative $\mathit{pderivBC}(r, x)$
 returns a list of $(\text{residual}, \text{bit-sequence})$ pairs. 
 It follows the same case structure as Equations~\ref{eq:pderiv-tree}, 
 with one difference:
-Where the standard version builds an injection closure, 
+where the standard version builds an injection closure, 
 the bit-coded version prepends a fixed bit-sequence to the pair's existing bits.
 The bit conventions are inherited from Chapter~\ref{sec:bitcoded-construction-formal}. 
 Each alternation contributes a leading $\mathit{false}$ 
@@ -874,24 +874,37 @@ so the choice made inside the first factor survives in the surviving configurati
 \paragraph{In Rust.}
 \label{sec:pderiv-bc-impl}
 
-Figure~\ref{fig:pderiv-bc-rust} implements Equation~\eqref{eq:pderiv-bc} directly. 
-The base cases and the alternation case mirror the standard version 
-with bit-lists in place of closures. 
-The sequence case inlines both the non-nullable and nullable paths. 
-The star case prepends the leading $\mathit{false}$ that marks one more iteration.
+Figure~\ref{fig:pderiv-bc-rust} implements Equation~\eqref{eq:pderiv-bc} directly.
+The base cases and the alternation case mirror the standard version
+with bit-lists in place of closures: \texttt{Alt} prepends $[\mathit{false}]$
+or $[\mathit{true}]$ to each branch's bits instead of wrapping each branch's
+tree in $\mathit{Left}$ or $\mathit{Right}$.
+Unlike \texttt{pderiv\_tree}'s \texttt{Alt} arm (Section~\ref{sec:pderiv-tree-impl}),
+which flattens an $n$-ary $+$-chain to dedup it once,
+\texttt{pderiv\_bc} recurses directly on each binary \texttt{Alt} node
+and calls \texttt{nub2} at every level: a chain of $p$ leaves costs
+$p - 1$ dedup passes instead of one, each still linear, so more
+constant-factor work rather than a different bound.
 
-The \texttt{Seq} arm uses \texttt{smart\_seq} in both the nullable 
-and the non-nullable case: 
-$r_1$'s own derivative can be $\varepsilon$ 
+The \texttt{Seq} arm's two branches are each written out in full,
+rather than factoring out the shared recurse-into-$r_1$ step
+the way \texttt{pderiv\_tree}'s \texttt{Seq} arm does;
+this changes nothing about the result, since neither branch's computation
+depends on which branch it is.
+In the nullable branch, \texttt{eps\_bits} (that is, $\mathit{mkEpsBC}_{r_1}$)
+is cloned and extended with each skip-strand's own bits,
+giving $\mathit{mkEpsBC}_{r_1} \mathbin{+\!\!+} bs$ in that order,
+exactly as Equation~\eqref{eq:pderiv-bc} specifies.
+The star case prepends a leading $\mathit{false}$ marking that this
+transition continues an iteration, the counterpart of the single
+terminating $\mathit{true}$ that $\mathit{mkEpsBC}$'s star rule emits.
+
+Both \texttt{Seq} and \texttt{Star} call \texttt{smart\_seq},
+since $r_1$'s derivative can be $\varepsilon$
 regardless of whether $r_1$ itself is nullable.
-A literal's derivative is $\varepsilon$ the moment it matches, 
-even though the literal itself never is, 
-so both branches need the same collapse. 
-Unlike \texttt{pderiv\_tree} (Section~\ref{sec:pderiv-tree-impl}), 
-no companion adjustment is needed here,
-The bits ride alongside the residual as a separate value 
-rather than being stored on it.
-This means collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
+Unlike \texttt{pderiv\_tree} (Section~\ref{sec:pderiv-tree-impl}),
+no companion adjustment is needed, since the bits ride alongside the
+residual: collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
 
 \begin{figure}[H]
 \footnotesize
@@ -985,8 +998,13 @@ parse tree.
 The alternation rule reproduces the left preference of $\mathit{mkEps}$,
 emitting $\mathit{false}$ when the left branch is nullable and $\mathit{true}$
 otherwise. The star rule emits a single terminating $\mathit{true}$, since a
-star matching the empty word uses zero iterations. Figure~\ref{fig:mk-eps-bits-rust}
-implements~\eqref{eq:pderiv-mkepsbc} directly.
+star matching the empty word uses zero iterations. Where $\mathit{mkEps}$ builds a parse-tree node per case
+(Chapter~\ref{sec:derivative-parser}), $\mathit{mkEpsBC}$ only concatenates
+bit-lists: $\mathit{Alt}$ and $r^{*}$ contribute the same leading bit their
+$\mathit{pderivBC}$ counterparts do (Equation~\ref{eq:pderiv-bc}), and
+$r_1 r_2$ needs no case split, since $r_1 \cdot r_2$ is nullable only when
+both $r_1, r_2$ are.
+Figure~\ref{fig:mk-eps-bits-rust} implements~\eqref{eq:pderiv-mkepsbc} directly.
 
 \begin{figure}[H]
 \footnotesize
@@ -1024,25 +1042,22 @@ for plain \texttt{Regex}.}
 The \texttt{Phi} and \texttt{Lit} arms panic, matching the precondition that
 $\mathit{mkEpsBC}$ is applied only to nullable expressions. Neither empty
 language nor a literal can match the empty word.
+$\mathit{mkEpsBC}$ is invoked once per parse, by $\mathit{select\_bits}$
+(Section~\ref{sec:pderiv-bc-state-set}), extending the accepting
+configuration's bits the same way the standard parser's $\mathit{select}$
+applies $\mathit{mkEps}$ to its injection.
 
 %
 
 \subsection{State Sets and Selection}
 \label{sec:pderiv-bc-state-set}
 
-State-set transition for the bit-coded parser mirrors the standard version,
-with bit-list concatenation replacing closure composition. Each
-configuration's bits accumulate across the whole input so far, so a
-plain \texttt{Vec<bool>} clone-then-extend on every transition is
-O(current length) per step, $O(n^2)$ over $n$ characters,
-the same cost \texttt{Bits}/\texttt{Inj} avoid elsewhere in this and the
-previous chapter. \texttt{AppendBits} is the append-optimized mirror of
-\texttt{Bits} (Section~\ref{sec:aregex-type}): it stores the reverse of
-the real sequence internally, so appending a suffix becomes prepending
-its reverse, reusing \texttt{Bits::prepend}'s O(suffix length) guarantee,
-and materializes the sequence back into a plain \texttt{Vec<bool>} only
-once, when the bits are actually consumed. Figure~\ref{fig:step-frontier-bc-rust}
-shows the resulting \texttt{step\_frontier}.
+State-set transition mirrors the standard version, with
+\texttt{AppendBits} (Section~\ref{sec:aregex-type}) concatenation in
+place of closure composition --- the same $O(n^2)$-avoiding trick as
+\texttt{Bits}/\texttt{Inj} elsewhere in this chapter.
+Figure~\ref{fig:step-frontier-bc-rust} shows the resulting
+\texttt{step\_frontier}.
 \begin{figure}[H]
 \footnotesize
 \begin{verbatim}
@@ -1058,16 +1073,14 @@ pub(super) fn step_frontier(
     nub2(out)
 }
 \end{verbatim}
-\caption{\texttt{step\_frontier} (bit-coded): as with the standard
-parser's version, \texttt{nub2} deduplicates across the whole combined
-state set, not just within one configuration's own expansion (which
-\texttt{pderiv\_bc} already does via its own \texttt{nub2} call).}
+\caption{\texttt{step\_frontier} (bit-coded): the counterpart of
+Figure~\ref{fig:step-frontier-rust}, \texttt{nub2} in place of
+\texttt{nub\_tree}.}
 \label{fig:step-frontier-bc-rust}
 \end{figure}
 
-Selection walks the state set in priority order and returns the bits of the
-first accepting configuration, extended with $\mathit{mkEpsBC}$ of the
-residual, as shown in Figure~\ref{fig:select-bits-rust}:
+Selection returns the first accepting configuration's bits, extended with
+$\mathit{mkEpsBC}$ of its residual:
 \begin{figure}[H]
 \footnotesize
 \begin{verbatim}
@@ -1082,25 +1095,21 @@ pub(super) fn select_bits(
     None
 }
 \end{verbatim}
-\caption{\texttt{select\_bits}: the bit-coded counterpart of
-\texttt{select} (Figure~\ref{fig:select-rust}), returning the bit-sequence
-of the first accepting configuration instead of applying an injection.}
+\caption{\texttt{select\_bits}: the counterpart of
+\texttt{select} (Figure~\ref{fig:select-rust}).}
 \label{fig:select-bits-rust}
 \end{figure}
-
-The resulting bit-sequence is interpreted by the shared \texttt{decode}
-function from Chapter~\ref{sec:bitcoded-construction-formal}, which walks the
-original expression and consumes one bit per alternation and per star
-iteration.
 
 %
 
 \subsection{Parser}
 \label{sec:pderiv-bc-parser}
 
-The parser, shown in Figure~\ref{fig:pderiv-bc-parser-rust}, composes
-\texttt{step\_frontier} over the input, checks that the state set is
-non-empty, and calls \texttt{select\_bits} followed by \texttt{decode}.
+Figure~\ref{fig:pderiv-bc-parser-rust} composes \texttt{step\_frontier}
+over the input, checks the state set stays non-empty, calls
+\texttt{select\_bits}, then \texttt{decode}s the bits against $r_0$
+(Chapter~\ref{sec:bitcoded-construction-formal}) --- the same driver
+structure as the standard parser with bits in place of closures.
 
 \begin{figure}[H]
 \footnotesize
@@ -1120,10 +1129,6 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
 \caption{The bit-coded partial-derivative parser.}
 \label{fig:pderiv-bc-parser-rust}
 \end{figure}
-
-The driver has the same structure as the standard one. Only the configuration
-type and the final step differ: bits and \texttt{decode} in place of closures
-and injection application.
 
 %
 
