@@ -269,7 +269,7 @@ The reason is the injection: rule $\mathsf{I}_{\mathrm{seq}}$ from Equation~\ref
 destructures a $\mathit{Pair}$ from the residual's tree.
 $\mathit{smartC}$ would simplify $\varepsilon \cdot s$ to $s$,
 but the injection would no longer have the $\mathit{Pair}$ to match on.
-A similar structure loss Equation~\ref{eq:mkeps-simp} shows
+A similar structure loss is what Equation~\ref{eq:mkeps-simp} shows
 for the standard derivative parser when simplification is applied.
 However, simplification can still be used, when the injection for the
 simplified shape is rebuilt, similarly to the bit-coded parser that
@@ -303,21 +303,21 @@ $\varepsilon \cdot s$ and $s$ are structurally distinct,
 so \texttt{nub\_tree} would not recognize them as duplicates and neither is removed. 
 The state set could then exceed the finite bound on distinct residuals.
 
-Simplifying only the residual without rebuilding the injection,
+Simplifying only the residual without rebuilding the injection
 would leave the injection expecting a $\mathit{Pair}$ that is no longer there.
-\texttt{pderiv\_tree},
+\texttt{pderiv\_tree}
 avoids this by branching on whether the residual collapsed to \texttt{Regex::Eps}
-(Figure~\ref{fig:pderiv-tree-seqstar-rust}): 
-In \texttt{Seq}, the closure then returns
-$\mathit{Pair}(\mathit{inj}_1(\mathit{Empty}), v)$ 
-or destructures $\mathit{Pair}(v_1, v_2)$ into $\mathit{Pair}(\mathit{inj}_1(v_1), v_2)$, 
+(Figure~\ref{fig:pderiv-tree-seqstar-rust}):
+in \texttt{Seq}, the closure then returns
+$\mathit{Pair}(\mathit{inj}_1(\mathit{Empty}), v)$
+or destructures $\mathit{Pair}(v_1, v_2)$ into $\mathit{Pair}(\mathit{inj}_1(v_1), v_2)$,
 as Equation~\ref{eq:pderiv-tree} specifies;
-In \texttt{Star}, which extends a $\mathit{Star}$ list 
-it pushes $\mathit{inj}_1(\mathit{Empty})$ directly 
+in \texttt{Star}, which extends a $\mathit{Star}$ list,
+it pushes $\mathit{inj}_1(\mathit{Empty})$ directly
 or destructures the wrapping $\mathit{Pair}$ first;
-In \texttt{Alt}, since the $\mathsf{P}_{+}$ rule only derives two alternatives 
-and not a longer chain, 
-\texttt{pderiv\_tree} instead flattens a chain $r_1 + \cdots + r_p$ 
+in \texttt{Alt}, since the $\mathsf{P}_{+}$ rule only derives two alternatives
+and not a longer chain,
+\texttt{pderiv\_tree} instead flattens a chain $r_1 + \cdots + r_p$
 into its leaves before deriving them.
 This preserves left-to-right order just as deriving one $+$ at a time would.
 All three arms then call \texttt{nub\_tree} directly on their own output.
@@ -686,28 +686,14 @@ S_2
 \]
 
 \paragraph{Selection.}
-The first configuration's residual is $\varepsilon$, which is nullable, and
-selection returns immediately:
-\[
-\mathit{select}(S_2)
-  = (\lambda\_.\, (\mathit{Left}\,a, \mathit{Left}\,b))(\mathit{mkEps}_\varepsilon)
-  = (\mathit{Left}\,a, \mathit{Left}\,b).
-\]
-Flattening confirms the result:
-\[
-\mathit{flatten}\bigl((\mathit{Left}\,a, \mathit{Left}\,b)\bigr) = \mathtt{ab}.
-\]
-The second configuration is never inspected: its residual
-$\varepsilon \cdot (b + \varepsilon)$ is also nullable, and would likewise
-decode to a valid tree, but generation order already placed the first
-configuration ahead of it, and $\mathit{select}$ stops at the first match.
-
-This is the non-POSIX parse tree. The derivative-based parser from
-Chapter~\ref{sec:derivative-parser} returns $(\mathit{Right}(a,b),
-\mathit{Right}())$ for the same input, the POSIX tree. The two trees agree on
-which word they spell out, but differ on how the input is decomposed: the
-non-POSIX tree commits to the shorter first alternative $a$ in the first factor,
-while the POSIX tree commits to the longer alternative $ab$.
+The residual $\varepsilon$ is nullable, so selection returns immediately and
+flattens to the non-POSIX tree:
+$\mathit{select}(S_2) = (\lambda\_.\,(\mathit{Left}\,a, \mathit{Left}\,b))(\mathit{mkEps}_\varepsilon)
+= (\mathit{Left}\,a, \mathit{Left}\,b) \rightsquigarrow \mathtt{ab}$.
+The second configuration ($\varepsilon \cdot (b + \varepsilon)$, also
+nullable) is never inspected, since generation order already favoured the
+first. Chapter~\ref{sec:derivative-parser}'s POSIX parser instead returns
+$(\mathit{Right}(a,b), \mathit{Right}())$, the longer alternative $ab$.
 
 
 %
