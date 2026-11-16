@@ -719,8 +719,8 @@ The standard partial-derivative parser carries a closure per pair,
 which accumulates the reconstruction path during the forward pass. 
 The bit-coded variant replaces closures with bit-sequences: 
 Each pair's annotation records the choices made so far, 
-and decoding the final bit-sequence against the original expression 
-gives the parse tree.
+and decoding the final bit-sequence 
+against the original expression gives the parse tree.
 
 Unlike the bit-coded \emph{derivative} parser of Chapter~\ref{sec:derivative-parser}, 
 this construction has no \texttt{internalize} step 
@@ -753,11 +753,12 @@ The first pair of $S_1$ records that the character $\mathtt{a}$
 was matched by the left branch of the first factor's alternation. 
 The second pair records that it was matched by the right branch, 
 leaving the residual $b$ to be consumed later. 
-After the second character, only the first pair is accepting, 
-and its bits $[\mathit{false}, 
-\mathit{false}]$ decode to $(\mathit{Left}\,a, \mathit{Left}\,b)$.
-Figure~\ref{fig:pderiv-bc-overview} shows this transition together 
-with the selection and decode steps.
+After the second character, both pairs are accepting, 
+since both residuals $\varepsilon$ and $b + \varepsilon$ are nullable. 
+Selection returns the first, 
+whose bits $[\mathit{false}, \mathit{false}]$ 
+decode to $(\mathit{Left}\,a, \mathit{Left}\,b)$, 
+the leftmost alternative at every choice. 
 \begin{figure}[ht]
 \centering
 \begin{tikzpicture}[
