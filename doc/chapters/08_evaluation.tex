@@ -632,11 +632,10 @@ Both forms must keep all $n$
 intermediate derivatives alive between the forward and backward passes
 and differ only in where that sequence lives. The recursive parser keeps
 it implicitly, one derivative per stack frame, so the call stack grows
-with the input until it crashes between $32\,768$ and $65\,536$
-characters. The iterative form keeps the same sequence explicitly, in a
-heap-allocated \texttt{Vec}. It reaches $268\,435\,456$ characters and
-stops only by the 15\,s timeout ending the sweep.
-
+with the input until it crashes. 
+The iterative form keeps the same sequence explicitly, in a
+heap-allocated \texttt{Vec} 
+and stops only by the 15\,s timeout ending the sweep.
 The comparison is therefore not a contest the iterative form wins on
 stack usage, since it has no stack growth to measure, by construction.
 This measurement establishes the input length at which the stack becomes
@@ -930,40 +929,37 @@ completed timing.}
 \end{table}
 
 \paragraph{Categories I, J, K, L} form a $2\times2$ matrix of pattern
-size against input size. L is trivial in both and comparable, every parser
-measuring at least 175 of 195 entries, and its means put the
-partial-derivative pair at 2.26 and 2.25\,ms, \texttt{deriv\_bc} at
-4.48\,ms and the standard pair at 61.23 and 65.75\,ms, so on trivial work
-\texttt{deriv\_bc} is twice as slow as either partial-derivative variant.
-I grows only the input, and length alone pushes every parser past the
-budget on at least 19 of its 60 entries, rising to 44 for
-\texttt{deriv\_std\_rec} plus the crash its call-stack storage makes
-reachable (Section~\ref{sec:eval-stack-depth}). J and K differ only in
-input length, since J's short input keeps per-entry work small and leaves
-the parsers little room to diverge, with timeouts at 2 to 4, while K
-repeats the same expensive steps over a long input and timeouts rise to 10
-to 24. \texttt{deriv\_std\_rec} does not crash there, because the
-expensive steps time each entry out before its stack reaches the ceiling
-that caused the single crash in I.
+size against input size. L is trivial in both, every parser measuring at
+least 175 of 195 entries: the partial-derivative pair takes 2.26 and
+2.25\,ms, \texttt{deriv\_bc} 4.48\,ms, the standard pair 61.23 and
+65.75\,ms, so \texttt{deriv\_bc} is twice as slow as either variant. I
+grows only the input, pushing every parser past the budget on at least 19
+of its 60 entries, rising to 44 for \texttt{deriv\_std\_rec}, plus the
+crash its call-stack storage causes
+(Section~\ref{sec:eval-stack-depth}). J and K differ only in input length:
+J's short input leaves little room to diverge, with 2 to 4 timeouts,
+while K repeats the same expensive steps over a long input, with 10 to
+24. \texttt{deriv\_std\_rec} does not crash there, since the expensive
+steps time each entry out before its stack reaches the ceiling reached in
+I.
 
-\paragraph{Overall} across all categories the standard derivative parsers
-are the most timeout-prone, \texttt{deriv\_bc} beats them everywhere, and
-the partial-derivative variants beat the whole derivative family in A, B,
-C, F, and K, and tie \texttt{deriv\_bc} while still beating the standard
-pair in I. Though not in D, H, and J, where \texttt{deriv\_bc} remains
-more robust, where it carries a single expression rather than a set of
-residuals. In D its simplification merges residuals that are equivalent
-but not syntactically equal, in H it does not pay the per-element cost of
-a set that grows with the number of groups, and in J it does not pay that
-cost across a wide alternation. Within the pair, the mean favours
-\texttt{pderiv\_bc} in nine categories and the median in six, so its
-advantage over \texttt{pderiv\_std} lies more often in the slowest entries
-at the top of each sweep than in the typical one. The widest alternations
-of all, examined next via rows E37 and E38, show no reversal of this
-picture: \texttt{pderiv\_bc} and \texttt{pderiv\_std} stay the fastest
-parsers as $p$ grows into the thousands, while \texttt{deriv\_bc}'s own
-branch-deduplication cost (Figure~\ref{fig:dedup-first-rust}) becomes the
-one that dominates, examined in Table~\ref{tab:patho-e38-all-parsers}.
+\paragraph{Overall} the standard derivative parsers are the most
+timeout-prone across all categories, \texttt{deriv\_bc} beats them
+everywhere, and the partial-derivative variants beat the whole derivative
+family in A, B, C, F, and K, tying \texttt{deriv\_bc} while still beating
+the standard pair in I. They do not lead in D, H, and J, where
+\texttt{deriv\_bc} is more robust because it carries a single expression
+rather than a set of residuals: in D its simplification merges residuals
+that are equivalent but not syntactically equal, in H it avoids the
+per-element cost of a set that grows with the number of groups, and in J
+it avoids that cost across a wide alternation. Within the pair, the mean
+favours \texttt{pderiv\_bc} in nine categories and the median in six, so
+its advantage over \texttt{pderiv\_std} lies in the slowest entries rather
+than the typical one. The widest alternations, rows E37 and E38, show no
+reversal: \texttt{pderiv\_bc} and \texttt{pderiv\_std} stay fastest as
+$p$ grows into the thousands, while \texttt{deriv\_bc}'s own
+branch-deduplication cost (Figure~\ref{fig:dedup-first-rust}) dominates,
+as Table~\ref{tab:patho-e38-all-parsers} shows.
 
 %
 %
@@ -1049,9 +1045,7 @@ For P60, P61, P09, and P01, the two numbers are the last input length
 that completed and the first that failed.
 For E37 and E38, they are
 the last alternation width that completed and the first that failed.
-All six rows are drawn from the synthetic stress set. 
-The standard variants share one column because under this test's stack cap 
-the recursive and iterative forms reach the same limit.}
+}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
@@ -1237,7 +1231,6 @@ completes, both residuals become $B^{*}$, and the one copy that remains is
 $S_0$. So \texttt{ab}-repeated input alternates
 $S_0 \to S_1 \to S_0 \to S_1 \to \cdots$, with two residuals on every
 \texttt{a} and one on every \texttt{b}.
-
 Each new residual carries a tag recording which branch produced it.
 \texttt{pderiv\_bc} extends a bit string by one node per residual, while
 \texttt{pderiv\_std} wraps the previous closure in another. Both allocate
@@ -1388,25 +1381,19 @@ partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
 \end{figure}
 
 The difference is what each pattern's ambiguity costs per character. P01
-nests a \texttt{+} inside another \texttt{+}, so each additional
-\texttt{a} multiplies the number of ways the outer repetition could have
-been split into iterations, making every derivative step
-near-exponential. \texttt{deriv\_bc} keeps all of these live splits in one
-expression and compares every pair of them after each character, so the
-cost grows with $n$, and the ratio collapses from near parity to under
-0.01 before \texttt{deriv\_bc} times out. P09's ambiguity is shallower,
-since category B's shared-prefix alternatives under one flat quantifier
-leave only a couple of live readings at any position, not a count tied to
-how many iterations have passed. The same pairwise cleanup therefore costs
-a bounded amount per character, holding the ratio in the 0.37--0.67
-band out to ten million characters.
-Between the two partial-derivative
-variants, which avoid this cost on both rows by construction,
-\texttt{pderiv\_bc} is faster at 9 of the 15 swept points here,
-including the largest (0.520 against \texttt{pderiv\_std}'s 0.529 of
-\texttt{deriv\_bc}'s time at ten million characters) -- the same
-modest, inconsistent lean seen on P60 and P61 above, not a clean win
-for either variant.
+nests a \texttt{+} inside another, so each additional \texttt{a}
+multiplies the ways the outer repetition could split into iterations,
+making each derivative step near-exponential. \texttt{deriv\_bc} keeps
+all live splits in one expression and compares every pair per character,
+so the cost grows with $n$ and the ratio collapses from near parity to
+below 0.01 before timeout. P09's ambiguity is shallower: category B's
+shared-prefix alternatives under one flat quantifier leave only a couple
+of live readings at each position, not a count tied to iterations passed.
+Pairwise cleanup is therefore bounded per character, holding the ratio in
+the 0.37--0.67 band to ten million characters. The two partial-derivative
+variants avoid this cost, and \texttt{pderiv\_bc} is faster at 9 of the 15
+points, including the largest (0.520 against 0.529). This is the same
+modest, inconsistent lean as on P60 and P61, not a clean win.
 
 %
 %
@@ -1542,7 +1529,7 @@ ranking reversal at wide $p$.}
 %
 %
 
-\textbf{\texttt{deriv\_bc}, not the partial-derivative pair, is the one that blows up.}
+\textbf{Blow up.}
 Table~\ref{tab:patho-e38-all-parsers} shows the mean time of all parsers
 on E38.
 Past a few thousand alternatives, \texttt{deriv\_bc} is the only parser
@@ -1564,8 +1551,7 @@ by node, and E38's words share a five-character prefix (\texttt{w0000})
 that E37's four-letter words do not, so each comparison walks further
 before reaching the difference that makes it fail.
 That is why \texttt{deriv\_bc} diverges from \texttt{pderiv\_bc} more
-sharply on E38 (Table~\ref{tab:patho-phases-e38}) than on E37
-(Table~\ref{tab:patho-phases-e37}).
+sharply on E38 (Table~\ref{tab:patho-phases-e38}).
 
 \begin{figure}[H]
 \small

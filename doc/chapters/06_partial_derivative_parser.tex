@@ -183,6 +183,8 @@ which is what distinguishes the tree this parser returns
 from the POSIX tree of Chapter~\ref{sec:derivative-parser}.
 
 %
+%
+%
 
 \subsection{Partial Derivatives with Injections}
 \label{sec:pderiv-tree-theory}
@@ -711,6 +713,8 @@ the longer alternative $ab$.
 %
 %
 %
+%
+%
 
 \section{The Bit-Coded Partial-Derivative Parser}
 \label{sec:pderiv-bc}
@@ -869,7 +873,7 @@ of the injection rule in the standard version.
 When the first factor is nullable, 
 the bits recorded inside its empty match are extracted 
 with $\mathit{mkEpsBC}_{r_1}$ and prepended to the second factor's bits, 
-so the choice made inside the first factor survives in the surviving configuration.
+so the choice made inside the first factor survives in the surviving pair.
 
 %
 
@@ -974,11 +978,13 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
 
 
 %
+%
+%
 
 \subsection{Extracting Bits}
 \label{sec:pderiv-bc-mkeps}
 
-When a configuration's residual is nullable, its accumulated bits must be
+When a pair's residual is nullable, its accumulated bits must be
 extended with the bits of the residual's empty match. This is the role of
 $\mathit{mkEpsBC}$, which mirrors $\mathit{mkEps}$ from
 Chapter~\ref{sec:derivative-parser} but produces a bit-sequence instead of a
@@ -1052,17 +1058,20 @@ $\mathit{mkEpsBC}$ is applied only to nullable expressions. Neither empty
 language nor a literal can match the empty word.
 $\mathit{mkEpsBC}$ is invoked once per parse, by $\mathit{select\_bits}$
 (Section~\ref{sec:pderiv-bc-state-set}), extending the accepting
-configuration's bits the same way the standard parser's $\mathit{select}$
+pair's bits the same way the standard parser's $\mathit{select}$
 applies $\mathit{mkEps}$ to its injection.
 
+%
+%
 %
 
 \subsection{State Sets and Selection}
 \label{sec:pderiv-bc-state-set}
 
-A state set here is a finite set of pairs $(r, bs)$ of a residual and
-its bits, the bit-coded counterpart of Section~\ref{sec:pderiv-state-set}'s
-$(r, \iota)$ pairs.
+A state set here is a finite set of pairs $(r, bs)$ 
+of a residual and its bits, 
+This is the bit-coded counterpart of the previous
+Section's~\ref{sec:pderiv-state-set}'s $(r, \iota)$ pairs.
 
 %
 
@@ -1076,9 +1085,8 @@ elsewhere. Figure~\ref{fig:step-frontier-bc-rust} shows the resulting
 \begin{figure}[H]
 \footnotesize
 \begin{verbatim}
-pub(super) fn step_frontier(
-    frontier: &[(Regex, AppendBits)], x: char
-) -> Vec<(Regex, AppendBits)> {
+pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) 
+    -> Vec<(Regex, AppendBits)> {
     let mut out = Vec::new();
     for (r, bits) in frontier {
         for (r_next, extra) in pderiv_bc(r, x) {
@@ -1093,14 +1101,13 @@ Figure~\ref{fig:step-frontier-rust}, \texttt{nub2} for \texttt{nub\_tree}.}
 \label{fig:step-frontier-bc-rust}
 \end{figure}
 
-Selection returns the first accepting configuration's bits, extended with
+Selection returns the first accepting pair's bits, extended with
 $\mathit{mkEpsBC}$ of its residual:
 \begin{figure}[H]
 \footnotesize
 \begin{verbatim}
-pub(super) fn select_bits(
-    frontier: &[(Regex, AppendBits)]
-) -> Option<Vec<bool>> {
+pub(super) fn select_bits(frontier: &[(Regex, AppendBits)]) 
+    -> Option<Vec<bool>> {
     for (r, bits) in frontier {
         if nullable(r) {
             return Some(bits.append(&mk_eps_bits(r)).to_vec());
@@ -1115,14 +1122,34 @@ pub(super) fn select_bits(
 \end{figure}
 
 %
+%
+%
 
 \subsection{Parser}
 \label{sec:pderiv-bc-parser}
 
-Figure~\ref{fig:pderiv-bc-parser-rust} composes \texttt{step\_frontier}
-over the input, calls \texttt{select\_bits}, then \texttt{decode}s the
-bits against $r_0$ --- the same driver as the standard parser, bits in
-place of closures.
+The parser runs the single pass as the standard one, 
+with bit-sequences instead injections:
+\begin{equation}\label{eq:pderiv-bc-driver}
+\begin{aligned}
+T_0 &= \{(r, [\,])\}, \\
+T_i &= \mathit{step}_b(T_{i-1}, x_i) \quad (1 \leq i \leq n), \\
+\mathit{result} &= \mathit{decode}_r(\mathit{select}_b(T_n)),
+\end{aligned}
+\end{equation}
+where $\mathit{step}_b$ applies \texttt{pderiv\_bc} to each pair and
+$\mathit{select}_b$ returns $bs \mathbin{+\!\!+} \mathit{mkEpsBC}(r')$
+for the first pair $(r', bs)$ in $T_n$ whose residual is nullable.
+
+%
+
+\paragraph{In Rust.}
+Figure~\ref{fig:pderiv-bc-parser-rust} implements~\eqref{eq:pderiv-bc-driver}.
+The loop is identical to the standard variant, 
+replacing \texttt{Inj} with \texttt{AppendBits}. 
+\texttt{select\_bits} returns the final bits by appending 
+\texttt{mk\_eps\_bits} to the first accepting pair's bits,
+and \texttt{decode} reads them against $r$.
 
 \begin{figure}[H]
 \footnotesize
@@ -1144,6 +1171,8 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
 \end{figure}
 
 %
+%
+%
 
 \subsection{Worked Example: Bit-Coded Partial-Derivative Parser}
 \label{sec:pderiv-bc-worked}
@@ -1154,7 +1183,7 @@ input $\mathtt{ab}$.
 %
 
 \paragraph{Forward pass.}
-The initial state set holds a single configuration with empty bits:
+The initial state set holds a single pair with empty bits:
 \[
 S_0 = \bigl[(r_0,\ [\,])\bigr].
 \]
@@ -1177,13 +1206,13 @@ S_1 = \bigl[
   (b\,(b + \varepsilon),\ [1])\bigr].
 \]
 
-Transitioning by $\mathtt{b}$, both configurations are stepped. The first
-configuration reaches the second factor directly:
+Transitioning by $\mathtt{b}$, both pairs are stepped. 
+The first pair reaches the second factor directly:
 \[
 \mathit{pderivBC}(b + \varepsilon, \mathtt{b})
   = \bigl[(\varepsilon,\ [0])\bigr],
 \]
-giving bits $[0, 0]$. The second configuration's
+giving bits $[0, 0]$. The second pair's
 derivative comes from $b$ inside the leading sequence:
 \[
 \mathit{pderivBC}(b, \mathtt{b}) = \bigl[(\varepsilon,\ [\,])\bigr],
@@ -1199,7 +1228,7 @@ S_2 = \bigl[
 %
 
 \paragraph{Selection and decoding.}
-The first configuration is accepting, so $\mathit{selectBits}$ returns its
+The first pair is accepting, so $\mathit{selectBits}$ returns its
 bits extended with $\mathit{mkEpsBC}_\varepsilon = [\,]$:
 \[
 \mathit{selectBits}(S_2) = [0, 0].

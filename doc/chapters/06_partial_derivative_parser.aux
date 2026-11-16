@@ -47,8 +47,8 @@
 \@writefile{toc}{\contentsline {section}{\numberline {6.2}The Bit-Coded Partial-Derivative Parser}{49}{section.6.2}\protected@file@percent }
 \newlabel{sec:pderiv-bc}{{6.2}{49}{The Bit-Coded Partial-Derivative Parser}{section.6.2}{}}
 \newlabel{eq:pderiv-bc-overview}{{6.5}{49}{The Bit-Coded Partial-Derivative Parser}{equation.6.5}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.8}{\ignorespaces Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt  {ab}$. Each box is a pair: a residual expression and a bit-sequence, written $0$ for $\mathit  {false}$ and $1$ for $\mathit  {true}$. Selection takes the first accepting pair in $S_2$ and appends $\mathit  {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit  {decode}_{r_0}$ reads against the original expression.}}{49}{figure.caption.40}\protected@file@percent }
-\newlabel{fig:pderiv-bc-overview}{{6.8}{49}{Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt {ab}$. Each box is a pair: a residual expression and a bit-sequence, written $0$ for $\mathit {false}$ and $1$ for $\mathit {true}$. Selection takes the first accepting pair in $S_2$ and appends $\mathit {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit {decode}_{r_0}$ reads against the original expression}{figure.caption.40}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.8}{\ignorespaces Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt  {ab}$. Each box is a pair: a residual expression and a bit-sequence, with $0$ marking a left branch or one more iteration and $1$ marking a right branch or termination. Selection takes the first accepting pair in $S_2$ and appends $\mathit  {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit  {decode}_{r_0}$ reads against the original expression.}}{49}{figure.caption.40}\protected@file@percent }
+\newlabel{fig:pderiv-bc-overview}{{6.8}{49}{Overview of the bit-coded partial-derivative parser on the ambiguous example $r_0 = (a + ab)(b + \varepsilon )$ with input $\mathtt {ab}$. Each box is a pair: a residual expression and a bit-sequence, with $0$ marking a left branch or one more iteration and $1$ marking a right branch or termination. Selection takes the first accepting pair in $S_2$ and appends $\mathit {mkEpsBC}$ of its residual, yielding the bit-string $[0,0]$, which $\mathit {decode}_{r_0}$ reads against the original expression}{figure.caption.40}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2.1}Bit-Coded Partial Derivatives}{50}{subsection.6.2.1}\protected@file@percent }
 \newlabel{sec:pderiv-bc-theory}{{6.2.1}{50}{Bit-Coded Partial Derivatives}{subsection.6.2.1}{}}
 \newlabel{eq:pderiv-bc}{{6.6}{50}{Bit-Coded Partial Derivatives}{equation.6.6}{}}
@@ -59,25 +59,31 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2.2}Extracting Bits}{52}{subsection.6.2.2}\protected@file@percent }
 \newlabel{sec:pderiv-bc-mkeps}{{6.2.2}{52}{Extracting Bits}{subsection.6.2.2}{}}
 \newlabel{eq:pderiv-mkepsbc}{{6.7}{52}{Extracting Bits}{equation.6.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{52}{equation.6.7}\protected@file@percent }
+\newlabel{sec:mk-eps-bits-impl}{{6.2.2}{52}{In Rust}{equation.6.7}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {6.10}{\ignorespaces \texttt  {mk\_eps\_bits}: the bit-string analogue of \texttt  {mk\_eps} for plain \texttt  {Regex}.}}{52}{figure.caption.42}\protected@file@percent }
 \newlabel{fig:mk-eps-bits-rust}{{6.10}{52}{\texttt {mk\_eps\_bits}: the bit-string analogue of \texttt {mk\_eps} for plain \texttt {Regex}}{figure.caption.42}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2.3}State Sets and Selection}{53}{subsection.6.2.3}\protected@file@percent }
 \newlabel{sec:pderiv-bc-state-set}{{6.2.3}{53}{State Sets and Selection}{subsection.6.2.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.11}{\ignorespaces \texttt  {step\_frontier} (bit-coded): the counterpart of Figure~\ref {fig:step-frontier-rust}, \texttt  {nub2} in place of \texttt  {nub\_tree}.}}{53}{figure.caption.43}\protected@file@percent }
-\newlabel{fig:step-frontier-bc-rust}{{6.11}{53}{\texttt {step\_frontier} (bit-coded): the counterpart of Figure~\ref {fig:step-frontier-rust}, \texttt {nub2} in place of \texttt {nub\_tree}}{figure.caption.43}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{53}{subsection.6.2.3}\protected@file@percent }
+\newlabel{sec:pderiv-bc-state-set-impl}{{6.2.3}{53}{In Rust}{subsection.6.2.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {6.11}{\ignorespaces \texttt  {step\_frontier} (bit-coded): counterpart of Figure~\ref {fig:step-frontier-rust}, \texttt  {nub2} for \texttt  {nub\_tree}.}}{53}{figure.caption.43}\protected@file@percent }
+\newlabel{fig:step-frontier-bc-rust}{{6.11}{53}{\texttt {step\_frontier} (bit-coded): counterpart of Figure~\ref {fig:step-frontier-rust}, \texttt {nub2} for \texttt {nub\_tree}}{figure.caption.43}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {6.12}{\ignorespaces \texttt  {select\_bits}: the counterpart of \texttt  {select} (Figure~\ref {fig:select-rust}).}}{53}{figure.caption.44}\protected@file@percent }
 \newlabel{fig:select-bits-rust}{{6.12}{53}{\texttt {select\_bits}: the counterpart of \texttt {select} (Figure~\ref {fig:select-rust})}{figure.caption.44}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {6.2.4}Parser}{53}{subsection.6.2.4}\protected@file@percent }
 \newlabel{sec:pderiv-bc-parser}{{6.2.4}{53}{Parser}{subsection.6.2.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {6.13}{\ignorespaces The bit-coded partial-derivative parser.}}{53}{figure.caption.45}\protected@file@percent }
-\newlabel{fig:pderiv-bc-parser-rust}{{6.13}{53}{The bit-coded partial-derivative parser}{figure.caption.45}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.5}Worked Example: Ambiguous Expression}{54}{subsection.6.2.5}\protected@file@percent }
-\newlabel{sec:pderiv-bc-worked}{{6.2.5}{54}{Worked Example: Ambiguous Expression}{subsection.6.2.5}{}}
+\newlabel{eq:pderiv-bc-driver}{{6.8}{53}{Parser}{equation.6.8}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{53}{equation.6.8}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6.13}{\ignorespaces The bit-coded partial-derivative parser.}}{54}{figure.caption.45}\protected@file@percent }
+\newlabel{fig:pderiv-bc-parser-rust}{{6.13}{54}{The bit-coded partial-derivative parser}{figure.caption.45}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {6.2.5}Worked Example: Bit-Coded Partial-Derivative Parser}{54}{subsection.6.2.5}\protected@file@percent }
+\newlabel{sec:pderiv-bc-worked}{{6.2.5}{54}{Worked Example: Bit-Coded Partial-Derivative Parser}{subsection.6.2.5}{}}
 \@writefile{toc}{\contentsline {paragraph}{Forward pass.}{54}{subsection.6.2.5}\protected@file@percent }
 \@writefile{toc}{\contentsline {paragraph}{Selection and decoding.}{54}{subsection.6.2.5}\protected@file@percent }
 \@setckpt{chapters/06_partial_derivative_parser}{
-\setcounter{page}{55}
-\setcounter{equation}{7}
+\setcounter{page}{56}
+\setcounter{equation}{8}
 \setcounter{enumi}{0}
 \setcounter{enumii}{0}
 \setcounter{enumiii}{0}
