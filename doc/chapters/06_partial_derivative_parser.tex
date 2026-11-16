@@ -193,10 +193,10 @@ A partial derivative of $r$ with respect to a character $x$
 produces a set of pairs rather than a single expression. 
 The first component of each pair, the residual, 
 is exactly $pd$ from Section~\ref{sec:antimirov-partial-derivatives}~\citep{antimirov1996},
-so $\mathit{pderiv}$ reuses $pd$'s rules (Equation~\ref{eq:pd}). 
+so $\mathit{pderiv}$ reuses $pd$'s rules (Equation~\eqref{eq:pd}). 
 The second component is the injection $\iota$, 
 which rebuilds a parse tree of $r$ from a parse tree of the residual. 
-This injection is $\mathit{inj}$ from Equation~\ref{eq:inj},
+This injection is $\mathit{inj}$ from Equation~\eqref{eq:inj},
 already used by the standard derivative parser (Chapter~\ref{sec:derivative-parser})
 to wrap alternatives and build concatenation and star trees.
 
@@ -264,14 +264,14 @@ keeping the concatenation shape even though the consumed character never entered
 Each rule deduplicates its result by residual, keeping the first occurrence,
 except $\mathsf{P}_{\mathrm{seq}}$, whose single source of states needs none.
 
-Equation~\ref{eq:pderiv-tree} keeps $\varepsilon \cdot s$ unsimplified,
-unlike $pd$ (Equation~\ref{eq:pd}),
+Equation~\eqref{eq:pderiv-tree} keeps $\varepsilon \cdot s$ unsimplified,
+unlike $pd$ (Equation~\eqref{eq:pd}),
 which uses $\mathit{smartC}$.
-The reason is the injection: rule $\mathsf{I}_{\mathrm{seq}}$ from Equation~\ref{eq:inj}
+The reason is the injection: rule $\mathsf{I}_{\mathrm{seq}}$ from Equation~\eqref{eq:inj}
 destructures a $\mathit{Pair}$ from the residual's tree.
 $\mathit{smartC}$ would simplify $\varepsilon \cdot s$ to $s$,
 but the injection would no longer have the $\mathit{Pair}$ to match on.
-A similar structure loss is what Equation~\ref{eq:mkeps-simp} shows
+A similar structure loss is what Equation~\eqref{eq:mkeps-simp} shows
 for the standard derivative parser when simplification is applied.
 However, simplification can still be used, when the injection for the
 simplified shape is rebuilt, similarly to the bit-coded parser that
@@ -284,20 +284,20 @@ rebuilds its bits onto the surviving node.
 \paragraph{In Rust.}
 \label{sec:pderiv-tree-impl}
 
-\texttt{pderiv\_tree} implements Equation~\ref{eq:pderiv-tree}.
+\texttt{pderiv\_tree} implements Equation~\eqref{eq:pderiv-tree}.
 It returns a list of $(\text{residual}, \iota)$ pairs,
 where each $\iota$ is a closure of type \texttt{InjStep},
 \texttt{Rc<dyn Fn(ParseTree) -> ParseTree>}, 
 taking a tree for the residual and returning a tree for the original expression.
 
 The implementation simplifies $\varepsilon \cdot s$ to $s$ 
-through \texttt{smart\_seq} (Equation~\ref{eq:smartc}), 
+through \texttt{smart\_seq} (Equation~\eqref{eq:smartc}), 
 as the bit-coded parser does (Section~\ref{sec:simp}).
 In this parser, the reconstruction information
 is preserved by rebuilding the injection for the simplified shape.
 
 After derivation, the states are deduplicated by \texttt{nub\_tree}, 
-which implements the $\mathit{nub}$ of Equation~\ref{eq:simp-theory}.
+which implements the $\mathit{nub}$ of Equation~\eqref{eq:simp-theory}.
 This keeps the first state of each residual and discards the rest, 
 comparing residuals by structural equality and ignoring injections. 
 Without the collapse, 
@@ -313,7 +313,7 @@ avoids this by branching on whether the residual collapsed to \texttt{Regex::Eps
 in \texttt{Seq}, the closure then returns
 $\mathit{Pair}(\mathit{inj}_1(\mathit{Empty}), v)$
 or destructures $\mathit{Pair}(v_1, v_2)$ into $\mathit{Pair}(\mathit{inj}_1(v_1), v_2)$,
-as Equation~\ref{eq:pderiv-tree} specifies;
+as Equation~\eqref{eq:pderiv-tree} specifies;
 in \texttt{Star}, which extends a $\mathit{Star}$ list,
 it pushes $\mathit{inj}_1(\mathit{Empty})$ directly
 or destructures the wrapping $\mathit{Pair}$ first;
@@ -561,7 +561,7 @@ S_i = \mathit{step\_frontier}(S_{i-1}, x_i)\ \ (1 \leq i \leq n), \qquad
 \end{equation}
 
 Unlike the standard derivative parser's two-pass driver
-(Equation~\ref{eq:std-driver}), 
+(Equation~\eqref{eq:std-driver}), 
 no backward pass is needed here.
 Every injection in $S_i$ is already composed back to $r_0$
 (Section~\ref{sec:pderiv-state-set}), 
@@ -828,7 +828,7 @@ and the final step changes from applying an injection to calling $\mathit{decode
 
 The bit-coded partial derivative $\mathit{pderivBC}(r, x)$ 
 returns a list of $(\text{residual}, \text{bit-sequence})$ pairs. 
-It follows the same case structure as Equations~\ref{eq:pderiv-tree}, 
+It follows the same case structure as Equations~\eqref{eq:pderiv-tree}, 
 with one difference:
 where the standard version builds an injection closure, 
 the bit-coded version prepends a fixed bit-sequence to the pair's existing bits.
@@ -1009,7 +1009,7 @@ otherwise. The star rule emits a single terminating $1$, since a
 star matching the empty word uses zero iterations. Where $\mathit{mkEps}$ builds a parse-tree node per case
 (Chapter~\ref{sec:derivative-parser}), $\mathit{mkEpsBC}$ only concatenates
 bit-lists: $\mathit{Alt}$ and $r^{*}$ contribute the same leading bit their
-$\mathit{pderivBC}$ counterparts do (Equation~\ref{eq:pderiv-bc}), and
+$\mathit{pderivBC}$ counterparts do (Equation~\eqref{eq:pderiv-bc}), and
 $r_1 r_2$ needs no case split, since $r_1 \cdot r_2$ is nullable only when
 both $r_1, r_2$ are.
 
@@ -1161,7 +1161,7 @@ it here.
 \label{sec:pderiv-bc-parser}
 
 The parser runs the same single pass as the standard partial-derivative
-parser (Equation~\ref{eq:pderiv-std-driver}), advancing the whole
+parser (Equation~\eqref{eq:pderiv-std-driver}), advancing the whole
 frontier at once and handing the final frontier directly to
 $\mathit{select}_b$, with bit-sequences in place of injections:
 \begin{equation}\label{eq:pderiv-bc-driver}

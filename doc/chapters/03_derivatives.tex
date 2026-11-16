@@ -126,7 +126,7 @@ splitting \texttt{aa} at $k=1$.}
 %
 
 \paragraph{In Rust.}
-The rules of Equation~\ref{eq:naive-matcher} 
+The rules of Equation~\eqref{eq:naive-matcher} 
 translate directly into the match arms of Figure~\ref{fig:match-naive-rust}. 
 Alternation tries both branches on the same input, 
 and concatenation and star search the split points with \texttt{.any}, 
@@ -258,7 +258,7 @@ avoid evaluating the second operand when the result is already determined.
 \paragraph{Derivative Rules.}
 \label{par:derivative-rules}
 
-Equation~\ref{eq:derivative} specifies the expression remaining after consuming $x$:
+Equation~\eqref{eq:derivative} specifies the expression remaining after consuming $x$:
 \begin{equation}\label{eq:derivative}
 \begin{aligned}
 \emptyset \backslash x &= \emptyset &&(\mathsf{D}_{\emptyset}) 
@@ -400,7 +400,7 @@ Thus $(x+y)^{*}$ matches $\mathtt{xx}$.
 %
 
 \paragraph{Simplification.}
-As shown in Equation~\ref{eq:der-growth}, repeatedly deriving
+As shown in Equation~\eqref{eq:der-growth}, repeatedly deriving
 $(x+y)^{*}$ by the same symbol causes unbounded growth as the nullable
 branch of $\mathsf{D}_{\mathrm{seq}}^{\,n}$ introduces redundant
 alternations that accumulate $\varepsilon$ and $\emptyset$ in
@@ -453,7 +453,7 @@ keeping the size bounded regardless of input length:
 %
 
 \paragraph{In Rust.}
-The identities are implemented in \ref{fig:simplify-rust} recursively:
+The identities are implemented in Figure~\ref{fig:simplify-rust} recursively:
 
 \begin{figure}[ht]
 \small
