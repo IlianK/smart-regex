@@ -59,9 +59,9 @@ BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 
 
 
-# STACK DEPTH #STACKDEPTH_N_CAP=4294967295 
+# STACK DEPTH 
 cargo build --release --example bench_stack_depth_worker
-cargo bench --bench bench_stack_depth
+STACKDEPTH_N_CAP=4294967295 cargo bench --bench bench_stack_depth
 
 
 
@@ -74,16 +74,34 @@ BENCH_MEM_CAP_MB=4096 cargo run --release --example demo_parser_agreement_pathol
 
 # ENCODE / DERIVE / DECODE: PATTERN-SIZE SWEEP (E37, E38)
 
-# E37: p-way alternation of distinct four-letter words.
-PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000 BENCH_RUN_LABEL=PHASE_E37 \
+cargo build --release --example bench_worker
+
+# E37: now reaches the same p-range as E38 instead of stopping at 2,000
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+  PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E37_WIDE \
   cargo bench --bench bench_pathological_time
 
-# E38: p-way alternation of distinct numbered words, no quantifier.
-# Capped at p=1000: p=2000 hits core_regex_tagged's translation-size
-# cap, identically for every parser (see pathological_patterns.json).
-PATHO_ROW_ID=E38 PATHO_P=100,500,1000 BENCH_RUN_LABEL=PHASE_E38 \
+# E38: same override — no longer stops at p=1,000
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+  PATHO_ROW_ID=E38 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E38_WIDE \
   cargo bench --bench bench_pathological_time
 
+
+# ENCODE / DERIVE / DECODE: PATTERN-SIZE SWEEP MEMORY (E37, E38)
+# Same row/p/override conventions as the timing sweep above, same
+# labels, just bench_pathological_memory instead of _time.
+
+cargo build --release --example bench_worker
+
+# E37
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+  PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E37_WIDE \
+  cargo bench --bench bench_pathological_memory
+
+# E38
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+  PATHO_ROW_ID=E38 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E38_WIDE \
+  cargo bench --bench bench_pathological_memory
 
 
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
@@ -108,16 +126,6 @@ PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100,1000,5000,10000,50000,100000,500000,1
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
   cargo bench --bench bench_pathological_time
 
-# P25
-PATHO_ROW_ID=P25 PATHO_N=1,3,7,10,50,300,1000,2000,3500,5000,10000,30000,50000,200000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_F25 \
-  cargo bench --bench bench_pathological_time
-
-# P28
-PATHO_ROW_ID=P28 PATHO_N=1,3,7,10,15,20,25,30,40,50,100,1000,10000,30000,200000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_F28 \
-  cargo bench --bench bench_pathological_time
-
 
 
 # REPRESENTATIVE PATHOLOGICAL CASES: MEMORY
@@ -140,15 +148,5 @@ PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,50,100,500,1000,2000,5000,10000,30000,50000,
 # P09
 PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100,1000,5000,10000,50000,100000,500000,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
-  cargo bench --bench bench_pathological_memory
-
-# P25
-PATHO_ROW_ID=P25 PATHO_N=1,3,7,10,50,300,1000,2000,3500,5000,10000,30000,50000,200000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_F25 \
-  cargo bench --bench bench_pathological_memory
-
-# P28
-PATHO_ROW_ID=P28 PATHO_N=1,3,7,10,15,20,25,30,40,50,100,1000,10000,30000,200000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_F28 \
   cargo bench --bench bench_pathological_memory
 ```
