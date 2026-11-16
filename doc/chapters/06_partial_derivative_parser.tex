@@ -1068,19 +1068,40 @@ applies $\mathit{mkEps}$ to its injection.
 \subsection{State Sets and Selection}
 \label{sec:pderiv-bc-state-set}
 
-A state set here is a finite set of pairs $(r, bs)$ 
-of a residual and its bits, 
-This is the bit-coded counterpart of the previous
-Section's~\ref{sec:pderiv-state-set}'s $(r, \iota)$ pairs.
+A state set here is a finite set of pairs $(r, bs)$ of a residual and
+the bits accumulated for it so far, the bit-coded counterpart of
+Section~\ref{sec:pderiv-state-set}'s $(r, \iota)$ pairs.
+The parser maintains one state set per input prefix exactly as in
+Section~\ref{sec:pderiv-state-set}: after $i$ characters, $S_i$ holds
+every pair reachable from $r_0$ by consuming those characters, and each
+character advances the whole set at once via \texttt{pderiv\_bc}, the
+union replacing the old set.
+The difference is what each pair carries forward.
+Where $\iota$ composes a new closure onto the old one at every step,
+$bs$ is simply extended: the step bits \texttt{pderiv\_bc} returns
+alongside each residual are appended to the pair's existing bits, with
+no composition or closure application ever needed.
+A pair's bits already read left to right exactly as the forward pass
+chose them, so nothing is assembled backwards the way injections are.
 
 %
 
 \paragraph{In Rust.}
 \label{sec:pderiv-bc-state-set-impl}
 
-\texttt{AppendBits} (Section~\ref{sec:aregex-type}) avoids the $O(n^2)$
-clone-then-extend cost the same way \texttt{Bits}/\texttt{Inj} do
-elsewhere. Figure~\ref{fig:step-frontier-bc-rust} shows the resulting
+\texttt{AppendBits} (Section~\ref{sec:aregex-type}) avoids the same
+$O(n^2)$ clone-then-extend cost as \texttt{Bits} and \texttt{Inj} do
+elsewhere, but faces the opposite access pattern: \texttt{Bits} only
+ever prepends, while \texttt{step\_frontier} appends a short suffix onto
+a potentially long accumulated history at every character.
+\texttt{AppendBits} wraps a \texttt{Bits} chain holding the sequence in
+reverse, so appending a suffix becomes prepending its reversed bits onto
+that chain, an operation costing only the suffix's length regardless of
+how much history already exists.
+The full sequence is materialized, and reversed back into the right
+order, only once, inside \texttt{decode}'s single call at the end of the
+parse (Section~\ref{sec:pderiv-bc-parser}), never on an intermediate step.
+Figure~\ref{fig:step-frontier-bc-rust} shows the resulting
 \texttt{step\_frontier}.
 \begin{figure}[H]
 \footnotesize
@@ -1121,6 +1142,17 @@ pub(super) fn select_bits(frontier: &[(Regex, AppendBits)])
 \label{fig:select-bits-rust}
 \end{figure}
 
+Like \texttt{select}, \texttt{select\_bits} walks the frontier in
+generation order and returns the first accepting pair, so the same
+non-POSIX bias applies: whichever branch committed earliest wins, with
+no preference for the pair whose underlying tree would be longest.
+The two selections differ only in what they hand back.
+\texttt{select} applies one injection to build a tree directly;
+\texttt{select\_bits} appends \texttt{mk\_eps\_bits} of the accepting
+residual and returns a flat bit vector, leaving tree construction to
+\texttt{decode} (Section~\ref{sec:pderiv-bc-parser}) rather than doing
+it here.
+
 %
 %
 %
@@ -1128,8 +1160,10 @@ pub(super) fn select_bits(frontier: &[(Regex, AppendBits)])
 \subsection{Parser}
 \label{sec:pderiv-bc-parser}
 
-The parser runs the single pass as the standard one, 
-with bit-sequences instead injections:
+The parser runs the same single pass as the standard partial-derivative
+parser (Equation~\ref{eq:pderiv-std-driver}), advancing the whole
+frontier at once and handing the final frontier directly to
+$\mathit{select}_b$, with bit-sequences in place of injections:
 \begin{equation}\label{eq:pderiv-bc-driver}
 \begin{aligned}
 T_0 &= \{(r, [\,])\}, \\
@@ -1143,13 +1177,35 @@ for the first pair $(r', bs)$ in $T_n$ whose residual is nullable.
 
 %
 
+As with the standard driver, no backward pass over the input is needed,
+but the two parsers differ in what their one remaining reconstruction
+step costs.
+\texttt{select}'s $\mathit{inj}$ applies a chain of closures built up
+one per character consumed, so its cost tracks how many derivative
+steps produced it.
+\texttt{decode} instead walks $r_0$'s own structure once, consuming
+bits only at the choice points (\texttt{Alt} and \texttt{Star}) that
+produced them, so its cost tracks the size of the resulting parse tree
+rather than the length of the derivation that built the bits.
+
 \paragraph{In Rust.}
 Figure~\ref{fig:pderiv-bc-parser-rust} implements~\eqref{eq:pderiv-bc-driver}.
-The loop is identical to the standard variant, 
-replacing \texttt{Inj} with \texttt{AppendBits}. 
-\texttt{select\_bits} returns the final bits by appending 
-\texttt{mk\_eps\_bits} to the first accepting pair's bits,
-and \texttt{decode} reads them against $r$.
+The loop is identical to the standard variant,
+replacing \texttt{Inj} with \texttt{AppendBits}.
+As in \texttt{parse\_pderiv\_std} (Figure~\ref{fig:pderiv-std-parser-rust}),
+it overwrites \texttt{frontier} in place each iteration, so no earlier
+state set survives once the next one exists, and an empty frontier
+early-returns \texttt{None} for the same reason: no pair can consume
+the next character, so the whole input is rejected.
+Once the loop finishes, \texttt{select\_bits} returns the final bits by
+appending \texttt{mk\_eps\_bits} to the first accepting pair's bits, an
+\texttt{Option<Vec<bool>{}>} mirroring \texttt{select}'s own
+\texttt{Option<ParseTree>}, and \texttt{decode} reads those bits
+against $r$.
+The parser therefore pays for frontier maintenance exactly once per
+character and for reconstruction exactly once at the end, the same
+shape as the standard partial-derivative parser, just with a smaller
+and more uniform payload travelling through the loop.
 
 \begin{figure}[H]
 \footnotesize
