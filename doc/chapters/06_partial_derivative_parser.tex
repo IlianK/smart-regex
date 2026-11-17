@@ -331,40 +331,6 @@ pub(crate) type InjStep = Rc<dyn Fn(ParseTree) -> ParseTree>;
 
 pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
-        Regex::Eps | Regex::Phi => vec![],
-        Regex::Lit(c) if *c == x => vec![(Regex::Eps,
-            Rc::new(move |_| ParseTree::Char(x)) as InjStep)],
-        Regex::Lit(_) => vec![],
-
-        Regex::Alt(_, _) => {
-            let mut leaves: Vec<(&Regex, InjStep)> = Vec::new();
-            let identity: InjStep = Rc::new(|v| v);
-            flatten_alt(r, &identity, &mut leaves);
-            let mut out: Vec<(Regex, InjStep)> = Vec::new();
-            for (leaf, wrap) in leaves {
-                for (r_, inj) in pderiv_tree(leaf, x) {
-                    let w = wrap.clone();
-                    out.push((r_, Rc::new(move |v| w(inj(v))) as InjStep));
-                }
-            }
-            nub_tree(out)
-        }
-        // ...
-    }
-}
-\end{verbatim}
-\caption{\texttt{pderiv\_tree}, \texttt{Phi}/\texttt{Eps}/\texttt{Lit}/\texttt{Alt}
-arms: one partial-derivative transition, producing a list of (residual,
-injection-step) states. The \texttt{Seq} and \texttt{Star} arms continue in
-Figure~\ref{fig:pderiv-tree-seqstar-rust}.}
-\label{fig:pderiv-tree-rust}
-\end{figure}
-
-\begin{figure}[H]
-\small
-\begin{verbatim}
-pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
-    match r {
         // ...
         Regex::Seq(r1, r2) => {
             let mut out: Vec<(Regex, InjStep)> = pderiv_tree(r1, x).into_iter()
@@ -421,8 +387,9 @@ pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
             }).collect()
         ),}}
 \end{verbatim}
-\caption{\texttt{pderiv\_tree}, \texttt{Seq}/\texttt{Star} arms, continued
-from Figure~\ref{fig:pderiv-tree-rust}.}
+\caption{\texttt{pderiv\_tree}: the \texttt{Seq} and \texttt{Star} arms of one
+partial-derivative transition, producing a list of (residual,
+injection-step) states via the \texttt{InjStep} closure type.}
 \label{fig:pderiv-tree-seqstar-rust}
 \end{figure}
 
@@ -555,18 +522,24 @@ Every input character advances the whole state set at once
 via $\mathit{step\_frontier}$, 
 and the final state set is handed directly to $\mathit{select}$:
 \begin{equation}\label{eq:pderiv-std-driver}
-S_0 = \{(r, \mathit{id})\}, \qquad
-S_i = \mathit{step\_frontier}(S_{i-1}, x_i)\ \ (1 \leq i \leq n), \qquad
-\mathit{result} = \mathit{select}(S_n).
+\begin{aligned}
+S_0 &= \{(r, \mathit{id})\}, \\[10pt]
+S_i &= \mathit{step\_frontier}(S_{i-1}, x_i)\ \ (1 \leq i \leq n), \\[10pt]
+\mathit{result} &= \mathit{select}(S_n).
+\end{aligned}
 \end{equation}
 
 Unlike the standard derivative parser's two-pass driver
-(Equation~\eqref{eq:std-driver}), 
-no backward pass is needed here.
+(Equation~\eqref{eq:std-driver}),
+no backward pass is needed here,
+because each pair already carries the injection that reconstructs
+its own tree rather than a bare residual.
 Every injection in $S_i$ is already composed back to $r_0$
-(Section~\ref{sec:pderiv-state-set}), 
-so $\mathit{select}$ applies only one injection, 
-to the first accepting state it finds in $S_n$.
+(Section~\ref{sec:pderiv-state-set}),
+so $\mathit{select}$ applies only one injection,
+to the first accepting state it finds in $S_n$,
+instead of replaying $n$ derivative steps backward
+the way $\mathit{inj}$ does for the standard parser.
 
 %
 
@@ -599,6 +572,11 @@ Nothing earlier survives once the next state set exists.
 An empty set early-returns, 
 since $S_i = \{\}$ means no pair can consume the character and the input fails. 
 Otherwise \texttt{select} returns the first accepting tree in $S_n$, or \texttt{None}.
+Because the frontier is overwritten rather than extended,
+the parser's memory footprint is bounded by the size of one state set,
+not by the input length, unlike a parser that keeps one derivative
+per character consumed so far, such as the standard derivative
+parser of Chapter~\ref{sec:derivative-parser}.
 
 %
 %
