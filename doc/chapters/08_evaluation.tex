@@ -1,69 +1,63 @@
 \chapter{Evaluation}
 \label{sec:evaluation}
 
-This chapter evaluates the derivative and partial-derivative parsers developed in
-Chapters~\ref{sec:derivative-parser} and~\ref{sec:partial-derivative-parser}.
-Using two datasets and a common set of criteria, it compares the candidates in
-terms of execution time, memory consumption, and translation cost.
-It also assesses their agreement on membership decisions and parse-tree shape.
+This chapter evaluates the derivative and partial-derivative parsers
+developed in Chapters~\ref{sec:derivative-parser} 
+and \ref{sec:partial-derivative-parser}. 
+Using two datasets, 
+it compares their execution time, memory consumption, and translation cost, 
+as well as their match decisions and parse-tree shapes. 
 
-All measurements were taken on an AMD Ryzen~5~5600 six-core processor with
-16\,GB of RAM, running Pop!\_OS 24.04 LTS on an AMD B550 chipset.
+All measurements were taken on an AMD Ryzen~5~5600 six-core processor
+with 16\,GB of RAM, running Pop!\_OS 24.04 LTS on an AMD B550 chipset.
 
 %
 %
 %
-
 
 \section{Candidates}
 \label{sec:eval-candidates}
 
-A candidate is a parser $p$ that takes a translated \texttt{Regex} $r$
+A candidate is a parser $p$ mapping an entry $(r,w)$, 
+consisting of a translated \texttt{Regex} $r$ 
 and an input \texttt{String} $w$, 
-and returns either a \texttt{ParseTree} $pt$ or no match.
-Such an input pair $(r, w)$ is called an \emph{entry}.
-All candidates share the same interface:
+to an optional \texttt{ParseTree} $pt$. 
+All candidates share the interface:
 \[
 p :: (\mathit{Regex}, \mathit{String}) \to
-     \mathit{Option\langle ParseTree\rangle}.
+     \mathit{Option\langle ParseTree\rangle}
 \]
+Candidates are grouped into two families according 
+to their disambiguation strategy.
+All five parsers are expected to agree on membership.
+So given an entry, they must either all accept or reject it.
+\emph{Within family} the parsers are also expected to agree on parse-tree shape.
+\emph{Across families} parse tree shape agreement is possible, but not required.
 
-Candidates are classified into
-two families by their disambiguation strategy.
-
-
-\textbf{POSIX family.}
-\begin{itemize}
-  \item \texttt{deriv\_std\_rec}, the recursive standard derivative parser
-        (Section~\ref{sec:deriv-std-parser}).
-  \item \texttt{deriv\_std\_loop}, the iterative standard derivative parser
-  \item \texttt{deriv\_bc}, the bit-coded derivative parser
-        (Section~\ref{sec:deriv-bc-driver}).
-\end{itemize}
-
-\textbf{Non-POSIX family.} 
-\begin{itemize}
-  \item \texttt{pderiv\_std}, the standard partial-derivative parser
-        (Section~\ref{sec:pderiv-std-parser}).
-  \item \texttt{pderiv\_bc}, the bit-coded partial-derivative parser
-        (Section~\ref{sec:pderiv-bc-parser}).
-\end{itemize}
-
-All five parsers are expected to agree on membership,
-so given an entry, they must either all accept it or all reject it.
-They are also expected to agree on parse-tree shape \emph{within}
-each family, because the parsers of one family share the same
-disambiguation policy and differ only in how they compute and
-reconstruct the tree. 
-
-For the POSIX family this means the parsers must return the same POSIX parse tree
-and the non-POSIX family parsers must return the same leftmost parse tree. 
-
-Across families, agreement is
-not required. Since the two families implement different
-disambiguation policies, they may select different parse trees for
-the same entry even when they agree on membership, as
-Chapter~\ref{sec:matching-vs-parsing} shows.
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llll}
+\hline
+Family & Candidate & Description & Section \\
+\hline
+POSIX     & \texttt{deriv\_std\_rec}  & recursive standard derivative parser
+          & \ref{sec:deriv-std-parser} \\
+          & \texttt{deriv\_std\_loop} & iterative standard derivative parser
+          & \ref{sec:deriv-std-parser} \\
+          & \texttt{deriv\_bc}        & bit-coded derivative parser
+          & \ref{sec:deriv-bc-driver} \\
+\hline
+Non-POSIX & \texttt{pderiv\_std}      & standard partial-derivative parser
+          & \ref{sec:pderiv-std-parser} \\
+          & \texttt{pderiv\_bc}       & bit-coded partial-derivative parser
+          & \ref{sec:pderiv-bc-parser} \\
+\hline
+\end{tabular*}
+\caption{The five parser candidates, grouped by disambiguation policy.}
+\label{tab:eval-candidates}
+\end{table}
 
 %
 %
@@ -72,10 +66,10 @@ Chapter~\ref{sec:matching-vs-parsing} shows.
 \section{Evaluation Criteria}
 \label{sec:eval-criteria}
 
-The evaluation considers two aspects of the candidates. The first is
-\emph{performance}, measured in terms of execution time, memory consumption,
-and translation cost. The second is \emph{correctness}, assessed by comparing
-membership and parse-tree selection.
+The evaluation considers \emph{performance}, 
+measured in terms of execution time, memory consumption, and translation cost. 
+and \emph{correctness}, 
+assessed by comparing membership decisions and parse-tree selection.
 
 %
 %
@@ -84,32 +78,25 @@ membership and parse-tree selection.
 \subsection{Measurement Setup}
 \label{sec:eval-criteria-setup}
 
-Each entry runs in its own worker subprocess for timing, memory,
-stack-depth, and parse-agreement measurements. Stable Rust has no safe
-way to forcibly terminate a thread~\citep{rust-thread-joinhandle}, so one
-that has not returned, e.g. from exponential derivation or from
-allocating towards the memory cap, cannot be stopped. A
-subprocess, by contrast, can be killed unconditionally, and the operating
-system reclaims its memory.
-
+Each entry runs in its own worker subprocess. Stable Rust has no safe way to
+forcibly terminate a thread~\citep{rust-thread-joinhandle}, so a worker stuck
+in exponential derivation or allocating towards the memory cap cannot be
+stopped; a subprocess can be killed unconditionally, and the operating
+system reclaims its memory. Each run classifies the entry as:
 \begin{itemize}
   \item \emph{Measured}: the worker exited zero and reported a result line.
   \item \emph{Timed out}: the worker exceeded the default per-entry timeout
         (2\,s) and was killed.
-  \item \emph{Crashed}: the worker exited non-zero or was killed by a
-        signal, including stack overflows and out-of-memory kills
-        when the memory ceiling is enabled.
+  \item \emph{Crashed}: the worker exited non-zero or was killed by a signal,
+        including stack overflows and out-of-memory kills when the memory
+        ceiling is enabled.
 \end{itemize}
-
-For timing, memory, and parse-agreement measurements, each worker runs on
-a custom 256\,MiB stack: all candidates recurse over the pattern
-structure, and on deeply nested patterns the default stack would overflow
-before the measured input sizes are reached. This stack is a fixed
-allowance and not part of the measured footprint.
-
-A timing and memory run produces two outputs per candidate and dataset: (1) a summary
-table of aggregate measurements; (2) a per-entry file
-to compare individual entries.
+Timing, memory, and agreement workers run on a custom 256\,MiB stack,
+because all candidates recurse over the pattern structure and the default
+stack would overflow on deeply nested patterns before the measured input
+sizes are reached; the stack is a fixed allowance and not part of the
+measured footprint. A run produces an aggregate summary table and a
+per-entry file.
 
 %
 %

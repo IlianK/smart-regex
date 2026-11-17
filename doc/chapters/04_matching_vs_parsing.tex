@@ -10,13 +10,15 @@ namely the evidence for a match,
 which \emph{parse trees} record as structured witnesses.
 
 %
+%
+%
 
 \section{Matching: A Boolean Answer}
 \label{sec:matching-problem}
 
 Consider $r = (a+ab)(b+\varepsilon)$ and $w = \mathtt{ab}$. 
 The matcher can determine $w \in L(r)$ 
-using the algorithms of Chapter~\ref{sec:derivatives}. 
+using the algorithms shown in Chapter~\ref{sec:derivatives}. 
 There are, however, two ways in which $r$ can match $w$:
 \begin{equation}
 \begin{aligned}
@@ -36,6 +38,8 @@ by showing which alternatives were chosen
 and which parts of the input were consumed 
 by the corresponding subexpressions.
 
+%
+%
 %
 
 \section{Parsing: Parse Trees as Matching Evidence}
@@ -89,6 +93,11 @@ and how each part of the input was consumed during matching:
 \end{aligned}
 \end{equation}
 
+Each constructor in the tree corresponds to a regular expression
+operator, preserving the choices made during matching.
+For the example above, the two decompositions therefore produce
+distinct parse trees, even though both establish the same membership result.
+
 %
 
 \paragraph{In Rust.}
@@ -118,8 +127,11 @@ $\mathsf{T}_{\mathrm{lit}}$ to \texttt{Char} for a literal,
 $\mathsf{T}_{\mathrm{seq}}$ to \texttt{Pair} for a concatenation of parse trees, and 
 $\mathsf{T}_{+}^{L}$ and $\mathsf{T}_{+}^{R}$ to \texttt{Left} and \texttt{Right}, 
 recording the chosen branch of an alternation. 
-Both star rules collapse onto the single \texttt{Star(Vec<ParseTree>)} variant: 
-The empty case is \texttt{Star(vec![])}, the cons case a non-empty vector.
+Both star rules map to the single \texttt{Star(Vec<ParseTree>)}
+variant. The empty case is represented by \texttt{Star(vec![])},
+while the cons case is represented by a non-empty vector.
+The vector stores the parse trees of individual repetitions
+in their original order, directly representing the list structure.
 
 %
 
@@ -170,12 +182,17 @@ L(r)
 %
 
 \paragraph{In Rust.}
-Figure~\ref{fig:flatten-rust} shows how \texttt{flatten} 
-recursively traverses the parse tree and concatenates its leaf characters. 
-The function borrows the tree to allow subsequent inspection and comparison.
-The \texttt{Pair} case concatenates the results of flattening both children, 
-while \texttt{Left} and \texttt{Right} delegate to their child,
-and \texttt{Star} concatenates the results for each element.
+Figure~\ref{fig:flatten-rust} 
+implements the flattening rules of Equation~\eqref{eq:flatten} 
+by recursively traversing the parse tree and concatenating its leaf characters.
+The function borrows the tree 
+so that its structure remains available for subsequent inspection and comparison.
+The \texttt{Pair} case concatenates the flattened results of both children. 
+The \texttt{Left} and \texttt{Right} variants 
+only record the chosen alternation branch, 
+so they delegate directly to their child. Similarly, 
+\texttt{Star} concatenates the flattened results of its repetitions 
+in their original order.
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -196,6 +213,7 @@ pub fn flatten(v: &ParseTree) -> String {
 
 %
 
+\clearpage
 \paragraph{Unambiguous example.}
 \label{par:unambigious-example}
 Consider $r = ab$ and $w = \mathtt{ab}$. 
@@ -333,4 +351,5 @@ while flattening confirms that they represent the same word.
 However, neither the typing judgments 
 nor the flattening function specifies which tree should be selected 
 when multiple valid parses exist. 
+
 A \emph{disambiguation policy} determines this choice.
