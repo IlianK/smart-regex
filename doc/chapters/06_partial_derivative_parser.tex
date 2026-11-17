@@ -10,6 +10,7 @@ each pairing an expression with the reconstruction information
 for one path through the original expression. 
 The parser maintains this set as an NFA state set 
 and selects the first accepting state in generation order. 
+
 Since partial derivatives lose the original expression's structure, 
 this favours leftmost alternatives over the longest match, 
 resulting in non-POSIX parse trees.
@@ -86,6 +87,8 @@ the injection of the first accepting state to
 $\mathit{mkEps}$ of its residual.}
 \label{fig:pderiv-std-overview}
 \end{figure}
+
+\clearpage
 
 Deriving $r_0$ by $\mathtt{a}$ produces the two states of $S_1$, 
 one for each way $\mathtt{a}$ can be consumed:
@@ -199,7 +202,6 @@ which rebuilds a parse tree of $r$ from a parse tree of the residual.
 This injection is $\mathit{inj}$ from Equation~\eqref{eq:inj},
 already used by the standard derivative parser (Chapter~\ref{sec:derivative-parser})
 to wrap alternatives and build concatenation and star trees.
-
 This construction has no explicit rules in the source papers.
 The pattern partial derivatives of \citet[Fig.~11]{sulzmannlu2012}
 pair a residual with a variable-binding environment for submatching, not full parsing.
@@ -277,8 +279,6 @@ However, simplification can still be used, when the injection for the
 simplified shape is rebuilt, similarly to the bit-coded parser that
 rebuilds its bits onto the surviving node.
 
-\clearpage
-
 %
 
 \paragraph{In Rust.}
@@ -325,7 +325,7 @@ This preserves left-to-right order just as deriving one $+$ at a time would.
 All three arms then call \texttt{nub\_tree} directly on their own output.
 
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub(crate) type InjStep = Rc<dyn Fn(ParseTree) -> ParseTree>;
 
@@ -361,7 +361,7 @@ Figure~\ref{fig:pderiv-tree-seqstar-rust}.}
 \end{figure}
 
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub(crate) fn pderiv_tree(r: &Regex, x: char) -> Vec<(Regex, InjStep)> {
     match r {
@@ -461,7 +461,7 @@ both when applied and when destroyed.
 Therefore the implementation stores the steps 
 as a cons-list and applies them iteratively instead (Figure~\ref{fig:inj-rust}).
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 enum InjNode { Identity, Step(InjStep, Rc<InjNode>) }
 pub(crate) struct Inj(Rc<InjNode>);
@@ -495,7 +495,7 @@ advanced by \texttt{step\_frontier} (Figure~\ref{fig:step-frontier-rust}),
 which applies \texttt{pderiv\_tree} to every pair 
 and composes each step onto the pair's \texttt{Inj}.
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub(super) fn step_frontier(frontier: Vec<(Regex, Inj)>, x: char) 
     -> Vec<(Regex, Inj)> {
@@ -521,7 +521,7 @@ After the input is exhausted,
 walks the state set in priority order 
 and returns the tree for the first accepting pair.
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub(super) fn select(frontier: &[(Regex, Inj)]) -> Option<ParseTree> {
     for (r, inj) in frontier {
@@ -573,7 +573,7 @@ to the first accepting state it finds in $S_n$.
 \paragraph{In Rust.}
 Figure~\ref{fig:pderiv-std-parser-rust} implements Equation~\eqref{eq:pderiv-std-driver}.
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
     let mut frontier: Vec<(Regex, Inj)> =
@@ -913,7 +913,7 @@ no companion adjustment is needed, since the bits ride alongside the
 residual: collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
 
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
     match r {
@@ -1021,7 +1021,7 @@ both $r_1, r_2$ are.
 Figure~\ref{fig:mk-eps-bits-rust} implements~\eqref{eq:pderiv-mkepsbc} directly.
 
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub fn mk_eps_bits(r: &Regex) -> Vec<bool> {
     match r {
@@ -1104,7 +1104,7 @@ parse (Section~\ref{sec:pderiv-bc-parser}), never on an intermediate step.
 Figure~\ref{fig:step-frontier-bc-rust} shows the resulting
 \texttt{step\_frontier}.
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) 
     -> Vec<(Regex, AppendBits)> {
@@ -1125,7 +1125,7 @@ Figure~\ref{fig:step-frontier-rust}, \texttt{nub2} for \texttt{nub\_tree}.}
 Selection returns the first accepting pair's bits, extended with
 $\mathit{mkEpsBC}$ of its residual:
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub(super) fn select_bits(frontier: &[(Regex, AppendBits)]) 
     -> Option<Vec<bool>> {
@@ -1208,7 +1208,7 @@ shape as the standard partial-derivative parser, just with a smaller
 and more uniform payload travelling through the loop.
 
 \begin{figure}[H]
-\footnotesize
+\small
 \begin{verbatim}
 pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
     let mut frontier = vec![(r.clone(), AppendBits::empty())];
