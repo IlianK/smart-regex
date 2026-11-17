@@ -1,4 +1,4 @@
-//! src/parsers/pderiv_std/mod.rs
+//! src/parsers/pderiv_std/parse.rs
 //! 
 //! Plain-Regex partial-derivative parser (pderiv_std); 
 //! traced variant in traced.rs reuses step_frontier/select.
@@ -148,8 +148,9 @@ mod tests {
 
     #[test]
     fn star_iterations_are_in_left_to_right_order() {
-        // (a|b)* on "abab": a bug in the push/reverse rewrite would
-        // reverse this to [b,a,b,a] instead of the correct [a,b,a,b].
+        // (a|b)* on "abab": pins down iteration order -- a reversed-order
+        // implementation would give [b,a,b,a] instead of the correct
+        // [a,b,a,b].
         let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
         let tree = parse_pderiv_std("abab", &r).unwrap();
         assert_eq!(flatten(&tree), "abab");
@@ -167,9 +168,9 @@ mod tests {
 
     #[test]
     fn nested_star_iterations_match_bc_order() {
-        // (a*)* on "aaaaa": a bug in the push/reverse rewrite at either
-        // nesting level would still agree with pderiv_bc on *membership*
-        // but disagree on the exact tree shape.
+        // (a*)* on "aaaaa": a reversed-order bug at either nesting level
+        // would still agree with pderiv_bc on *membership* but disagree on
+        // the exact tree shape.
         let r = Regex::star(Regex::star(Regex::lit('a')));
         let tree_std = parse_pderiv_std("aaaaa", &r);
         let tree_bc = parse_pderiv_bc("aaaaa", &r);

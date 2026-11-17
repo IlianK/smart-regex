@@ -166,11 +166,12 @@ impl Generator {
                 let alphabet: Vec<char> = alphabet.chars().collect();
                 let base = alphabet.len() as u64;
                 // Past base^width distinct width-digit strings, the odometer
-                // below wraps and starts repeating words it already emitted
-                // -- silently, since the loop only checks `words.len()`, not
-                // distinctness. Catch a config that asks for more than the
-                // alphabet/width can provide instead of quietly padding the
-                // trie with duplicates.
+                // below wraps and starts repeating words it already emitted,
+                // silently, since the loop only checks `words.len()`, not
+                // distinctness.
+                //
+                // Catch that case explicitly, rather than quietly padding the
+                // trie with duplicate words.
                 if let Some(capacity) = base.checked_pow(*width as u32) {
                     assert!(
                         (p as u64) <= capacity,
@@ -216,11 +217,11 @@ pub struct PathologicalRow {
     pub stress_axis: String,
     #[serde(default)]
     pub notes: Option<String>,
-    /// Overrides the row's category-wide `suggested_n`/`suggested_p`
-    /// (see `CategoryInfo`) when a row needs a sweep its category's
-    /// other rows don't -- e.g. a literal reproduction of a published
-    /// benchmark at its own paper-specified scale, left out of every
-    /// other row in the same category's routine (small, fast) default.
+    /// Overrides the row's category-wide `suggested_n`/`suggested_p` (see
+    /// `CategoryInfo`) when a row needs a sweep its category's other rows
+    /// don't -- e.g. a literal reproduction of a published benchmark at its
+    /// own paper-specified scale, left out of every other row in the same
+    /// category's routine (small, fast) default.
     #[serde(default)]
     pub suggested_n: Option<Vec<u32>>,
     #[serde(default)]

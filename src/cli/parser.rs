@@ -40,11 +40,11 @@ pub fn run_parse_single(
 ///
 /// Three checks, all bugs if they fail:
 /// POSIX parsers agree with each other;
-/// Greedy parsers agree with each other;
+/// Non-POSIX parsers agree with each other;
 /// All five agree on membership.
 ///
-/// The fourth line, `Greedy vs POSIX`, is informational: the two policies
-/// may differ on tree shape.
+/// The fourth line, `Non-POSIX vs POSIX`, is informational: the two
+/// policies may differ on tree shape.
 pub fn run_parse_all(regex_str: &str, input: &str) {
     let r = match parse_pattern(regex_str) {
         Ok(r) => r,

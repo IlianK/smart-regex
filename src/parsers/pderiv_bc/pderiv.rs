@@ -257,15 +257,10 @@ mod tests {
         assert_eq!(d, vec![(Regex::Eps, vec![false])]);
     }
 
-    // Hand-traced in the fix's own writeup: a + (a + b) on 'a', nested
-    // two Alt levels deep. Without the flatten-first fix this would
-    // compute (via the old per-level recursion) out = [(Eps,[false]),
-    // (Eps,[true]++[false])] before nub2 -- same two candidates
-    // flatten_alt now produces directly, confirming the prefix a
-    // flattened leaf gets matches what per-level nesting would have
-    // assigned. Left's own 'a' (prefix [false]) must still win the tie
-    // over the nested 'a' (prefix [true,false]); the nested 'b' never
-    // matches 'a' and contributes nothing either way.
+    // a + (a + b) on 'a', nested two Alt levels deep. Left's own 'a'
+    // (prefix [false]) must win the tie over the nested 'a' (prefix
+    // [true,false]); the nested 'b' never matches 'a' and contributes
+    // nothing either way.
     #[test]
     fn nested_alt_three_leaves_prefix_matches_hand_trace_and_dedups_leftmost() {
         let r = Regex::alt(Regex::lit('a'), Regex::alt(Regex::lit('a'), Regex::lit('b')));

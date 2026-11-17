@@ -3,23 +3,17 @@
 //! Pipeline entry points. `run_pipeline` is S2ELab-only: it extracts,
 //! translates, and writes every usable pattern's own given examples,
 //! each checked with one direct `prepare::matches_bounded` call against
-//! its claimed label -- not the deleted generated-candidate verification
-//! machinery, just a boolean agree/disagree check. Every example that
+//! its claimed label, a boolean agree/disagree check. Every example that
 //! survives the check is written as given; matches and non-matches are
 //! not balanced against each other, so a pattern with 50 matches and 2
-//! non-matches keeps all 52. (Two earlier versions truncated this down:
-//! one truncated each pattern's longer side to its own shorter side's
-//! count, and before that, one truncated every pattern down to the
-//! dataset-wide minimum count, so a single thinly-labeled pattern forced
-//! every other pattern down to its level -- on the real S2ELab corpus
-//! this meant almost every pattern lost nearly all its examples. Both
-//! were removed: the benches that consume this data avoid the bias
-//! balancing was meant to fix a different way, by averaging per-pattern
-//! rather than per-input, which needs no input-count truncation at all
-//! -- see `bench_corpus_time.rs`'s own module doc.) `dataset_stats`
-//! separately still uses the other four extractors for raw-corpus
-//! diagnostics unrelated to this pipeline, which is why they still exist
-//! in `extract.rs`.
+//! non-matches keeps all 52. Truncating input counts to balance them
+//! would bias a thinly-labeled pattern's measurement; the benches that
+//! consume this data avoid that bias a different way, by averaging
+//! per-pattern rather than per-input, which needs no input-count
+//! truncation at all -- see `bench_corpus_time.rs`'s own module doc.
+//! `dataset_stats` separately still uses the other four extractors for
+//! raw-corpus diagnostics unrelated to this pipeline, which is why they
+//! still exist in `extract.rs`.
 //! `load_prepared_cases` reads the result back for benchmarks.
 
 use std::collections::HashSet;
@@ -93,8 +87,8 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
             Ok(s) => s,
             Err(e) => {
                 // Decode lossily rather than aborting.
-                // A corpus can carry legacy bytes; a pattern touching
-                // them is a per-pattern problem `core_regex` can reject.
+                // A corpus can carry legacy bytes; a pattern touching them is
+                // a per-pattern problem `core_regex` can reject.
                 eprintln!(
                     "warning: {} is not valid UTF-8; decoding lossily",
                     file.display()
@@ -115,8 +109,8 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
     let mut seen_patterns: HashSet<&str> = HashSet::new();
     for rule in &rules {
         if !seen_patterns.insert(rule.raw_pattern.as_str()) {
-            // Byte-identical to a rule already processed above in this
-            // same run -- same translation and given examples, guaranteed.
+            // Byte-identical to a rule already processed above in this same
+            // run -- same translation and given examples, guaranteed.
             report.patterns_duplicate += 1;
             continue;
         }
@@ -130,8 +124,8 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
             MatchIntent::UnanchoredAmbiguous => report.patterns_unanchored_ambiguous += 1,
         }
 
-        // Only ever `S2ELab` here: `rules` comes solely from
-        // `extract_s2_elab` above. Treat anything else as no examples.
+        // Only ever `S2ELab` here: `rules` comes solely from `extract_s2_elab`
+        // above. Treat anything else as no examples.
         let (matches, non_matches) = match &rule.context {
             RuleContext::S2ELab { matches, non_matches } => (matches.as_slice(), non_matches.as_slice()),
             _ => (&[][..], &[][..]),
@@ -150,8 +144,8 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
             })
             .collect();
 
-        // Preserves `given_examples`'s own order: every match in its
-        // original order, then every non-match in its original order.
+        // Preserves `given_examples`'s own order: every match in its original
+        // order, then every non-match in its original order.
         let (pattern_matches, pattern_non_matches): (Vec<String>, Vec<String>) = {
             let (mut m, mut n) = (Vec::new(), Vec::new());
             for (text, is_match) in examples {
@@ -192,7 +186,7 @@ pub fn run_pipeline(raw_files: &[PathBuf], data_root: &Path) -> std::io::Result<
 
 /// Loads every prepared case for the given sources.
 /// Empty `sources` means S2ELab, the only source `run_pipeline` produces.
-/// The other four are opt-in only -- selecting one yields nothing today,
+/// The other four are opt-in only -- selecting one yields nothing,
 /// since `run_pipeline` never extracts them, but this still reads
 /// whatever `prepared.jsonl` happens to be there if one is.
 pub fn load_prepared_cases(

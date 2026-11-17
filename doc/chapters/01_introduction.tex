@@ -11,6 +11,7 @@ Across these applications, the problem is regular expression matching.
 Given a regular expression \texttt{(a|ab)*} and an input string \texttt{"aba"}, 
 determine whether the string belongs to the language denoted by the expression. 
 This is the \emph{membership problem}.
+
 For many applications, this Boolean answer is enough, 
 such as when an input validator only needs to accept or reject a password or URL.
 Other applications require more information. 
@@ -49,6 +50,7 @@ Each derivative represents the language remaining after an input symbol has been
 This relationship between an expression and its successive residuals
 provides an elegant foundation for regular expression matching and, 
 with suitable extensions, structured parsing.
+
 However, derivative-based techniques are not commonly used 
 in practical regular expression tooling. 
 This work explores their implementation 
@@ -59,10 +61,9 @@ moving ``From Theory to Tools''.
 %
 %
 
+\clearpage
 \section{Problem Statement}
 \label{sec:problem-statement}
-
-
 
 The work of ~\citep{sulzmannlu2014} developed a derivative-based algorithm 
 for POSIX regular expression parsing. 
@@ -76,9 +77,8 @@ of regular expression submatching.
 While submatching is not the focus of this thesis, 
 their work provides relevant background 
 for implementing partial-derivative-based parsers. 
-
-The authors have primarily studied these constructions 
-in theoretical and functional programming settings, 
+The authors primarily studied these constructions 
+in functional programming settings, 
 with less emphasis on practical considerations 
 such as execution time and memory consumption.
 Haskell implementations of the relevant constructions are also presented
@@ -92,12 +92,14 @@ Rust's fine-grained control over memory allocation and data representation
 makes it suitable for evaluating their execution time and memory consumption.
 
 %
+%
+%
 
 \section{Contributions}
 \label{sec:contributions}
 
 The thesis implements ~\citep{sulzmannlu2014}'s derivative-based 
-and \citep{sulzmannlu2012}'s partial-derivative-based 
+and uses \citep{sulzmannlu2012}'s partial-derivative-based 
 parsing constructions in Rust, including their direct and bit-coded variants.
 The implementations are based on the theory described in the
 literature and the Haskell reference.
@@ -114,30 +116,52 @@ developed for this evaluation,
 with patterns designed to stress-test the parsers.
 
 %
+%
+%
 
-\section{Thesis Outline}
+\section{Outline}
 \label{sec:thesis-outline}
 
-The chapters are structured to present the theoretical concepts and
-parsing constructions alongside their Rust implementations. 
-\emph{Chapter~\ref{sec:regular-expressions} -- Regular Expressions}
-introduces regular expression syntax, semantics, 
-with their Rust representation, followed by
-\emph{Chapter~\ref{sec:derivatives} -- Derivatives}, 
-which covers Brzozowski's derivatives and Antimirov's partial derivatives 
-matching algorithms. 
-\emph{Chapter~\ref{sec:matching-vs-parsing} -- Matching vs. Parsing}
-then introduces the distinction between matching and parsing and the
-associated disambiguation problem. 
-The two parsing approaches are presented in 
-\emph{Chapter~\ref{sec:derivative-parser} -- Derivative Parser} and 
-\emph{Chapter~\ref{sec:partial-derivative-parser} -- Partial-Derivative Parser}, 
-including their direct and bit-coded Rust implementations. 
-\emph{Chapter~\ref{sec:frontend} -- Translation} describes the
-translation of regular expression strings into the internal representation. Finally,
-\emph{Chapter~\ref{sec:evaluation} -- Evaluation} 
-examines the five parser candidates in terms of execution time, 
-memory consumption, and correctness, while
-\emph{Chapter~\ref{sec:related} -- Related Work and Conclusion}
-summarizes the findings, discusses their implications, 
-and outlines directions for future work.
+The chapters present the theoretical concepts alongside their Rust implementations.
+
+\begin{itemize}
+  \item \textbf{Regular Expressions \ref{sec:regular-expressions}}:
+        Introduces regular expression syntax and semantics, together with
+        their Rust representation. This is the \texttt{Regex} struct,
+        defined by six constructors.
+
+  \item \textbf{Derivatives and Partial Derivatives \ref{sec:derivatives}}:
+        Covers Brzozowski's derivatives and Antimirov's partial derivatives,
+        which transform the expression as each input symbol is consumed.
+
+  \item \textbf{Matching and Parsing \ref{sec:matching-vs-parsing}}:
+        Distinguishes matching from parsing, showing the ambiguity that arises 
+        when multiple valid parse trees exist and the need for
+        disambiguation policies.
+
+  \item \textbf{Derivative-Based Parser \ref{sec:derivative-parser}}:
+        Presents the derivative-based parsing approach and its direct and
+        bit-coded Rust implementations, both returning POSIX parse trees.
+
+  \item \textbf{Partial-Derivative-Based Parser
+        \ref{sec:partial-derivative-parser}}:
+        Presents the partial-derivative approach and its corresponding
+        implementations, both returning Non-POSIX parse trees.
+
+  \item \textbf{Translation \ref{sec:frontend}}:
+        Explains how a regular expression string is first parsed by the
+        extended parser into an \texttt{ExtPat} struct, 
+        and how supported constructs are then translated 
+        into the internal \texttt{Regex} struct, 
+        while rejecting unsupported constructs.
+
+  \item \textbf{Evaluation \ref{sec:evaluation}}:
+        Evaluates the five parser candidates in terms of execution time,
+        memory consumption, and translation cost, and
+        agreement on match decisions and parse-tree shape.
+
+  \item \textbf{Related Work and Conclusion \ref{sec:related}}:
+        Positions the work against related approaches, summarizes the
+        findings and their implications, and outlines directions for
+        future work.
+\end{itemize}

@@ -12,8 +12,9 @@ use crate::parsers::deriv_std::inject::inject;
 // RECURSIVE PARSER
 
 /// Indexes into `chars` instead of collecting the remaining input into a
-/// fresh `String` on every call: the old version allocated and copied an
-/// O(n), O(n-1), O(n-2)... suffix at each step, O(n^2) total.
+/// fresh `String` on every call: collecting a fresh `String` each time would
+/// allocate and copy an O(n), O(n-1), O(n-2)... suffix at each step, O(n^2)
+/// total.
 fn parse_recursive_helper(r: &Regex, chars: &[char], pos: usize) -> Option<ParseTree> {
     match chars.get(pos) {
         None => {
@@ -33,7 +34,7 @@ pub fn parse_deriv_std_rec(input: &str, r: &Regex) -> Option<ParseTree> {
 }
 
 /// Reverses every `Star`'s items exactly once. `inject`'s Star case
-/// (see inject.rs) now `push`es a new iteration onto the existing tail
+/// (see inject.rs) `push`es a new iteration onto the existing tail
 /// instead of rebuilding the whole vec by `extend`, O(1) amortized
 /// instead of O(current length) -- which leaves every Star's items in
 /// reverse temporal order until this single O(total tree size)
@@ -92,8 +93,9 @@ mod tests {
 
     #[test]
     fn star_iterations_are_in_left_to_right_order() {
-        // (a|b)* on "abab": a bug in the push/reverse rewrite would
-        // reverse this to [b,a,b,a] instead of the correct [a,b,a,b].
+        // (a|b)* on "abab": pins down iteration order -- a reversed-order
+        // implementation would give [b,a,b,a] instead of the correct
+        // [a,b,a,b].
         let r = Regex::star(Regex::alt(Regex::lit('a'), Regex::lit('b')));
 
         let tree_rec = parse_deriv_std_rec("abab", &r).unwrap();
