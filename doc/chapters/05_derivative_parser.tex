@@ -1540,32 +1540,21 @@ Figure~\ref{fig:deriv-bc-loop-rust} implements~\eqref{eq:bitcoded-driver}.
 \begin{figure}[H]
 \small
 \begin{verbatim}
-fn derive_and_simplify(ri: ARegex, chars: &[char]) -> ARegex {
-    let mut cur = ri;
-    for &l in chars { cur = simp(deriv_bc(cur, l)); }
-    cur
-}
-
 pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
-    let ri = internalize(r);
-    let chars: Vec<char> = input.chars().collect();
-    let final_ri = derive_and_simplify(ri, &chars);
-    if !nullable_bc(&final_ri) { return None; }
-    Some(decode(r, &mk_eps_bc(&final_ri)))
+    let mut ri = internalize(r);
+    for c in input.chars() { ri = simp(deriv_bc(ri, c)); }
+    if !nullable_bc(&ri) { return None; }
+    Some(decode(r, &mk_eps_bc(&ri)))
 }
 \end{verbatim}
-\caption{\texttt{parse\_bitcoded\_loop}: the bit-coded parser's
-lopp. \texttt{derive\_and\_simplify} is factored out because
-the recursive entry point shares the same per-character step
-and differs only in how it obtains \texttt{ri}.}
+\caption{\texttt{parse\_bitcoded\_loop}: the bit-coded parser's loop,
+applying \texttt{deriv\_bc} then \texttt{simp} once per character.}
 \label{fig:deriv-bc-loop-rust}
 \end{figure}
 
-The loop implements Equation~\eqref{eq:bitcoded-driver}.
-First \texttt{internalize} initialises \texttt{ri},
-\texttt{derive\_and\_simplify} is applied per character,
-and finally calls \texttt{decode(mk\_eps\_bc(ri))} if the
-nullability check succeeds.
+The loop implements Equation~\eqref{eq:bitcoded-driver}: each character
+applies \texttt{deriv\_bc} then \texttt{simp}, and \texttt{decode} runs
+once \texttt{nullable\_bc} holds.
 
 %
 %
@@ -1630,23 +1619,19 @@ the second uses $\mathsf{B}_{\mathrm{seq}}^{\,n}$:
 \end{equation}
 }
 
-Each disjunct of $\mathit{ri}_2'$ has a dead branch. 
-In $X$, the first factor's derivative 
-by $\mathtt{b}$ is $\emptyset \oplus [1]@\varepsilon$: 
-$[0]$ cannot consume $\mathtt{b}$, and $[1]$ still owes one. 
-In $Y$, the second factor's derivative by $\mathtt{b}$ 
-is $[0]@\varepsilon \oplus \emptyset$: $[0]$ matches, $[1]$ cannot. 
-$Y$'s outer $[0]$ is the bit $\mathsf{B}_{\mathrm{seq}}^{\,n}$ 
-fused on from the first factor's empty match.
+Each disjunct of $\mathit{ri}_2'$ has a dead branch: in $X$, the first
+factor's derivative by $\mathtt{b}$ is $\emptyset \oplus [1]@\varepsilon$
+($[0]$ cannot consume $\mathtt{b}$, and $[1]$ still owes one); in $Y$, the
+second factor's derivative by $\mathtt{b}$ is $[0]@\varepsilon \oplus
+\emptyset$ ($[0]$ matches, $[1]$ cannot). $Y$'s outer $[0]$ is the bit
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$ fused on from the first factor's empty
+match.
 
-$\mathit{simp}$ drops the dead branches. 
-$X$'s survivor is $[1]@\varepsilon$.
-Since $\varepsilon$ contributes nothing to the concatenation, 
-its $[1]$ carries onto the second factor, 
-giving $[1]@([0]@b \oplus [1]@\varepsilon)$. 
-$Y$'s survivor is $[0]@\varepsilon$.
-Its outer and inner $[0]$s merge into $[0,0]@\varepsilon$. 
-These two results become the disjuncts of $\mathit{ri}_2$, 
+$\mathit{simp}$ drops these dead branches. $X$'s survivor, $[1]@\varepsilon$,
+carries its $[1]$ onto the second factor since $\varepsilon$ contributes
+nothing to the concatenation, giving $[1]@([0]@b \oplus [1]@\varepsilon)$.
+$Y$'s survivor, $[0]@\varepsilon$, merges its outer and inner $[0]$s into
+$[0,0]@\varepsilon$. These become the two disjuncts of $\mathit{ri}_2$,
 recording both bits so the tree can later be decoded from them alone.
 
 %
@@ -1685,13 +1670,11 @@ the second the right branch of $b+\varepsilon$ (giving $\varepsilon$):
     \big)
   = v_0.
 \end{equation}
-The decoder consumes bits left to right, one per alternation, 
-in the order $\mathit{internalize}$ introduced them.
-Since $\mathit{mkEpsBC}$ preserves that order when fusing and prepending bits, 
-the first bit always belongs to the outermost alternation, and so on inward.
+The decoder consumes bits left to right, one per alternation, in the
+order $\mathit{internalize}$ introduced them, so the first bit always
+belongs to the outermost alternation and so on inward.
 
-Flattening gives $\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon = \mathtt{ab}$,
-confirming the parse. 
-The bit-coded construction yields the same tree as the direct one, 
-but stores only $\mathit{ri}_2$:
-One expression bounded by the pattern, not one residual per character. 
+Flattening gives $\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon =
+\mathtt{ab}$, confirming the parse: the bit-coded construction yields the
+same tree as the direct one, but stores only $\mathit{ri}_2$, one
+expression bounded by the pattern rather than one residual per character.
