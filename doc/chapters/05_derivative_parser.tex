@@ -1534,27 +1534,29 @@ as soon as the next one is computed.
 
 %
 
-\paragraph{In Rust.}
-Figure~\ref{fig:deriv-bc-loop-rust} implements~\eqref{eq:bitcoded-driver}.
 
+\paragraph{In Rust.}
+The loop (Figure~\ref{fig:deriv-bc-loop-rust})
+implements Equation~\eqref{eq:bitcoded-driver}.
+It initialises \texttt{ri}, processes each character with
+\texttt{derive\_and\_simplify}, then checks nullability
+and decodes the result if the input matches.
+Unlike the standard parser, it only keeps the final expression $\mathit{ri}_2$.
 \begin{figure}[H]
 \small
 \begin{verbatim}
 pub fn parse_bitcoded_loop(input: &str, r: &Regex) -> Option<ParseTree> {
-    let mut ri = internalize(r);
-    for c in input.chars() { ri = simp(deriv_bc(ri, c)); }
-    if !nullable_bc(&ri) { return None; }
-    Some(decode(r, &mk_eps_bc(&ri)))
+    let ri = internalize(r);
+    let chars: Vec<char> = input.chars().collect();
+    let final_ri = derive_and_simplify(ri, &chars);
+    if !nullable_bc(&final_ri) { return None; }
+    Some(decode(r, &mk_eps_bc(&final_ri)))
 }
 \end{verbatim}
-\caption{\texttt{parse\_bitcoded\_loop}: the bit-coded parser's loop,
-applying \texttt{deriv\_bc} then \texttt{simp} once per character.}
+\caption{\texttt{parse\_bitcoded\_loop}: 
+the bit-coded derivative parser loop.}
 \label{fig:deriv-bc-loop-rust}
 \end{figure}
-
-The loop implements Equation~\eqref{eq:bitcoded-driver}: each character
-applies \texttt{deriv\_bc} then \texttt{simp}, and \texttt{decode} runs
-once \texttt{nullable\_bc} holds.
 
 %
 %
@@ -1636,7 +1638,7 @@ recording both bits so the tree can later be decoded from them alone.
 
 %
 
-\paragraph{Extracting the bits.}
+\paragraph{Extracting bits.}
 Both disjuncts of $\mathit{ri}_2$ are nullable, 
 so $\mathsf{EB}_{+}^{L}$ selects the left one. 
 Inside, $b$ is not nullable while $\varepsilon$ is, 
@@ -1653,12 +1655,12 @@ so $\mathsf{EB}_{+}^{R}$ contributes its $[1]$ tag:
 \end{equation}
 }
 
-Unlike $\mathit{mkEps}$, which builds a partial parse tree,
-$\mathit{mkEpsBC}$ extracts only the committed choices, as a bit-string.
+Unlike $\mathit{mkEps}$, $\mathit{mkEpsBC}$ extracts only the
+committed choices as a bit-string, not a parse tree.
 
 %
 
-\paragraph{Decoding the bits.}
+\paragraph{Decoding bits.}
 The decoder reads $[1,1]$ against $r_0$: 
 The first bit takes the right branch of $a+ab$ (giving $ab$), 
 the second the right branch of $b+\varepsilon$ (giving $\varepsilon$):
@@ -1673,8 +1675,14 @@ the second the right branch of $b+\varepsilon$ (giving $\varepsilon$):
 The decoder consumes bits left to right, one per alternation, in the
 order $\mathit{internalize}$ introduced them, so the first bit always
 belongs to the outermost alternation and so on inward.
-
-Flattening gives $\mathit{flatten}(v_0) = a \cdot b \cdot \varepsilon =
-\mathtt{ab}$, confirming the parse: the bit-coded construction yields the
-same tree as the direct one, but stores only $\mathit{ri}_2$, one
-expression bounded by the pattern rather than one residual per character.
+Flattening confirms that $\mathtt{ab} \in L(r_0)$:
+\[
+\begin{aligned}
+|v_0|
+  &= |\mathit{Right}(a,b)|\,
+     |\mathit{Right}()| \\
+  &= |(a,b)|\,|()| \\
+  &= |a|\,|b|\,\varepsilon \\
+  &= \mathtt{ab}.
+\end{aligned}
+\]
