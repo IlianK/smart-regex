@@ -5,15 +5,14 @@ The five parsers of Chapters~\ref{sec:derivative-parser}
 and~\ref{sec:partial-derivative-parser} operate on the
 six-constructor \texttt{Regex} of
 Chapter~\ref{sec:regular-expressions}. 
-Real patterns may be more complex and 
-contain shorthand character classes, bounded repetition,
-alternation over ranges, and a PCRE flag suffix, none of
-which the \texttt{Regex} can represent. 
+Real patterns may be more complex, containing shorthand
+character classes, bounded repetition, alternation over ranges,
+or PCRE flags, none of which \texttt{Regex} can represent.
 This chapter introduces \texttt{ExtPat}, 
 an AST that represents a surface syntax that allows
-for such richer patterns,
+for richer patterns,
 and shows how pattern strings are first parsed into this \texttt{ExtPat}
-and subsequently translated into the internal \texttt{Regex}.
+and then translated into the internal \texttt{Regex}.
 
 %
 %
@@ -52,9 +51,8 @@ Concat [
 \section{Translate: ExtPat to Regex}
 \label{sec:extpat-to-regex}
 
-\texttt{translate} then turns the \texttt{ExtPat} 
-into the \texttt{Regex} value, that can be consumed by the parsing algorithms 
-of the previous chapters:
+\texttt{translate} turns the \texttt{ExtPat} 
+into the \texttt{Regex} value, consumable by the implemented parsers:
 \begin{itemize}
   \item \texttt{Any(['a','b','c'])} expands over the working
         alphabet to a 3-leaf \texttt{Alt} chain.
@@ -62,23 +60,20 @@ of the previous chapters:
         \texttt{Seq(r, Star(r))}.
   \item \texttt{Escape('d')} expands to a 10-leaf
         \texttt{Alt} chain, with one leaf for each digit.
-  \item The two \texttt{Concat} layers are translated into
-        nested \texttt{Seq} nodes, with the resulting
-        structure folded into a single \texttt{Seq} chain.
+  \item \texttt{Concat} appears in two layers and are translated into
+        nested \texttt{Seq} nodes.
 \end{itemize}
 
 The resulting \texttt{Regex} has 54 nodes
-(Figure~\ref{fig:frontend-worked-regex}). The two digit expansions
-account for 38 of them, with 20 digit leaves and 18 \texttt{Alt} nodes, 
-here abbreviated as \texttt{D}:
-
+(Figure~\ref{fig:frontend-worked-regex}).
+The two \texttt{[a-c]} expansions, the \texttt{Plus} rewrite,
+the unrolling, and the \texttt{Seq} nodes account for 16.
+The remaining 38 come from the two digit expansions,
+each contributing 10 digit leaves and 9 \texttt{Alt} nodes.
+These are abbreviated here as \texttt{D}:
 \begin{center}
 \texttt{D = Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(Alt(0,1),2),3),4),5),6),7),8),9)}
 \end{center}
-
-The remaining 16 come from the two \texttt{[a-c]} expansions, the
-\texttt{Plus} rewrite, the unrolling, and the surrounding
-\texttt{Seq} nodes. 
 
 \begin{figure}[ht]
 \small
@@ -89,78 +84,64 @@ Seq(
       Alt(Alt(a, b), c),
       Star(Alt(Alt(a, b), c))
    ),
-   Seq(
-      Seq(Eps, D),
-      D
-   )
+   Seq(Seq(Eps, D), D)
 )
 \end{verbatim}
-\caption{The full \texttt{Regex} produced by translating
-the \texttt{ExtPat}. \texttt{D} abbreviates the nine-deep, left-nested
-\texttt{Alt} chain over the digits \texttt{0}--\texttt{9}.}
+\caption{The full \texttt{Regex} produced by translating the \texttt{ExtPat}.}
 \label{fig:frontend-worked-regex}
 \end{figure}
 
 %
 %
 %
-
 \section{The Surface Syntax}
 \label{sec:surface-syntax}
 
-%
-
-\textbf{Rejected constructs:} The example pattern is accepted, but not all are. 
-A construct is rejected whenever it cannot be translated without changing what the
-pattern denotes.
-
-%
-
-\textbf{Full-string matching:} A translated pattern matches the whole
-input or nothing. There is no search padding, no substring search, and
-no anchor handling.
-
-%
-
-\textbf{A 98-character working alphabet:} Shorthand and negated
-classes enumerate a fixed set of 98 characters, the 95 printable ASCII
-characters \verb|0x20|--\verb|0x7E| together with tab, newline, and
-carriage return. 
-The shorthands expand to \texttt{\textbackslash d} (digit)
-\texttt{0}--\texttt{9}, \texttt{\textbackslash w} (word)
-\texttt{a}--\texttt{z}, \texttt{A}--\texttt{Z}, \texttt{0}--\texttt{9},
-and underscore, and \texttt{\textbackslash s} (whitespace) space, tab,
-newline, and carriage return.
-
-%
-
-\textbf{PCRE flags:} Rule sets commonly encode matching options in a
-\texttt{/PATTERN/FLAGS} wrapper such as \texttt{/abc/i}, so the suffix
-must be interpreted alongside the pattern. Each flag falls into one of
-three groups (Table~\ref{tab:flags}).
+The surface syntax includes several \emph{accepted constructs},
+summarised in Table~\ref{tab:surface-syntax}, 
+which can be translated into the six-constructor core \texttt{Regex} 
+without changing their meaning. 
+However, real-world patterns can be complex, 
+and some require special considerations during translation to preserve correctness. 
+Rather than trying to support these cases,
+some constructs are explicitly excluded 
+and classified as \emph{rejected constructs}, 
+as listed in Table~\ref{tab:surface-rejected}.
+Matching uses \emph{full-string matching}, 
+meaning that the entire input must match, with no search padding or substring search.
+Shorthand and negated classes are interpreted over a fixed
+\emph{98-character working alphabet}, 
+comprising the 95 printable ASCII characters (\verb|0x20|--\verb|0x7E|), 
+tab, newline, and carriage return. 
+Within this alphabet, \texttt{\textbackslash d} 
+expands to digits \texttt{0}--\texttt{9},
+\texttt{\textbackslash w} to letters, digits, and underscore, 
+and \texttt{\textbackslash s} to space, tab, newline, and carriage return. 
+Patterns may also include \emph{PCRE flags} in a \texttt{/PATTERN/FLAGS} wrapper, 
+such as \texttt{/abc/i}.
+These flags fall into three groups, summarised in Table~\ref{tab:flags}.
 \begin{table}[ht]
 \centering
 \small
-\setlength{\tabcolsep}{6pt}
-\begin{tabular}{@{}l l l@{}}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}lll@{}}
 \hline
-Flag & Group & Effect \\
+Group & Flags & Effect \\
 \hline
-\texttt{i} & honoured & case-fold literal letters \\
-\texttt{s} & honoured & dot matches newline \\
-\texttt{m} & rejected & anchors match at newlines \\
-\texttt{x} & rejected & whitespace insignificant \\
-\texttt{R} & ignored  & search positioning \\
-\texttt{A} & ignored  & anchor selection \\
-\texttt{E} & ignored  & dollar tuning \\
-\texttt{U}, \texttt{H}, \texttt{P}, \texttt{C}, ... & ignored
-           & buffer or normalisation selection \\
+Honoured & \texttt{i}, \texttt{s}
+  & Case-fold literals; dot matches newline \\
+Rejected & \texttt{m}, \texttt{x}
+  & Multiline anchors; insignificant whitespace \\
+Ignored & \texttt{R}, \texttt{A}, \texttt{E}
+  & Search positioning; anchor selection; dollar tuning \\
+       & \texttt{U}, \texttt{H}, \texttt{P}, \texttt{C}, \ldots
+  & Buffer or normalisation selection \\
 \hline
 \end{tabular}
-\caption{PCRE flags by group. Honoured flags are part of the pattern's
-meaning and are reproduced by a structural rewrite on \texttt{ExtPat}. Some flags
-are rejected outright. Ignored flags choose a buffer region or search
-position and do not affect the denoted language.}
+\caption{PCRE flag groups. Honoured flags affect the pattern's
+meaning and are handled by structural rewrites on \texttt{ExtPat}.
+Rejected flags are unsupported. Ignored flags do not affect the
+denoted language.}
 \label{tab:flags}
 \end{table}
 
@@ -171,10 +152,10 @@ position and do not affect the denoted language.}
 \subsection{Accepted Constructs}
 \label{sec:frontend-accepted}
 
-Table~\ref{tab:surface-syntax} summarizes the surface syntax
-handled by the frontend, its representation in \texttt{ExtPat},
-and the corresponding \texttt{Regex} translation for supported
-constructs.
+Table~\ref{tab:surface-syntax} summarises the surface syntax
+accepted by the parser extension. 
+The extension represents patterns as \texttt{ExtPat} 
+and translates supported constructs into the internal \texttt{Regex}.
 \begin{table}[ht]
 \centering
 \scriptsize
@@ -236,24 +217,25 @@ literal \texttt{a} & \texttt{Char} & \texttt{Lit('a')}
 \caption{Surface syntax, grouped by translation
 mechanism, together with the \texttt{ExtPat} each produces and the
 \texttt{Regex} it translates into. Leaf counts refer to the
-98-character alphabet.}
+98-character alphabet.
+}
 \label{tab:surface-syntax}
 \end{table}
 
 \texttt{ExtPat::Escape} covers \texttt{\textbackslash d},
-\texttt{\textbackslash w}, \texttt{\textbackslash s}, their
-capitalised forms, and escaped punctuation such as
-\texttt{\textbackslash .}. Control, hexadecimal, and octal
-escapes are represented as \texttt{ExtPat::Char}. Capitalised
-shorthands and negated classes denote the working alphabet
-minus the positive set. Literals can be any Unicode
-\texttt{char} and become \texttt{Regex::Lit} values. Thus,
-\texttt{é} matches itself, but \texttt{\textbackslash W}
-cannot match it. Shorthands expand over the working alphabet;
-escaped punctuation becomes one literal, so
-\texttt{\textbackslash .} matches only a period. Within
-character classes, shorthands expand inline and cannot serve
-as range endpoints.
+\texttt{\textbackslash w}, \texttt{\textbackslash s},
+their capitalised forms, and escaped punctuation such as
+\texttt{\textbackslash .}. 
+Control, hexadecimal, and octal escapes become \texttt{ExtPat::Char}.
+Capitalised shorthands and negated classes denote the working
+alphabet minus the positive set. Literals accept any Unicode \texttt{char} 
+and become \texttt{Regex::Lit}, so \texttt{é} matches itself 
+but \texttt{\textbackslash W} cannot.
+Shorthands expand over the working alphabet, 
+including inline within character classes, 
+but cannot serve as range endpoints.
+The dot as a construct expands over the alphabet,
+excluding newline unless \texttt{s} is set. 
 
 %
 %
@@ -261,11 +243,11 @@ as range endpoints.
 
 \subsection{Rejected Constructs}
 \label{sec:frontend-rejected}
-Backreferences and lookarounds are rejected as non-regular
-constructs, while other regular forms, such as anchors and
-POSIX classes, are excluded from this work's scope 
-(Table~\ref{tab:surface-rejected}).
 
+Table~\ref{tab:surface-rejected} lists the rejected constructs.
+These include non-regular constructs, 
+such as backreferences and lookarounds, 
+as well as anchors and POSIX classes, which are out of scope in this work.
 \begin{table}[ht]
 \centering
 \scriptsize
@@ -283,7 +265,7 @@ backreference & \texttt{(a)\textbackslash 1}, \texttt{(?P=n)}, \texttt{\textback
 lookaround & \texttt{(?=}, \texttt{(?!}, \texttt{(?<=}, \texttt{(?<!}
     & not regular, no \texttt{ExtPat} \\
 POSIX class & \texttt{[[:alpha:]]}
-    & would be read as literal characters \\
+    & regular, but not implemented \\
 \hline
 \multicolumn{3}{@{}l}{\textit{Rejected at translation}} \\
 \hline
@@ -297,9 +279,9 @@ bound above 1000 & \texttt{a\{1001\}}
 \multicolumn{3}{@{}l}{\textit{Rejected at flag check}} \\
 \hline
 flag \texttt{m} & \texttt{/abc/m}
-    & would make anchors newline-aware \\
+    & anchors unsupported \\
 flag \texttt{x} & \texttt{/a b/x}
-    & would make whitespace insignificant \\
+    & whitespace handling not implemented \\
 \hline
 \end{tabularx}
 \caption{Surface forms the parser refuses, grouped by the stage at
@@ -314,15 +296,12 @@ which refusal happens.}
 \section{Translation Sizes}
 \label{sec:frontend-sizes}
 
-The example in Figure~\ref{fig:frontend-worked-regex} translates
-to 54 nodes. Table~\ref{tab:alphabet-expansion-sizes} shows
-the contribution of individual character classes. A class with
-$n$ members produces $n$ literals and $n-1$ \texttt{Alt} nodes,
-for $2n-1$ nodes in total. Negated classes are complemented
-against the 98-character working alphabet before expansion.
-The dot construct expands to the full working alphabet when
-\texttt{s} is set, or to the alphabet excluding newline otherwise.
-
+The example in Figure~\ref{fig:frontend-worked-regex} 
+showed its translation into 54 nodes. 
+A class with $n$ members expands to $n$ literals 
+and $n-1$ \texttt{Alt} nodes ($2n-1$ nodes total).
+Negated classes are complemented against the 98-character working alphabet. 
+Table~\ref{tab:alphabet-expansion-sizes} summarises the resulting sizes.
 \begin{table}[ht]
 \centering
 \small
@@ -347,14 +326,12 @@ working alphabet.}
 \label{tab:alphabet-expansion-sizes}
 \end{table}
 
-Translated pattern size depends on both structural and alphabet
-expansion, as shown by the effects of repetition and case
-folding in Table~\ref{tab:translation-sizes}. 
-Repetition increases the size by cloning the repeated
-expression, while case folding replaces each letter with an
-\texttt{Alt} between its uppercase and lowercase forms, adding
-two nodes per letter. 
-
+Translation size depends on both structural and alphabet expansion, 
+as shown in Table~\ref{tab:translation-sizes}. 
+Repetition increases the size by cloning the expression, 
+while case folding replaces each letter with an \texttt{Alt} 
+between its uppercase and lowercase forms,
+adding two nodes per letter. 
 \begin{table}[ht]
 \centering
 \small
@@ -366,19 +343,16 @@ two nodes per letter.
 \hline
 Pattern & Nodes & Pattern & Nodes \\
 \hline
-\texttt{a*}         &   2 & \texttt{\textbackslash d+}           &  40 \\
-\texttt{a?}         &   3 & \texttt{\textbackslash d\{2\}}       &  41 \\
-\texttt{/a/i}       &   3 & \texttt{[a-z]}                       &  51 \\
-\texttt{a+}         &   4 & \texttt{[a-c]+\textbackslash d\{2\}} &  54 \\
-\texttt{abc}        &   5 & \texttt{\textbackslash d\{2,\}}      &  62 \\
-\texttt{a\{2\}}     &   5 & \texttt{\textbackslash d\{2,4\}}     &  87 \\
-\texttt{ab\{2\}}    &   7 & \texttt{[a-z]+}                      & 104 \\
-\texttt{a\{2,\}}    &   8 & \texttt{\textbackslash w+}           & 252 \\
-\texttt{a\{2,4\}}   &  15 & \texttt{\textbackslash S+}           & 376 \\
+\texttt{a*}         &   2 & \texttt{\textbackslash d+}       &  40 \\
+\texttt{/a/i}       &   3 & \texttt{[a-z]}                   &  51 \\
+\texttt{a+}         &   4 & \texttt{\textbackslash d\{2,\}}  &  62 \\
+\texttt{abc}        &   5 & \texttt{\textbackslash d\{2,4\}} &  87 \\
+\texttt{a\{2\}}     &   5 & \texttt{[a-z]+}                  & 104 \\
+\texttt{a\{2,\}}    &   8 & \texttt{\textbackslash w+}       & 252 \\
+\texttt{a\{2,4\}}   &  15 & \texttt{\textbackslash S+}       & 376 \\
 \hline
 \end{tabular}
-\caption{Translated size in \texttt{Regex} nodes for representative
-patterns.}
+\caption{Node counts after translating example patterns into \texttt{Regex}.}
 \label{tab:translation-sizes}
 \end{table}
 
@@ -388,16 +362,9 @@ representation for \texttt{ExtPat::Bound}, so \texttt{r\{m,n\}}
 becomes $m$ exact copies plus $n-m$ optional ones, and
 \texttt{r\{m,\}} becomes $m$ copies plus a \texttt{Star}. Both clone
 the body, so size grows with the bound.
-
-However, the implementation imposes limits to keep translated
-patterns manageable. Unrolling clones the body once per repetition,
-and \texttt{translate} recurses once per unrolled copy, so an
-unbounded repeat count risks a stack overflow during translation
-alone. Bounded repetitions whose \texttt{m} or \texttt{n} exceeds
-1{,}000 are therefore rejected. 
-This limits individual repetitions but not total size, since nested
-bounds and multiple classes compound. Dataset preparation therefore
-caps the translated \texttt{Regex} at 20{,}000 nodes and its estimated
-nesting depth at 2{,}000.
-The measurements taken to justify these limits can be seen in 
-the following evaluation chapter.
+To prevent excessive unrolling and recursion, 
+bounded repetitions with either bound above 1{,}000 are rejected. 
+Dataset preparation also caps translated patterns at 20{,}000 \texttt{Regex} nodes
+and an estimated nesting depth of 2{,}000, 
+since nested bounds and character classes can compound in size. 
+These limits were found during evaluation.

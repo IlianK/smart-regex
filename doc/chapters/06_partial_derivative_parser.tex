@@ -42,12 +42,12 @@ Figure~\ref{fig:pderiv-std-overview} shows the process.
 \centering
 \begin{tikzpicture}[
   cfg/.style={draw, rounded corners=2pt, minimum height=8mm,
-              font=\footnotesize, inner xsep=6pt, align=center},
+              font=\small, inner xsep=6pt, align=center},
   res/.style={draw, rounded corners=2pt, minimum height=8mm,
-              font=\footnotesize, inner xsep=6pt, fill=black!8,
+              font=\small, inner xsep=6pt, fill=black!8,
               align=center},
-  lbl/.style={font=\scriptsize, inner sep=2pt},
-  stage/.style={font=\scriptsize\itshape, anchor=east},
+  lbl/.style={font=\small, inner sep=2pt},
+  stage/.style={font=\small\itshape, anchor=east},
   >=stealth,
 ]
 \node[stage] at (-4.6, 0)    {$S_0$};
@@ -56,15 +56,15 @@ Figure~\ref{fig:pderiv-std-overview} shows the process.
 \node[stage] at (-4.6, -7.2) {result};
 
 \node[cfg] (s0) at (0, 0)
-  {$r_0$\\[-2pt]\scriptsize $\mathit{id}$};
+  {$r_0$\\[-2pt]$\mathit{id}$};
 \node[cfg] (s1a) at (-2.8, -2.4)
-  {$\varepsilon{\cdot}(b + \varepsilon)$\\[-2pt]\scriptsize $\iota_1$};
+  {$\varepsilon{\cdot}(b + \varepsilon)$\\[-2pt]$\iota_1$};
 \node[cfg] (s1b) at ( 2.8, -2.4)
-  {$(\varepsilon{\cdot}b)(b + \varepsilon)$\\[-2pt]\scriptsize $\iota_2$};
+  {$(\varepsilon{\cdot}b)(b + \varepsilon)$\\[-2pt]$\iota_2$};
 \node[cfg] (s2a) at (-2.8, -4.8)
-  {$\varepsilon$\\[-2pt]\scriptsize $\iota_3$};
+  {$\varepsilon$\\[-2pt]$\iota_3$};
 \node[cfg] (s2b) at ( 2.8, -4.8)
-  {$\varepsilon{\cdot}(b + \varepsilon)$\\[-2pt]\scriptsize $\iota_4$};
+  {$\varepsilon{\cdot}(b + \varepsilon)$\\[-2pt]$\iota_4$};
 \node[res] (r) at (-2.8, -7.2)
   {$(\mathit{Left}\,a, \mathit{Left}\,b)$};
 
@@ -80,11 +80,10 @@ Figure~\ref{fig:pderiv-std-overview} shows the process.
 \caption{The standard partial-derivative parser for
 $r_0 = (a + ab)(b + \varepsilon)$ and input $\mathtt{ab}$.
 Each box shows a state $(r,\iota)$, pairing a residual with
-its injection. 
-$\mathit{pderiv}(-,x)$
-advances each state by $x$, while $\mathit{select}$ applies
-the injection of the first accepting state to
-$\mathit{mkEps}$ of its residual.}
+its injection.
+$\mathit{pderiv}(-,x)$ advances each state by $x$, while
+$\mathit{select}$ applies the injection of the first accepting
+state to $\mathit{mkEps}$ of its residual.}
 \label{fig:pderiv-std-overview}
 \end{figure}
 
@@ -202,7 +201,10 @@ which rebuilds a parse tree of $r$ from a parse tree of the residual.
 This injection is $\mathit{inj}$ from Equation~\eqref{eq:inj},
 already used by the standard derivative parser (Chapter~\ref{sec:derivative-parser})
 to wrap alternatives and build concatenation and star trees.
-This construction has no explicit rules in the source papers.
+Unlike for the standard derivative parser, 
+the pattern partial derivatives of \citet{sulzmannlu2012}
+provide no corresponding rules for constructing injections.
+
 The pattern partial derivatives of \citet[Fig.~11]{sulzmannlu2012}
 pair a residual with a variable-binding environment for submatching, not full parsing.
 It records which substring each pattern variable matched,
@@ -267,17 +269,18 @@ Each rule deduplicates its result by residual, keeping the first occurrence,
 except $\mathsf{P}_{\mathrm{seq}}$, whose single source of states needs none.
 
 Equation~\eqref{eq:pderiv-tree} keeps $\varepsilon \cdot s$ unsimplified,
-unlike $pd$ (Equation~\eqref{eq:pd}),
-which uses $\mathit{smartC}$.
-The reason is the injection: rule $\mathsf{I}_{\mathrm{seq}}$ from Equation~\eqref{eq:inj}
-destructures a $\mathit{Pair}$ from the residual's tree.
-$\mathit{smartC}$ would simplify $\varepsilon \cdot s$ to $s$,
-but the injection would no longer have the $\mathit{Pair}$ to match on.
-A similar structure loss is what Equation~\eqref{eq:mkeps-simp} shows
-for the standard derivative parser when simplification is applied.
+unlike $pd$ (Equation~\eqref{eq:pd}), which uses $\mathit{smartC}$.
+This is necessary because injection rule $\mathsf{I}_{\mathrm{seq}}$
+from Equation~\eqref{eq:inj} destructures a $\mathit{Pair}$ 
+from the residual's tree. 
+If $\mathit{smartC}$ simplified $\varepsilon \cdot s$ to $s$, 
+injection would no longer find the required $\mathit{Pair}$. 
+Equation~\eqref{eq:mkeps-simp} shows a similar loss of structure 
+in the standard derivative parser.
 However, simplification can still be used, when the injection for the
 simplified shape is rebuilt, similarly to the bit-coded parser that
-rebuilds its bits onto the surviving node.
+rebuilds its bits onto the surviving node with fuse, 
+as shown in Section~\ref{sec:fuse}.
 
 %
 
@@ -286,10 +289,8 @@ rebuilds its bits onto the surviving node.
 
 \texttt{pderiv\_tree} implements Equation~\eqref{eq:pderiv-tree}.
 It returns a list of $(\text{residual}, \iota)$ pairs,
-where each $\iota$ is a closure of type \texttt{InjStep},
-\texttt{Rc<dyn Fn(ParseTree) -> ParseTree>}, 
+where each $\iota$ is a closure of type \texttt{InjStep}
 taking a tree for the residual and returning a tree for the original expression.
-
 The implementation simplifies $\varepsilon \cdot s$ to $s$ 
 through \texttt{smart\_seq} (Equation~\eqref{eq:smartc}), 
 as the bit-coded parser does (Section~\ref{sec:simp}).
@@ -483,6 +484,7 @@ a single character, replacing each pair by its successors. The final
 
 %
 
+\clearpage
 After the input is exhausted, 
 \texttt{select} (Figure~\ref{fig:select-rust}) 
 walks the state set in priority order 
@@ -572,7 +574,7 @@ Nothing earlier survives once the next state set exists.
 An empty set early-returns, 
 since $S_i = \{\}$ means no pair can consume the character and the input fails. 
 Otherwise \texttt{select} returns the first accepting tree in $S_n$, or \texttt{None}.
-Because the frontier is overwritten rather than extended,
+Because the state set is overwritten rather than extended,
 the parser's memory footprint is bounded by the size of one state set,
 not by the input length, unlike a parser that keeps one derivative
 per character consumed so far, such as the standard derivative
@@ -675,17 +677,34 @@ S_2
 %
 
 \paragraph{Selection.}
-The residual $\varepsilon$ is nullable, so selection returns immediately 
-and flattens to the non-POSIX tree:
-$\mathit{select}(S_2) = (\lambda\_.\,(\mathit{Left}\,a, 
-\mathit{Left}\,b))(\mathit{mkEps}_\varepsilon) = (\mathit{Left}\,a, 
-\mathit{Left}\,b) \rightsquigarrow \mathtt{ab}$.
-The second pair ($\varepsilon \cdot (b + \varepsilon)$, 
-also nullable) is never inspected, 
-since generation order already favoured the first. 
-The POSIX parser of Chapter~\ref{sec:derivative-parser} 
-by contrast returns $(\mathit{Right}(a,b), \mathit{Right}())$, 
-the longer alternative $ab$.
+The first residual $\varepsilon$ is nullable, 
+so selection returns its injected parse tree:
+\[
+\begin{aligned}
+\mathit{select}(S_2)
+  &= (\lambda\_.\,(\mathit{Left}(a),\mathit{Left}(b)))
+     (\mathit{mkEps}(\varepsilon)) \\
+  &= (\mathit{Left}(a),\mathit{Left}(b))
+  = v_0.
+\end{aligned}
+\]
+Flattening confirms that $\mathtt{ab} \in L(r_0)$:
+\[
+\begin{aligned}
+|v_0|
+  &= |(\mathit{Left}(a),\mathit{Left}(b))| \\
+  &= |\mathit{Left}(a)|\,|\mathit{Left}(b)| \\
+  &= |a|\,|b| \\
+  &= \mathtt{ab}.
+\end{aligned}
+\]
+The second pair, $\varepsilon\cdot(b+\varepsilon)$, is also
+nullable but is never inspected, since generation order favours
+the first. Both partial-derivative parsers therefore return
+the same non-POSIX tree. The POSIX parser of
+Chapter~\ref{sec:derivative-parser} instead returns
+$(\mathit{Right}(a,b),\mathit{Right}())$, selecting the longer
+first alternative $ab$.
 
 
 %
@@ -749,8 +768,8 @@ the leftmost alternative at every choice.
   res/.style={draw, rounded corners=2pt, minimum height=10mm,
               font=\footnotesize, inner xsep=6pt, fill=black!8,
               align=center},
-  lbl/.style={font=\scriptsize, inner sep=2pt},
-  stage/.style={font=\scriptsize\itshape, anchor=east},
+  lbl/.style={font=\small, inner sep=2pt},
+  stage/.style={font=\small\itshape, anchor=east},
   >=stealth,
 ]
 \node[stage] at (-4.6, 0)    {$S_0$};
@@ -759,15 +778,15 @@ the leftmost alternative at every choice.
 \node[stage] at (-4.6, -6.0) {result};
 
 \node[cfg] (s0) at (0, 0)
-  {$r_0$\\[-2pt]\scriptsize $[\,]$};
+  {$r_0$\\[-2pt]\small $[\,]$};
 \node[cfg] (s1a) at (-2.6, -2.0)
-  {$b + \varepsilon$\\[-2pt]\scriptsize $[0]$};
+  {$b + \varepsilon$\\[-2pt]\small $[0]$};
 \node[cfg] (s1b) at ( 2.6, -2.0)
-  {$b\,(b + \varepsilon)$\\[-2pt]\scriptsize $[1]$};
+  {$b\,(b + \varepsilon)$\\[-2pt]\small $[1]$};
 \node[cfg] (s2a) at (-2.6, -4.0)
-  {$\varepsilon$\\[-2pt]\scriptsize $[0,0]$};
+  {$\varepsilon$\\[-2pt]\small $[0,0]$};
 \node[cfg] (s2b) at ( 2.6, -4.0)
-  {$b + \varepsilon$\\[-2pt]\scriptsize $[1]$};
+  {$b + \varepsilon$\\[-2pt]\small $[1]$};
 \node[res] (r) at (-2.6, -6.0)
   {$(\mathit{Left}\,a, \mathit{Left}\,b)$};
 
@@ -801,6 +820,7 @@ and the final step changes from applying an injection to calling $\mathit{decode
 %
 %
 
+\clearpage
 \subsection{Bit-Coded Partial Derivatives}
 \label{sec:pderiv-bc-theory}
 
@@ -1043,6 +1063,7 @@ applies $\mathit{mkEps}$ to its injection.
 %
 %
 
+\clearpage
 \subsection{State Sets and Selection}
 \label{sec:pderiv-bc-state-set}
 
@@ -1120,16 +1141,17 @@ pub(super) fn select_bits(frontier: &[(Regex, AppendBits)])
 \label{fig:select-bits-rust}
 \end{figure}
 
-Like \texttt{select}, \texttt{select\_bits} walks the frontier in
-generation order and returns the first accepting pair, so the same
-non-POSIX bias applies: whichever branch committed earliest wins, with
+Like \texttt{select}, \texttt{select\_bits} walks the state set 
+in generation order and returns the first accepting pair, 
+so the same non-POSIX bias applies.
+Whichever branch committed earliest wins, with
 no preference for the pair whose underlying tree would be longest.
 The two selections differ only in what they hand back.
-\texttt{select} applies one injection to build a tree directly;
-\texttt{select\_bits} appends \texttt{mk\_eps\_bits} of the accepting
-residual and returns a flat bit vector, leaving tree construction to
-\texttt{decode} (Section~\ref{sec:pderiv-bc-parser}) rather than doing
-it here.
+\texttt{select} applies one injection to build a tree directly.
+\texttt{select\_bits} appends \texttt{mk\_eps\_bits} 
+of the accepting residual and returns a flat bit vector, 
+leaving tree construction to \texttt{decode} 
+(Section~\ref{sec:pderiv-bc-parser}) rather than doing it here.
 
 %
 %
@@ -1138,10 +1160,12 @@ it here.
 \subsection{Parser}
 \label{sec:pderiv-bc-parser}
 
-The parser runs the same single pass as the standard partial-derivative
-parser (Equation~\eqref{eq:pderiv-std-driver}), advancing the whole
-frontier at once and handing the final frontier directly to
-$\mathit{select}_b$, with bit-sequences in place of injections:
+The parser runs the same single pass 
+as the standard partial-derivative parser 
+(Equation~\eqref{eq:pderiv-std-driver}), 
+advancing the whole state set at once 
+and handing the final state set directly to $\mathit{select}_b$, 
+with bit-sequences in place of injections:
 \begin{equation}\label{eq:pderiv-bc-driver}
 \begin{aligned}
 T_0 &= \{(r, [\,])\}, \\
@@ -1149,8 +1173,8 @@ T_i &= \mathit{step}_b(T_{i-1}, x_i) \quad (1 \leq i \leq n), \\
 \mathit{result} &= \mathit{decode}_r(\mathit{select}_b(T_n)),
 \end{aligned}
 \end{equation}
-where $\mathit{step}_b$ applies \texttt{pderiv\_bc} to each pair and
-$\mathit{select}_b$ returns $bs \mathbin{+\!\!+} \mathit{mkEpsBC}(r')$
+where $\mathit{step}_b$ applies \texttt{pderiv\_bc} to each pair 
+and $\mathit{select}_b$ returns $bs \mathbin{+\!\!+} \mathit{mkEpsBC}(r')$
 for the first pair $(r', bs)$ in $T_n$ whose residual is nullable.
 
 %
@@ -1172,7 +1196,7 @@ The loop is identical to the standard variant,
 replacing \texttt{Inj} with \texttt{AppendBits}.
 As in \texttt{parse\_pderiv\_std} (Figure~\ref{fig:pderiv-std-parser-rust}),
 it overwrites \texttt{frontier} in place each iteration, so no earlier
-state set survives once the next one exists, and an empty frontier
+state set survives once the next one exists, and an empty state set
 early-returns \texttt{None} for the same reason: no pair can consume
 the next character, so the whole input is rejected.
 Once the loop finishes, \texttt{select\_bits} returns the final bits by
@@ -1180,7 +1204,7 @@ appending \texttt{mk\_eps\_bits} to the first accepting pair's bits, an
 \texttt{Option<Vec<bool>{}>} mirroring \texttt{select}'s own
 \texttt{Option<ParseTree>}, and \texttt{decode} reads those bits
 against $r$.
-The parser therefore pays for frontier maintenance exactly once per
+The parser therefore pays for state set maintenance exactly once per
 character and for reconstruction exactly once at the end, the same
 shape as the standard partial-derivative parser, just with a smaller
 and more uniform payload travelling through the loop.
@@ -1208,6 +1232,7 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
 %
 %
 
+\clearpage
 \subsection{Worked Example: Bit-Coded Partial-Derivative Parser}
 \label{sec:pderiv-bc-worked}
 
@@ -1279,12 +1304,20 @@ committing to the shorter alternative $b$. The resulting tree is the non-POSIX
 parse tree, identical to the one produced by the standard partial-derivative
 parser.
 
-Flattening validates the result:
+Flattening confirms that $\mathtt{ab} \in L(r_0)$:
 \[
-\mathit{flatten}\bigl((\mathit{Left}(a), \mathit{Left}(b))\bigr) = \mathtt{ab}.
+\begin{aligned}
+|v_0|
+  &= |(\mathit{Left}(a), \mathit{Left}(b))| \\
+  &= |\mathit{Left}(a)|\,|\mathit{Left}(b)| \\
+  &= |a|\,|b| \\
+  &= \mathtt{ab}.
+\end{aligned}
 \]
 
-Both partial-derivative parsers therefore produce the same tree on this
-example, and both differ from the derivative-based parsers of
-Chapter~\ref{sec:derivative-parser}, which commit to the longer first
-alternative and return $(\mathit{Right}(a,b), \mathit{Right}())$.
+Both partial-derivative parsers produce this same tree.
+Unlike the derivative-based parsers of
+Chapter~\ref{sec:derivative-parser}, 
+they select the shorter first alternative, 
+returning $(\mathit{Left}(a), \mathit{Left}(b))$ 
+rather than the parse tree $(\mathit{Right}(a,b), \mathit{Right}())$.
