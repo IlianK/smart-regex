@@ -1835,73 +1835,35 @@ Parser & Total allocated & Avg/entry & Max live peak \\
 \hline
 \end{tabular*}
 \caption{Heap allocation over the default scope of 463 patterns and
-11\,395 entries. \emph{Total allocated} counts every allocation,
-including memory later freed, and measures allocator pressure.
-\emph{Avg/entry} divides that total by the parser's own measured-entry
-count, since total alone scales with how many entries a parser
-completes and the standard variants exclude their timeouts.
-\emph{Max live peak} is the highest live-byte high-water mark within a
-single call and measures the footprint a deployment would see. Total
-and peak are different quantities: total is cumulative and can exceed
-the live peak, because freed memory is counted in the former but not
-the latter. Timed-out entries are excluded from all three, so each is
-a lower bound on the standard variants' true figure.}
+11\,395 entries. \emph{Total allocated} counts all allocations,
+including freed memory, and measures allocator pressure.
+\emph{Avg/entry} divides this total by the number of entries each
+parser completes, accounting for differences in completed work.
+\emph{Max live peak} is the highest live-byte count within a single
+call and measures peak memory footprint. Total and peak differ
+because total includes freed memory. Timed-out entries are excluded
+from all three.}
 \label{tab:memory}
 \end{table}
 
-Table~\ref{tab:memory} shows the largest difference in peak
-allocation. The standard variants
-reach 582.4 and 737.6\,MB, compared with 5.1\,MB for
-\texttt{deriv\_bc}, a factor of $114$--$144$. The standard parser
-retains its derivation sequence for the backward pass, whereas
-\texttt{deriv\_bc} stores a flat bit vector. The difference in total
-allocation is smaller, at roughly $1.8$--$1.9\times$.
+Table~\ref{tab:memory} shows the largest difference in peak allocation. 
+The standard variants reach 582.4 and 737.6\,MB, 
+compared with 5.1\,MB for \texttt{deriv\_bc}, 
+a factor of $114$--$144$. 
+The standard parser keeps its derivation sequence for the backward pass, 
+whereas \texttt{deriv\_bc} stores a flat bit vector. 
+The difference in total allocation is smaller, 
+with standard variants allocating about twice as much.
 
-The partial-derivative pair shows a different result from the growth
-curves. \texttt{pderiv\_std} has the lower peak (2.5 against 3.8\,MB),
-reversing the pair's timing ranking on the same corpus. At these input
-lengths the state set is already small, so bit-tracking adds overhead.
-The growth argument concerns how the variants scale, not which uses
-less memory on short inputs.
-
-\textbf{Growth on canonical expressions.} Two demos drive the parsers on two
-canonical expressions and report live-state size per input character. For the
-two standard forms the figure is the node count of the current residual. For
-the two partial-derivative forms it is the total node count across the
-state set, after deduplicating repeated residuals the same way the parser's
-own state set-stepping does.
-
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrrr}
-\hline
-& \multicolumn{3}{c}{$a^*$ on $a^n$} & \multicolumn{3}{c}{$(a{+}(b{+}ab))^*$ on $(ab)^n$} \\
-\cline{2-4}\cline{5-7}
-Parser & $n{=}1$ & $n{=}8$ & $n{=}16$ & $n{=}1$ & $n{=}8$ & $n{=}16$ \\
-\hline
-\texttt{deriv\_std}  & 4 & 39 & 79 &   16 &  539 & 9179 \\
-\texttt{deriv\_bc}   & 2 &  2 &  2 &   12 &    8 &    8 \\
-\texttt{pderiv\_std} & 2 &  2 &  2 &   18 &    8 &    8 \\
-\texttt{pderiv\_bc}  & 2 &  2 &  2 &   18 &    8 &    8 \\
-\hline
-\end{tabular*}
-\caption{Live-state size per parser at three input lengths.}
-\label{tab:growth}
-\end{table}
-
-Table~\ref{tab:growth} shows that on \texttt{a\*}, the
-\texttt{deriv\_std} state grows linearly with $n$,
-while the other three remain bounded. Its two-pass structure retains
-every intermediate expression until the backward pass, making state
-size depend on input length. On \texttt{(a+(b+ab))\*},
-\texttt{deriv\_std} reaches 9\,179 nodes at $n=16$, while
-\texttt{deriv\_bc} remains between 8 and 12. Shape-based
-simplification collapses the repeated branches in this pattern.
-The partial-derivative variants also remain bounded, oscillating
-between 8 and 18 nodes. Their state is the deduplicated state set of
-distinct residuals, rather than a single expression.
+The partial-derivative pair shows a different result on the real corpus. 
+\texttt{pderiv\_std} has the lower peak (2.5 against 3.8\,MB). 
+The corpus patterns and input lengths are generally less demanding, 
+so the residual sets remain small 
+and the overhead of bit-tracking outweighs its benefits. 
+The growth advantage of bit-tracking 
+is expected to become more relevant on larger or more complex inputs, 
+where the amount of intermediate structure may grow enough 
+for its allocation savings to outweigh the added overhead.
 
 %
 %
@@ -1917,7 +1879,7 @@ distinct residuals, rather than a single expression.
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
-Cat. & \texttt{std\_rec/loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
+Cat. & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 \hline
 A &  704.6 &  12.0 &  90.6 &  10.7 \\
 B &  503.3 &   7.3 &  18.6 &   8.9 \\
@@ -1929,56 +1891,50 @@ H &  423.1 &   2.1 &   4.1 &   1.9 \\
 \hline
 \end{tabular*}
 \renewcommand{\arraystretch}{1}
-\caption{Peak live MB over the full swept entry set per category: the
-highest live-byte high-water mark (Section~\ref{sec:eval-criteria-memory})
-reached by any entry of that category, timed-out and crashed
-entries excluded. \texttt{std\_rec} and \texttt{std\_loop} are merged
-into one column, agreeing to within 0.3\,MB on every category.
-Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab} report
-peak live memory for the representative rows the same way; cumulative
-allocation for one of them is discussed in prose below.}
+\caption{Peak live MB over the full swept entry set per category: 
+The highest live-byte (Section~\ref{sec:eval-criteria-memory})
+reached by any entry of that category, 
+timed-out and crashed entries excluded.}
 \label{tab:patho-memory-baseline}
 \end{table}
 
-Table~\ref{tab:patho-memory-baseline} shows the standard pair's peak
-at least an order of magnitude above every other parser in six of the
-seven categories, consistent with
-retaining the full derivation sequence regardless of which
-category's mechanism is in play. The exception is A, where the gap
-narrows to 7.8$\times$ -- the same category where, as below,
-\texttt{pderiv\_std}'s own peak is unusually high. Among the other
-three, \texttt{pderiv\_std} has the highest
-peak in six of the seven categories (A, B, D, E, F, H), sometimes by a
-wide margin -- 90.6\,MB against \texttt{pderiv\_bc}'s 10.7\,MB and
-\texttt{deriv\_bc}'s 12.0\,MB on A. Its injection closures grow one
-layer per residual kept alive, where \texttt{pderiv\_bc}'s bit vectors
-stay flat regardless of how many residuals survive. \texttt{deriv\_bc}
-is the exception only on C, where its retained history for the
-backward pass costs more than either partial-derivative parser's
-state set: 32.8\,MB against 9.9 and 14.3\,MB. The margin by which
-\texttt{pderiv\_std} leads is itself uneven: narrowest on H, where
-all three stay within 2.2\,MB of each other (1.9 to 4.1), and widest
-on A, where its peak is roughly eight times either of the other two
-(90.6 against 12.0 and 10.7). This is the same asymmetry noted for
-total allocation on the real corpus (Section~\ref{sec:eval-cost-partial-derivatives}):
-\texttt{pderiv\_std}'s closures grow with every live residual, so the
-more adversarial a pattern's mechanism, the more that cost compounds
-relative to \texttt{pderiv\_bc}'s flat bit vectors; the four categories
-built around an alternation (A, B, E, F) are also exactly the ones
-where its peak rose from the previous measurement, consistent with the
-same alternation-specific rise documented for the representative rows
-in Section~\ref{sec:eval-memory-representative}. These peaks are
-measured only over each category's \emph{completed} entries, the
-same caveat the Timing subsection raises for its own tables: a
-category where one parser times out on most of its entries, such as
-A's 70\% share for the standard pair, reports a peak drawn from a
-smaller and easier surviving subset than a category where it
-completes nearly everything. The standard pair's own peak also moves
-far less in relative terms across categories than the other three
-do: it varies by a little over a factor of two, from 335 to 705\,MB, where
-\texttt{pderiv\_std} ranges from 4.1 to 90.6\,MB, a factor of roughly
-twenty-two, and \texttt{pderiv\_bc} from 1.9 to 15.7\,MB, a factor of
-roughly eight.
+Table~\ref{tab:patho-memory-baseline} 
+shows that \texttt{deriv\_std\_loop} uses 
+at least ten times as much peak memory 
+as the other parsers in six of the seven categories. 
+This is consistent with keeping the full derivation sequence, 
+regardless of which complexity mechanism the pattern exercises. 
+Category A is the exception, where the gap narrows to almost $8\times$, 
+partly because \texttt{pderiv\_std} also reaches an unusually high peak.
+Among the other three parsers, 
+\texttt{pderiv\_std} has the
+highest peak in six categories (A, B, D, E, F, and H).
+Its peak ranges from 4.1\,MB on H to 90.6\,MB on A,
+compared with 1.9--15.7\,MB for \texttt{pderiv\_bc}.
+The difference comes from how they represent injection closures. 
+In \texttt{pderiv\_std}, 
+closures grow by one layer for each residual kept alive, 
+whereas \texttt{pderiv\_bc} uses bit vectors whose size does not grow
+with the number of surviving residuals. 
+
+The gap is therefore largest on A, at 90.6\,MB against 10.7\,MB, 
+and narrowest on H, 
+where all three remain within 2.2\,MB of each other.
+This is consistent with the asymmetry in total allocation
+on the real corpus (Section~\ref{sec:eval-cost-partial-derivatives}).
+The four alternation categories (A, B, E, and F) also show
+the same increase in \texttt{pderiv\_std}'s peak observed
+for the representative patterns in
+Section~\ref{sec:eval-memory-representative}.
+\texttt{deriv\_bc} is the exception to the ordering only on C,
+where it reaches 32.8\,MB, against 9.9 and 14.3\,MB for the two
+partial-derivative parsers. 
+
+Since each category contains multiple patterns and sweeps over $n$ and $p$, 
+its peak is determined by a single entry, 
+combining the most demanding values of these parameters. 
+In the following some patterns are examined further, 
+to show how memory usage develops within specific cases.
 
 %
 %
@@ -1987,17 +1943,12 @@ roughly eight.
 \subsubsection{Representative Patterns}
 \label{sec:eval-memory-representative}
 
-The four representative rows are reported by mechanism family. Each
-row is one specific pattern chosen to typify its category, not an
-aggregate over it the way Table~\ref{tab:patho-memory-baseline} above
-pools every pattern: P60 and P61 stand in for category E's eight
-patterns, and P01 and P09 for categories A's sixteen and B's fifteen
-(Table~\ref{tab:patho-categories}).
-Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab} give each
-row's peak live-byte high-water mark on any single entry, against the
-largest swept input length the parser completed. The two standard forms are
-reported once per row, since their peaks agree to within 0.01\% of each
-other on every row measured.
+The following rows are 
+the same as those used in the timing analysis.
+(Table~\ref{tab:patho-categories}). 
+Tables~\ref{tab:patho-memory-e} and~\ref{tab:patho-memory-ab} 
+report each parser's peak live
+memory on its largest completed input. 
 
 \begin{table}[H]
 \centering
@@ -2007,29 +1958,27 @@ other on every row measured.
 \hline
 Row & Parser & Max input length & Max live peak \\
 \hline
-P60 & \texttt{deriv\_std\_rec}/\texttt{loop}  &      5\,000 & 5.70 GB \\
+P60 & \texttt{deriv\_std\_loop}               &       5\,000 & 5.70 GB \\
 P60 & \texttt{deriv\_bc}                      & 10\,000\,000 & 2.64 GB \\
 P60 & \texttt{pderiv\_std}                    & 10\,000\,000 & 3.12 GB \\
 P60 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 1.64 GB \\
 \hline
-P61 & \texttt{deriv\_std\_rec}/\texttt{loop}  &         15 & 98.3 MB \\
+P61 & \texttt{deriv\_std\_loop}               &         15 & 98.3 MB \\
 P61 & \texttt{deriv\_bc}                      & 10\,000\,000 & 3.40 GB \\
-P61 & \texttt{pderiv\_std}                    & \shortstack[r]{\checkmark\ 5\,000\,000\\ $\times$\ 10\,000\,000} & 3.12 GB \\
+P61 & \texttt{pderiv\_std}                    & 5\,000\,000 & 3.12 GB \\
 P61 & \texttt{pderiv\_bc}                     & 10\,000\,000 & 3.27 GB \\
 \hline
 \end{tabular*}
 \caption{Peak live memory across the two E-family representative rows,
-against the largest swept input length each parser completed. Peak is
-the live high-water mark within a single call. The standard variants
-complete only the smallest swept inputs, so their peak is not directly
-comparable with the survivors' peaks and is excluded from the comparison
-in the text. On P61, \texttt{pderiv\_std} newly crashes against the
-8\,GiB memory cap at the widest swept length on the matching input (it
-still completes there on the non-matching one); the length and peak shown
-are from the largest matching input it still completes, $5\,000\,000$,
-matching Table~\ref{tab:patho-crash-thresholds}'s own threshold for it.}
+against the largest swept input length each parser completed. 
+Peak is the highest live-byte count reached during a single call.}
 \label{tab:patho-memory-e}
 \end{table}
+
+The standard derivative parser completes only the smallest swept inputs, 
+so the peak is not directly comparable with the survivors' peak. 
+On P61, \texttt{pderiv\_std} crashes against the 8\,GiB memory cap 
+at $10\,000\,000$, but still completing $5\,000\,000$.
 
 \begin{table}[H]
 \centering
