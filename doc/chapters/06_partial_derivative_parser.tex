@@ -879,16 +879,22 @@ so the choice made inside the first factor survives in the surviving pair.
 \label{sec:pderiv-bc-impl}
 
 Figure~\ref{fig:pderiv-bc-rust} implements Equation~\eqref{eq:pderiv-bc} directly.
-The base cases and the alternation case mirror the standard version
-with bit-lists in place of closures: \texttt{Alt} prepends $[0]$
-or $[1]$ to each branch's bits instead of wrapping each branch's
-tree in $\mathit{Left}$ or $\mathit{Right}$.
-Unlike \texttt{pderiv\_tree}'s \texttt{Alt} arm (Section~\ref{sec:pderiv-tree-impl}),
-which flattens an $n$-ary $+$-chain to dedup it once,
-\texttt{pderiv\_bc} recurses directly on each binary \texttt{Alt} node
-and calls \texttt{nub2} at every level: a chain of $p$ leaves costs
-$p - 1$ dedup passes instead of one, each still linear, so more
-constant-factor work rather than a different bound.
+The base cases mirror the standard version with bit-lists in place
+of closures. Like \texttt{pderiv\_tree}'s \texttt{Alt} arm
+(Section~\ref{sec:pderiv-tree-impl}), \texttt{pderiv\_bc}'s own
+\texttt{Alt} arm flattens an $n$-ary $+$-chain into its leaves before
+deriving them, rather than recursing through nested binary
+\texttt{Alt} nodes and deduplicating at every level.
+\texttt{flatten\_alt} (Figure~\ref{fig:pderiv-bc-flatten-rust}) walks
+the chain once, giving each leaf the bit prefix its position assigns:
+\texttt{false} for a left branch and \texttt{true} for a right,
+accumulated down the spine in encounter order. This is the bit-list
+counterpart of the $\mathit{Left}$/$\mathit{Right}$-wrapped closure
+\texttt{pderiv\_tree}'s own flattening builds for the same leaf.
+Deriving each leaf and extending its prefix with the result's own
+bits, then calling \texttt{nub2} once on the combined list, gives the
+same leftmost-priority result a per-level recursion would, for a
+single dedup pass instead of $p - 1$.
 
 The \texttt{Seq} arm's two branches are each written out in full,
 rather than factoring out the shared recurse-into-$r_1$ step
@@ -913,6 +919,30 @@ residual: collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
 \begin{figure}[H]
 \small
 \begin{verbatim}
+fn flatten_alt<'a>(r: &'a Regex, prefix: &mut Vec<bool>,
+                    out: &mut Vec<(&'a Regex, Vec<bool>)>) {
+    match r {
+        Regex::Alt(r1, r2) => {
+            prefix.push(false);
+            flatten_alt(r1, prefix, out);
+            prefix.pop();
+            prefix.push(true);
+            flatten_alt(r2, prefix, out);
+            prefix.pop();
+        }
+        other => out.push((other, prefix.clone())),
+    }
+}
+\end{verbatim}
+\caption{\texttt{flatten\_alt}: flattens a chain of nested \texttt{Alt}s
+into its leaves, pairing each with the bit prefix its position in the
+chain assigns.}
+\label{fig:pderiv-bc-flatten-rust}
+\end{figure}
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
 pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
     match r {
         Regex::Phi | Regex::Eps => vec![],
@@ -921,18 +951,19 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
             if *y == x { vec![(Regex::Eps, vec![])] } else { vec![] }
         }
 
-        Regex::Alt(r1, r2) => {
-            let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
-                .into_iter()
-                .map(|(r1_, mut bs)| {
-                    let mut b = vec![false]; b.append(&mut bs);
-                    (r1_, b)
-                })
-                .collect();
-            out.extend(pderiv_bc(r2, x).into_iter().map(|(r2_, mut bs)| {
-                let mut b = vec![true]; b.append(&mut bs);
-                (r2_, b)
-            }));
+        Regex::Alt(_, _) => {
+            let mut leaves: Vec<(&Regex, Vec<bool>)> = Vec::new();
+            let mut prefix = Vec::new();
+            flatten_alt(r, &mut prefix, &mut leaves);
+
+            let mut out: Vec<(Regex, Vec<bool>)> = Vec::new();
+            for (leaf, leaf_prefix) in leaves {
+                for (r_, bs) in pderiv_bc(leaf, x) {
+                    let mut b = leaf_prefix.clone();
+                    b.extend(bs);
+                    out.push((r_, b));
+                }
+            }
             nub2(out)
         }
 
