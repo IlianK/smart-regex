@@ -7,9 +7,8 @@ and \ref{sec:partial-derivative-parser}.
 Using two datasets, 
 it compares their execution time, memory consumption, and translation cost, 
 as well as their match decisions and parse-tree shapes. 
-
 All measurements were taken on an AMD Ryzen~5~5600 six-core processor
-with 16\,GB of RAM, running Pop!\_OS 24.04 LTS on an AMD B550 chipset.
+with 16\,GB of RAM, running Pop!\_OS 24.04 LTS.
 
 %
 %
@@ -18,7 +17,7 @@ with 16\,GB of RAM, running Pop!\_OS 24.04 LTS on an AMD B550 chipset.
 \section{Candidates}
 \label{sec:eval-candidates}
 
-A candidate is a parser $p$ mapping an entry $(r,w)$, 
+A candidate is a parser $p$ mapping an \emph{entry} $(r,w)$, 
 consisting of a translated \texttt{Regex} $r$ 
 and an input \texttt{String} $w$, 
 to an optional \texttt{ParseTree} $pt$. 
@@ -27,7 +26,8 @@ All candidates share the interface:
 p :: (\mathit{Regex}, \mathit{String}) \to
      \mathit{Option\langle ParseTree\rangle}
 \]
-Candidates are grouped into two families according 
+Candidates (Table~\ref{tab:eval-candidates})
+are grouped into two families according 
 to their disambiguation strategy.
 All five parsers are expected to agree on membership.
 So given an entry, they must either all accept or reject it.
@@ -67,9 +67,8 @@ Non-POSIX & \texttt{pderiv\_std}      & standard partial-derivative parser
 \label{sec:eval-criteria}
 
 The evaluation considers \emph{performance}, 
-measured in terms of execution time, memory consumption, and translation cost. 
-and \emph{correctness}, 
-assessed by comparing membership decisions and parse-tree selection.
+measured in terms of execution time, memory consumption, and translation cost, 
+and \emph{agreement} on membership decisions and parse-tree selection.
 
 %
 %
@@ -78,25 +77,30 @@ assessed by comparing membership decisions and parse-tree selection.
 \subsection{Measurement Setup}
 \label{sec:eval-criteria-setup}
 
-Each entry runs in its own worker subprocess. Stable Rust has no safe way to
-forcibly terminate a thread~\citep{rust-thread-joinhandle}, so a worker stuck
-in exponential derivation or allocating towards the memory cap cannot be
-stopped; a subprocess can be killed unconditionally, and the operating
-system reclaims its memory. Each run classifies the entry as:
-\begin{itemize}
-  \item \emph{Measured}: the worker exited zero and reported a result line.
-  \item \emph{Timed out}: the worker exceeded the default per-entry timeout
-        (2\,s) and was killed.
-  \item \emph{Crashed}: the worker exited non-zero or was killed by a signal,
-        including stack overflows and out-of-memory kills when the memory
-        ceiling is enabled.
-\end{itemize}
-Timing, memory, and agreement workers run on a custom 256\,MiB stack,
-because all candidates recurse over the pattern structure and the default
-stack would overflow on deeply nested patterns before the measured input
-sizes are reached; the stack is a fixed allowance and not part of the
-measured footprint. A run produces an aggregate summary table and a
-per-entry file.
+Each entry runs in its own worker subprocess, 
+which can be killed unconditionally 
+if stuck in exponential derivation or approaching the memory cap. 
+This avoids the lack of safe thread termination in stable 
+Rust~\citep{rust-thread-joinhandle}, 
+and allows the operating system to reclaim the worker's memory. 
+Workers use a fixed $256\,\mathrm{MiB}$ stack 
+to accommodate deeply nested patterns.
+This stack is excluded from reported memory usage.
+Runs are classified as follows:
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X@{}}
+\textbf{Class} & \textbf{Meaning} \\
+\hline
+\emph{Measured} & Worker exited successfully and reported a result. \\
+\emph{Timed out} & Worker exceeded the default $2\,\mathrm{s}$ per-entry timeout and was killed. \\
+\emph{Crashed} & Worker exited non-zero or was killed by a signal. \\
+\end{tabularx}
+\caption{Classification of benchmark runs.}
+\label{tab:eval-run-classes}
+\end{table}
 
 %
 %
@@ -105,38 +109,38 @@ per-entry file.
 \subsection{Timing}
 \label{sec:eval-criteria-timing}
 
-Each entry $(r, w)$ is timed once, without warm-up run or repeated
-measurements. Translation is measured separately, so the wall-clock
-time covers only the parser call $p(r, w)$.
-For \texttt{deriv\_std\_rec}, \texttt{deriv\_std\_loop}, and
-\texttt{pderiv\_std}, the entire parser call is reported as \emph{mean}.
-For \texttt{deriv\_bc} and \texttt{pderiv\_bc}, the call is split into
-three: \emph{Encode} constructs the initial annotated state before
-any character of $w$ is consumed, \emph{Derive} processes the input one
-character at a time and \emph{Decode} converts the final bit-string into a
-parse tree.
+Each entry $(r,w)$ is timed once, without warm-up or repetition,
+with translation being timed separately 
+(Section~\ref{sec:eval-criteria-translation}).
+So timings cover only the parser call $p(r,w)$.
+For standard parsers, the entire call is reported as \emph{mean}.
+Bit-coded parsers split it into three phases:
+\emph{encode}, building the initial annotated state;
+\emph{derive}, consuming $w$ one character at a time; and
+\emph{decode}, converting the final bit-string into a parse tree.
+Four statistics are reported, aggregated differently for the two datasets:
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
+\textbf{Statistic} & \textbf{Pooling} & \textbf{Meaning} \\
+\hline
+\emph{Mean} & Per pattern (flat on synthetic data) & Equal weight per pattern \\
+\emph{Median} & Per entry & Typical entry \\
+\emph{99th percentile} & Per entry & Tail of the distribution \\
+\emph{Maximum} & Per entry & Single worst entry \\
+\end{tabularx}
+\caption{Timing statistics and their aggregation.}
+\label{tab:eval-timing-statistics}
+\end{table}
 
-Timing results show four statistics, aggregated differently for the two datasets:
-
-\begin{itemize}
-  \item \emph{Mean} is a macro-average over patterns of the real corpus, so
-        a pattern with 10 entries and one with 2 contribute equally,
-        a flat mean is used for the synthetic set.
-\item \emph{Median}, \emph{99th percentile}, and \emph{maximum} are pooled
-      over individual entries rather than averaged per pattern. The median
-      describes a typical entry, the 99th percentile the tail of the entry
-      distribution, and the maximum the single worst entry.
-\end{itemize}
-
-All four statistics represent lower bounds on the corresponding
-execution times, since timed-out and crashed entries are excluded
-rather than counted at their timeout values.
-A separate \emph{wall} column measures the benchmark's entire loop over one
-source pattern. It therefore exceeds $\mathit{entries} \times \mathit{mean}$ by
-the per-entry process-spawn and pipe-round-trip overhead excluded from the
-individual timings. It captures the total cost of reproducing a pattern's
-results, harness included, but is not suitable for comparisons between
-candidates.
+All four statistics are lower bounds 
+on the corresponding execution times, 
+because timed-out and crashed entries are excluded.
+A separate \emph{wall} column measures the full benchmark loop per pattern, 
+including process-spawn and pipe overhead excluded from individual timings.
+It captures total harness cost but is not suitable for comparing candidates.
 
 %
 %
@@ -145,35 +149,30 @@ candidates.
 \subsection{Memory}
 \label{sec:eval-criteria-memory}
 
-Memory is measured with a counting allocator in each worker, baselined
-immediately before the parser call so that only allocations made during
-$p(r, w)$ are counted. The allocator tracks a running sum of requested
-bytes and a running count of live bytes:
+Memory is measured with a counting allocator in each worker,
+reset immediately before $p(r,w)$ to isolate allocations made during the parser call. 
+It tracks requested and live bytes:
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X@{}}
+\textbf{Metric} & \textbf{Meaning} \\
+\hline
+\emph{Max live peak} & Highest live-byte count during the call; peak heap demand. \\
+\emph{Total allocated} & Sum of requested bytes over the call, a proxy for allocator pressure. \\
+\end{tabularx}
+\caption{Memory metrics collected by the counting allocator.}
+\label{tab:eval-memory-metrics}
+\end{table}
 
-\begin{itemize}
-  \item \emph{Max live peak}: the highest value of the live-byte counter
-        within a call. It bounds the heap a single call requires, and is
-        the measure that determines whether a parser can run at a given
-        input length within a fixed memory budget.
-  \item \emph{Total allocated}: the sum of requested bytes over the call,
-        including memory later freed. It is not a footprint, but a proxy
-        for allocator pressure and a secondary explanation of timing, since
-        a parser that allocates and frees frequently pays a cost even when
-        its peak stays low.
-\end{itemize}
-
-Total allocation counts memory freed during the call, so it is always at
-least as large as peak. Because peak grows with
-the input a run processes and total with the work it performs, each is
-compared only where those are comparable: peak across rows that reached
-comparable input lengths, 
-total across rows that completed comparable work.
-
-The allocator sees heap allocations only, not the worker stack
-(Section~\ref{sec:eval-criteria-setup}), so a parser that uses substantial
-stack but few heap allocations may appear inexpensive in these
-measurements. Stack depth is evaluated separately for the two standard
-derivative parsers.
+Total allocated is always at least the peak, 
+since it includes memory freed during the call. 
+Frequent allocation and deallocation can therefore increase total allocation 
+and timing costs even when peak usage remains low. 
+Since the allocator measures heap usage, 
+and not the worker stack (Section~\ref{sec:eval-criteria-setup}),
+stack-intensive parsers may appear inexpensive in these measurements. 
 
 %
 %
@@ -182,41 +181,34 @@ derivative parsers.
 \subsection{Translation}
 \label{sec:eval-criteria-translation}
 
-Translation depends only on the source pattern and is independent of the
-input, so each distinct pattern is translated once rather than once per
-entry. Translation runs in the main process because the frontend enforces
-the three following resource limits:
-
-\begin{itemize}
-  \item \emph{Bound cap}: bounds the numeric value of any repetition bound.
-  \item \emph{Depth cap}: bounds the estimated depth of the translated
-        pattern.
-  \item \emph{Node cap}: bounds the node count of the result.
-\end{itemize}
-
-The caps reject a pattern before translation would recurse too deeply or
-unroll too large a result, so translation itself is always bounded in
-time and memory. A parser call has no such protection. It can run until
-the timeout or the memory cap kills it, which is why the caps are checked
-at translation and the timeout is enforced per entry.
-
+Translation depends only on the source pattern, 
+and is independent of the input,
+so each distinct pattern is translated once in the main process. 
+The caps: \emph{Bound cap}, \emph{Depth cap} and \emph{Node cap} 
+bind translation time and memory by rejecting patterns 
+that would require excessive recursion or unrolling. 
 Translation cost is measured using four quantities:
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X@{}}
+\textbf{Quantity} & \textbf{Measures} \\
+\hline
+\emph{Time} & Wall-clock duration of the translation call. \\
+\emph{Total bytes} & Total memory allocated during translation. \\
+\emph{Peak bytes} & Highest number of live allocated bytes during the call. \\
+\emph{Nodes} & Node count of the resulting \texttt{Regex}. \\
+\end{tabularx}
+\caption{Translation cost metrics.}
+\label{tab:eval-translation-metrics}
+\end{table}
 
-\begin{itemize}
-  \item \emph{Time}: the wall-clock duration of the translation call.
-  \item \emph{Total bytes}: the total amount of memory allocated during
-        translation.
-  \item \emph{Peak bytes}: the highest number of live allocated bytes during
-        the call.
-  \item \emph{Nodes}: the number of nodes in the resulting \texttt{Regex}.
-\end{itemize}
-
-The counting allocator is reset before each translation and read immediately
-after the call returns. This excludes subsequent node counting and debug
-rendering from the measurement. Mean, median, 99th percentile, and maximum
-are calculated directly over patterns. Since each pattern contributes one
-measurement, no macro-averaging is needed. Rejected patterns
-produce no measurement, so the reported statistics are lower bounds.
+The allocator is reset before translation and read immediately afterward, 
+excluding node counting and debug rendering.
+The four timing statistics (Section~\ref{sec:eval-criteria-timing})
+are calculated directly over patterns, with no macro-averaging
+since each contributes one measurement.
 
 %
 %
@@ -225,38 +217,43 @@ produce no measurement, so the reported statistics are lower bounds.
 \subsection{Stack Depth}
 \label{sec:eval-criteria-stack-depth}
 
-\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} compute identical
-results but store the residual sequence differently. The recursive
-implementation uses one call-stack frame per input character, the
-iterative one a \texttt{Vec}. Stack depth is measured to establish which
-of the two exhausts the stack first, and at what input length. Both use
-the operating system's default thread stack, which is 8\,MiB on Linux.
+This measurement determines the input length and translation
+limits at which stack exhaustion occurs. 
+Both standard derivative parsers use the default thread stack 
+(8\,MiB on Linux), 
+but consume it differently: 
+\texttt{deriv\_std\_rec} uses one call-stack frame per input character, whereas 
+\texttt{deriv\_std\_loop} stores residuals in a \texttt{Vec}.
+Each probe has a $15\,\mathrm{s}$ timeout, 
+increased from the default $2\,\mathrm{s}$ 
+to allow slow derivations to reach stack exhaustion. 
+No heap cap is applied, 
+making a signal kill more likely to indicate stack exhaustion 
+than an out-of-memory condition (Section~\ref{sec:eval-criteria-setup}).
+Timeouts indicate that derivation became too expensive first 
+and are kept as negative controls.
 
-The maximum surviving input length is estimated using a doubling search.
-Starting from a small input, the length is doubled after each successful
-probe until the worker fails to complete. The timeout for each probe is
-increased from the default $2\,\mathrm{s}$ to $15\,\mathrm{s}$, to give
-slow derivatives time to exhaust the stack and cause a stack overflow.
-A worker can also be killed by an
-out-of-memory condition when a heap cap is set, as described in
-Section~\ref{sec:eval-criteria-setup},
-but for this measurement no heap cap is applied, so a
-signal kill is more likely to be a stack overflow than an out-of-memory
-kill.
-
-The search brackets the last length that completed against the first
-that did not. A crash means stack exhaustion limited the input, a timeout
-means derivation became too expensive first. The timeouts are kept as
-negative controls for patterns where derivation cost, not stack depth,
-is limiting.
-
-The same doubling search is used to check the two translation caps, the
-\emph{bound cap} and the \emph{depth cap}. For the bound cap, the bound
-value is doubled until translation of the bound exhausts the stack. 
-For the depth cap, the nesting depth of \texttt{(?:...)} groups is doubled
-until translation exhausts the stack. Bound unrolling recurses once for
-each unit in a bound's open part, while syntactic nesting recurses once
-for each level of grouping.
+A doubling search is used to determine 
+at which input length a stack overflow is reached. 
+The search starts from a small input length 
+and doubles the input after each successful probe until the worker fails. 
+The search brackets the last successful value and the first failure. 
+The same method is used to find the two translation caps,
+mentioned at the end of Chapter~\ref{sec:frontend-bounds}.
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X@{}}
+\textbf{Target} & \textbf{Quantity doubled} & \textbf{Failure condition} \\
+\hline
+\emph{Parser stack} & Input length & Parser fails to complete \\
+\emph{Bound cap} & Repetition bound & Translating the bound exhausts the stack \\
+\emph{Depth cap} & Nesting depth of \texttt{(?:...)} groups & Translating the pattern exhausts the stack \\
+\end{tabularx}
+\caption{Doubling searches used to determine stack and translation limits.}
+\label{tab:eval-stack-search}
+\end{table}
 
 %
 %
@@ -265,41 +262,44 @@ for each level of grouping.
 \subsection{Parse Agreement}
 \label{sec:eval-criteria-agreement}
 
-Parse agreement is evaluated on entries with a known expected membership
-result. Each entry is written as $(r, w, e)$, where $r$ is the translated
-\texttt{Regex}, $w$ is the input string, and
-$e \in \{\mathit{true}, \mathit{false}\}$ is the expected match result.
-No expected parse tree is provided.
+Parse agreement is evaluated on entries with a known expected membership result, 
+written $(r, w, e)$ where $r$ is the translated \texttt{Regex}, 
+$w$ is the input string, and $e \in \{\mathit{true}, 
+\mathit{false}\}$ is the expected match result.
+An expected parse tree is not provided. 
+Each candidate processes the same entry and records:
+\begin{table}[ht]
+\centering
+\small
+\renewcommand{\arraystretch}{1.15}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}X@{}}
+\textbf{Field} & \textbf{Meaning} \\
+\hline
+\emph{Timeout or crash} & The candidate exceeded the timeout or was killed by a signal. \\
+\emph{Membership} & Match ($e = \mathit{true}$) or no-match ($e = \mathit{false}$) decision. \\
+\emph{Parse tree} & The parse tree returned, when $e = \mathit{true}$. \\
+\end{tabularx}
+\caption{Results recorded for each candidate during parse-agreement testing.}
+\label{tab:eval-agreement-fields}
+\end{table}
 
-Each candidate processes the same entry, and records:
-\begin{itemize}
-  \item \emph{Timeout or crash}: if the candidate exceeded the timeout
-         or was killed by a signal.
-  \item \emph{Membership}: a candidate's decision on ($e = \mathit{true}$)  
-        or no-match ($e = \mathit{false}$)
-  \item \emph{Parse tree}: the parse tree a candidate returned, when $e = \mathit{true}$.
-\end{itemize}
-
-A timeout or crash removes the candidate from the comparison for that
-entry. Membership is compared across all candidates. 
-Any disagreement with $e$ is a bug. 
-Parse trees are compared only when $e = \mathit{true}$
-and all candidates returned one. 
-Agreement is required within each family, 
-whose parsers share a disambiguation policy.
-Across families it
-is reported but not required, since the two policies may differ.
-
-Thus the summary reports how many entries were evaluated and, for each
-dataset, how many timed out or crashed, how many every candidate
-classified correctly (\emph{match agreement}), and of those, how many
-the two families parsed to the same tree (\emph{shape agree}) or to
-different trees (\emph{shape disagree}).
+A timeout or crash removes that candidate from the comparison.
+\emph{Membership} is compared across all surviving candidates.
+Any disagreement amongst parsers with $e$ is a bug.
+When $e = \mathit{true}$ 
+and every surviving candidate returned a \emph{parse tree},
+they can be compared.
+\emph{Within families}, parsers must produce identical parse trees
+because they share a disambiguation policy. 
+Any disagreement indicates a bug.
+\emph{Across families}, parsers may produce identical parse trees,
+but are not required too, since their disambiguation policies differ.
 
 %
 %
 %
 
+\clearpage
 \section{Datasets}
 \label{sec:eval-dataset}
 
@@ -334,78 +334,79 @@ Only the \emph{Full-Anchored} patterns are benchmarked after stripping, and the
 \subsection{S2ELab}
 \label{sec:eval-s2elab}
 
-The dataset by \citet{s2elab-regexeval-dataset} contains 762 human-authored
-patterns. Each pattern has a natural-language description and lists of labeled
-matching and non-matching inputs. The number of each varies per pattern,
+The dataset by \citet{s2elab-regexeval-dataset} 
+contains 762 human-authored patterns. 
+Each pattern has a natural-language description 
+and lists of labeled matching and non-matching inputs. 
+The number of each varies per pattern, 
 so the corpus is not balanced between the two.
-The source patterns conventionally use \texttt{\textasciicircum} and
-\texttt{\textdollar} as beginning- and end-of-input anchors. A pattern
-surrounded by these anchors requires a full-string match, whereas a pattern
-without them can match a substring. As described in
-Section~\ref{sec:frontend-rejected}, the frontend does not support anchors.
-However, fully anchored patterns can still be used by stripping them.
-Since the parsers perform full-string matching, the stripped pattern accepts
-exactly the inputs intended by the original anchored pattern.
-Figure~\ref{fig:s2elab-pipeline} shows this in the translation stage,
-as part of the data preparation that turns one example pattern into an $entry$.
+The source patterns conventionally use \texttt{\textasciicircum} 
+and \texttt{\textdollar} as beginning- and end-of-input anchors. 
+A pattern surrounded by anchors requires a full-string match, 
+where a pattern without them can match a substring. 
+As described in Section~\ref{sec:frontend-rejected}, 
+anchors are rejected constructs.
+However, entries with fully anchored patterns can still be used by stripping them.
+Since the parsers perform full-string matching, 
+the stripped pattern accepts exactly 
+the inputs intended by the original anchored pattern.
+Figure~\ref{fig:s2elab-pipeline} shows this 
+as part of the data preparation, that turns one example pattern into an $entry$.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
   stage/.style={draw, rounded corners=2pt, minimum height=7mm,
-                font=\footnotesize, align=center, inner sep=3pt},
-  data/.style={font=\scriptsize, align=left, inner sep=1pt,
-               anchor=north},
+                minimum width=2.3cm, font=\small, align=center,
+                inner sep=3pt},
+  data/.style={font=\small, align=left, inner sep=1pt,
+               anchor=west},
   >=stealth,
-  node distance=2mm,
+  node distance=6mm,
 ]
-\node[stage, text width=4.4cm]  (extract)               {Extract};
-\node[stage, text width=2.45cm] (dedup)   [right=of extract] {Deduplicate};
-\node[stage, text width=2.5cm]  (trans)   [right=of dedup]   {Translate};
-\node[stage, text width=1.8cm]  (check)   [right=of trans]   {Check};
-\node[stage, text width=1.6cm]  (write)   [right=of check]   {Write};
+\node[stage] (extract)                    {Extract};
+\node[stage] (dedup)   [below=of extract] {Deduplicate};
+\node[stage] (trans)   [below=of dedup]   {Translate};
+\node[stage] (check)   [below=of trans]   {Check};
+\node[stage] (write)   [below=of check]   {Write};
 
 \draw[->] (extract) -- (dedup);
 \draw[->] (dedup)   -- (trans);
 \draw[->] (trans)   -- (check);
 \draw[->] (check)   -- (write);
 
-\node[data, text width=4.4cm] at (extract.south)
+\node[data, text width=8.5cm] at ([xshift=3mm]extract.east)
   {$p := $ \texttt{\textasciicircum\textbackslash d\{1,2\}\textbackslash/\textbackslash d\{1,2\}\textbackslash/\textbackslash d\{4\}\textdollar}\\[2pt]
-   $w_1 :=$ \texttt{["55/5/3434"]}\\[2pt]
-   $w_2 :=$ \texttt{["1/1/01"]}};
-\node[data, text width=2.45cm] at (dedup.south)
-  {$\mathit{dedup}(p, [w_1], [w_2])$\\[2pt]
-   \textrightarrow{} kept};
-\node[data, text width=2.5cm] at (trans.south)
+   $w_1 :=$ \texttt{["55/5/3434"]}; $w_2 :=$ \texttt{["1/1/01"]}};
+\node[data, text width=8.5cm] at ([xshift=3mm]dedup.east)
+  {$\mathit{dedup}(p, [w_1], [w_2])$ \textrightarrow{} kept};
+\node[data, text width=8.5cm] at ([xshift=3mm]trans.east)
   {$r := \mathit{strip}(p, [\texttt{\textasciicircum}, \texttt{\textdollar}])$};
-\node[data, text width=1.8cm] at (check.south)
-  {$\mathit{parse}(r, w_1)$\\
-   $= \text{true}$ \checkmark\\[2pt]
-   $\mathit{parse}(r, w_2)$\\
-   $= \text{false}$ \checkmark};
-\node[data, text width=1.6cm] at (write.south)
+\node[data, text width=8.5cm] at ([xshift=3mm]check.east)
+  {$\mathit{parse}(r, w_1) = \text{true}$ \checkmark\\[2pt]
+   $\mathit{parse}(r, w_2) = \text{false}$ \checkmark};
+\node[data, text width=8.5cm] at ([xshift=3mm]write.east)
   {$(r, w_1, \text{true})$\\[2pt]
    $(r, w_2, \text{false})$};
 \end{tikzpicture}
-\caption{The S2ELab preparation pipeline. Extraction keeps the pattern
-$p$ with its match list $[w_1]$ and non-match list $[w_2]$;
-$\mathit{dedup}$ drops byte-identical patterns and inputs;
+\caption{The S2ELab preparation pipeline. 
+Extraction keeps the pattern $p$ with match list $[w_1]$ 
+and non-match list $[w_2]$; 
+$\mathit{dedup}$ removes byte-identical patterns and inputs;
 $\mathit{strip}(p,[\texttt{\textasciicircum},\texttt{\textdollar}])$
-yields the translated \texttt{Regex} $r$. The check calls
-$\mathit{parse}(r,w)$ on each input and keeps the pair only when the
-verdict agrees with its label (\checkmark), validating the pattern's own
-semantics rather than real-world correctness: \texttt{"55/5/3434"} is
-accepted because the pattern checks digit counts, not value ranges.
-Surviving triples are exactly the defined entries $(r,w,e)$ 
-with $e \in \{\mathit{true}, \mathit{false}\}$.}
+produces the translated \texttt{Regex} $r$. 
+The check keeps each input only if $\mathit{parse}(r,w)$ 
+agrees with its label (\checkmark), 
+validating the pattern's semantics rather than real-world correctness. 
+Thus, \texttt{"55/5/3434"} is accepted 
+because the pattern checks digit counts, not value ranges.
+The surviving triples $(r,w,e)$ are the defined entries.}
 \label{fig:s2elab-pipeline}
 \end{figure}
 
-The benchmarks only use the 463 fully anchored patterns after
-stripping, excluding the 115 unanchored ones, while 177 are
-rejected, with the causes summarised in
-Table~\ref{tab:corpus-rejection-causes}.
+The benchmarks only use the 463 fully anchored patterns after stripping, 
+excluding the 115 unanchored ones, while 177 are rejected, 
+with the causes summarised in Table~\ref{tab:corpus-rejection-causes}.
 
 \begin{table}[H]
 \centering
@@ -431,21 +432,24 @@ Total                                       & 177 \\
 %
 %
 
+\clearpage
 \subsection{Synthetic Stress Set}
 \label{sec:eval-pathological}
 
-The synthetic set contains 112 manually authored patterns designed to
-investigate how parser costs grow with input length and pattern size.
-It complements the real corpus, which does not exercise these cost
-mechanisms at comparable scales. All patterns are intended for full-string
-matching. Each row defines a base pattern and a base input in terms of the
-input length $n$, the pattern size $p$, or both, and a \emph{sweep} varies
-one of these parameters over a range of values, recording a measurement at
-each. 
+The synthetic set contains 112 manually authored patterns
+designed to stress the parsers and investigate 
+how their costs grow with input length and pattern size.
+All patterns are intended for full-string matching. 
+Each row defines a base pattern 
+and a base input in terms of the input length $n$, the pattern size $p$, or both, 
+and a \emph{sweep} varies one of these parameters over a range of values, 
+recording a measurement at each. 
 
-A \texttt{P} row fixes the pattern and grows $n$, measuring cost against
-input size, while an \texttt{E} row fixes the input and grows $p$, measuring
-cost against pattern size. Each sweep value yields an $entry$ $(r, w, e)$.
+A row beginning with ID \texttt{P} fixes the pattern and grows $n$, 
+measuring cost against input size, 
+while an \texttt{E} row fixes the input and grows $p$, 
+measuring cost against pattern size. 
+Each sweep value yields an $entry$ $(r, w, e)$. 
 Table~\ref{tab:sweep-samples} shows one row of each type at two sweep values.
 
 \begin{table}[H]
@@ -475,15 +479,16 @@ alternation width grows while the input is fixed $n = 20$.}
 \label{tab:sweep-samples}
 \end{table}
 
-The 112 patterns are also grouped into categories according
+The 112 patterns are grouped into categories according
 to the complexity mechanism they are designed to test 
 (Table~\ref{tab:patho-categories}).
-Each category uses its own sweep range, chosen so that the measured cost
-typically increases from microseconds to a timeout or crash.
+Each category uses its own sweep range, 
+chosen so that the measured cost typically increases from microseconds 
+to a timeout or crash.
 
 \begin{table}[H]
 \centering
-\footnotesize
+\small
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.1}
 \begin{tabularx}{\textwidth}{l
@@ -545,6 +550,7 @@ hand-curated or generated pattern definitions; \emph{Entries} counts the
 %
 %
 
+\clearpage
 \section{Performance Analysis}
 \label{sec:eval-performance}
 
@@ -555,7 +561,7 @@ translation cost (Section~\ref{sec:eval-translate}).
 Each subsection presents the real-corpus results first,
 followed by the synthetic results and
 some representative patterns with their individual measurements.
-The test on stack depth (Section~\ref{sec:eval-stack-depth}) precedes these measurements.
+The stack depth test (Section~\ref{sec:eval-stack-depth}) precedes these measurements.
 
 %
 %
@@ -564,10 +570,10 @@ The test on stack depth (Section~\ref{sec:eval-stack-depth}) precedes these meas
 \subsection{Stack Depth}
 \label{sec:eval-stack-depth}
 
-The recursive and iterative forms run on the operating system's default
-stack of 8\,MB, without a memory cap, using the doubling search described in
-Section~\ref{sec:eval-criteria-stack-depth}. Both rows use \texttt{a}
-repeated $n$ times as the input, with $n$ increasing across the sweep.
+The recursive and iterative forms 
+run on the operating system's default stack of 8\,MB, 
+without a memory cap and a timeout of 15\,s.
+using the doubling search described in Section~\ref{sec:eval-criteria-stack-depth}. 
 
 \begin{table}[H]
 \centering
@@ -590,48 +596,49 @@ E51 & \texttt{x} & cheap (fixed residual)
     & & & \texttt{loop} & 268\,435\,456 & timeout & 32.973\,s \\
 \hline
 \end{tabular*}
-\caption{Doubling-search stack-depth results, one group per pattern with
-the recursive (\texttt{rec}) and iterative (\texttt{loop}) parsers.
-\emph{Derivative step} categorizes the pattern's derivative cost. P30 is
-ten adjacent \texttt{(\textbackslash w+)} groups. \emph{Outcome} reports
-what stopped the sweep: \emph{timeout} at the 15\,s per-probe cap, or
-\emph{crash} on a stack overflow. \emph{Elapsed} is the cumulative time
-taken for the whole sweep.}
+\caption{Stack-depth,
+comparing the two standard derivative parsers,
+using \texttt{a} repeated $n$ times as the input, 
+with $n$ increasing across the sweep.
+\emph{Derivative step} categorizes the pattern's derivative cost. 
+\emph{Outcome} reports what stopped the sweep.
+\emph{Elapsed} is the cumulative time taken for the whole sweep.}
 \label{tab:stack-depth}
 \end{table}
 
-P01 and P30 are negative controls. On both, the derivative step is
-expensive enough that the 15\,s timeout fires before either form reaches
-its limit, at $n=16$ and $n=64$ respectively. P01 fails first because
-its nested quantifier makes each derivative step near-exponential. P30
-fails later because ten adjacent \texttt{(\textbackslash w+)} groups
-produce a product of stars whose cost grows polynomially. 
-In both cases the timeout, not the stack, ends
-the sweep, so the input never grows far enough to expose a stack
-ceiling. Their role is to rule out the reading that a stack limit would
-have been reached at small $n$ on any pattern.
-
-E51 isolates the stack. The pattern is the single literal \texttt{x},
-which cannot match an input of \texttt{a}s, so every entry mismatches on
-its first character and the residual stays tiny.
-The derivative step therefore does not grow with the input. 
-Both forms must keep all $n$
-intermediate derivatives alive between the forward and backward passes
-and differ only in where that sequence lives. The recursive parser keeps
-it implicitly, one derivative per stack frame, so the call stack grows
-with the input until it crashes. 
-The iterative form keeps the same sequence explicitly, in a
-heap-allocated \texttt{Vec} 
-and stops only by the 15\,s timeout ending the sweep.
-The comparison is therefore not a contest the iterative form wins on
-stack usage, since it has no stack growth to measure, by construction.
-This measurement establishes the input length at which the stack becomes
-the binding constraint for the recursive form. On crash resistance the
-iterative form is therefore preferable even where the derivative step is
-cheap, since it has no stack-depth limit within the sweep range.
-Whether it is preferable overall depends on which cost matters more
-for a given input,
-which is examined through the memory measurements
+P01 and P30 are negative controls.
+On both, derivative computation is expensive enough
+that the 15\,s timeout fires before either form reaches its limit,
+at $n=16$ and $n=64$, respectively.
+P01 fails first because its nested quantifier
+makes each derivative step near-exponential.
+P30 fails later because ten adjacent \texttt{(\textbackslash w+)}
+groups produce a product of stars with polynomial growth.
+In both cases, the timeout ends the sweep before the input
+grows far enough to expose a stack limit.
+These controls show that small $n$ does not imply stack exhaustion
+for arbitrary patterns.
+E51 isolates stack using the single literal \texttt{x} as pattern,
+which cannot match an input of \texttt{a}s.
+So every entry mismatches on the first character,
+keeping the residual small and derivative cost independent of input length.
+Both forms keep all $n$ intermediate derivatives
+between the forward and backward passes,
+differing only in where the sequence is stored.
+The recursive parser stores it implicitly,
+one derivative per stack frame,
+so stack usage grows with the input until it crashes.
+The iterative form stores the sequence explicitly
+in a heap-allocated \texttt{Vec},
+and the sweep ends only when the 15\,s timeout fires.
+Thus, the iterative form has no stack growth to compare
+but avoids the recursive form's stack limit by construction.
+This measurement identifies the input length
+at which stack usage becomes the limiting factor for the recursive form.
+The iterative form is therefore more crash-resistant,
+even when derivative computation is cheap.
+Its overall advantage depends on which cost matters more,
+as examined in the memory measurements
 in Section~\ref{sec:eval-memory}.
 
 %
@@ -641,9 +648,9 @@ in Section~\ref{sec:eval-memory}.
 \subsection{Timing}
 \label{sec:eval-timing}
 
-This section reports the per-candidate timing on the real corpus and the
-synthetic set, under the isolation, timing phase split, and averaging described
-in Section~\ref{sec:eval-criteria-timing}.
+This section reports the per-candidate timing 
+on the real corpus and the synthetic set, under the isolation, 
+timing phase split, and averaging described in Section~\ref{sec:eval-criteria-timing}.
 
 %
 %
@@ -672,18 +679,17 @@ entries per parser.}
 \label{tab:corpus-timing}
 \end{table}
 
-The standard variants are substantially slower, with mean times roughly
-$4.5\times$ that of \texttt{deriv\_bc} and on the order of ten times
-those of the partial-derivative variants.
-The gap is wider than the means suggest,
-because the 74 and 72 entries time out on the standard variants and
-are excluded from their means.
+The standard variants are substantially slower, 
+with mean times roughly $4.5\times$ that of \texttt{deriv\_bc} 
+and $10\times$ those of the partial-derivative variants.
+The gap is even wider than the means suggest,
+because the 74 and 72 entries time out on the standard variants and are excluded.
 This is why the standard pair’s own median looks lower
 but cannot be used for a fair comparison.
 On the median, \texttt{deriv\_bc} is slower than both partial-derivative variants,
-a fair comparison since neither times out either.
-Within the partial-derivative pair, \texttt{pderiv\_bc} is
-marginally faster, at 0.664 against \texttt{pderiv\_std}'s 0.759\,ms.
+a fair comparison since neither times out.
+Within the partial-derivative pair, 
+\texttt{pderiv\_bc} is only marginally faster.
 
 \begin{table}[H]
 \centering
@@ -708,25 +714,23 @@ Table~\ref{tab:corpus-timing}.}
 \label{tab:corpus-timing-outcome}
 \end{table}
 
-Table~\ref{tab:corpus-timing-outcome} breaks the same run down by
-verified outcome. For every parser, matching entries take roughly
-$3$--$8\times$ as much total time as non-matches. The asymmetry is
-expected.
+Table~\ref{tab:corpus-timing-outcome} 
+breaks the same run down by outcome. 
+For every parser, matching entries take roughly $3$--$8\times$ 
+as much total time as non-matches and almost all timeouts fall on matches. 
+The asymmetry is expected.
 A non-match can be rejected as soon as any character fails to match, 
 whereas a match requires the parser to consume 
-the whole input and construct a tree. The
-gap is largest for the two standard variants and smallest for the
-bit-coded pair, which is consistent with the standard construction
-spending most of its time on the matching path, where it retains the
-derivation sequence for the backward pass. 
+the whole input and construct a tree. 
+The gap is largest for the two standard variants 
+and smallest for the bit-coded pair, 
+which is consistent with the standard construction 
+spending most of its time on the matching path, 
+where it keeps the derivation sequence for the backward pass. 
+On matches, \texttt{deriv\_std\_loop} takes 70.321\,s 
+against the recursive variant's 73.493\,s.
+Their non-match times are almost identical.
 
-On matches, \texttt{deriv\_std\_loop} takes 70.321\,s against the
-recursive variant's 73.493\,s; their non-match times are almost
-identical (9.744 against 9.653\,s), so the difference between the two
-forms is confined to the matching path, the only place the backward
-pass runs. The totals cover slightly different entry sets, and almost
-all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
-70 of \texttt{deriv\_std\_loop}'s 72, against none for the other three.
 
 %
 %
@@ -735,18 +739,73 @@ all timeouts fall on matches: 72 of \texttt{deriv\_std\_rec}'s 74 and
 \subsubsection{Synthetic Stress Set}
 \label{sec:eval-timing-pathological}
 
-The eleven categories (Table~\ref{tab:patho-categories}) are each swept
-once at their own default parameter values, so every entry is a single run
-at one point of a sweep rather than an average over repetitions.
-Table~\ref{tab:patho-timing-mech} reports the seven mechanism categories
-and Table~\ref{tab:patho-timing-size} the $2\times2$ pattern-size/input-size
-matrix. Both group the five parsers by category, so parsers compare
-directly within a fixed category. 
-Since timed-out entries are excluded
-from the measurements those columns understate a slower
-parser's cost in proportion to how many entries it loses, meaning the timeout
-count is the primary indicator.
-%
+The eleven categories (Table~\ref{tab:patho-categories})
+are each swept once at their default parameter values,
+so every entry is a single run rather than an average over repetitions.
+Table~\ref{tab:patho-timing-mech} reports the seven mechanism categories,
+and Table~\ref{tab:patho-timing-size} the $2\times2$ pattern- and input-size matrix.
+Both group the five parsers by category,
+enabling direct comparison within each category.
+Since timed-out entries are excluded,
+the measurements understate slower parsers' costs
+in proportion to the entries they lose.
+The timeout count is therefore the primary indicator.
+
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrr}
+\hline
+Cat. & Parser & Timed out & Measured & Mean (ms) & Median (ms) & Max (ms) \\
+\hline
+I & \texttt{deriv\_std\_rec}  & 44 (1) &  15 & 128.08 &   0.51 & 1\,634.08 \\
+  & \texttt{deriv\_std\_loop} &     45 &  15 & 122.17 &   0.55 & 1\,604.48 \\
+  & \texttt{deriv\_bc}        &     19 &  41 & 463.33 & 151.20 & 1\,867.90 \\
+  & \texttt{pderiv\_std}      &     19 &  41 & 249.43 &  47.37 & 1\,603.32 \\
+  & \texttt{pderiv\_bc}       &     19 &  41 & 200.82 &  52.44 & 1\,136.38 \\
+\hline
+J & \texttt{deriv\_std\_rec}  &  3 &  19 & 182.17 &  5.64 & 1\,726.85 \\
+  & \texttt{deriv\_std\_loop} &  2 &  20 & 258.57 &  5.80 & 1\,724.29 \\
+  & \texttt{deriv\_bc}        &  2 &  20 & 187.48 & 14.87 & 1\,567.33 \\
+  & \texttt{pderiv\_std}      &  4 &  18 & 179.89 &  1.92 & 1\,515.41 \\
+  & \texttt{pderiv\_bc}       &  4 &  18 & 155.05 &  2.64 & 1\,354.74 \\
+\hline
+K & \texttt{deriv\_std\_rec}  & 24 &  6 & 354.41 & 405.10 &   625.28 \\
+  & \texttt{deriv\_std\_loop} & 24 &  6 & 336.07 & 372.51 &   532.73 \\
+  & \texttt{deriv\_bc}        & 12 & 18 & 175.79 &  58.88 &   734.89 \\
+  & \texttt{pderiv\_std}      & 11 & 19 & 199.88 &  40.24 & 1\,925.61 \\
+  & \texttt{pderiv\_bc}       & 10 & 20 & 180.38 &  32.89 & 1\,182.48 \\
+\hline
+L & \texttt{deriv\_std\_rec}  & 20 & 175 &  61.23 & 0.12 & 1\,795.99 \\
+  & \texttt{deriv\_std\_loop} & 19 & 176 &  65.75 & 0.13 & 1\,785.88 \\
+  & \texttt{deriv\_bc}        &  0 & 195 &   4.48 & 0.08 &    98.13 \\
+  & \texttt{pderiv\_std}      &  0 & 195 &   2.26 & 0.03 &    51.10 \\
+  & \texttt{pderiv\_bc}       &  0 & 195 &   2.25 & 0.03 &    50.52 \\
+\hline
+\end{tabular*}
+\caption{Timing over the synthetic set sweeps;
+$2\times 2$ size matrix I--L (pattern size $\times$ input size).
+}
+\label{tab:patho-timing-size}
+\end{table}
+
+\paragraph{Categories I, J, K, L} form a $2\times2$ matrix of pattern
+size against input size. L is trivial in both, every parser measuring at
+least 175 of 195 entries: the partial-derivative pair takes 2.26 and
+2.25\,ms, \texttt{deriv\_bc} 4.48\,ms, the standard pair 61.23 and
+65.75\,ms, so \texttt{deriv\_bc} is twice as slow as either variant. I
+grows only the input, pushing every parser past the budget on at least 19
+of its 60 entries, rising to 44 for \texttt{deriv\_std\_rec}, plus the
+crash its call-stack storage causes
+(Section~\ref{sec:eval-stack-depth}). J and K differ only in input length:
+J's short input leaves little room to diverge, with 2 to 4 timeouts,
+while K repeats the same expensive steps over a long input, with 10 to
+24. \texttt{deriv\_std\_rec} does not crash there, since the expensive
+steps time each entry out before its stack reaches the ceiling reached in
+I.
+
 \begin{table}[H]
 \centering
 \small
@@ -807,182 +866,145 @@ counts entries with a completed timing. \emph{Mean}, \emph{Median}, and
 \end{table}
 
 \paragraph{Categories A, B, E} show the expected behavior.
-The partial-derivative variants are faster
-than the derivative variants, though within their own family they are
-nearly tied on median (0.24--0.26, 1.98--2.00, and 3.23--3.42\,ms in A, B, and E).
+The partial-derivative variants are faster than the derivative variants, 
+though within their own family they are nearly tied on median 
+(0.24--0.26, 1.98--2.00, and 3.23--3.42\,ms in A, B, and E).
 \texttt{deriv\_bc} follows behind (0.30, 2.69, 4.71\,ms).
 All three categories let the same input be consumed by many decompositions,
 so their residual expressions grow with each step and their size drives the cost.
-While \texttt{deriv\_bc} simplifies after each step and keeps a single
-expression, the partial-derivative parsers keep a deduplicated set
-instead.
+While \texttt{deriv\_bc} simplifies after each step and keeps a single expression, 
+the partial-derivative parsers keep a deduplicated set instead.
 The standard derivative parsers are much slower throughout
 and timeout against 111 of A's 160, 95 of B's 150, and 42--45 of E's 80 entries.
 
+\paragraph{Category C} has high timeout counts across all five parsers, 
+from 10 to 32 of its 56 entries. 
+Its patterns wrap a star body in a bounded repetition,
+so unrolling produces up to ten copies of an already ambiguous subexpression 
+that every parser must then process within the measured call.
+Here the partial-derivative pair overtakes \texttt{deriv\_bc} on both counts, 
+with 10 timeouts against 14 and medians of 31.03 and 33.55\,ms against 48.56, 
+while \texttt{deriv\_bc} still beats the standard derivative parsers on robustness, 
+14 timeouts against 32. 
+The lower medians (3.67 and 3.80\,ms) come from the 24 entries they complete 
+and describe the easiest subset rather than a faster parser.
 
-\paragraph{Category C} has high timeout counts across all five parsers, from 10 to 32
-of its 56 entries. Its patterns wrap a star body in a bounded repetition,
-so unrolling produces up to ten copies of an already ambiguous
-subexpression that every parser must then process within the measured call.
-Here the partial-derivative pair overtakes \texttt{deriv\_bc} on both
-counts, with 10 timeouts against 14 and medians of 31.03 and 33.55\,ms
-against 48.56, while \texttt{deriv\_bc} still beats the standard derivative
-parsers on robustness, 14 timeouts against 32. The lower medians (3.67
-and 3.80\,ms) come from the 24 entries they complete and describe the
-easiest subset rather than a faster parser.
+\paragraph{Category F} is where \texttt{deriv\_bc}
+loses most ground to the partial-derivative variants,
+timing out on 28 of 70 entries, against 2 and 3
+for the two variants.
+Its patterns end in a literal that fails late,
+so every entry must consume the full input before checking it,
+leaving no opportunity for early rejection.
+On completed entries, \texttt{deriv\_bc} appears faster than both variants,
+with means of 41.65 against 88.56 and 113.18\,ms,
+and medians of 2.39 against 3.32 and 8.13\,ms.
+However, as in C, these figures cover only the 42 entries
+it completed, against 67 and 68 for the two variants.
+They describe the easier subset,
+and the partial-derivative pair remains the more robust choice.
 
-\paragraph{Category F} is where \texttt{deriv\_bc} loses most ground to the
-partial-derivative variants, timing out on 28 of its 70 entries against 2
-and 3 for the two partial-derivative variants. Its patterns end in a literal that fails late, so every entry
-must consume the whole input before that literal is checked and no parser
-can reject early. On completed entries \texttt{deriv\_bc} appears faster
-than both variants, 41.65 against 88.56 and 113.18\,ms on the mean and
-2.39 against 3.32 and 8.13\,ms on the median, but as in C these figures
-cover only the 42 entries it completed against 67 and 68 for the two variants, so they
-describe the easier subset and the partial-derivative pair remains the more
-robust choice.
-
-\paragraph{Category D} is where \texttt{deriv\_bc} regains the lead it lost
-on F, timing out on none of its 40 entries against 6 for each
-partial-derivative variant. Since the measured counts are close, the means
-compare directly, and the fewest timeouts and the lowest mean fall on the
-same parser, \texttt{deriv\_bc}, at 137.87 against 193.93--221.25\,ms.
-D's patterns are unrolled bounded repetitions, so consuming a prefix
-leaves a suffix of the unrolled chain, and different prefix lengths leave
-suffixes of different lengths. \texttt{deriv\_bc} simplifies after each
-step, which rewrites equivalent residuals into a common form so that
-identical ones merge and the expression stays small. But the
-partial-derivative parsers only drop residuals that are already equal, so
-suffixes of different lengths remain separate elements, each stepped at
-every character, and the set grows with the pattern. The advantage of
-\texttt{deriv\_bc} therefore comes from the simplification its encoding
-uses, not from the encoding itself.
+\paragraph{Category D} is where \texttt{deriv\_bc} 
+gains the lead it lost on F, 
+timing out on none of its 40 entries against 6 for each partial-derivative variant. 
+Since the measured counts are close, the means compare directly, 
+and the fewest timeouts and the lowest mean fall on the same parser, 
+\texttt{deriv\_bc}, at 137.87 against 193.93--221.25\,ms.
+D's patterns are unrolled bounded repetitions, 
+so consuming a prefix leaves a suffix of the unrolled chain, 
+and different prefix lengths leave suffixes of different lengths. 
+\texttt{deriv\_bc} simplifies after each step, 
+which rewrites equivalent residuals into a common form 
+so that identical ones merge and the expression stays small. 
+But the partial-derivative parsers only drop residuals that are already equal, 
+so suffixes of different lengths remain separate elements, 
+each stepped at every character, and the set grows with the pattern. 
+The advantage of \texttt{deriv\_bc} therefore comes from the simplification 
+its encoding uses, not from the encoding itself.
 
 \paragraph{Category H} is a weaker version of D's outcome.
-\texttt{deriv\_bc} again times out on fewer entries, 2 of its 28 against 5
-and 4 for the two partial-derivative variants, but here the timeouts and the median
-disagree. H's patterns are chains of adjacent unbounded groups, such as
-\texttt{(.+)(.+)}\(\ldots\), so the split points multiply across the group
-boundaries. The residual set the partial-derivative parsers carry grows
-with the number of groups. Each element is stepped at every character, but
-\texttt{deriv\_bc} only carries a single simplified expression. On
-completed entries, however, the partial-derivative parsers are faster
-on both mean (167.23 and 213.98 against 253.72\,ms) and median (49.95 and
-53.42 against 74.75\,ms).
+\texttt{deriv\_bc} again times out on fewer entries,
+2 of 28 against 5 and 4 for the partial-derivative variants,
+but here timeouts and median disagree.
+H's patterns are chains of adjacent unbounded groups,
+such as \texttt{(.+)(.+)}\(\ldots\),
+so split points multiply across group boundaries.
+The residual set carried by the partial-derivative parsers
+grows with the number of groups.
+Each residual is processed at every character,
+whereas \texttt{deriv\_bc} carries only one simplified expression.
+On completed entries, the partial-derivative parsers
+are faster on both mean (167.23 and 213.98 against 253.72\,ms)
+and median (49.95 and 53.42 against 74.75\,ms).
 
-%
-%
-%
+\paragraph{Overall} the standard derivative parsers 
+are the most timeout-prone across categories, 
+while \texttt{deriv\_bc} outperforms both. 
+The partial-derivative variants outperform
+the entire derivative family in A, B, C, F, and K, 
+and tie \texttt{deriv\_bc} while still beating the standard pair in I.
+They do not lead in D, H, and J, where \texttt{deriv\_bc}
+is more robust because it carries a single expression 
+rather than a set of residuals. 
+In D, simplification merges residuals 
+that are equivalent but not syntactically equal. 
+In H, the single expression avoids the per-element cost of a residual set
+that grows with the number of groups. 
+In J, it avoids the same cost across a wide alternation.
 
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} llrrrrr}
-\hline
-Cat. & Parser & Timed out & Measured & Mean (ms) & Median (ms) & Max (ms) \\
-\hline
-I & \texttt{deriv\_std\_rec}  & 44 (1) &  15 & 128.08 &   0.51 & 1\,634.08 \\
-  & \texttt{deriv\_std\_loop} &     45 &  15 & 122.17 &   0.55 & 1\,604.48 \\
-  & \texttt{deriv\_bc}        &     19 &  41 & 463.33 & 151.20 & 1\,867.90 \\
-  & \texttt{pderiv\_std}      &     19 &  41 & 249.43 &  47.37 & 1\,603.32 \\
-  & \texttt{pderiv\_bc}       &     19 &  41 & 200.82 &  52.44 & 1\,136.38 \\
-\hline
-J & \texttt{deriv\_std\_rec}  &  3 &  19 & 182.17 &  5.64 & 1\,726.85 \\
-  & \texttt{deriv\_std\_loop} &  2 &  20 & 258.57 &  5.80 & 1\,724.29 \\
-  & \texttt{deriv\_bc}        &  2 &  20 & 187.48 & 14.87 & 1\,567.33 \\
-  & \texttt{pderiv\_std}      &  4 &  18 & 179.89 &  1.92 & 1\,515.41 \\
-  & \texttt{pderiv\_bc}       &  4 &  18 & 155.05 &  2.64 & 1\,354.74 \\
-\hline
-K & \texttt{deriv\_std\_rec}  & 24 &  6 & 354.41 & 405.10 &   625.28 \\
-  & \texttt{deriv\_std\_loop} & 24 &  6 & 336.07 & 372.51 &   532.73 \\
-  & \texttt{deriv\_bc}        & 12 & 18 & 175.79 &  58.88 &   734.89 \\
-  & \texttt{pderiv\_std}      & 11 & 19 & 199.88 &  40.24 & 1\,925.61 \\
-  & \texttt{pderiv\_bc}       & 10 & 20 & 180.38 &  32.89 & 1\,182.48 \\
-\hline
-L & \texttt{deriv\_std\_rec}  & 20 & 175 &  61.23 & 0.12 & 1\,795.99 \\
-  & \texttt{deriv\_std\_loop} & 19 & 176 &  65.75 & 0.13 & 1\,785.88 \\
-  & \texttt{deriv\_bc}        &  0 & 195 &   4.48 & 0.08 &    98.13 \\
-  & \texttt{pderiv\_std}      &  0 & 195 &   2.26 & 0.03 &    51.10 \\
-  & \texttt{pderiv\_bc}       &  0 & 195 &   2.25 & 0.03 &    50.52 \\
-\hline
-\end{tabular*}
-\caption{Per-parser timing over the synthetic set's default sweep for the
-$2\times 2$ size matrix I--L (pattern size $\times$ input size).
-\emph{Timed out} counts entries exceeding the budget, with any crash
-shown in parentheses separately; \emph{Measured} counts entries with a
-completed timing.}
-\label{tab:patho-timing-size}
-\end{table}
-
-\paragraph{Categories I, J, K, L} form a $2\times2$ matrix of pattern
-size against input size. L is trivial in both, every parser measuring at
-least 175 of 195 entries: the partial-derivative pair takes 2.26 and
-2.25\,ms, \texttt{deriv\_bc} 4.48\,ms, the standard pair 61.23 and
-65.75\,ms, so \texttt{deriv\_bc} is twice as slow as either variant. I
-grows only the input, pushing every parser past the budget on at least 19
-of its 60 entries, rising to 44 for \texttt{deriv\_std\_rec}, plus the
-crash its call-stack storage causes
-(Section~\ref{sec:eval-stack-depth}). J and K differ only in input length:
-J's short input leaves little room to diverge, with 2 to 4 timeouts,
-while K repeats the same expensive steps over a long input, with 10 to
-24. \texttt{deriv\_std\_rec} does not crash there, since the expensive
-steps time each entry out before its stack reaches the ceiling reached in
-I.
-
-\paragraph{Overall} the standard derivative parsers are the most
-timeout-prone across all categories, \texttt{deriv\_bc} beats them
-everywhere, and the partial-derivative variants beat the whole derivative
-family in A, B, C, F, and K, tying \texttt{deriv\_bc} while still beating
-the standard pair in I. They do not lead in D, H, and J, where
-\texttt{deriv\_bc} is more robust because it carries a single expression
-rather than a set of residuals: in D its simplification merges residuals
-that are equivalent but not syntactically equal, in H it avoids the
-per-element cost of a set that grows with the number of groups, and in J
-it avoids that cost across a wide alternation. Within the pair, the mean
-favours \texttt{pderiv\_bc} in nine categories and the median in six, so
-its advantage over \texttt{pderiv\_std} lies in the slowest entries rather
-than the typical one. The widest alternations, rows E37 and E38, show no
-reversal: \texttt{pderiv\_bc} and \texttt{pderiv\_std} stay fastest as
-$p$ grows into the thousands, while \texttt{deriv\_bc}'s own
-branch-deduplication cost (Figure~\ref{fig:dedup-first-rust}) dominates,
+Within the partial-derivative pair, 
+the mean favours \texttt{pderiv\_bc} in nine categories, 
+but the median does so in only six. 
+Its advantage over \texttt{pderiv\_std} 
+therefore lies more in the slowest entries than in typical performance.
+The widest alternations, rows E37 and E38, show no reversal:
+\texttt{pderiv\_bc} and \texttt{pderiv\_std} 
+remain fastest as $p$ grows into the thousands, 
+while \texttt{deriv\_bc}'s branch-deduplication cost
+(Figure~\ref{fig:dedup-first-rust}) dominates,
 as Table~\ref{tab:patho-e38-all-parsers} shows.
 
 %
 %
 %
 
+
+\clearpage
 \subsubsection{Representative Patterns}
 \label{sec:eval-timing-representative}
 
-Six representative rows are drawn from the categories above. Four are
-swept past their baseline values in input length $n$, reaching millions
-of characters or thousands of repetitions, so each row crosses from
-measured to failing within its own range. The other two, E37 and E38,
-instead sweep the pattern's own alternation width $p$ at fixed input
-length, isolating compile-size cost from input length; row selection and
-sweep points were set empirically as each row's cost became clear. The
-four $n$-sweep rows exceed the default 2\,s budget, so each uses a fixed
-120\,s deadline and an 8\,GiB memory cap to let its largest point finish;
+Six representative rows are drawn from the categories above. 
+Four are swept past their baseline values in input length $n$, 
+reaching millions of characters or thousands of repetitions, 
+so each row crosses from measured to failing within its own range. 
+The other two, E37 and E38,
+instead sweep the pattern's own alternation width $p$ at fixed input length, 
+isolating compile-size cost from input length.
+Row selection and sweep points were set empirically 
+as each row's cost became clear. 
+The four $n$-sweep rows exceed the default 2\,s budget, 
+so each uses a fixed 120\,s deadline and an 8\,GiB memory cap 
+to let its largest point finish.
 E37 and E38 stay within the default budget and need neither override.
-Table~\ref{tab:patho-crash-thresholds} summarises how far each parser
-gets on them, in terms of the largest $n$ or $p$ it completes and the
-first value at which it fails.
+Table~\ref{tab:patho-crash-thresholds} summarises how far each parser gets on them, 
+in terms of the largest $n$ or $p$ it completes 
+and the first value at which it fails.
 
-The standard pair fails earliest on every row, by crashing rather than
-timing out: both run on the 256\,MiB worker stack with the 8\,GiB heap
-cap enabled, giving more stack headroom than the
-Section~\ref{sec:eval-stack-depth} bench, yet they still reach the cap
-at the same $n$ with nearly identical allocation, so recursion depth is
-not the cause, the heap is. Both keep the derivation sequence for the
-backward pass, and its size grows with the input. With the standard
-pair ruled out, the remaining question is how \texttt{deriv\_bc} and the
-partial-derivative pair compare: on P01 the pair outlasts
-\texttt{deriv\_bc}, while on P60 and P09 all three reach the sweep
-maximum without failing. P61 is the exception: \texttt{deriv\_bc} and
-\texttt{pderiv\_bc} both still reach the maximum, but
-\texttt{pderiv\_std} now crashes there instead, the only failure among
-these three parsers on any of the six rows.
+The standard pair crashes earliest on every row.
+Both use the $256\,\mathrm{MiB}$ worker stack and 8\,GiB heap cap,
+giving more stack headroom than the
+Section~\ref{sec:eval-stack-depth} benchmark, 
+yet reach the same $n$ with nearly identical allocation. 
+This points to heap usage, not recursion depth, as the cause. 
+Both keep the derivation sequence for the backward pass, 
+whose size grows with the input.
+The remaining comparison is 
+between \texttt{deriv\_bc} and the partial-derivative pair.
+On P01, the pair outlasts \texttt{deriv\_bc}, 
+while all three complete the sweeps on P60 and P09. On P61,
+\texttt{deriv\_bc} and \texttt{pderiv\_bc} still reach the maximum,
+but \texttt{pderiv\_std} crashes there, 
+the only failure among these three parsers across the six rows.
 
 \begin{table}[H]
 \centering
@@ -1022,17 +1044,13 @@ E38 & J & $p$-way alternation, numbered words
     & \shortstack[r]{\checkmark\ 10\,000\\ ---} \\[6pt]
 \hline
 \end{tabular*}
-\caption{Match-side crash and timeout thresholds. Each cell gives the
-largest swept $n$ that completed (\checkmark) above the first $n$ that
-failed ($\times$), and a dash means every swept $n$ completed.
-P60 and P61 are the reference-paper scale rows,
-P09 and P01 are the nested-quantifier and overlapping-alternation rows,
-and E37 and E38 sweep the pattern size $p$ rather than the input length.
-For P60, P61, P09, and P01, the two numbers are the last input length
-that completed and the first that failed.
-For E37 and E38, they are
-the last alternation width that completed and the first that failed.
-}
+\caption{Match-side crash and timeout thresholds. 
+Each cell gives the largest swept $n$ that completed (\checkmark) 
+and the first that failed ($\times$).
+A dash means all swept values completed.
+P60 and P61 are reference-paper scale rows, 
+P09 and P01 cover nested quantifiers and overlapping alternations, and 
+E37 and E38 sweep pattern size $p$ rather than input length.}
 \label{tab:patho-crash-thresholds}
 \end{table}
 
@@ -1040,21 +1058,25 @@ the last alternation width that completed and the first that failed.
 %
 %
 
-\textbf{P60 and P61.} Figures~\ref{fig:patho-fig7a} and~\ref{fig:patho-fig7bc}
+\textbf{P60 and P61.} Figure~\ref{fig:patho-fig7a} and Figure~\ref{fig:patho-fig7bc}
 plot wall time for \texttt{(a|b|ab)*} on \texttt{a}- and \texttt{ab}-repeated
-input, at the scale of \citet{sulzmannlu2014}'s Figure~7(a) and~7(b). The
-comparison is not exact, since \texttt{deriv\_bc} implements the paper's
-construction as described in their theory and builds a full parse tree,
-whereas the experiments in the paper used a variant adapted for submatching
-called DERIV, that records only a Kleene star's last match so it could be compared against
-TDFA, RE2, and C-POSIX. The candidate results are therefore not directly
-comparable to the paper's curves.
-Both inputs grow roughly linearly, and the lower panels plot the
-partial-derivative pair as a ratio to \texttt{deriv\_bc}, which trails both
-across most of the sweep. \texttt{deriv\_bc} holds the pattern's ambiguity
-in one expression and simplifies it after every character, while the
-partial-derivative pair keep a short list of readings and check each new
-one against it once, which is cheaper on both inputs.
+input, at the scale of \citep[Figs.~7(a) and~7(b)]{sulzmannlu2014}.
+But a direct comparison is not possible,
+since \texttt{deriv\_bc} implements the paper's construction
+as described in their theory and builds a full parse tree.
+The experiments in the paper used a variant
+adapted for submatching called DERIV,
+that records only a Kleene star's last match
+so it could be compared against TDFA, RE2, and C-POSIX.
+The candidate results are therefore not directly comparable to the paper's curves.
+Both inputs grow roughly linearly. 
+The lower panels show the
+partial-derivative parsers' timings relative to \texttt{deriv\_bc},
+which is slower on both P60 and P61.
+\texttt{deriv\_bc} holds the pattern's ambiguity in one expression
+and simplifies it after every character, 
+while the partial-derivative pair keeps a list of distinct residuals 
+and checks each new one against it once, which is cheaper on both inputs.
 
 \begin{figure}[H]
 \centering
@@ -1174,60 +1196,131 @@ ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-fig7bc}
 \end{figure}
 
-Between the two partial-derivative parsers, neither keeps a consistent
-edge on either row: \texttt{pderiv\_bc} is faster at 7 of P60's 12
-swept points and 9 of P61's 10 comparable ones, trading the lead at
-different points along each sweep rather than showing P60's older
-clean ordering. P61's eleventh point, $n=10\,000\,000$, has no
-\texttt{pderiv\_std} value to compare against, since it crashes there
-instead of completing (Table~\ref{tab:patho-crash-thresholds}). At the
-largest input both still complete, \texttt{pderiv\_bc} is a little
-ahead on each row: 0.685 against \texttt{pderiv\_std}'s 0.722 of
-\texttt{deriv\_bc}'s time at $n=10\,000\,000$ on P60, and 0.831 against
-0.901 at $n=5\,000\,000$ on P61.
-This leans the same way as the dataset-wide result rather than against
-it: \texttt{pderiv\_bc} was shown to be faster on mean in nine
-categories and median in six. \texttt{pderiv\_bc} and
-\texttt{pderiv\_std} step the same residuals and differ only in how
-they tag them, so a lead this narrow and this inconsistent from one
-swept point to the next is better explained by ordinary run-to-run
-variation than by a mechanism tied to tagging.
+%
 
-Let $B$ denote the pattern \texttt{a|b|ab}, so the whole
-pattern is $B^{*}$, and let a \emph{state} be the set of residuals that
-remain after a prefix of the input has been consumed. Moving to the next
-character means taking each residual's derivative and then dropping
-duplicates, keeping the first copy of any residual reached twice
-(\ref{sec:pderiv-state-set}
-and~\ref{sec:pderiv-bc-state-set}), starting with $S_0 = \{B^{*}\}$.
+The panels show that the ratio to \texttt{deriv\_bc}
+is smaller on P61 than on P60.
+The two inputs produce different residual sequences, 
+and so different costs as derivation proceeds.
+Tracing \texttt{deriv\_bc} on both inputs 
+and writing $X$ for the unchanging inner residual each step reduces to:
 \[
-\begin{aligned}
-\mathit{step}(S_0, \mathtt{a}) &= \{\,B^*,\ \ \mathtt{b}\cdot B^*\,\} =: S_1, \\
-\mathit{step}(S_1, \mathtt{a}) &= S_1, \\
-\mathit{step}(S_1, \mathtt{b}) &= \{\,B^*\,\} = S_0.
-\end{aligned}
+\begin{array}{r@{\ }l@{\qquad\qquad}r@{\ }l}
+\multicolumn{2}{c}{\texttt{a}\text{-repeated}} & \multicolumn{2}{c}{\texttt{ab}\text{-repeated}} \\[2pt]
+\mathit{ri}_1 \xrightarrow{\ \mathtt{a}\ } & []@X & \mathit{ri}_1 \xrightarrow{\ \mathtt{a}\ } & []@X \\
+\mathit{ri}_2 \xrightarrow{\ \mathtt{a}\ } & [0,0,0]@X & \mathit{ri}_2 \xrightarrow{\ \mathtt{b}\ } & [0,1]@X \\
+\mathit{ri}_3 \xrightarrow{\ \mathtt{a}\ } & [0,0,0,0,0,0]@X & \mathit{ri}_3 \xrightarrow{\ \mathtt{a}\ } & [0,1]@X \\
+\mathit{ri}_4 \xrightarrow{\ \mathtt{a}\ } & [0,0,0,0,0,0,0,0,0]@X & \mathit{ri}_4 \xrightarrow{\ \mathtt{b}\ } & [0,1,0,1]@X
+\end{array}
+\]
+Tracing \texttt{pderiv\_bc} with $B$ for the
+pattern \texttt{a|b|ab} and states $S_0 = \{B^{*}\}$,
+$S_1 = \{B^{*}, \mathtt{b}\cdot B^{*}\}$:
+\[
+\begin{array}{r@{\ }l@{\qquad\qquad}r@{\ }l}
+\multicolumn{2}{c}{\texttt{a}\text{-repeated}} & \multicolumn{2}{c}{\texttt{ab}\text{-repeated}} \\[2pt]
+S_0 \xrightarrow{\ \mathtt{a}\ } & S_1\ (\text{2 residuals tagged}) & S_0 \xrightarrow{\ \mathtt{a}\ } & S_1\ (\text{2 tagged}) \\
+S_1 \xrightarrow{\ \mathtt{a}\ } & S_1\ (\text{2 tagged}) & S_1 \xrightarrow{\ \mathtt{b}\ } & S_0\ (\text{1 tagged}) \\
+S_1 \xrightarrow{\ \mathtt{a}\ } & S_1\ (\text{2 tagged}) & S_0 \xrightarrow{\ \mathtt{a}\ } & S_1\ (\text{2 tagged})
+\end{array}
 \]
 
-The second residual in $S_1$ is $b\cdot B^{*}$. Here the \texttt{ab} branch
-has already used its \texttt{a} and is waiting for a \texttt{b}. When the
-next character is \texttt{a}, this residual cannot move, so it disappears.
-Meanwhile $B^{*}$ produces the same two residuals again, and $S_1$ reproduces
-itself. Repeated \texttt{a}s give $S_1 \to S_1 \to S_1$, with two residuals
-on every step. When the next character is \texttt{b}, the waiting residual
-completes, both residuals become $B^{*}$, and the one copy that remains is
-$S_0$. So \texttt{ab}-repeated input alternates
-$S_0 \to S_1 \to S_0 \to S_1 \to \cdots$, with two residuals on every
-\texttt{a} and one on every \texttt{b}.
-Each new residual carries a tag recording which branch produced it.
-\texttt{pderiv\_bc} extends a bit string by one node per residual, while
-\texttt{pderiv\_std} wraps the previous closure in another. Both allocate
-a small node, but the bit version also materialises the new bit slice, so
-\texttt{pderiv\_bc} pays a real, if small, extra cost on every residual it
-tags. \texttt{a}-repeated input carries two residuals at every step, so
-that cost is paid twice per character. \texttt{ab}-repeated input drops to
-one on every other step, so it is paid 1.5 times on average and the gap
-narrows between the two partial-derivative parsers.
+\clearpage
+These two derivations explain two separate things. 
+For \texttt{deriv\_bc}: 
+Internalize tags the pattern as 
+$[0](a \mathbin{|} b) \oplus [1](a \cdot b)$ under the Star. 
+The outer alternation tags the branch taken: $[0]$ for \texttt{a|b}.
+And within \texttt{a|b}, the inner alternation $[0]a \oplus [1]b$ 
+tags the literal matched. 
+The Star itself tags whether it continues: 
+$[0]$ for another iteration, $[1]$ to stop. 
+Bits only reach the root when the nullable-Seq rule 
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$ (Equation~\eqref{eq:bderiv}) fires:
+once \texttt{a|b} is nullable, 
+\texttt{mkEpsBC} extracts its completed path and fuses it 
+onto the Star's continuation $X$. 
+Matching a literal \texttt{a} makes \texttt{a|b} nullable 
+after exactly one character, so this fires on every \texttt{a}, 
+extracting all three tags at once. 
 
+Matching \texttt{b} instead resolves directly: deriving \texttt{a|b}
+by \texttt{b} succeeds immediately (the inner \texttt{b} branch
+becomes $\varepsilon$, the \texttt{a} branch dies), costing only the
+outer $[0]$ and inner $[1]$ ($2$ bits) and the Star does not yet
+need to restart. The nullable-Seq rule above only fires when
+\texttt{a|b} is \emph{already} nullable going into the step, which
+happens only right after a \emph{previous} \texttt{a} has set it up.
+On \texttt{ab}-repeated input, every \texttt{a} is preceded by a
+\texttt{b}, which resets this setup, so the rule never fires at all:
+only the cheap $2$-bit \texttt{b} step commits anything, once every
+two characters.
+
+Since \texttt{fuse} and \texttt{simp} must thread through that
+growing bit-list every step, \texttt{deriv\_bc}'s own cost grows
+roughly three times as fast per character on P60 as on P61.
+\texttt{deriv\_bc} still remains slower than both
+partial-derivative parsers throughout the sweep
+(Tables~\ref{tab:patho-p60-all-parsers} and~\ref{tab:patho-p61-all-parsers}),
+but its disadvantage narrows on P61, where the root bit-list grows
+more slowly.
+
+For the two partial-derivative parsers:
+The \texttt{pderiv\_bc} derivation above shows \texttt{a}-repeated
+input always tagging both residuals in $S_1$,
+while \texttt{ab}-repeated input tags only one residual
+whenever it collapses to $S_0$.
+\texttt{pderiv\_bc}'s slight edge over \texttt{pderiv\_std}
+could be explained by what tagging costs each:
+\texttt{pderiv\_std} wraps a residual in another closure --
+a heap-allocated, dynamically-dispatched \texttt{Rc<dyn Fn>} --
+while \texttt{pderiv\_bc} only appends a bit to a slice, which is
+cheaper, so \texttt{pderiv\_std} pays a small,
+real cost on top of \texttt{pderiv\_bc}'s for every residual either tags,
+indicating that bit-coding gives partial derivatives a small edge
+here too, just much smaller than the large benefit it gives the
+full-derivative parser.
+
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrr}
+\hline
+$n$ & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
+\hline
+10             &      0.059 &      0.047 &      0.052 \\
+100            &      0.427 &      0.375 &      0.285 \\
+1\,000         &      3.709 &      3.025 &      2.954 \\
+5\,000\,000    & 19\,574.09 & 14\,302.75 & 13\,583.01 \\
+10\,000\,000   & 39\,698.15 & 28\,640.13 & 27\,195.09 \\
+\hline
+\end{tabular*}
+\caption{Total wall time (ms) for \texttt{deriv\_bc}, \texttt{pderiv\_std},
+and \texttt{pderiv\_bc} on P60.}
+\label{tab:patho-p60-all-parsers}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrr}
+\hline
+$n$ & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
+\hline
+10             &      0.099 &      0.059 &      0.074 \\
+100            &      0.696 &      0.626 &      0.606 \\
+1\,000         &      5.818 &      5.712 &      5.129 \\
+5\,000\,000    & 28\,509.99 & 25\,681.02 & 23\,688.71 \\
+10\,000\,000   & 58\,487.46 &          -- & 47\,527.51 \\
+\hline
+\end{tabular*}
+\caption{Total wall time (ms) for \texttt{deriv\_bc}, \texttt{pderiv\_std},
+and \texttt{pderiv\_bc} on P61.}
+\label{tab:patho-p61-all-parsers}
+\end{table}
 
 %
 %
@@ -1697,7 +1790,7 @@ allocation is smaller, at roughly $1.8$--$1.9\times$.
 The partial-derivative pair shows a different result from the growth
 curves. \texttt{pderiv\_std} has the lower peak (2.5 against 3.8\,MB),
 reversing the pair's timing ranking on the same corpus. At these input
-lengths the frontier is already small, so bit-tracking adds overhead.
+lengths the state set is already small, so bit-tracking adds overhead.
 The growth argument concerns how the variants scale, not which uses
 less memory on short inputs.
 
@@ -1705,8 +1798,8 @@ less memory on short inputs.
 canonical expressions and report live-state size per input character. For the
 two standard forms the figure is the node count of the current residual. For
 the two partial-derivative forms it is the total node count across the
-frontier, after deduplicating repeated residuals the same way the parser's
-own frontier-stepping does.
+state set, after deduplicating repeated residuals the same way the parser's
+own state set-stepping does.
 
 \begin{table}[H]
 \centering
@@ -1737,7 +1830,7 @@ size depend on input length. On \texttt{(a+(b+ab))\*},
 \texttt{deriv\_bc} remains between 8 and 12. Shape-based
 simplification collapses the repeated branches in this pattern.
 The partial-derivative variants also remain bounded, oscillating
-between 8 and 18 nodes. Their state is the deduplicated frontier of
+between 8 and 18 nodes. Their state is the deduplicated state set of
 distinct residuals, rather than a single expression.
 
 %
@@ -1792,7 +1885,7 @@ layer per residual kept alive, where \texttt{pderiv\_bc}'s bit vectors
 stay flat regardless of how many residuals survive. \texttt{deriv\_bc}
 is the exception only on C, where its retained history for the
 backward pass costs more than either partial-derivative parser's
-frontier: 32.8\,MB against 9.9 and 14.3\,MB. The margin by which
+state set: 32.8\,MB against 9.9 and 14.3\,MB. The margin by which
 \texttt{pderiv\_std} leads is itself uneven: narrowest on H, where
 all three stay within 2.2\,MB of each other (1.9 to 4.1), and widest
 on A, where its peak is roughly eight times either of the other two
@@ -2498,7 +2591,7 @@ pattern tree does less work per node than building \texttt{deriv\_bc}'s
 annotated state.
 
 Both partial-derivative variants produce non-POSIX trees. This is
-a difference in parsing policy, not a correctness defect, and is
+a difference in parsing policy, not a bug, and is
 why the two families are compared separately in
 Section~\ref{sec:eval-agreement}.
 
