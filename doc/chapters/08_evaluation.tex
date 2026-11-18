@@ -461,7 +461,7 @@ sweep values, on their matching side.
 \hline
 Row & Swept & Fixed & Description & Pattern & Input \\
 \hline
-P01 & $n = 10$   & --- & \texttt{a} repeated 10x
+P01 & $n = 10$ & --- & \texttt{a} repeated 10x
     & \texttt{(a+)+}
     & $[\,\texttt{a}^{10}\,]$ \\
 P01 & $n = 1000$ & --- & \texttt{a} repeated 1000x
@@ -479,79 +479,69 @@ alternation width grows while the input is fixed $n = 20$.}
 \end{table}
 
 The 112 patterns are grouped by the complexity mechanism they
-test (Table~\ref{tab:patho-categories}). 
-Each category has its own sweep range, 
-chosen to take measured costs from microseconds 
-towards a timeout or crash. 
-A and B sweep $n=10$--$10\,000$ at fixed $p=100$; 
-C and H sweep $n=10$--$1\,000$ at the same $p$; 
-D uses the narrowest range, $n=10$--$75$; 
-E and F sweep $n=10$--$50\,000$; 
-I sweeps $n=100\,000$--$10\,000\,000$; and 
-L sweeps $n=10$--$1\,000$ at $p=100$. 
-J instead fixes $n=20$ and sweeps $p=100$--$2\,000$, 
-although only one of its five patterns reaches 2\,000, 
-with the others stopping at 500.
-K fixes $p$ per pattern at 100 or 300 and sweeps $n=500$--$50\,000$.
-Each swept value contributes two entries, 
-one matching and one non-matching. 
-Entries are pooled across each category's patterns,
-and every entry is run once, without repeated trials. 
-Table~\ref{tab:patho-categories}
-gives the resulting pattern and entry counts. 
-For example, category A has 160 entries from 16 patterns, each swept over
-five values of $n$ and tested with both outcomes (16x5x2=160).
-
+test; Table~\ref{tab:patho-categories} also gives each category's
+swept $n$ or $p$ values, chosen to take measured costs from
+microseconds towards a timeout or crash.
+Each swept value contributes two entries, one matching and one
+non-matching, with the latter using a pattern-specific near-miss
+formed by adding or removing one boundary character.
+Entries are pooled across each category's patterns and run once
+each, without repeated trials: patterns times swept values times
+the two outcomes gives the entry count
+(e.g.\ $16 \times 5 \times 2 = 160$ for A).
 \begin{table}[H]
 \centering
-\footnotesize
+\small
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.1}
-\begin{tabularx}{\textwidth}{l
-    >{\raggedright\arraybackslash}p{4.5cm}
-    >{\raggedright\arraybackslash}X
-    >{\raggedright\arraybackslash}p{2.1cm}
-    rr}
+\begin{tabular}{l
+    >{\raggedright\arraybackslash}p{4.4cm}
+    >{\raggedright\arraybackslash}p{1.9cm}
+    r
+    >{\raggedright\arraybackslash}p{1.9cm}
+    >{\raggedright\arraybackslash}p{3.0cm}
+    r}
 \hline
-Cat. & Name & Mechanism & Example & Patterns & Entries \\
+Cat. & Name & Example & Patterns & $p$ sweep & $n$ sweep & Entries \\
 \hline
 A & Nested quantifiers
-    & Quantifier inside a quantifier
-    & \texttt{(a+)+} & 16 & 160 \\
+    & \texttt{(a+)+} & 16 & [100]
+    & [10, 20, 30, 1\,000, 10\,000] & 160 \\
 B & Overlapping alternation
-    & Shared-prefix alternatives under a quantifier
-    & \texttt{(a|aa)+} & 15 & 150 \\
+    & \texttt{(a|aa)+} & 15 & [100]
+    & [10, 20, 30, 1\,000, 10\,000] & 150 \\
 C & Bounded rep over star
-    & Bounded repetition of a star, unrolled
-    & \texttt{(.*a)\{1,10\}} & 7 & 56 \\
-D & Anchored-failure style
-    & Must fully consume input; near-miss tail forces full enumeration
-    & \texttt{(a?)\{3\}a\{3\}} & 4 & 40 \\
+    & \texttt{(.*a)\{1,10\}} & 7 & [100]
+    & [10, 50, 200, 1\,000] & 56 \\
+D & Near-miss bounded repetition
+    & \texttt{(a?)\{3\}a\{3\}} & 4 & [100]
+    & [10, 20, 30, 50, 75] & 40 \\
 E & Prefix-overlap alternation
-    & One alternative is a strict prefix of another
-    & \texttt{(a|b|ab)*} & 8 & 80 \\
+    & \texttt{(a|b|ab)*} & 8 & [100]
+    & [10, 100, 1\,000, 5\,000, 50\,000] & 80 \\
 F & Star then failing literal
-    & Trailing literal fails only at the last character
-    & \texttt{(a|b)*c} & 7 & 70 \\
+    & \texttt{(a|b)*c} & 7 & [100]
+    & [10, 100, 1\,000, 10\,000, 50\,000] & 70 \\
 H & Adjacent unbounded groups
-    & Consecutive unbounded groups multiply split points
-    & \texttt{(.+)(.+)\ldots} & 4 & 28 \\
+    & \texttt{(.+)(.+)\ldots} & 4 & [100]
+    & [10, 50, 200, 1\,000] & 28 \\
 I & Long input, simple pattern
-    & Per-character cost on a very long input
-    & \texttt{a+} & 10 & 60 \\
+    & \texttt{a+} & 10 & [100]
+    & [100\,000, 1\,000\,000, 10\,000\,000] & 60 \\
 J & Large pattern, short input
-    & Per-node cost of a very large pattern
-    & 100-word Alt. & 5 & 22 \\
+    & 100-word Alt. & 5 & [100, 500,
+    1\,000\textsuperscript{*}, 2\,000\textsuperscript{*}]
+    & [20] & 22 \\
 K & Large pattern, large input
-    & Per-node and per-character cost together
-    & 1000-word Alt. & 3 & 30 \\
+    & 1000-word Alt. & 3 & [100 or 300]
+    & [500, 1\,000, 5\,000, 10\,000, 50\,000] & 30 \\
 L & Trivial pattern, trivial input
-    & Baseline 
-    & \texttt{x} & 33 & 195 \\
+    & \texttt{x} & 33 & [100]
+    & [10, 100, 1\,000] & 195 \\
 \hline
-Total & & & & 112 & 891 \\
+Total & & & 112 & & & 891 \\
 \hline
-\end{tabularx}
+\end{tabular}
 \caption{The synthetic-set categories. Categories I, J, K, and L form a
 $2\times 2$ matrix of pattern size against input size; the remaining
 seven each stress one cost mechanism. \emph{Patterns} counts distinct
@@ -1703,6 +1693,7 @@ and removing matches in place.}
 \label{fig:dedup-first-rust}
 \end{figure}
 
+\clearpage
 Figure~\ref{fig:dedup-first-rust}'s loop compares branch $i$ against every
 later branch $j$, roughly $p^2/2$ calls to \texttt{same\_shape} per character.
 For $p$ genuinely distinct words, \texttt{same\_shape} is essentially
