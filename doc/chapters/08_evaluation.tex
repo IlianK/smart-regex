@@ -1975,29 +1975,6 @@ Peak is the highest live-byte count reached during a single call.}
 \label{tab:patho-memory-e}
 \end{table}
 
-The standard derivative parser completes only short inputs, 
-reaching 5\,000 characters on P60 and 15 on P61. 
-The other three parsers reach ten million characters on both rows, 
-except \texttt{pderiv\_std} on P61, 
-which fails at ten million and completes five million. 
-Among these parsers, \texttt{pderiv\_bc} has the lowest peak on P60, 
-at 1.64\,GB, but its peak rises to 3.27\,GB on P61.
-The difference between the two rows is particularly pronounced for this parser, 
-despite both peaks being measured at the same input length. 
-\texttt{deriv\_bc} also uses more memory on P61 than on P60, 
-rising from 2.64 to 3.40\,GB. 
-By contrast, \texttt{pderiv\_std} 
-reaches almost the same peak on both rows, 3.12\,GB. 
-Its memory grows at roughly twice the rate on P61, 
-but it completes only half as much input.
-
-Interestingly it also shows, that \texttt{pderiv\_bc} 
-uses more memory on P61 than on P60
-even though Section~\ref{sec:eval-timing-representative} showed it
-keeps fewer residuals alive on \texttt{ab}-repeated input,
-alternating between one and two, than on \texttt{a}-repeated input, a constant two. 
-Residual count therefore cannot explain this difference. 
-
 \begin{table}[H]
 \centering
 \small
@@ -2023,7 +2000,32 @@ rows, against the largest swept input length each parser completed.
 \label{tab:patho-memory-ab}
 \end{table}
 
+\textbf{P60 and P61.} The standard derivative parser completes only short inputs, 
+reaching 5\,000 characters on P60 and 15 on P61. 
+The other three parsers reach ten million characters on both rows, 
+except \texttt{pderiv\_std} on P61, 
+which fails at ten million and completes five million. 
+Among these parsers, \texttt{pderiv\_bc} has the lowest peak on P60, 
+at 1.64\,GB, but its peak rises to 3.27\,GB on P61.
+The difference between the two rows is particularly pronounced for this parser, 
+despite both peaks being measured at the same input length. 
+\texttt{deriv\_bc} also uses more memory on P61 than on P60, 
+rising from 2.64 to 3.40\,GB. 
+By contrast, \texttt{pderiv\_std} 
+reaches almost the same peak on both rows, 3.12\,GB. 
+Its memory grows at roughly twice the rate on P61, 
+but it completes only half as much input.
+Interestingly it also shows, that \texttt{pderiv\_bc} 
+uses more memory on P61 than on P60
+even though Section~\ref{sec:eval-timing-representative} showed it
+keeps fewer residuals alive on \texttt{ab}-repeated input,
+alternating between one and two, than on \texttt{a}-repeated input, a constant two. 
+Residual count therefore cannot explain this difference. 
+
+
+
 \clearpage
+\textbf{P01 and P09.} 
 The standard derivative parser completes only 20 and 25 
 characters on P01 and P09, respectively. 
 Its lower peaks therefore reflect its early failure 
@@ -2043,11 +2045,11 @@ showing a consistent memory advantage from bit-coding.
 %
 %
 
-\textbf{E37 and E38.} The two pattern-width rows examined for
-timing (Section~\ref{sec:eval-timing-representative}) are also
-measured for memory, sweeping $p\in\{100,500,1\,000,2\,000,5\,000,
-10\,000\}$ at fixed input length. All five parsers complete every
-point, so memory is reported directly.
+\textbf{E37 and E38.} The two pattern-width rows used for timing
+(Section~\ref{sec:eval-timing-representative}) are also measured
+for memory, sweeping $p\in\{100,500,1\,000,2\,000,5\,000,
+10\,000\}$ at fixed input length. All five parsers complete the
+sweep, allowing direct comparison.
 
 \begin{table}[H]
 \centering
@@ -2070,15 +2072,15 @@ Table~\ref{tab:patho-phases-e37}.}
 \label{tab:patho-mem-e37}
 \end{table}
 
-\texttt{pderiv\_std} is the most memory-intensive parser throughout
-the E37 sweep. Its peak grows from 0.23\,MB at $p=100$ to
-1\,606.81\,MB at $p=10\,000$, roughly 137 times
-\texttt{deriv\_bc} and 29 times \texttt{pderiv\_bc}. Within the
-bit-coded pair, \texttt{pderiv\_bc} is cheaper at small $p$, but
-the ranking reverses between $p=1\,000$ and $p=2\,000$.
-At $p=10\,000$, \texttt{deriv\_bc} uses about 4.8 times less
-memory. It is also slightly more expensive than both standard
-variants at this point.
+In E37, \texttt{pderiv\_std} has the highest peak throughout,
+growing from 0.23\,MB at $p=100$ to 1\,606.81\,MB at
+$p=10\,000$. This is roughly 137 times the
+\texttt{deriv\_bc} peak and 29 times the
+\texttt{pderiv\_bc} peak. Within the bit-coded pair,
+\texttt{pderiv\_bc} is cheaper at small widths, but the ranking
+reverses between $p=1\,000$ and $p=2\,000$. At $p=10\,000$,
+\texttt{deriv\_bc} uses about 4.8 times less memory, though
+slightly more than either standard variant.
 
 \begin{table}[H]
 \centering
@@ -2096,43 +2098,42 @@ $p$ & \texttt{deriv\_std\_rec} & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} 
 10\,000     &  64.84 &  68.21 &   18.44 &  1\,612.09 &   60.09 \\
 \hline
 \end{tabular*}
-\caption{E38 peak live memory (MB), using the same sweep as Table~\ref{tab:patho-mem-e37}.}
+\caption{E38 peak live memory (MB), using the same sweep and
+columns as Table~\ref{tab:patho-mem-e37}.}
 \label{tab:patho-mem-e38}
 \end{table}
 
-E38 shows the same \texttt{pderiv\_std} growth more sharply.
-It starts below both standard variants at $p=100$, overtakes
-them by $p=500$, and reaches 1\,612.09\,MB at $p=10\,000$,
-roughly 87 times \texttt{deriv\_bc} and 27 times
-\texttt{pderiv\_bc}. The bit-coded pair reverses ranking in the
-same interval as on E37. At the largest width,
-\texttt{deriv\_bc} uses 18.44\,MB against
-\texttt{pderiv\_bc}'s 60.09\,MB, about 3.3 times less.
-It is the cheapest parser in this row.
-The two bit-coded parsers incur different representational costs.
-Both flatten the right-nested $p$-way alternation into leaves
-before deriving them, but \texttt{pderiv\_bc} tags each surviving
-leaf with a bit-prefix recording its position in the chain.
-The $k$-th leaf has a prefix of length $k$, giving $O(p^2)$
-bits across all leaves despite only $O(p)$ calls
+E38 shows the same \texttt{pderiv\_std} growth. It starts below
+both standard variants at $p=100$, overtakes them by $p=500$,
+and reaches 1\,612.09\,MB at $p=10\,000$, roughly 87 times
+\texttt{deriv\_bc} and 27 times \texttt{pderiv\_bc}. The
+bit-coded pair reverses ranking over the same interval as in
+E37. At the largest width, \texttt{deriv\_bc} uses
+18.44\,MB against 60.09\,MB for \texttt{pderiv\_bc}, making
+it the cheapest parser in this row.
+The bit-coded parsers incur different representational costs.
+Both flatten the right-nested $p$-way alternation into leaves,
+but \texttt{pderiv\_bc} tags each surviving leaf with a
+bit-prefix recording its position. The $k$-th leaf has a
+prefix of length $k$, giving $O(p^2)$ bits across all leaves
 (Section~\ref{sec:pderiv-bc}). By contrast,
-\texttt{deriv\_bc} retains annotations on the deduplicated tree
-rather than creating one per surviving branch, keeping memory
-closer to linear in $p$.
-The larger cost of \texttt{pderiv\_std} comes from its injection
+\texttt{deriv\_bc} retains annotations on the deduplicated
+tree rather than creating one per surviving branch, keeping
+memory closer to linear in $p$.
+The larger \texttt{pderiv\_std} cost comes from its injection
 closures. Its flattening pass (Section~\ref{sec:pderiv-tree-impl})
 builds each leaf's injection by wrapping the previous closure
-in a newly allocated one. The $k$-th leaf therefore retains a
-chain of $k$ heap allocations. This gives the same $O(p^2)$
-growth in stored structure, but as allocated closures rather
-than bits. This is consistent with the roughly 27-to-29-fold
-memory gap over \texttt{pderiv\_bc}, though profiling would be
-needed to establish the exact contribution. Despite this memory
-cost, \texttt{pderiv\_std}'s timing remains close to
-\texttt{pderiv\_bc}'s, and both are much faster than the other
-three parsers (Section~\ref{sec:eval-timing-representative}).
-The trade-off is therefore representational, and becomes severe
-at larger pattern widths.
+in a newly allocated one. The $k$-th leaf thus retains a chain
+of $k$ heap allocations. This gives the same $O(p^2)$ growth,
+but in allocated closures rather than bits. This is consistent
+with the 27-to-29-fold memory gap over \texttt{pderiv\_bc},
+though profiling would be needed to establish the exact
+contribution. Despite this cost, \texttt{pderiv\_std} has
+similar timing to \texttt{pderiv\_bc}, and both are much faster
+than the other three parsers
+(Section~\ref{sec:eval-timing-representative}). The trade-off
+is inherent in the representations and becomes severe at
+larger pattern widths.
 
 %
 %
@@ -2349,10 +2350,7 @@ Table~\ref{tab:patho-categories}.}
 %
 
 \clearpage
-\subsubsection{Example of shape disagreements}
-\label{sec:eval-agreement-examples}
-
-\textbf{S2ELab.} The loosely-formatted-number pattern
+\paragraph{Example: S2ELab pattern.} The loosely-formatted-number pattern
 \begin{center}
 \texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}
 \end{center}
@@ -2403,7 +2401,7 @@ against the non-POSIX tree produced by \texttt{pderiv\_std} and \texttt{pderiv\_
 
 %
 
-\textbf{Synthetic.} 
+\paragraph{Example: Synthetic pattern.} 
 Row P61, the pattern \texttt{(a|b|ab)*} on input \texttt{"ab"} is ambiguous
 and here it appears at the smallest input that makes its ambiguity visible 
 (Figure~\ref{fig:agreement-synthetic-trees}).
@@ -2429,40 +2427,39 @@ iterations, matching \texttt{"a"} and then \texttt{"b"} through the
 left branch. Both flatten to \texttt{"ab"}, so the disagreement is
 about parse structure rather than the matched word.
 
-
 %
 %
 %
 
 \clearpage
-\section{Discussion of Results}
-\label{sec:eval-discussion}
 
-%
-%
-%
+\section{Findings}
+\label{sec:eval-discussion}
 
 \subsection{Cost of the standard construction}
 
-The two standard derivative parsers are consistently the slowest and
-use the most memory. Their two-pass structure stores every intermediate
-expression until the backward pass completes. On \texttt{a\*} input,
-their state grows linearly with $n$, while the other three variants
-remain bounded in the measured range.
+The two standard derivative parsers are consistently the slowest
+and use the most memory. Their two-pass structure retains every
+intermediate expression until the backward pass completes. On
+\texttt{a*} input, this state grows linearly with $n$, while the
+other three variants remain bounded over the measured range.
 
-On the full corpus, the standard variants have similar mean times
-(7.605\,ms and 7.371\,ms), but their matching totals differ.
-\texttt{deriv\_std\_loop} takes 70.321\,s, compared with 73.493\,s
-for \texttt{deriv\_std\_rec}. Their non-match totals are almost
-identical, suggesting that iteration mainly reduces the cost of
-matching. On the representative rows, both variants reach the
-memory cap at the same input lengths and have similar allocation
-figures. This points to their shared retention of intermediate
-derivatives rather than recursion depth. The separate stack-depth
-test isolates the other failure mode. Without a memory cap,
-\texttt{deriv\_std\_loop} survives roughly 25 times longer in wall
-time before the doubling search's own per-probe cap ends it. Thus, the limiting factor depends on whether
-derivation cost or stack depth grows first.
+On the full corpus, the standard variants have similar mean
+times (7.605\,ms and 7.371\,ms), but differ in matching time.
+\texttt{deriv\_std\_loop} takes 70.321\,s, against 73.493\,s
+for \texttt{deriv\_std\_rec}, while their non-match totals are
+almost identical. Iteration therefore appears to reduce the
+cost mainly on matching inputs. On the representative rows,
+both variants reach the memory cap at the same input lengths
+and have similar allocation figures. This points to their
+shared retention of intermediate derivatives, rather than
+recursion depth, as the main memory constraint.
+
+The stack-depth test isolates the other failure mode.
+Without a memory cap, \texttt{deriv\_std\_loop} survives roughly
+25 times longer in wall time before the doubling search reaches
+its own per-probe cap. The limiting factor thus depends on
+whether derivation cost or stack depth grows first.
 
 %
 %
@@ -2471,25 +2468,28 @@ derivation cost or stack depth grows first.
 \subsection{Cost of bit-coding}
 \label{sec:eval-cost-bit-coding}
 
-For the standard-derivative family, bit-coding performs better on
-the measured corpus. \texttt{deriv\_bc} has a mean time of
-1.646\,ms, roughly $4.5\times$ below the standard variants,
-and a peak allocation of 5.1\,MB, about $114$--$144\times$ lower.
-Its forward pass retains information needed for single-pass
-reconstruction rather than simplifying every redundant branch.
-The decode step adds little time, staying under 0.1\,ms even at
-$p=2\,000$ swept alternatives, while encode grows with pattern size
-alone, from 0.65\,ms at $p=500$ to 2.97\,ms at $p=2\,000$
-(Table~\ref{tab:patho-phases-e37}). At far larger $p$, this same row
-is also where \texttt{deriv\_bc} stops being faster than the standard
-pair at all, discussed below.
+Within the standard-derivative family, bit-coding performs
+substantially better on the measured corpus.
+\texttt{deriv\_bc} has a mean time of 1.646\,ms, roughly
+$4.5\times$ lower than the standard variants, and a peak
+allocation of 5.1\,MB, about $114$--$144\times$ lower.
+Its forward pass retains the information needed for
+single-pass reconstruction, avoiding repeated simplification
+of redundant branches. Decoding adds little time, remaining
+below 0.1\,ms even at $p=2\,000$ alternatives. Encoding depends
+only on pattern size, rising from 0.65\,ms at $p=500$ to
+2.97\,ms at $p=2\,000$ (Table~\ref{tab:patho-phases-e37}).
+At much larger widths, however, this same parser eventually
+loses its speed advantage over the standard pair, as discussed
+below.
 
-The representative sweeps extend this result. \texttt{deriv\_bc}
-completes three of the four rows (P60, P61, P09), while both standard
-variants crash on all four. It reaches the full ten-million-character
-range on all three. Cumulative allocation can still be high, reaching
-169.26\,GB on P60, although peak allocation is 2.64\,GB. This distinction between
-cumulative allocation and peak live bytes is why both are reported
+The representative sweeps reinforce this result.
+\texttt{deriv\_bc} completes three of the four rows (P60, P61,
+and P09), reaching ten million characters on each, while both
+standard variants crash on all four. Its cumulative allocation
+can nevertheless be high, reaching 169.26\,GB on P60 despite
+a peak of 2.64\,GB. This illustrates why both cumulative
+allocation and peak live bytes are reported
 (Section~\ref{sec:eval-criteria-memory}).
 
 %
@@ -2499,133 +2499,135 @@ cumulative allocation and peak live bytes is why both are reported
 \subsection{Cost of partial derivatives}
 \label{sec:eval-cost-partial-derivatives}
 
-The partial-derivative parsers are the fastest and use the least
-memory on the S2ELab corpus. They represent the residual as a set
-of states rather than one combined expression, limiting the
-alternation growth seen in the standard derivative parser.
+The partial-derivative parsers are the fastest and use the
+least memory on the S2ELab corpus. Representing the residual
+as a set of states rather than one combined expression limits
+the alternation growth seen with standard derivatives.
 
-Within the pair, bit-coding does not consistently help or hurt.
-On the full corpus, \texttt{pderiv\_bc} is marginally faster
-(0.664 against \texttt{pderiv\_std}'s 0.759\,ms mean) and has
-lower total allocation (4.70 against \texttt{pderiv\_std}'s
-5.68\,GB), though \texttt{pderiv\_std} still has the lower peak
-(2.5 against 3.8\,MB). This asymmetry follows from how the two
-parsers apply the same collapse (Section~\ref{sec:pderiv-tree-impl}):
-\texttt{pderiv\_std}'s nullable-\texttt{Seq} branch builds a
-differently-shaped injection closure on every step where $r_1$'s own
-derivative is \texttt{Eps}, regardless of whether a duplicate
-residual was actually waiting to be caught, while \texttt{pderiv\_bc}'s
-side of the same collapse only removes a wrapper, with no added cost
-on a step where nothing needed collapsing. On the real corpus, where
-that collision is rare, this shows up as a small net loss for
-\texttt{pderiv\_std} and a small net gain for \texttt{pderiv\_bc}.
-The ranking on the representative rows is less clean than the
-corpus-wide one, and in a different way than it first appeared. At
-the largest input each parser reaches, the two trade narrow leads
-rather than either holding a stable one: \texttt{pderiv\_bc} is a
-little ahead on P60 (0.685 against \texttt{pderiv\_std}'s 0.722 of
-\texttt{deriv\_bc}'s time), on P61 (0.831 against 0.901, at the
-five-million-character point both still reach there before
-\texttt{pderiv\_std} crashes), and on P09 (0.520 against 0.529),
-while \texttt{pderiv\_std} is the more consistent winner on P01,
-increasingly so from $n=1\,000$ onward. Three of the four rows
-therefore lean the same way as the full corpus; P01, not P61, is the
-one that does not. The peak-memory ranking generalizes more cleanly:
-\texttt{pderiv\_bc} has the lower peak on every one of the four rows
-without exception, compared at the largest input length both reach --
-1.14 against 1.68\,GB on P01; 1.40 against 2.56\,GB on P09; 1.64
-against 3.12\,GB on P60; and 1.64 against 3.12\,GB on P61 at the
-five-million-character point, the largest \texttt{pderiv\_std} still
-reaches there before it crashes. \texttt{pderiv\_std}'s own peak also
-rose from the previous measurement on exactly the three rows built
-around an alternation -- P60, P61, and P09 -- enough on P61 to newly
-cross the memory cap at the input length where it previously
-completed; \texttt{pderiv\_bc} shows no such rise on any row
-(Section~\ref{sec:eval-memory-representative} discusses this
-further). The results suggest that the relative cost of bit-coding
-depends on the pattern and input, not only on input length --
-consistently so for peak memory, where \texttt{pderiv\_bc} always
-helps, but less so for speed, where the margin between the two is
-narrow enough on three of the four representative rows that it reads
-as noise rather than a stable effect, leaving P01 as the only row
-with a clear, consistent winner.
+Within this pair, bit-coding has mixed effects. On the full
+corpus, \texttt{pderiv\_bc} is marginally faster
+(0.664\,ms against 0.759\,ms for \texttt{pderiv\_std}) and
+has lower total allocation (4.70 against 5.68\,GB).
+However, \texttt{pderiv\_std} has the lower peak
+(2.5 against 3.8\,MB). This difference follows from how the
+two parsers implement the same collapse
+(Section~\ref{sec:pderiv-tree-impl}). In
+\texttt{pderiv\_std}, the nullable-\texttt{Seq} branch builds
+a differently shaped injection closure whenever the
+derivative of $r_1$ is \texttt{Eps}, even if no duplicate
+residual needs removing. In \texttt{pderiv\_bc}, the same
+collapse only removes a wrapper, incurring no additional
+cost when nothing needs collapsing. Since such collisions
+are rare in the real corpus, this gives
+\texttt{pderiv\_std} a small net disadvantage and
+\texttt{pderiv\_bc} a small advantage.
 
-The two bit-coded parsers' phase costs diverge sharply once the
-pattern itself grows wide, but in the opposite direction from before
-the \texttt{Alt}-flattening fix described in
-Section~\ref{sec:pderiv-tree-impl}: it is now \texttt{deriv\_bc}, not
-\texttt{pderiv\_bc}, that falls behind. On a $p$-way alternation of
-equal-length words (Table~\ref{tab:patho-phases-e37}),
-\texttt{deriv\_bc}'s derive time grows from $2.1\times$
-\texttt{pderiv\_bc}'s at $p=100$ to $13.3\times$ at $p=10\,000$ on
-matching input, since \texttt{deriv\_bc}'s own branch-deduplication
-(Figure~\ref{fig:dedup-first-rust}) is still the pairwise $O(p^2)$ scan
-it always was, where \texttt{pderiv\_bc}'s is now a single $O(p)$
-hashed pass over the flattened alternatives. \texttt{deriv\_bc} also
-now loses badly to the standard pair at this scale
-(Section~\ref{sec:eval-timing-representative}), where previously it
-was the other bit-coded parser's own bug that lost there instead;
-\texttt{pderiv\_bc} itself stays well ahead of the standard pair
-throughout.
-Non-matching input tells the opposite story. Rejecting
-\texttt{"zzzz"} still means deriving every one of the $p$ alternatives
-once, but none of them survive, so there is nothing left to
-deduplicate either way -- and here \texttt{pderiv\_bc} is the slower
-parser, not the faster one: 39.51\,ms against \texttt{deriv\_bc}'s
-30.58\,ms at $p=10\,000$. Flattening itself is not free: it builds one
-prefix per leaf before any of them are derived, and a right-nested
-chain gives the $k$-th leaf a prefix of length $k$, so flattening alone
-costs $O(p^2)$ bit-vector copies regardless of whether a single leaf
-survives (the same cost behind the memory rows in
-Section~\ref{sec:eval-memory-representative}). On matching input that
-cost is paid once and is dwarfed by the $O(p^2)$ dedup it replaces; on
-input every alternative rejects immediately, the dedup it replaces was
-already cheap, so flattening has nothing left to offset it against.
-\texttt{pderiv\_bc}'s own encode step remains consistently cheaper
-than \texttt{deriv\_bc}'s regardless of outcome, since cloning the
-pattern tree does less work per node than building \texttt{deriv\_bc}'s
-annotated state.
+The representative rows show a less consistent timing
+difference. At the largest input reached by each parser,
+\texttt{pderiv\_bc} has a narrow lead on P60 (0.685 against
+0.722 of \texttt{deriv\_bc}'s time), P61 (0.831 against
+0.901), and P09 (0.520 against 0.529). On P61, both reach
+five million characters before \texttt{pderiv\_std} crashes.
+By contrast, \texttt{pderiv\_std} wins more consistently
+on P01, with an increasing advantage from $n=1\,000$.
+Thus, three of the four rows agree with the corpus-wide
+ranking; P01 is the exception.
 
-Both partial-derivative variants produce non-POSIX trees. This is
-a difference in parsing policy, not a bug, and is
-why the two families are compared separately in
-Section~\ref{sec:eval-agreement}.
+The peak-memory ranking is more consistent.
+\texttt{pderiv\_bc} has the lower peak on all four rows,
+compared at the largest input length reached by both
+variants: 1.14 against 1.68\,GB on P01, 1.40 against
+2.56\,GB on P09, and 1.64 against 3.12\,GB on P60.
+On P61, the corresponding peaks are 1.64 and 3.12\,GB
+at five million characters, the largest input reached by
+\texttt{pderiv\_std}. Its peak also increases from the
+previous measurement on all three alternation-based rows
+(P60, P61, and P09), crossing the memory cap on P61 at
+an input length it previously completed. No such increase
+occurs for \texttt{pderiv\_bc}
+(Section~\ref{sec:eval-memory-representative}).
+Bit-coding therefore gives a consistent peak-memory
+advantage, but its speed advantage depends on the pattern
+and input. On three rows, the timing differences are narrow
+enough to be inconclusive; P01 is the only clear and
+consistent exception.
 
-%
-%
-%
+The two bit-coded parsers also differ sharply in their
+phase costs on wide patterns. This reverses the result
+before the \texttt{Alt}-flattening fix in
+Section~\ref{sec:pderiv-tree-impl}: \texttt{deriv\_bc},
+rather than \texttt{pderiv\_bc}, now falls behind.
+For a $p$-way alternation of equal-length words
+(Table~\ref{tab:patho-phases-e37}), the derive time of
+\texttt{deriv\_bc} grows from $2.1\times$ that of
+\texttt{pderiv\_bc} at $p=100$ to $13.3\times$ at
+$p=10\,000$ on matching input. Its branch deduplication
+(Figure~\ref{fig:dedup-first-rust}) remains a pairwise
+$O(p^2)$ scan, whereas \texttt{pderiv\_bc} now uses a
+single $O(p)$ hashed pass over the flattened alternatives.
+At this scale, \texttt{deriv\_bc} also falls behind the
+standard pair (Section~\ref{sec:eval-timing-representative}),
+while \texttt{pderiv\_bc} remains well ahead of them.
+
+Non-matching input gives the opposite result. Rejecting
+\texttt{"zzzz"} still requires deriving all $p$ alternatives,
+but none survive, leaving nothing to deduplicate. Here
+\texttt{pderiv\_bc} is slower, taking 39.51\,ms against
+30.58\,ms for \texttt{deriv\_bc} at $p=10\,000$.
+Flattening is itself costly: it builds a prefix for every
+leaf before derivation, and in a right-nested chain the
+$k$-th leaf has a prefix of length $k$. This requires
+$O(p^2)$ bit-vector copies regardless of how many leaves
+survive, explaining the memory growth in
+Section~\ref{sec:eval-memory-representative}. On matching
+input, this cost is offset by the quadratic deduplication
+it replaces. When every alternative rejects immediately,
+deduplication is already cheap, leaving no comparable
+saving. The \texttt{pderiv\_bc} encode step remains cheaper
+than that of \texttt{deriv\_bc} in both cases, since cloning
+the pattern tree requires less work per node than building
+the annotated state.
+
+Both partial-derivative variants produce non-POSIX trees.
+This reflects a difference in parsing policy, not a bug,
+and motivates comparing the two parser families separately
+in Section~\ref{sec:eval-agreement}.
 
 \subsection{Threats to validity}
 
-\textbf{Corpus scope.} S2ELab represents one domain and its
-conventions. Other corpora may have different acceptance rates and
-timing profiles. Timing, Memory, and Parse Agreement use the
-463-pattern default scope (Section~\ref{sec:eval-s2elab}).
-Including the remaining 115 patterns with
-\texttt{BENCH\_MATCH\_INTENT=both} could change the absolute
-results and potentially the ranking of candidates.
+\textbf{Corpus scope.} S2ELab represents one domain and
+its conventions; other corpora may have different acceptance
+rates and timing profiles. Timing, memory, and parse agreement
+use the 463-pattern default scope
+(Section~\ref{sec:eval-s2elab}). Including the remaining
+115 patterns with unanchored patterns could
+change the absolute results and possibly the candidate ranking.
 
 \textbf{The synthetic set.} Its 112 rows isolate individual
-complexity mechanisms at controlled scales rather than representing
-patterns written by typical users. Most categories vary one parameter
-at a time, so combinations of stress mechanisms are not directly tested.
+complexity mechanisms at controlled scales rather than
+representing typical user patterns. Most categories vary
+one parameter at a time, so combinations of stress
+mechanisms remain untested.
 
-\textbf{Agreement subset.} The \emph{Compared} subset includes
-expected matches completed by every candidate, with both families
-internally consistent. It excludes 71 of 5\,869 S2ELab matches
-(about 1\%) and 236 of 443 synthetic matches (about 53\%).
-The synthetic result is therefore based on a much smaller subset.
-For alternation-heavy categories, the excluded cases may also contain
-more ambiguity because shared prefixes can increase both derivation
-cost and the number of possible parses. This need not apply to
-categories such as I, where timeouts arise from input length alone.
+\textbf{Agreement subset.} The \emph{Compared} subset
+contains expected matches completed by every candidate,
+with both families internally consistent. It excludes
+71 of 5\,869 S2ELab matches (about 1\%) and 236 of
+443 synthetic matches (about 53\%), making the synthetic
+comparison substantially less representative. In
+alternation-heavy categories, excluded cases may also
+be more ambiguous, since shared prefixes can increase
+both derivation cost and the number of possible parses.
+This need not apply to categories such as I, where
+timeouts arise from input length alone.
 
-\textbf{Measurement model.} The memory benchmarks measure heap
-allocations, not total process memory. Timing results are specific
-to the machine used and may vary with its CPU and cache. A recorded
-\emph{crash} means that the process was killed by a signal, not
-that stack overflow was confirmed
-(Section~\ref{sec:eval-criteria-setup}). The separate stack-depth
-test removes the memory cap and provides direct evidence of stack
-overflow. The representative-row crashes are instead consistent
-with the memory costs of retaining intermediate derivatives.
+\textbf{Measurement model.} Memory measurements cover
+heap allocations, not total process memory. Timing depends
+on the test machine and may vary with CPU and cache.
+A recorded \emph{crash} means the process was killed by
+a signal, not that stack overflow was confirmed
+(Section~\ref{sec:eval-criteria-setup}). The separate
+stack-depth test removes the memory cap and provides
+direct evidence of stack overflow. Crashes in the
+representative rows are instead consistent with the
+memory cost of retaining intermediate derivatives.
