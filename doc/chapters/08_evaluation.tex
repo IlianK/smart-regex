@@ -478,28 +478,29 @@ alternation width grows while the input is fixed $n = 20$.}
 \label{tab:sweep-samples}
 \end{table}
 
-The 112 patterns are grouped by the complexity mechanism they
-test; Table~\ref{tab:patho-categories} also gives each category's
-swept $n$ or $p$ values, chosen to take measured costs from
-microseconds towards a timeout or crash.
-Each swept value contributes two entries, one matching and one
-non-matching, with the latter using a pattern-specific near-miss
-formed by adding or removing one boundary character.
-Entries are pooled across each category's patterns and run once
-each, without repeated trials: patterns times swept values times
-the two outcomes gives the entry count
-(e.g.\ $16 \times 5 \times 2 = 160$ for A).
+The 112 patterns are grouped by the complexity mechanism they test. 
+Each category has its own sweep range, 
+chosen to take measured costs from microseconds 
+towards a timeout or crash.
+Each swept value contributes two entries, 
+one matching and one non-matching, 
+with the latter using a pattern-specific
+near-miss formed by adding or removing one boundary character.
+Entries are pooled across each category's patterns,
+and every entry is run once, without repeated trials. 
+Table~\ref{tab:patho-categories}
+gives the resulting pattern and entry counts. 
+For example, category A has 160 entries from 16 patterns, each swept
+over $n \in \{10, 20, 30, 1\,000, 10\,000\}$ at $p=100$ and tested
+with both outcomes ($16 \times 5 \times 2 = 160$).
 \begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.1}
-\begin{tabular}{l
-    >{\raggedright\arraybackslash}p{4.4cm}
-    >{\raggedright\arraybackslash}p{1.9cm}
-    r
-    >{\raggedright\arraybackslash}p{1.9cm}
-    >{\raggedright\arraybackslash}p{3.0cm}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l l l r
+    >{\raggedright\arraybackslash}p{1.5cm}
+    >{\raggedright\arraybackslash}p{2.8cm}
     r}
 \hline
 Cat. & Name & Example & Patterns & $p$ sweep & $n$ sweep & Entries \\
@@ -541,7 +542,7 @@ L & Trivial pattern, trivial input
 \hline
 Total & & & 112 & & & 891 \\
 \hline
-\end{tabular}
+\end{tabular*}
 \caption{The synthetic-set categories. Categories I, J, K, and L form a
 $2\times 2$ matrix of pattern size against input size; the remaining
 seven each stress one cost mechanism. \emph{Patterns} counts distinct
@@ -1320,29 +1321,35 @@ $n$ & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 %
 
 \textbf{P01 and P09.} Figures~\ref{fig:patho-p01} and~\ref{fig:patho-p09}
-plot \texttt{(a+)+} and \texttt{(a|aa)+}, category A and B's ambiguous
-Kleene-star pair: P01 nests a star directly inside a plus, while P09
-leaves the quantifier flat and instead lets \texttt{a} and \texttt{aa}
-overlap, so the same substring can be consumed more than one way.
+plot \texttt{(a+)+} and \texttt{(a|aa)+}, 
+category A and B's ambiguous Kleene-star pair: 
+P01 nests a star directly inside a plus, 
+while P09 leaves the quantifier flat 
+and instead lets \texttt{a} and \texttt{aa} overlap, 
+so the same substring can be consumed more than one way.
 So both patterns are different routes to the same kind of ambiguity.
 The standard variants crash earliest on both, at $n=50$ on P01 and $n=100$ on P09,
 later than either but still far earlier than the E-family rows above.
 \texttt{deriv\_bc} times out on P01, at $n=200\,000$, but not on P09,
 where it joins both partial-derivative variants in completing the full
-ten-million-character sweep; Tables~\ref{tab:patho-p01-all-parsers}
-and~\ref{tab:patho-p09-all-parsers} give the wall time behind both figures,
+ten-million-character sweep.
+Tables~\ref{tab:patho-p01-all-parsers} and~\ref{tab:patho-p09-all-parsers} 
+give the wall time behind both figures,
 and P01's missing \texttt{deriv\_bc} entries past $n=1\,000$ are that timeout,
 not a gap in measurement.
 On P01, over the range
-where \texttt{deriv\_bc} itself has data (up to $n=50\,000$), the
-ratio starts between 0.8 and 1.0 at the smallest inputs and falls below 0.01
-by $n=50\,000$, since \texttt{deriv\_bc}'s own cost grows far faster
+where \texttt{deriv\_bc} itself has data (up to $n=50\,000$), 
+the ratio starts between 0.8 and 1.0 at the smallest inputs 
+and falls below 0.01 by $n=50\,000$, 
+since \texttt{deriv\_bc}'s own cost grows far faster 
 than the partial-derivative pair's as it nears its timeout.
-On P09, where \texttt{deriv\_bc} completes the whole sweep instead of nearing
-a timeout, both partial-derivative variants instead stay in a roughly
-steady band, from about 0.37 to 0.67, throughout --
-visible in Table~\ref{tab:patho-p09-all-parsers} as the partial-derivative
-columns tracking roughly half of \texttt{deriv\_bc}'s time at every row.
+On P09, where \texttt{deriv\_bc} completes the whole sweep 
+instead of nearing a timeout, 
+both partial-derivative variants instead stay in a roughly steady band, 
+from about 0.37 to 0.67, throughout, 
+visible in Table~\ref{tab:patho-p09-all-parsers}
+as the partial-derivative columns 
+tracking roughly half of \texttt{deriv\_bc}'s time at every row.
 
 \begin{figure}[H]
 \centering
@@ -1458,25 +1465,35 @@ partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
 \label{fig:patho-p09}
 \end{figure}
 
-The difference is what each pattern's ambiguity costs per character. P01
-nests a \texttt{+} inside another, so each additional \texttt{a}
-multiplies the ways the outer repetition could split into iterations,
-making each derivative step near-exponential. \texttt{deriv\_bc} keeps
-all live splits in one expression and compares every pair per character,
-so the cost grows with $n$ and the ratio collapses from near parity to
-below 0.01 before timeout -- the gap is already visible in
-Table~\ref{tab:patho-p01-all-parsers}, where \texttt{deriv\_bc}'s $n=1\,000$
-time of 7.543\,ms is nearly three times either partial-derivative variant's,
-and only widens from there. P09's ambiguity is shallower: category B's
-shared-prefix alternatives under one flat quantifier leave only a couple
-of live readings at each position, not a count tied to iterations passed.
-Pairwise cleanup is therefore bounded per character, holding the ratio in
-the 0.37--0.67 band to ten million characters, and
-Table~\ref{tab:patho-p09-all-parsers} shows this directly: \texttt{deriv\_bc}
-roughly doubles each partial-derivative time at every row, including the
-last. The two partial-derivative variants avoid this cost, and \texttt{pderiv\_bc}
-is faster at 9 of the 15 points, including the largest (0.520 against 0.529).
-This is the same modest, inconsistent lean as on P60 and P61, not a clean win.
+The difference is what each pattern's ambiguity costs per character. 
+P01 nests a \texttt{+} inside another, 
+so each additional \texttt{a} multiplies the ways the outer repetition 
+could split into iterations,
+making each derivative step near-exponential. 
+\texttt{deriv\_bc} keeps all live splits in one expression 
+and compares every pair per character,
+so the cost grows with $n$ 
+and the ratio collapses from near parity to below 0.01 before timeout.
+The gap is already visible in Table~\ref{tab:patho-p01-all-parsers}, 
+where \texttt{deriv\_bc}'s $n=1\,000$ time of 7.543\,ms 
+is nearly three times either partial-derivative variant's,
+and only widens from there. 
+P09's ambiguity is shallower.
+Category B's shared-prefix alternatives 
+under one flat quantifier leave only a couple of live readings at each position, 
+not a count tied to iterations passed.
+Pairwise cleanup is therefore bounded per character, 
+holding the ratio in the 0.37--0.67 band to ten million characters, 
+and Table~\ref{tab:patho-p09-all-parsers} shows this directly: 
+\texttt{deriv\_bc} roughly doubles each partial-derivative time 
+at every row, including the last. 
+The two partial-derivative variants avoid this cost. 
+Between them, \texttt{pderiv\_bc} is faster on P09, 
+including at the largest swept $n$ ($25\,228.73$\,ms 
+against $25\,662.75$\,ms), 
+but on P01 \texttt{pderiv\_std} is faster instead, 
+also including the largest
+($21\,959.98$\,ms against $23\,621.06$\,ms).
 
 \begin{table}[H]
 \centering
@@ -1544,8 +1561,7 @@ a $p$-way alternation it is too small once $p$ gets this large.
 At $p = 10\,000$, E38's seven-character words each translate to 13 nodes
 (seven literals chained by six concatenations), and joining all
 $10\,000$ of them adds $9\,999$ more nodes for the alternation itself: 
-$10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total,
-almost seven times the default cap.
+$10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
 
 \begin{table}[H]
 \centering
@@ -1582,7 +1598,7 @@ Decode stays under 1\,ms throughout for both.
 Derive dominates and now diverges in \texttt{deriv\_bc}'s disfavour:
 \texttt{deriv\_bc} is roughly 2.1$\times$ \texttt{pderiv\_bc}'s derive time at $p=100$,
 widening to 7.1$\times$ by $p=2\,000$, and 13.3$\times$ by $p=10\,000$,
-as \texttt{deriv\_bc}'s own $O(p^2)$ branch-deduplication cost
+as \texttt{deriv\_bc}'s own branch-deduplication cost
 (\texttt{dedup\_first}, discussed below) grows faster than \texttt{pderiv\_bc}'s
 $O(p)$ hash-based one.
 
@@ -1614,7 +1630,7 @@ The matching input is a single word, matching the first Alt.
 \end{table}
 
 Derive grows with $p$ for both parsers,
-and the divergence between them is sharper here than on E37, not milder:
+and the divergence between them is wider here than on E37:
 \texttt{deriv\_bc} is roughly 2.8$\times$ \texttt{pderiv\_bc}'s derive time at $p=100$,
 widening to 71$\times$ by $p=10\,000$,
 against E37's 2.1$\times$ to 13.3$\times$ over the same range.
@@ -1655,19 +1671,24 @@ expensive at the widest point. The standard pair never overtakes it.}
 %
 
 \textbf{Blow up.}
-Past a few thousand alternatives, \texttt{deriv\_bc} is the only parser
-whose cost explodes, growing roughly $18\times$ slower than the standard
-pair by $p=10\,000$.
-The standard pair never attempts to simplify the alternation, so it
-never pays for an attempt that could not have succeeded, since every
-one of the $p$ alternatives stays genuinely distinct by construction.
-Of the other three, only \texttt{deriv\_bc} pays dearly for it, while
-\texttt{pderiv\_std} and \texttt{pderiv\_bc} simplify just as genuinely
-but far more cheaply, as explained below.
-\texttt{deriv\_bc} also pays more on E38 than on E37, since
-\texttt{same\_shape} walks two Cat-chains node by node, and E38's
-shared five-character prefix (\texttt{w0000}) makes each comparison walk
-further before failing than E37's four-letter words.
+Past a few thousand alternatives, \
+texttt{deriv\_bc} is the only parser whose cost explodes.
+By $p=10\,000$ it is roughly $18\times$ slower than the standard pair 
+(Table~\ref{tab:patho-e38-all-parsers}).
+The standard pair never attempts to simplify the alternation, 
+so it never pays for an attempt that could have never succeeded, 
+since every one of the $p$ alternatives is genuinely distinct by construction.
+\texttt{pderiv\_std} and \texttt{pderiv\_bc} 
+attempt to simplify, but far more cheaply.
+\texttt{deriv\_bc} also pays more on E38 than on E37.
+Each word is a chain of \texttt{Seq} nodes, 
+one per character, and \texttt{same\_shape} 
+walks two such chains together character by character, 
+stopping only once it hits a mismatch. 
+E38's words share a longer, 
+fixed five-character prefix (\texttt{w0000}), 
+while E37 consists unique four-letter words.
+So each comparison walks further before failing.
 
 \begin{figure}[H]
 \small
@@ -1694,25 +1715,27 @@ and removing matches in place.}
 \end{figure}
 
 \clearpage
-Figure~\ref{fig:dedup-first-rust}'s loop compares branch $i$ against every
-later branch $j$, roughly $p^2/2$ calls to \texttt{same\_shape} per character.
-For $p$ genuinely distinct words, \texttt{same\_shape} is essentially
-always false, so the full $O(p^2)$ cost is paid every character for
-zero branches removed.
-This implements the \texttt{nub} call in the choice case of
-\citet[sect.~3, Fig.~6]{sulzmannlu2014}'s simplification,
+Figure~\ref{fig:dedup-first-rust}'s loop compares branch $i$ 
+against every later branch $j$, 
+roughly $p^2/2$ calls to \texttt{same\_shape} per character.
+For $p$ genuinely distinct words, 
+\texttt{same\_shape} is essentially always false, 
+so the full $O(p^2)$ cost is paid every character for zero branches removed.
+This implements the \texttt{nub} call 
+in the choice case of
+\citet[sect.~3, Fig.~6]{sulzmannlu2014}'s simplification.
 \[
 simp\ (bs@{\oplus}(ri : rsi)) = bs@{\oplus}\bigl(\mathit{nub}\
 (\mathit{filter}\ (\neg\,\mathit{isPhi})\ ((simp\ ri) : \mathit{map}\
 simp\ rsi))\bigr),
 \]
-and Haskell's \texttt{nub} is quadratic for the same reason, since with
-only an \texttt{Eq} instance it keeps the first occurrence of each element
+Haskell's \texttt{nub} is quadratic for the same reason, 
+since with only an \texttt{Eq} instance 
+it keeps the first occurrence of each element 
 by comparing it against every element already kept.
-\texttt{same\_shape} is this same equality test made insensitive to
-bit-code history, so identical branches merge regardless of parse path,
-and since the paper's complexity claim covers input length rather than
-pattern width, this result does not contradict it.
+\texttt{same\_shape} is this same equality test 
+made insensitive to bit-code history, 
+so identical branches merge regardless of parse path.
 
 %
 
@@ -1749,10 +1772,9 @@ pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
 }
 \end{verbatim}
 \caption{\texttt{pderiv\_bc}'s \texttt{step\_frontier} and \texttt{nub2}.
-Each residual steps through \texttt{pderiv\_bc}, then the results are
+Each residual steps through \texttt{pderiv\_bc}, then results are
 deduplicated once via a \texttt{HashSet} keyed on the residual,
-implementing \citet{sulzmannlu2012}'s Definition~8 (keep only the first
-occurrence of each residual).}
+implementing \citet{sulzmannlu2012} Def.~8.}
 \label{fig:nub2-rust}
 \end{figure}
 
@@ -1782,6 +1804,7 @@ swapping the comparison, so it remains the one bottleneck still unfixed.
 %
 %
 
+\clearpage
 \subsection{Memory}
 \label{sec:eval-memory}
 
