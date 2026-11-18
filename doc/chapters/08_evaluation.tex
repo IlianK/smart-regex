@@ -1671,8 +1671,8 @@ expensive at the widest point. The standard pair never overtakes it.}
 %
 
 \textbf{Blow up.}
-Past a few thousand alternatives, \
-texttt{deriv\_bc} is the only parser whose cost explodes.
+Past a few thousand alternatives,
+\texttt{deriv\_bc} is the only parser whose cost explodes.
 By $p=10\,000$ it is roughly $18\times$ slower than the standard pair 
 (Table~\ref{tab:patho-e38-all-parsers}).
 The standard pair never attempts to simplify the alternation, 
@@ -1687,7 +1687,7 @@ walks two such chains together character by character,
 stopping only once it hits a mismatch. 
 E38's words share a longer, 
 fixed five-character prefix (\texttt{w0000}), 
-while E37 consists unique four-letter words.
+while E37 consists of unique four-letter words.
 So each comparison walks further before failing.
 
 \begin{figure}[H]
@@ -1778,18 +1778,14 @@ implementing \citet{sulzmannlu2012} Def.~8.}
 \label{fig:nub2-rust}
 \end{figure}
 
-\texttt{pderiv\_bc} once had an analogous bottleneck.
 Before the alternation splits into separate residuals, the first call
-must descend through the whole $p$-deep nested \texttt{Alt} as one tree.
-An earlier version called \texttt{nub2} once per nesting level there,
-$p$ calls costing quadratic in $p$, instead of flattening the alternation
-into its $p$ leaves and deduplicating once, the fix described in
-Section~\ref{sec:pderiv-tree-impl}.
-Measured directly, nearly all of that old cost sat in this first call.
-\texttt{step\_frontier}'s loop then calls \texttt{pderiv\_bc} and
-\texttt{nub2} once per character, linear in the live residuals, and
-E38's longer shared prefix repeats this cost more often than E37, though
-still far cheaper than the old quadratic cost.
+must flatten the whole $p$-deep nested \texttt{Alt} into its $p$ leaves
+(Section~\ref{sec:pderiv-bc-impl}), each tagged with its own bit prefix,
+and deduplicate them once via \texttt{nub2}. Measured directly, nearly
+all of \texttt{pderiv\_bc}'s cost on a wide alternation sits in this
+first call. \texttt{step\_frontier}'s loop then calls \texttt{pderiv\_bc}
+and \texttt{nub2} once per character, linear in the live residuals, and
+E38's longer shared prefix repeats this cost more often than E37.
 The standard pair pays neither cost, making no cross-branch or
 per-residual comparison at all.
 
@@ -2301,7 +2297,7 @@ On the real corpus there were 14 shape disagreements recorded,
 which are 0.2\% of compared matches. 
 Each family is internally consistent on these entries, 
 so the differences arise between the POSIX and non-POSIX policies.
-The synthetic set has 21 disagreements among 206 compared matches. 
+The synthetic set has 21 disagreements among 207 compared matches.
 The category breakdown in Table~\ref{tab:agreement-patho-categories}
 shows where these disagreements occur.
 Category B accounts for 18 of the 21 disagreements.
@@ -2354,7 +2350,7 @@ Table~\ref{tab:patho-categories}.}
 \begin{center}
 \texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}
 \end{center}
-with input \texttt{"9000"} producesis ambigious and accepts two trees 
+with input \texttt{"9000"} is ambiguous, producing two trees
 that flatten to the same word,
 shown in Figure~\ref{fig:agreement-s2elab-trees}. 
 Every constructor name is
@@ -2553,17 +2549,15 @@ enough to be inconclusive; P01 is the only clear and
 consistent exception.
 
 The two bit-coded parsers also differ sharply in their
-phase costs on wide patterns. This reverses the result
-before the \texttt{Alt}-flattening fix in
-Section~\ref{sec:pderiv-tree-impl}: \texttt{deriv\_bc},
-rather than \texttt{pderiv\_bc}, now falls behind.
+phase costs on wide patterns: \texttt{deriv\_bc}, not
+\texttt{pderiv\_bc}, falls behind.
 For a $p$-way alternation of equal-length words
 (Table~\ref{tab:patho-phases-e37}), the derive time of
 \texttt{deriv\_bc} grows from $2.1\times$ that of
 \texttt{pderiv\_bc} at $p=100$ to $13.3\times$ at
 $p=10\,000$ on matching input. Its branch deduplication
 (Figure~\ref{fig:dedup-first-rust}) remains a pairwise
-$O(p^2)$ scan, whereas \texttt{pderiv\_bc} now uses a
+$O(p^2)$ scan, whereas \texttt{pderiv\_bc} uses a
 single $O(p)$ hashed pass over the flattened alternatives.
 At this scale, \texttt{deriv\_bc} also falls behind the
 standard pair (Section~\ref{sec:eval-timing-representative}),
@@ -2588,6 +2582,21 @@ than that of \texttt{deriv\_bc} in both cases, since cloning
 the pattern tree requires less work per node than building
 the annotated state.
 
+Memory tells a sharper version of the same story. On the widest
+swept alternations (Section~\ref{sec:eval-memory-representative}),
+\texttt{pderiv\_std}'s own peak grows to roughly 1.6\,GB at
+$p=10\,000$, between 27 and 137 times larger than either
+bit-coded parser at the same width, far past the modest
+peak-memory edge \texttt{pderiv\_bc} holds elsewhere. Its
+injection closures are rebuilt one nesting level at a time, so
+the $k$-th leaf's closure keeps a chain of $k$ heap allocations
+alive, the same $O(p^2)$ count that costs \texttt{pderiv\_bc}
+bits instead of allocations. The partial-derivative pair's usual
+advantage over the standard-derivative family therefore does not
+hold unconditionally: it depends on the pattern's own alternation
+width staying bounded, which the real corpus does but a
+deliberately adversarial pattern need not.
+
 Both partial-derivative variants produce non-POSIX trees.
 This reflects a difference in parsing policy, not a bug,
 and motivates comparing the two parser families separately
@@ -2600,7 +2609,7 @@ its conventions; other corpora may have different acceptance
 rates and timing profiles. Timing, memory, and parse agreement
 use the 463-pattern default scope
 (Section~\ref{sec:eval-s2elab}). Including the remaining
-115 patterns with unanchored patterns could
+115 unanchored patterns could
 change the absolute results and possibly the candidate ranking.
 
 \textbf{The synthetic set.} Its 112 rows isolate individual
