@@ -24,7 +24,7 @@
 //! Build the worker first:
 //!   cargo build --release --example demo_parser_agreement_worker
 //!
-//! Saves two files, replacing any previous run:
+//! Saves three files, replacing any previous run:
 //!   - reports/demos/parser_agreement.csv -- the summary table (one row
 //!     per source plus a total): entries/matches/non-matches/timeouts/
 //!     crashes/agreement percentages.
@@ -34,10 +34,19 @@
 //!     per kind same as stdout. Kept separate from the summary table per
 //!     this project's "a listing of individual examples gets its own
 //!     file" convention.
+//!   - reports/demos/parser_agreement_by_pattern.csv -- the same
+//!     POSIX-vs-non-POSIX shape comparison the summary aggregates,
+//!     broken out per (source, pattern): how many of a pattern's inputs
+//!     were compared, how many agreed, how many disagreed. Uncapped --
+//!     every pattern that was ever compared gets a row, sorted so
+//!     patterns with any disagreement come first, so the few culprits
+//!     stand out against the whole dataset's patterns that never had
+//!     one, not just the uncontextualized sample rows above.
 //! This is the one demo in that family whose exit code matters (1 on a
 //! real bug) and whose "last known clean" state is worth a persisted
 //! record rather than only ever existing in scrollback.
 
+use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -414,6 +423,48 @@ fn truncate(s: &str, n: usize) -> String {
     }
 }
 
+/// Per-(source, pattern) breakdown of the same POSIX-vs-non-POSIX shape
+/// comparison `Tally.cross_compared/cross_same_shape/cross_different_shape`
+/// tracks at the dataset level, so a pattern that contributes a
+/// disagreement can be shown alongside every other pattern that was
+/// compared and did not -- not just listed as an isolated sample.
+#[derive(Default, Clone, Copy)]
+struct PatternAgreement {
+    compared: usize,
+    same_shape: usize,
+    different_shape: usize,
+}
+
+fn write_pattern_agreement_csv(
+    path: &str,
+    by_pattern: &HashMap<(SourceKind, String), PatternAgreement>,
+) -> std::io::Result<()> {
+    let mut rows: Vec<(&SourceKind, &String, &PatternAgreement)> =
+        by_pattern.iter().map(|((s, p), a)| (s, p, a)).collect();
+    // Patterns that ever disagreed sort first (worst first), then by how
+    // many inputs were compared (most-tested first), so the reader sees
+    // every culprit before the long tail of patterns with zero disagreement.
+    rows.sort_by(|a, b| {
+        b.2.different_shape
+            .cmp(&a.2.different_shape)
+            .then(b.2.compared.cmp(&a.2.compared))
+            .then(format!("{:?}", a.0).cmp(&format!("{:?}", b.0)))
+            .then(a.1.cmp(b.1))
+    });
+
+    let mut f = std::fs::File::create(path)?;
+    writeln!(f, "source,pattern,n_inputs_compared,n_agree,n_disagree,disagree_pct")?;
+    for (source, pattern, a) in rows {
+        let pct = if a.compared == 0 { 0.0 } else { 100.0 * a.different_shape as f64 / a.compared as f64 };
+        writeln!(
+            f,
+            "{:?},{},{},{},{},{:.1}",
+            source, csv_quote(pattern), a.compared, a.same_shape, a.different_shape, pct
+        )?;
+    }
+    Ok(())
+}
+
 /// One flagged entry, going into the samples file (kept separate from
 /// the summary table -- see this file's own module doc).
 struct Sample {
@@ -471,6 +522,7 @@ fn main() {
 
     let mut tallies: [Tally; 5] = Default::default();
     let mut samples: Vec<Sample> = Vec::new();
+    let mut by_pattern: HashMap<(SourceKind, String), PatternAgreement> = HashMap::new();
     let mut printed_membership = 0usize;
     let mut printed_posix = 0usize;
     let mut printed_non_posix = 0usize;
@@ -604,12 +656,16 @@ fn main() {
 
         if posix_shape_ok && non_posix_shape_ok {
             tally.cross_compared += 1;
+            let pattern_entry = by_pattern.entry((case.source, case.pattern.clone())).or_default();
+            pattern_entry.compared += 1;
             let posix_tree: &Option<ParseTree> = &bc;
             let non_posix_tree: &Option<ParseTree> = &pbc;
             if posix_tree == non_posix_tree {
                 tally.cross_same_shape += 1;
+                pattern_entry.same_shape += 1;
             } else {
                 tally.cross_different_shape += 1;
+                pattern_entry.different_shape += 1;
                 // Not a bug -- POSIX and non-POSIX may legitimately pick
                 // different trees on an ambiguous pattern. One
                 // representative per family is enough: every POSIX
@@ -726,6 +782,16 @@ fn main() {
         eprintln!("could not write {samples_path}: {e}");
     } else {
         eprintln!("wrote {samples_path}");
+    }
+
+    let by_pattern_path = "reports/demos/parser_agreement_by_pattern.csv";
+    if let Err(e) = write_pattern_agreement_csv(by_pattern_path, &by_pattern) {
+        eprintln!("could not write {by_pattern_path}: {e}");
+    } else {
+        eprintln!(
+            "wrote {by_pattern_path} ({} distinct (source, pattern) pairs compared)",
+            by_pattern.len()
+        );
     }
 
     if bugs > 0 {
