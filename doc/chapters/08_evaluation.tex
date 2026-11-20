@@ -305,8 +305,8 @@ but are not required too, since their disambiguation policies differ.
 
 The evaluation uses two datasets (Table~\ref{tab:dataset-summary}): 
 S2ELab, a corpus of human-authored
-patterns, and a synthetic set of manually authored patterns designed to
-stress the parsers.
+patterns, and a synthetic set of AI-generated, manually verified
+patterns designed to stress the parsers.
 
 \begin{table}[H]
 \centering
@@ -350,8 +350,8 @@ A pattern surrounded by anchors requires a full-string match,
 where a pattern without them is intended for substring matching. 
 As described in Section~\ref{sec:frontend-rejected}, 
 substring matching is not supported and anchors are rejected constructs.
-However, entries with fully anchored patterns can still be used by stripping them,
-Since the parsers perform full-string matching, 
+However, entries with fully anchored patterns can still be used by stripping them.
+Since the parsers perform full-string matching,
 the stripped pattern accepts exactly 
 the inputs intended by the original anchored pattern.
 So the benchmarks only use the 463 accepted patterns after anchor stripping.
@@ -416,7 +416,7 @@ To assess this, the kept and excluded subsets are compared.
 Their mean counts of matching and non-matching inputs are similar
 (13.0/12.0 versus 12.6/11.9 per pattern), as are their mean input
 lengths (17.3/8.4 versus 17.8/9.2 characters).
-However, the excluded regexes patterns themselves,
+However, the excluded patterns themselves
 are longer on average (95 versus 70 characters),
 consistent with their unsupported constructs.
 Thus, filtering changes the regex characteristics but shows no
@@ -459,8 +459,9 @@ unsupported construct.}
 \subsection{Synthetic Stress Set}
 \label{sec:eval-pathological}
 
-The synthetic set contains 112 manually authored patterns
-designed to stress the parsers and investigate 
+The synthetic set contains 112 patterns, generated with the
+assistance of a large language model and manually verified,
+designed to stress the parsers and investigate
 how their costs grow with input length and pattern size.
 All patterns are intended for full-string matching. 
 Each row defines a base pattern 
@@ -574,6 +575,100 @@ hand-curated or generated pattern definitions; \emph{Entries} counts the
 \label{tab:patho-categories}
 \end{table}
 
+The patterns were generated with the assistance of a large
+language model, prompted separately for each category with the
+mechanism and alphabet in Table~\ref{tab:patho-prompts}, then
+manually checked against measured parser behaviour: several
+proposed match or non-match inputs turned out to be mislabelled
+and were corrected, and the sweep ranges in
+Table~\ref{tab:patho-categories} were calibrated empirically
+rather than guessed. Table~\ref{tab:patho-prompts} reconstructs,
+per category, a representative prompt of this form.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l p{12.5cm}}
+\hline
+Cat. & Representative generation prompt \\
+\hline
+A & Generate patterns with a quantified group nested inside
+    another quantifier (e.g.\ \texttt{(a+)+}, \texttt{(a*)*},
+    triple-nested variants), using one repeated character so
+    every position is an ambiguous split point between the
+    inner and outer quantifier. \\
+B & Generate patterns where alternatives can each match the
+    same run of one repeated character (e.g.\ \texttt{(a|aa)+},
+    \texttt{(a|aa|aaa)+}), so a matching input has many
+    different ways to split across the alternation. \\
+C & Generate patterns combining a bounded repetition
+    \texttt{\{m,n\}} with an unbounded body (e.g.\
+    \texttt{(.*a)\{1,10\}}), so unrolling the bound at
+    translate time multiplies an already-ambiguous unbounded
+    group. \\
+D & Generate patterns where $N$ optional or unbounded copies
+    of a group are immediately followed by an exact
+    \texttt{\{N\}} tail of the same character, so a matching
+    input admits many different splits between the leading
+    group and the tail. \\
+E & Generate alternation patterns where one alternative is a
+    literal prefix of another (e.g.\ \texttt{(ab|a)+}), using
+    two characters, since a prefix relationship needs at least
+    two symbols to tell the shorter alternative apart from the
+    longer one it is a prefix of. \\
+F & Generate patterns combining an alternation or character
+    class under a quantifier with a literal that can appear
+    only once, at the end (e.g.\ \texttt{(a|b)*c}), so a
+    non-matching input forces every split of the quantified
+    part to be tried before failing. \\
+H & Generate patterns with several unbounded groups placed one
+    after another (e.g.\ ten copies of \texttt{(.+)}), so the
+    number of ways to divide one input across all the groups
+    grows with the input length. \\
+I & Generate simple, unambiguous patterns (e.g.\ \texttt{a+},
+    \texttt{\textbackslash d\{1,10\}}) to run on very long
+    inputs, isolating raw per-character cost from any
+    ambiguity-driven blow-up. \\
+J & Generate alternations or sequences with many thousands of
+    distinct literal words or groups (e.g.\ a trie of
+    four-letter words, or $p$ sequential \texttt{(a)} groups),
+    run on a short input, to stress pattern size and
+    translation rather than matching. \\
+K & Generate the same large-pattern families as category J, but
+    on long inputs too, to see both axes at once; include one
+    disjoint alternation (e.g.\ \texttt{(?:ab|cd|ef|gh)+}) as a
+    safe control with no ambiguity. \\
+L & Generate a broad, varied set of small sanity-check
+    patterns, one for each construct the frontend accepts
+    (character classes, bounds, escapes, the empty pattern,
+    lazy markers, and similar edge cases), to confirm none of
+    them misbehaves before scaling anything up. \\
+\hline
+\end{tabular*}
+\caption{A representative generation prompt per category,
+reconstructed from each category's mechanism and its actual
+patterns rather than quoted verbatim.}
+\label{tab:patho-prompts}
+\end{table}
+
+Categories A, B, C, D, and F deliberately repeat one or two
+characters (mostly \texttt{a}, sometimes \texttt{b} or
+\texttt{x}) rather than drawing from a varied alphabet. Their
+stress mechanism is ambiguity in how a matching input can be
+split across a quantifier or alternation, and a repeated
+character maximises the number of positions where such a split
+is possible, since every position looks identical to the
+matcher; a varied alphabet, such as literal words, would make
+most split points immediately distinguishable and collapse the
+ambiguity these categories exist to test. Category E's
+two-character alphabet is required rather than chosen for
+difficulty: a prefix relationship between two alternatives
+needs at least two symbols to express at all. Categories H, I,
+J, K, and L stress other mechanisms -- sequential group count,
+raw throughput, pattern size, and construct coverage,
+respectively -- where alphabet choice is not central, and use
+wildcards, character classes, or a deliberately broad mix
+instead.
 
 %
 %
