@@ -45,27 +45,13 @@ cargo build --release --example bench_worker
 
 # Time: full corpus, split by outcome. 60s/entry so deriv_std_rec/deriv_std_loop
 # get a real chance to finish instead of timing out at the old 2s default.
-# Memory cap guards against the same two parsers' derivative-size blowup
-# on the rare real-corpus entry that triggers it (Innovatorved/RegexLib
-# especially) -- without it, one such entry grows until the HOST runs
-# out of memory, not just this one process. Sequential (one worker at a
-# time), so the cap IS the ceiling; 8192 leaves plenty of headroom on a
-# 16 GiB host.
+# Memory cap protects against the same two parsers' derivative-size
+# blowup on the rare real-corpus entry that triggers it.
 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
   cargo bench --bench bench_corpus_time
 
-# Memory: full corpus. Same risk as above, but this one runs several
-# workers at once (worker_concurrency(), default = all available cores
-# -- 12 on a 12-core host), so the real ceiling is BENCH_MEM_CAP_MB
-# TIMES however many workers run concurrently, not BENCH_MEM_CAP_MB
-# alone: at the default worker count, even a modest per-worker cap
-# multiplies past most hosts' RAM. BENCH_MEM_WORKERS=2 below caps
-# concurrency at 2, so worst case is 2 x 6144 MiB = 12 GiB, leaving
-# 4 GiB of headroom on a 16 GiB host for the OS, the editor, and the
-# cargo process driving this bench itself. Raise BENCH_MEM_CAP_MB
-# and/or BENCH_MEM_WORKERS together if the host has more RAM to spare,
-# but keep their PRODUCT comfortably under the host's total.
-BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=6144 BENCH_MEM_WORKERS=2 BENCH_RUN_LABEL=CM1 \
+# Memory: full corpus. Same cap, same reasoning as above.
+BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=CM1 \
   cargo bench --bench bench_corpus_memory
 
 # Translate: full corpus.
