@@ -327,8 +327,7 @@ an unsupported construct; an \emph{Accepted} pattern is only one in the
 shape of a fully anchored pattern. The remaining 7 S2ELab patterns are
 byte-identical duplicates, dropped before classification. Of the 463
 accepted patterns, 11\,395 of the 18\,930 original inputs survive
-deduplication and the match-intent check (Figure~\ref{fig:s2elab-pipeline})
-and are what the benchmarks use.}
+deduplication.}
 \label{tab:dataset-summary}
 \end{table}
 
@@ -348,18 +347,20 @@ so the corpus is not balanced between the two.
 The source patterns conventionally use \texttt{\textasciicircum} 
 and \texttt{\textdollar} as beginning- and end-of-input anchors. 
 A pattern surrounded by anchors requires a full-string match, 
-where a pattern without them can match a substring. 
+where a pattern without them is intended for substring matching. 
 As described in Section~\ref{sec:frontend-rejected}, 
-anchors are rejected constructs.
-However, entries with fully anchored patterns can still be used by stripping them.
+substring matching is not supported and anchors are rejected constructs.
+However, entries with fully anchored patterns can still be used by stripping them,
 Since the parsers perform full-string matching, 
 the stripped pattern accepts exactly 
 the inputs intended by the original anchored pattern.
+So the benchmarks only use the 463 accepted patterns after anchor stripping.
 Figure~\ref{fig:s2elab-pipeline} shows this 
 as part of the data preparation, that turns one example pattern into an $entry$.
 
 \begin{figure}[H]
 \centering
+\small
 \begin{tikzpicture}[
   stage/.style={draw, rounded corners=2pt, minimum height=7mm,
                 minimum width=2.3cm, font=\small, align=center,
@@ -409,10 +410,20 @@ The surviving triples $(r,w,e)$ are the defined entries.}
 \label{fig:s2elab-pipeline}
 \end{figure}
 
-The benchmarks use the 463 accepted patterns after stripping.
-A rejected pattern uses an unsupported construct;
-an accepted pattern is only one in the shape of a fully anchored pattern.
-Table~\ref{tab:corpus-rejection-causes} summarises the causes.
+Filtering unsupported constructs excludes 292 S2ELab patterns,
+potentially introducing selection bias into the 463-pattern benchmark scope.
+To assess this, the kept and excluded subsets are compared.
+Their mean counts of matching and non-matching inputs are similar
+(13.0/12.0 versus 12.6/11.9 per pattern), as are their mean input
+lengths (17.3/8.4 versus 17.8/9.2 characters).
+However, the excluded regexes patterns themselves,
+are longer on average (95 versus 70 characters),
+consistent with their unsupported constructs.
+Thus, filtering changes the regex characteristics but shows no
+substantial shift in the measured input characteristics.
+However, differences in regex structure may still affect runtime
+and memory behavior, so the results cannot be assumed to
+generalize to the excluded patterns or other corpora.
 
 \begin{table}[H]
 \centering
@@ -421,7 +432,7 @@ Table~\ref{tab:corpus-rejection-causes} summarises the causes.
 \hline
 Cause & S2ELab patterns \\
 \hline
-Substring Search                            & 221 \\
+Substring Search (Anchors)                  & 221 \\
 Lookaround                                  &  43 \\
 Word boundary                               &  23 \\
 Backreference                               &   3 \\
@@ -439,11 +450,12 @@ unsupported construct.}
 \label{tab:corpus-rejection-causes}
 \end{table}
 
+
+
 %
 %
 %
 
-\clearpage
 \subsection{Synthetic Stress Set}
 \label{sec:eval-pathological}
 
@@ -561,6 +573,7 @@ hand-curated or generated pattern definitions; \emph{Entries} counts the
 (pattern, input) pairs.}
 \label{tab:patho-categories}
 \end{table}
+
 
 %
 %
@@ -2632,29 +2645,6 @@ and motivates comparing the two parser families separately
 in Section~\ref{sec:eval-agreement}.
 
 \subsection{Threats to validity}
-
-\textbf{Corpus scope.} S2ELab represents one domain and
-its conventions; other corpora may have different acceptance
-rates and timing profiles. Timing, memory, and parse agreement
-use the 463-pattern default scope
-(Section~\ref{sec:eval-s2elab}), excluding the 292 rejected
-patterns. Comparing the excluded 292 patterns'
-raw match and non-match inputs against the 463 used ones shows
-input length and count are not where the two sets differ: mean
-input counts (12.6 matches, 11.9 non-matches per pattern,
-excluded, against 13.0 and 12.0 used) and mean input lengths
-(17.8 and 9.2 characters, excluded, against 17.3 and 8.4 used)
-are within a few percent either way, well inside normal
-pattern-to-pattern variation. The excluded patterns' own source
-text is longer on average (95 against 70 characters), consistent
-with containing the constructs that caused their exclusion
-(lookaround, backreferences, anchors not in the fully-anchored
-shape), but this
-pattern-side difference does not carry over to the input
-characteristics that drive benchmark cost. Scope therefore
-appears unlikely to skew the measured timing and memory profile
-by much, though candidate ranking on the excluded subset
-specifically remains untested.
 
 \textbf{The synthetic set.} Its 112 rows isolate individual
 complexity mechanisms at controlled scales rather than
