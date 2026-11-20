@@ -51,7 +51,7 @@ pub fn matches_bounded(input: &str, r: &Regex) -> Option<bool> {
         return None;
     }
     for c in input.chars() {
-        ri = simp(deriv_bc(ri, c));
+        ri = simp(deriv_bc(&ri, c));
         if aregex_node_count(&ri) > MAX_AREGEX_NODES {
             return None;
         }

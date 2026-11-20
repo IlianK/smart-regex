@@ -33,6 +33,8 @@ pub fn is_phi(ri: &ARegex) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::*;
     use crate::types::{ARegex, Bits};
 
@@ -43,15 +45,15 @@ mod tests {
     #[test] fn lit_not_nullable_bc(){ assert!(!nullable_bc(&ARegex::Lit(Bits::empty(), 'a'))); }
     #[test] fn star_nullable_bc()   { assert!(nullable_bc(&ARegex::star(ARegex::lit('a')))); }
     #[test] fn alt_left_nullable_bc() {
-        let ri = ARegex::Alt(Bits::empty(), Box::new(ARegex::eps()), Box::new(ARegex::lit('a')));
+        let ri = ARegex::Alt(Bits::empty(), Rc::new(ARegex::eps()), Rc::new(ARegex::lit('a')));
         assert!(nullable_bc(&ri));
     }
     #[test] fn alt_neither_bc() {
-        let ri = ARegex::Alt(Bits::empty(), Box::new(ARegex::lit('a')), Box::new(ARegex::lit('b')));
+        let ri = ARegex::Alt(Bits::empty(), Rc::new(ARegex::lit('a')), Rc::new(ARegex::lit('b')));
         assert!(!nullable_bc(&ri));
     }
     #[test] fn seq_both_nullable_bc() {
-        let ri = ARegex::Seq(Bits::empty(), Box::new(ARegex::eps()), Box::new(ARegex::eps()));
+        let ri = ARegex::Seq(Bits::empty(), Rc::new(ARegex::eps()), Rc::new(ARegex::eps()));
         assert!(nullable_bc(&ri));
     }
 }

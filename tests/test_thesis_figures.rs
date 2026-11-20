@@ -13,6 +13,8 @@
 //!   cargo run --release --example demo_growth_pderiv
 //!   cargo run --release --example demo_translate_sizes
 
+use std::rc::Rc;
+
 use regex_engine::frontend::parse_pattern;
 use regex_engine::parsers::deriv_bc::{
     deriv::deriv_bc, internalize::internalize, simplify::simp,
@@ -71,7 +73,7 @@ fn bitcoded_simplified(r: &Regex, input: &str) -> Vec<usize> {
     let mut ri = internalize(r);
     let mut out = vec![size_aregex(&ri)];
     for c in input.chars() {
-        ri = simp(deriv_bc(ri, c));
+        ri = simp(deriv_bc(&ri, c));
         out.push(size_aregex(&ri));
     }
     out
@@ -179,7 +181,7 @@ fn section_5_5_growth_is_bounded() {
 fn section_5_5_simp_is_already_a_fixpoint() {
     let mut ri = internalize(&paper_r2());
     for c in "ab".repeat(6).chars() {
-        ri = simp(deriv_bc(ri, c));
+        ri = simp(deriv_bc(&ri, c));
         assert_eq!(
             simp(ri.clone()),
             ri,
@@ -211,9 +213,9 @@ fn section_5_5_branches_collapse_to_one() {
             ARegex::Phi => ARegex::Phi,
             ARegex::Eps(_) => ARegex::Eps(Bits::empty()),
             ARegex::Lit(_, c) => ARegex::Lit(Bits::empty(), *c),
-            ARegex::Alt(_, a, b) => ARegex::Alt(Bits::empty(), Box::new(strip(a)), Box::new(strip(b))),
-            ARegex::Seq(_, a, b) => ARegex::Seq(Bits::empty(), Box::new(strip(a)), Box::new(strip(b))),
-            ARegex::Star(_, a) => ARegex::Star(Bits::empty(), Box::new(strip(a))),
+            ARegex::Alt(_, a, b) => ARegex::Alt(Bits::empty(), Rc::new(strip(a)), Rc::new(strip(b))),
+            ARegex::Seq(_, a, b) => ARegex::Seq(Bits::empty(), Rc::new(strip(a)), Rc::new(strip(b))),
+            ARegex::Star(_, a) => ARegex::Star(Bits::empty(), Rc::new(strip(a))),
         }
     }
     fn distinct(items: &[ARegex]) -> usize {
@@ -229,7 +231,7 @@ fn section_5_5_branches_collapse_to_one() {
     let mut ri = internalize(&paper_r2());
     let mut rows = Vec::new();
     for c in "ab".repeat(6).chars() {
-        ri = simp(deriv_bc(ri, c));
+        ri = simp(deriv_bc(&ri, c));
         let mut bs = Vec::new();
         branches(&ri, &mut bs);
         let stripped: Vec<ARegex> = bs.iter().map(strip).collect();

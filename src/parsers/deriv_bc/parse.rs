@@ -23,7 +23,7 @@ fn derive_and_simplify(ri: ARegex, chars: &[char]) -> ARegex {
     let mut cur = ri;
     for &l in chars {
         // simp absorbs the recorded iteration bit into the Star prefix
-        cur = simp(deriv_bc(cur, l));
+        cur = simp(deriv_bc(&cur, l));
     }
     cur
 }

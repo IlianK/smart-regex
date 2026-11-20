@@ -5,6 +5,8 @@
 //! Deterministic: no randomness, no timing, no environment dependence.
 #![allow(dead_code)] // each demo uses a subset
 
+use std::rc::Rc;
+
 use regex_engine::frontend::parse_pattern;
 use regex_engine::parsers::deriv_bc::{deriv::deriv_bc, internalize::internalize, simplify::simp};
 use regex_engine::parsers::pderiv_bc::pderiv::pderiv_bc;
@@ -65,7 +67,7 @@ pub fn series_bitcoded_simplified(r: &Regex, input: &str) -> Vec<usize> {
     let mut ri = internalize(r);
     let mut out = vec![size_aregex(&ri)];
     for c in input.chars() {
-        ri = simp(deriv_bc(ri, c));
+        ri = simp(deriv_bc(&ri, c));
         out.push(size_aregex(&ri));
     }
     out
@@ -105,9 +107,9 @@ pub fn strip_bits(ri: &ARegex) -> ARegex {
         ARegex::Phi => ARegex::Phi,
         ARegex::Eps(_) => ARegex::Eps(Bits::empty()),
         ARegex::Lit(_, c) => ARegex::Lit(Bits::empty(), *c),
-        ARegex::Alt(_, a, b) => ARegex::Alt(Bits::empty(), Box::new(strip_bits(a)), Box::new(strip_bits(b))),
-        ARegex::Seq(_, a, b) => ARegex::Seq(Bits::empty(), Box::new(strip_bits(a)), Box::new(strip_bits(b))),
-        ARegex::Star(_, a) => ARegex::Star(Bits::empty(), Box::new(strip_bits(a))),
+        ARegex::Alt(_, a, b) => ARegex::Alt(Bits::empty(), Rc::new(strip_bits(a)), Rc::new(strip_bits(b))),
+        ARegex::Seq(_, a, b) => ARegex::Seq(Bits::empty(), Rc::new(strip_bits(a)), Rc::new(strip_bits(b))),
+        ARegex::Star(_, a) => ARegex::Star(Bits::empty(), Rc::new(strip_bits(a))),
     }
 }
 
@@ -127,7 +129,7 @@ pub fn series_branch_counts(r: &Regex, input: &str) -> Vec<(usize, usize, usize)
     let mut ri = internalize(r);
     let mut out = Vec::new();
     for c in input.chars() {
-        ri = simp(deriv_bc(ri, c));
+        ri = simp(deriv_bc(&ri, c));
         let mut bs = Vec::new();
         alt_branches(&ri, &mut bs);
         let stripped: Vec<ARegex> = bs.iter().map(strip_bits).collect();
