@@ -16,7 +16,7 @@
 //!
 //! Each entry runs in its own worker *process* (`bench_worker`, shared
 //! with `bench_corpus_time`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
-//! (default 2000). See `bench_corpus_time.rs`'s module doc and
+//! (default 60000). See `bench_corpus_time.rs`'s module doc and
 //! `examples/bench_worker.rs` for the full history of why: a thread
 //! -based timeout only abandons a hung call rather than stopping it,
 //! which first caused unbounded memory growth, and then -- even after
@@ -105,7 +105,7 @@ const DATA_ROOT: &str = "data/processed";
 /// constant in `bench_corpus_time.rs` for why `usize::MAX` means that.
 const PATTERN_LIMIT_PER_SOURCE: usize = usize::MAX;
 /// Default when `BENCH_ENTRY_TIMEOUT_MS` is unset. See `bench_corpus_time.rs`.
-const DEFAULT_ENTRY_TIMEOUT_MS: u64 = 2000;
+const DEFAULT_ENTRY_TIMEOUT_MS: u64 = 60000;
 const REPORTS_DIR: &str = "reports/benches";
 const WORKER_NAME: &str = "bench_worker";
 

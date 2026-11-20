@@ -32,12 +32,14 @@ cargo run --release --example demo_growth_eval
 # BENCHMARKS: S2ELAB
 cargo build --release --example bench_worker
 
-# Time: full corpus, split by outcome.
-BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
+# Time: full corpus, split by outcome. 60s/entry so deriv_std_rec/deriv_std_loop
+# get a real chance to finish instead of timing out at the old 2s default.
+BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
   cargo bench --bench bench_corpus_time
 
 # Memory: full corpus.
-BENCH_RUN_LABEL=CM1 cargo bench --bench bench_corpus_memory
+BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_RUN_LABEL=CM1 \
+  cargo bench --bench bench_corpus_memory
 
 # Translate: full corpus.
 BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
@@ -46,12 +48,13 @@ BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
 
 # BENCHMARKS: PATHOLOGICAL
 
-# Time: full sweep; memory cap protects large generator cases.
-BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PT1 \
+# Time: full sweep; memory cap protects large generator cases. 60s/entry,
+# same reasoning as the S2ELab section above.
+BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PT1 \
   cargo bench --bench bench_pathological_time
 
 # Memory: full sweep.
-BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PM1 \
+BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PM1 \
   cargo bench --bench bench_pathological_memory
 
 # Translate: full sweep.
@@ -77,12 +80,12 @@ BENCH_MEM_CAP_MB=4096 cargo run --release --example demo_parser_agreement_pathol
 cargo build --release --example bench_worker
 
 # E37: now reaches the same p-range as E38 instead of stopping at 2,000
-CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 \
   PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E37_WIDE \
   cargo bench --bench bench_pathological_time
 
 # E38: same override — no longer stops at p=1,000
-CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 \
   PATHO_ROW_ID=E38 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E38_WIDE \
   cargo bench --bench bench_pathological_time
 
@@ -94,12 +97,12 @@ CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
 cargo build --release --example bench_worker
 
 # E37
-CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 \
   PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E37_WIDE \
   cargo bench --bench bench_pathological_memory
 
 # E38
-CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=8192 \
+CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 \
   PATHO_ROW_ID=E38 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E38_WIDE \
   cargo bench --bench bench_pathological_memory
 

@@ -69,7 +69,7 @@ use regex_engine::parsers::ALL;
 
 const DEFAULT_JSON_PATH: &str = "data/pathological/pathological_patterns.json";
 const PATTERN_LIMIT: usize = usize::MAX;
-const DEFAULT_ENTRY_TIMEOUT_MS: u64 = 2000;
+const DEFAULT_ENTRY_TIMEOUT_MS: u64 = 60000;
 const REPORTS_DIR: &str = "reports/benches";
 const WORKER_NAME: &str = "bench_worker";
 

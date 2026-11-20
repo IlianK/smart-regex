@@ -20,7 +20,7 @@
 //!
 //! Every entry runs in its own worker *process* (`bench_worker`,
 //! shared with `bench_corpus_memory`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
-//! (default 2000). A call that exceeds the cap is counted as
+//! (default 60000). A call that exceeds the cap is counted as
 //! `timed_out`, not folded into the duration stats as if it were a
 //! real measurement: on real corpora (Innovatorved and RegexLib
 //! especially), a small fraction of entries make `deriv_std_rec` /
@@ -119,7 +119,7 @@ const PATTERN_LIMIT_PER_SOURCE: usize = usize::MAX;
 /// entries normally finish in microseconds to a few hundred
 /// milliseconds; this exists only to bound the rare pathological one,
 /// not to pre-empt slow-but-ordinary calls.
-const DEFAULT_ENTRY_TIMEOUT_MS: u64 = 2000;
+const DEFAULT_ENTRY_TIMEOUT_MS: u64 = 60000;
 const REPORTS_DIR: &str = "reports/benches";
 const WORKER_NAME: &str = "bench_worker";
 
