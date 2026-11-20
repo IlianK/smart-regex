@@ -1149,11 +1149,12 @@ each removed node's bits onto its replacement.
 A single bottom-up pass does not always reach a fixpoint.
 Collapsing a branch at one level can expose a new collapse above,
 so $\mathit{simp}$ re-applies itself until the shape stops changing.
-The \texttt{Alt} case follows the same logic.
-Flattening nested alternations before deduplication keeps the cost
-of checking $p$ alternatives linear in $p$,
-rather than multiplying it by the nesting depth through pairwise checks.
-$\oplus$ takes a list of operands, 
+The \texttt{Alt} case follows the same logic, flattening nested
+alternations into one list before deduplicating it, so that a
+branch's duplicate is found regardless of how deeply each was
+originally nested. Comparing $p$ flattened alternatives pairwise for
+duplicates costs $O(p^2)$.
+$\oplus$ takes a list of operands,
 written $bs@\oplus\,[\mathit{ri}_1,\ldots,\mathit{ri}_n]$.
 \begin{equation}
 \begin{gathered}
