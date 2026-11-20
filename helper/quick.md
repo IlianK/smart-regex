@@ -5,6 +5,17 @@ cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 cargo run --release --example pathological_stats
 
 
+# DATASET EVIDENCE
+# One-off analyses behind specific thesis claims, not part of the
+# routine pipeline, but kept reproducible here rather than only in
+# chat: does excluding non-anchored patterns skew the accepted
+# set's own characteristics (dataset_skew_check), and how large a
+# {m,n} bound real-world rules actually use, as evidence for where
+# MAX_BOUND is set (demo_bound_usage).
+cargo run --release --example dataset_skew_check -- data/raw/s2-elab/RegexEval.json
+cargo run --release --example demo_bound_usage
+
+
 # EXAMPLES
 cargo run --example demo_match
 cargo run --example demo_parse -- --diag 3 --parser deriv_std_rec
@@ -152,4 +163,21 @@ PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,50,100,500,1000,2000,5000,10000,30000,50000,
 PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100,1000,5000,10000,50000,100000,500000,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
   cargo bench --bench bench_pathological_memory
+
+
+
+# POST-RUN: WORST-OFFENDER PATTERNS
+# Once a benchmark above has written its _entries.csv, find which
+# (pattern, input) caused each parser's worst case by a chosen metric
+# column, instead of grepping/sorting the CSV by hand. Re-run with a
+# different entries CSV / metric / top-n as needed; these four match
+# the CT1/CM1/PT1/PM1 labels used above.
+cargo run --release --example demo_peak_offenders -- \
+  reports/benches/bench_corpus_time_CT1_entries.csv micros 5
+cargo run --release --example demo_peak_offenders -- \
+  reports/benches/bench_corpus_memory_CM1_entries.csv peak_bytes 5
+cargo run --release --example demo_peak_offenders -- \
+  reports/benches/bench_pathological_time_PT1_entries.csv micros 5
+cargo run --release --example demo_peak_offenders -- \
+  reports/benches/bench_pathological_memory_PM1_entries.csv peak_bytes 5
 ```
