@@ -6,7 +6,7 @@ use std::time::Instant;
 use crate::types::{Regex, ParseTree, AppendBits};
 use crate::regex::nullable::nullable;
 use crate::parsers::pderiv_bc::pderiv::{pderiv_bc, mk_eps_bits, nub2};
-use crate::parsers::BcTiming;
+use crate::parsers::PhaseTiming;
 use crate::regex::decode::decode;
 
 /// One step of `parsePDerivBC2`: replace the frontier with union of
@@ -58,32 +58,34 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
 /// clones `r` into the initial frontier before deriving, and that clone
 /// is a full recursive walk of the same pattern tree (`Regex`'s `Clone`
 /// is derived over `Box<Regex>` fields, not `Rc`/`Arc`), the same order
-/// of work as `internalize` does there. Timed as its own `encode_us`
-/// here so the two bit-coded parsers' phase breakdowns stay comparable,
-/// instead of silently folding that cost into `derive_us`.
-pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, BcTiming) {
-    let t_encode = Instant::now();
+/// of work as `internalize` does there. Timed as its own `setup_us`
+/// here so all three non-recursive parsers' phase breakdowns stay
+/// comparable, instead of silently folding that cost into `derive_us`.
+/// `reconstruct_us` here is a genuine decode: `decode(r, &bits)`
+/// interprets the accumulated bit string against the pattern.
+pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
+    let t_setup = Instant::now();
     let mut frontier = vec![(r.clone(), AppendBits::empty())];
-    let encode_us = t_encode.elapsed().as_micros() as u64;
+    let setup_us = t_setup.elapsed().as_micros() as u64;
 
     let t0 = Instant::now();
     for c in input.chars() {
         frontier = step_frontier(&frontier, c);
         if frontier.is_empty() {
             let derive_us = t0.elapsed().as_micros() as u64;
-            return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
+            return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
         }
     }
     let derive_us = t0.elapsed().as_micros() as u64;
 
     let t1 = Instant::now();
     let Some(bits) = select_bits(&frontier) else {
-        return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
+        return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
     };
     let tree = decode(r, &bits);
-    let decode_us = t1.elapsed().as_micros() as u64;
+    let reconstruct_us = t1.elapsed().as_micros() as u64;
 
-    (Some(tree), BcTiming { encode_us, derive_us, decode_us })
+    (Some(tree), PhaseTiming { setup_us, derive_us, reconstruct_us })
 }
 
 
@@ -123,7 +125,7 @@ mod tests {
     fn timed_reports_zero_decode_on_no_match() {
         let (tree, timing) = parse_pderiv_bc_timed("b", &Regex::lit('a'));
         assert_eq!(tree, None);
-        assert_eq!(timing.decode_us, 0);
+        assert_eq!(timing.reconstruct_us, 0);
     }
 
     #[test]

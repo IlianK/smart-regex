@@ -8,7 +8,7 @@ use crate::types::{Regex, ParseTree, ARegex};
 use crate::parsers::deriv_bc::nullable::nullable_bc;
 use crate::parsers::deriv_bc::deriv::deriv_bc;
 use crate::parsers::deriv_bc::simplify::simp;
-use crate::parsers::BcTiming;
+use crate::parsers::PhaseTiming;
 use super::internalize::internalize;
 use super::mk_eps_bc::mk_eps_bc;
 use crate::regex::decode::decode;
@@ -32,12 +32,16 @@ pub fn parse_bitcoded_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_bitcoded_recursive_timed(input, r).0
 }
 
-/// Same parse, plus how long encode (Regex -> ARegex), derive (the
-/// per-character stepping), and decode (bits -> ParseTree) each took.
-pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTree>, BcTiming) {
+/// Same parse, plus `PhaseTiming`'s three phases. For deriv_bc these
+/// are genuinely encode (Regex -> ARegex via `internalize`), derive
+/// (the per-character stepping), and decode (bits -> ParseTree) --
+/// unlike pderiv_bc/pderiv_std, whose `setup_us`/`reconstruct_us`
+/// measure a plain clone and a closure application respectively, not
+/// an actual encode/decode.
+pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t0 = Instant::now();
     let ri = internalize(r);
-    let encode_us = t0.elapsed().as_micros() as u64;
+    let setup_us = t0.elapsed().as_micros() as u64;
 
     let t1 = Instant::now();
     let chars: Vec<char> = input.chars().collect();
@@ -45,15 +49,15 @@ pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTr
     let derive_us = t1.elapsed().as_micros() as u64;
 
     if !nullable_bc(&final_ri) {
-        return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
+        return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
     }
 
     let t2 = Instant::now();
     let bits = mk_eps_bc(&final_ri);
     let tree = decode(r, &bits);
-    let decode_us = t2.elapsed().as_micros() as u64;
+    let reconstruct_us = t2.elapsed().as_micros() as u64;
 
-    (Some(tree), BcTiming { encode_us, derive_us, decode_us })
+    (Some(tree), PhaseTiming { setup_us, derive_us, reconstruct_us })
 }
 
 
@@ -98,13 +102,13 @@ mod tests {
         let plain = parse_bitcoded_recursive("aab", &r);
         let (timed, timing) = parse_bitcoded_recursive_timed("aab", &r);
         assert_eq!(plain, timed);
-        assert_eq!(timing.decode_us, 0, "no decode happens on a non-match");
+        assert_eq!(timing.reconstruct_us, 0, "no decode happens on a non-match");
     }
 
     #[test]
     fn timed_reports_zero_decode_on_phi() {
         let (tree, timing) = parse_bitcoded_recursive_timed("a", &Regex::Phi);
         assert_eq!(tree, None);
-        assert_eq!(timing.decode_us, 0);
+        assert_eq!(timing.reconstruct_us, 0);
     }
 }

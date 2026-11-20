@@ -95,7 +95,7 @@ Per-parser summary columns.
 
 With `BENCH_SPLIT_OUTCOME=1`, a second table splits time by match and non-match.
 
-Also writes `..._entries.csv`. One row per measurement, with columns `source,parser,pattern,input,expected_match,outcome,micros,encode_micros,derive_micros,decode_micros`. Pattern and input text included, truncated past 200 characters. Filter to one `pattern` and compare across parsers.
+Also writes `..._entries.csv`. One row per measurement, with columns `source,parser,pattern,input,expected_match,outcome,micros,setup_micros,derive_micros,reconstruct_micros`. Pattern and input text included, truncated past 200 characters. Filter to one `pattern` and compare across parsers.
 
 
 ## bench_corpus_memory
@@ -152,7 +152,7 @@ PATHO_CATEGORY=A,B cargo bench --bench bench_pathological_time
 
 Entries grouped by category (A to L). Reported the same way as `bench_corpus_time`, reusing `bench_worker`. A pathological pattern that fails to translate at all shows up as `crashed`, not filtered beforehand.
 
-Writes `reports/benches/bench_pathological_time.csv` (category and parser summary) and `..._entries.csv`, one row per measurement, with columns `row_id,category,parser,n,p,side,pattern,input,outcome,micros,encode_micros,derive_micros,decode_micros`. Pattern and input text included, truncated past 200 characters.
+Writes `reports/benches/bench_pathological_time.csv` (category and parser summary) and `..._entries.csv`, one row per measurement, with columns `row_id,category,parser,n,p,side,pattern,input,outcome,micros,setup_micros,derive_micros,reconstruct_micros`. Pattern and input text included, truncated past 200 characters.
 
 Filter the entries file to one `row_id` and `parser`, sort by `n`, and you have a single pattern's (input size, time) curve.
 

@@ -34,7 +34,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use regex_engine::data::prepare::core_regex;
-use regex_engine::parsers::{ALL, BcTiming, parse_bitcoded_recursive_timed, parse_pderiv_bc_timed, parse_pderiv_std_timed};
+use regex_engine::parsers::{ALL, PhaseTiming, parse_bitcoded_recursive_timed, parse_pderiv_bc_timed, parse_pderiv_std_timed};
 
 // Safe here because this process measures exactly one job then exits.
 struct CountingAllocator;
@@ -108,11 +108,11 @@ struct JobResult {
     peak_bytes: usize,
     // Breakdown of `micros` for the three non-recursive parsers
     // (deriv_bc, pderiv_bc, pderiv_std) only; for the remaining two
-    // (deriv_std_rec, deriv_std_loop), encode_micros and decode_micros
+    // (deriv_std_rec, deriv_std_loop), setup_micros and reconstruct_micros
     // are 0 and derive_micros equals the full `micros`.
-    encode_micros: u64,
+    setup_micros: u64,
     derive_micros: u64,
-    decode_micros: u64,
+    reconstruct_micros: u64,
 }
 
 // Deep recursion on deriv_std_rec needs more than the default stack.
@@ -181,14 +181,14 @@ fn main() {
                 _ => {
                     let parser = ALL[parser_idx].parser();
                     let _ = parser(&input, &regex);
-                    BcTiming { encode_us: 0, derive_us: 0, decode_us: 0 }
+                    PhaseTiming { setup_us: 0, derive_us: 0, reconstruct_us: 0 }
                 }
             };
             // u64 clamp in principle, no-op in practice.
             let total = u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX);
             match parser_idx {
                 2 | 3 | 4 => (total, timing),
-                _ => (total, BcTiming { encode_us: 0, derive_us: total, decode_us: 0 }),
+                _ => (total, PhaseTiming { setup_us: 0, derive_us: total, reconstruct_us: 0 }),
             }
         })
         .expect("spawning the worker's parser-call thread");
@@ -207,9 +207,9 @@ fn main() {
         micros,
         total_bytes,
         peak_bytes,
-        encode_micros: timing.encode_us,
+        setup_micros: timing.setup_us,
         derive_micros: timing.derive_us,
-        decode_micros: timing.decode_us,
+        reconstruct_micros: timing.reconstruct_us,
     };
     println!("{}", serde_json::to_string(&result).expect("serializing the result"));
     // Explicit flush: println! is buffered.
