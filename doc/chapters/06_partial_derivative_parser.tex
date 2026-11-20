@@ -8,10 +8,14 @@ following \citep{sulzmannlu2012}.
 Unlike ordinary derivatives, partial derivatives produce a set of residual states,
 each pairing an expression with the reconstruction information 
 for one path through the original expression. 
-The parser maintains this set as an NFA state set 
-and selects the first accepting state in generation order. 
+The parser maintains this set as an NFA state set
+and selects the first accepting state in generation order.
+As in Chapter~\ref{sec:derivative-parser}, this state set is not a
+precompiled automaton: each step recomputes it from the current
+residuals and the next input character, rather than looking up a
+transition in an automaton built ahead of time.
 
-Since partial derivatives lose the original expression's structure, 
+Since partial derivatives lose the original expression's structure,
 this favours leftmost alternatives over the longest match, 
 resulting in non-POSIX parse trees.
 As in Chapter~\ref{sec:derivative-parser}, two variants are considered. 

@@ -8,14 +8,22 @@ that a word may admit multiple valid parse trees for the same expression
 and that a parser must select one according to a \emph{disambiguation policy}.
 This Chapter shows how a parse tree can be recovered from the final derivative.
 
-Following \citep{sulzmannlu2014}, 
-this chapter presents two derivative-based methods 
-for constructing POSIX parse trees. 
-The direct method performs a forward derivative pass 
-followed by a backward pass for tree reconstruction. 
-The bit-coded method records 
-parse-tree information during the forward pass, 
+Following \citep{sulzmannlu2014},
+this chapter presents two derivative-based methods
+for constructing POSIX parse trees.
+The direct method performs a forward derivative pass
+followed by a backward pass for tree reconstruction.
+The bit-coded method records
+parse-tree information during the forward pass,
 avoiding a separate backward pass.
+
+Neither method precompiles a deterministic finite automaton (DFA).
+Brzozowski's construction shows that an expression's derivatives
+form a finite set up to similarity, so a DFA could in principle be
+built once from that set and reused across inputs~\citep{brzozowski1964}.
+Both parsers instead take each derivative on demand, one character
+at a time, as the input is read, recomputing the relevant expression
+rather than looking up a transition in a table built ahead of time.
 
 %
 %

@@ -53,7 +53,7 @@ Relative performance still depends on the input,
 particularly the residual set's growth, 
 so neither family was uniformly superior.
 
-For future work, three directions follow from these results. 
+For future work, four directions follow from these results.
 First, \texttt{deriv\_bc} still trails the partial-derivative variants
 on several large-scale patterns, 
 partly because it repeatedly re-simplifies one shared expression 
@@ -68,10 +68,20 @@ constructs or implement operations currently rejected by the frontend,
 such as anchors, bounded lookaround, and backreferences.
 Lu's partial-derivative implementation~\citep{lu_regex_pderiv} 
 provides a useful reference for such extensions.
-Additionally, the current trace instrumentation could be developed
+Third, the current trace instrumentation could be developed
 into a proper diagnostic tool identifying which subexpressions are
-responsible for a match or timeout. 
-Pairing it with a submatching extension 
-could also be used to report which substring each subexpression matched, 
-helping to localise remaining performance problems 
+responsible for a match or timeout.
+Pairing it with a submatching extension
+could also be used to report which substring each subexpression matched,
+helping to localise remaining performance problems
 or explain why a given input failed to match.
+Fourth, the timing breakdown used for the bit-coded parsers
+covers only \texttt{deriv\_bc} and \texttt{pderiv\_bc}; the standard
+partial-derivative parser's own per-character cost is reported as a
+single total, with no separate figure for the cost of maintaining its
+injection closures. Unlike a bit list, a closure chain has no cheap,
+directly inspectable size, so tracking this cost would mean
+instrumenting closure construction itself, for example by counting
+how many \texttt{InjStep} wrappers accumulate per residual, mirroring
+the per-phase breakdown already available for the bit-coded parsers
+(Section~\ref{sec:eval-cost-bit-coding}).

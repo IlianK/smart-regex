@@ -2500,6 +2500,24 @@ least memory on the S2ELab corpus. Representing the residual
 as a set of states rather than one combined expression limits
 the alternation growth seen with standard derivatives.
 
+This difference is sharpest on wide alternations, where it also
+separates \texttt{pderiv\_bc} from \texttt{deriv\_bc}, not only from
+the standard pair. \texttt{deriv\_bc}'s simplification pass removes
+duplicate branches of a combined \texttt{Alt} expression with
+\texttt{dedup\_first} (Section~\ref{sec:simp-impl}), which compares
+every pair of flattened branches and costs $O(p^2)$ for $p$
+alternatives. \texttt{pderiv\_bc} deduplicates its own flattened
+frontier with \texttt{nub2} (Section~\ref{sec:pderiv-bc-impl}), a
+hash-set membership test costing $O(p)$ for the same $p$ branches.
+Both parsers flatten nested alternations into one list before
+deduplicating it, avoiding a cost that would otherwise be repeated
+once per nesting level; what still differs is the cost of the single
+deduplication pass itself, pairwise for \texttt{deriv\_bc} against
+hash-based for \texttt{pderiv\_bc}. The E37/E38 phase breakdown
+(Table~\ref{tab:patho-phases-e37}) reflects exactly this: both
+parsers' derive time grows with $p$, but \texttt{deriv\_bc}'s grows
+faster.
+
 Within this pair, bit-coding has mixed effects. On the full
 corpus, \texttt{pderiv\_bc} is marginally faster
 (0.664\,ms against 0.759\,ms for \texttt{pderiv\_std}) and
@@ -2608,9 +2626,23 @@ in Section~\ref{sec:eval-agreement}.
 its conventions; other corpora may have different acceptance
 rates and timing profiles. Timing, memory, and parse agreement
 use the 463-pattern default scope
-(Section~\ref{sec:eval-s2elab}). Including the remaining
-115 unanchored patterns could
-change the absolute results and possibly the candidate ranking.
+(Section~\ref{sec:eval-s2elab}), excluding the 115 unanchored
+and 177 rejected patterns. Comparing the excluded 292 patterns'
+raw match and non-match inputs against the 463 used ones shows
+input length and count are not where the two sets differ: mean
+input counts (12.6 matches, 11.9 non-matches per pattern,
+excluded, against 13.0 and 12.0 used) and mean input lengths
+(17.8 and 9.2 characters, excluded, against 17.3 and 8.4 used)
+are within a few percent either way, well inside normal
+pattern-to-pattern variation. The excluded patterns' own source
+text is longer on average (95 against 70 characters), consistent
+with containing the constructs that caused their exclusion
+(lookaround, backreferences, non-strippable anchors), but this
+pattern-side difference does not carry over to the input
+characteristics that drive benchmark cost. Scope therefore
+appears unlikely to skew the measured timing and memory profile
+by much, though candidate ranking on the excluded subset
+specifically remains untested.
 
 \textbf{The synthetic set.} Its 112 rows isolate individual
 complexity mechanisms at controlled scales rather than
