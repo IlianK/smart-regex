@@ -25,6 +25,16 @@
 //! growth was enough on its own. A killed *process* actually reclaims
 //! its memory; a thread cannot be killed in safe/stable Rust at all.
 //!
+//! Unlike `bench_corpus_time.rs`, entries within one parser's pass run
+//! several workers at once (`run_all_entries`, bounded by
+//! `worker_concurrency`, default the available parallelism). Each
+//! worker's byte counters are `static` state scoped to that worker's
+//! own process, so running several at once never contaminates any of
+//! them -- there is nothing here for concurrency to corrupt the way it
+//! would corrupt a wall-clock measurement. See `worker_concurrency`'s
+//! own doc for why that distinction holds and `bench_corpus_time.rs`
+//! stays sequential.
+//!
 //! This also removes a measurement problem the old thread-based
 //! version had and could only document, not fix: its counting
 //! allocator's byte counters were one global `static` per process, so
@@ -152,6 +162,31 @@ fn mem_cap_bytes() -> Option<u64> {
 /// in `bench_corpus_time.rs` for why.
 fn run_label_suffix() -> String {
     std::env::var("BENCH_RUN_LABEL").ok().map(|l| format!("_{l}")).unwrap_or_default()
+}
+
+/// Upper bound on concurrently-running `bench_worker` processes for a
+/// single parser's pass over the corpus. Defaults to
+/// `std::thread::available_parallelism()` -- the number of threads the
+/// program can expect to run concurrently, i.e. the logical core
+/// count, or a container's CPU quota where one applies, which is the
+/// more honest bound in a shared/cloud environment than a fixed
+/// physical-core-count guess would be -- overridable via
+/// `BENCH_MEM_WORKERS` for anyone who wants to pin it (e.g. to `1` to
+/// recover the old strictly-sequential behavior).
+///
+/// Safe to parallelize here in a way it is not in `bench_corpus_time.rs`:
+/// each worker's counting allocator is `static` state scoped to that
+/// worker's own process (see `bench_worker.rs`'s module doc), so
+/// concurrently-running workers never share or contend over the same
+/// counters. `bench_corpus_time.rs` stays sequential because wall-clock
+/// measurements, unlike byte counts, are themselves affected by CPU
+/// contention between concurrently-scheduled sibling processes -- see
+/// that file's own module doc for the fuller argument.
+fn worker_concurrency() -> usize {
+    std::env::var("BENCH_MEM_WORKERS")
+        .ok()
+        .map(|s| s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_WORKERS must be a positive integer, got {s:?}")))
+        .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
 }
 
 struct Entry {
@@ -310,6 +345,42 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
     }
 }
 
+/// Runs `run_entry_isolated` for every entry in `corpus` against a
+/// fixed `parser_idx`, across up to `worker_concurrency()` worker
+/// processes at once, returning outcomes in the same order as
+/// `corpus`. Each worker thread here only spawns, polls, and (on
+/// timeout) kills its own `bench_worker` child process -- the same
+/// thing `run_entry_isolated` already did on the driver's one thread
+/// sequentially, just with several in flight at once. This is not the
+/// thread-based parser-call pool an earlier version of this harness
+/// tried and abandoned: that pool ran the parser call itself on a
+/// driver-side thread, which a hung call could not be killed out of;
+/// here the parser call always runs inside an isolated, killable
+/// child process, and these driver threads never do anything but wait
+/// on one.
+fn run_all_entries(worker: &Path, cap: Duration, parser_idx: usize, corpus: &[Entry]) -> Vec<Outcome> {
+    let n_workers = worker_concurrency().min(corpus.len()).max(1);
+    if n_workers <= 1 {
+        return corpus.iter().map(|e| run_entry_isolated(worker, cap, parser_idx, &e.pattern, &e.input)).collect();
+    }
+
+    let next_idx = std::sync::atomic::AtomicUsize::new(0);
+    let slots: Vec<std::sync::Mutex<Option<Outcome>>> = (0..corpus.len()).map(|_| std::sync::Mutex::new(None)).collect();
+
+    std::thread::scope(|scope| {
+        for _ in 0..n_workers {
+            scope.spawn(|| loop {
+                let idx = next_idx.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let Some(entry) = corpus.get(idx) else { break };
+                let outcome = run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input);
+                *slots[idx].lock().expect("slot mutex poisoned") = Some(outcome);
+            });
+        }
+    });
+
+    slots.into_iter().map(|m| m.into_inner().expect("slot mutex poisoned").expect("every index assigned exactly once")).collect()
+}
+
 // -------------------------------
 // Reporting
 // -------------------------------
@@ -367,31 +438,31 @@ fn report(label: &'static str, corpus: &[Entry], worker: &Path, cap: Duration) -
         let mut timed_out = 0usize;
         let mut crashed = 0usize;
         let mut by_pattern: HashMap<&str, Vec<usize>> = HashMap::new();
-        for entry in corpus {
-            let (outcome, total_bytes, peak_bytes) =
-                match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                    Outcome::Done { total_bytes, peak_bytes } => {
-                        total_sum += total_bytes;
-                        peak_max = peak_max.max(peak_bytes);
-                        measured += 1;
-                        by_pattern.entry(entry.pattern.as_str()).or_default().push(total_bytes);
-                        ("measured", Some(total_bytes), Some(peak_bytes))
-                    }
-                    Outcome::TimedOut => {
-                        timed_out += 1;
-                        ("timed_out", None, None)
-                    }
-                    Outcome::Crashed(reason) => {
-                        crashed += 1;
-                        eprintln!(
-                            "  crash: {label}/{} pat={:?} in={:?} -- {reason}",
-                            parser_type.name(),
-                            entry.pattern,
-                            entry.input,
-                        );
-                        ("crashed", None, None)
-                    }
-                };
+        let outcomes = run_all_entries(worker, cap, parser_idx, corpus);
+        for (entry, outcome) in corpus.iter().zip(outcomes) {
+            let (outcome, total_bytes, peak_bytes) = match outcome {
+                Outcome::Done { total_bytes, peak_bytes } => {
+                    total_sum += total_bytes;
+                    peak_max = peak_max.max(peak_bytes);
+                    measured += 1;
+                    by_pattern.entry(entry.pattern.as_str()).or_default().push(total_bytes);
+                    ("measured", Some(total_bytes), Some(peak_bytes))
+                }
+                Outcome::TimedOut => {
+                    timed_out += 1;
+                    ("timed_out", None, None)
+                }
+                Outcome::Crashed(reason) => {
+                    crashed += 1;
+                    eprintln!(
+                        "  crash: {label}/{} pat={:?} in={:?} -- {reason}",
+                        parser_type.name(),
+                        entry.pattern,
+                        entry.input,
+                    );
+                    ("crashed", None, None)
+                }
+            };
             entry_rows.push(EntryResult {
                 source: label,
                 parser: parser_type.name(),

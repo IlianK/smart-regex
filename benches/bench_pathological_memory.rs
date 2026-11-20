@@ -13,6 +13,14 @@
 //! bounded by `BENCH_ENTRY_TIMEOUT_MS`, killed on timeout, with the
 //! counting `#[global_allocator]` living in that worker, not here.
 //!
+//! Also like `bench_corpus_memory.rs`: entries within one parser's
+//! pass run several workers at once (see `run_all_entries`/
+//! `worker_concurrency`), safe here because each worker's byte
+//! counters are scoped to that worker's own process and cannot
+//! contaminate a sibling's -- unlike `bench_pathological_time.rs`,
+//! which stays sequential because concurrent siblings *would* pollute
+//! its wall-clock measurements.
+//!
 //! Writes `reports/benches/bench_pathological_memory.csv` (one row per
 //! category x parser) and `reports/benches/bench_pathological_memory_entries.csv`
 //! (one row per individual (row, n, p, parser, match/non-match side)
@@ -107,6 +115,17 @@ fn mem_cap_bytes() -> Option<u64> {
 /// Optional filename suffix, same role as in `bench_corpus_memory.rs`.
 fn run_label_suffix() -> String {
     std::env::var("BENCH_RUN_LABEL").ok().map(|l| format!("_{l}")).unwrap_or_default()
+}
+
+/// Upper bound on concurrently-running `bench_worker` processes for a
+/// single parser's pass over one category's corpus. See the identical
+/// function in `bench_corpus_memory.rs` for why this is safe here and
+/// not in the `_time` harnesses.
+fn worker_concurrency() -> usize {
+    std::env::var("BENCH_MEM_WORKERS")
+        .ok()
+        .map(|s| s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_WORKERS must be a positive integer, got {s:?}")))
+        .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
 }
 
 fn json_path() -> PathBuf {
@@ -310,6 +329,35 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
     }
 }
 
+/// Runs `run_entry_isolated` for every entry in `corpus` against a
+/// fixed `parser_idx`, across up to `worker_concurrency()` worker
+/// processes at once, returning outcomes in the same order as
+/// `corpus`. See the identical function in `bench_corpus_memory.rs`
+/// for the full rationale; duplicated, not shared, per this
+/// codebase's convention.
+fn run_all_entries(worker: &Path, cap: Duration, parser_idx: usize, corpus: &[Entry]) -> Vec<Outcome> {
+    let n_workers = worker_concurrency().min(corpus.len()).max(1);
+    if n_workers <= 1 {
+        return corpus.iter().map(|e| run_entry_isolated(worker, cap, parser_idx, &e.pattern, &e.input)).collect();
+    }
+
+    let next_idx = std::sync::atomic::AtomicUsize::new(0);
+    let slots: Vec<std::sync::Mutex<Option<Outcome>>> = (0..corpus.len()).map(|_| std::sync::Mutex::new(None)).collect();
+
+    std::thread::scope(|scope| {
+        for _ in 0..n_workers {
+            scope.spawn(|| loop {
+                let idx = next_idx.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let Some(entry) = corpus.get(idx) else { break };
+                let outcome = run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input);
+                *slots[idx].lock().expect("slot mutex poisoned") = Some(outcome);
+            });
+        }
+    });
+
+    slots.into_iter().map(|m| m.into_inner().expect("slot mutex poisoned").expect("every index assigned exactly once")).collect()
+}
+
 // -------------------------------
 // Reporting -- grouped by category instead of SourceKind
 // -------------------------------
@@ -381,33 +429,33 @@ fn report(
         let mut measured = 0usize;
         let mut timed_out = 0usize;
         let mut crashed = 0usize;
-        for entry in corpus {
-            let (outcome, total_bytes, peak_bytes) =
-                match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                    Outcome::Done { total_bytes, peak_bytes } => {
-                        total_sum += total_bytes;
-                        peak_max = peak_max.max(peak_bytes);
-                        measured += 1;
-                        ("measured", Some(total_bytes), Some(peak_bytes))
-                    }
-                    Outcome::TimedOut => {
-                        timed_out += 1;
-                        ("timed_out", None, None)
-                    }
-                    Outcome::Crashed(reason) => {
-                        crashed += 1;
-                        eprintln!(
-                            "  crash: {category}/{} row={} n={} p={} pat={:?} in={:?} -- {reason}",
-                            parser_type.name(),
-                            entry.row_id,
-                            entry.n,
-                            entry.p,
-                            entry.pattern,
-                            entry.input,
-                        );
-                        ("crashed", None, None)
-                    }
-                };
+        let outcomes = run_all_entries(worker, cap, parser_idx, corpus);
+        for (entry, outcome) in corpus.iter().zip(outcomes) {
+            let (outcome, total_bytes, peak_bytes) = match outcome {
+                Outcome::Done { total_bytes, peak_bytes } => {
+                    total_sum += total_bytes;
+                    peak_max = peak_max.max(peak_bytes);
+                    measured += 1;
+                    ("measured", Some(total_bytes), Some(peak_bytes))
+                }
+                Outcome::TimedOut => {
+                    timed_out += 1;
+                    ("timed_out", None, None)
+                }
+                Outcome::Crashed(reason) => {
+                    crashed += 1;
+                    eprintln!(
+                        "  crash: {category}/{} row={} n={} p={} pat={:?} in={:?} -- {reason}",
+                        parser_type.name(),
+                        entry.row_id,
+                        entry.n,
+                        entry.p,
+                        entry.pattern,
+                        entry.input,
+                    );
+                    ("crashed", None, None)
+                }
+            };
             entry_rows.push(EntryResult {
                 row_id: entry.row_id.clone(),
                 category: entry.category.clone(),
