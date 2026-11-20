@@ -45,11 +45,20 @@ cargo build --release --example bench_worker
 
 # Time: full corpus, split by outcome. 60s/entry so deriv_std_rec/deriv_std_loop
 # get a real chance to finish instead of timing out at the old 2s default.
-BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
+# Memory cap guards against the same two parsers' derivative-size blowup
+# on the rare real-corpus entry that triggers it (Innovatorved/RegexLib
+# especially) -- without it, one such entry grows until the HOST runs
+# out of memory, not just this one process.
+BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
   cargo bench --bench bench_corpus_time
 
-# Memory: full corpus.
-BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_RUN_LABEL=CM1 \
+# Memory: full corpus. Same cap and the same reason as above, but this
+# one runs several workers at once (worker_concurrency(), default = all
+# available cores), so the real ceiling is roughly BENCH_MEM_CAP_MB
+# times however many workers run concurrently, not BENCH_MEM_CAP_MB
+# alone. Set BENCH_MEM_WORKERS to a smaller number if that product is
+# more than the host can spare.
+BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=CM1 \
   cargo bench --bench bench_corpus_memory
 
 # Translate: full corpus.
