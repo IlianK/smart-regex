@@ -3,6 +3,9 @@
 //! Simplification for ARegex: 
 //! Phi propagation, eps-elision, Alt flattening/dedup.
 
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+
 use crate::types::{ARegex, Bits};
 use crate::parsers::deriv_bc::nullable::is_phi;
 use crate::parsers::deriv_bc::internalize::fuse_bits;
@@ -159,19 +162,70 @@ fn same_shape(a: &ARegex, b: &ARegex) -> bool {
     }
 }
 
-fn dedup_first(branches: &mut Vec<ARegex>) {
-    let mut i = 0;
-    while i < branches.len() {
-        let mut j = i + 1;
-        while j < branches.len() {
-            if same_shape(&branches[i], &branches[j]) {
-                branches.remove(j);
-            } else {
-                j += 1;
-            }
+/// Mirrors `same_shape`'s own match arms exactly, hashing a
+/// discriminant tag plus whatever each variant recurses into, always
+/// skipping the node's own `bs` -- so two branches with the same
+/// shape (per `same_shape`) always hash equal, though (as with any
+/// hash) two branches that hash equal aren't guaranteed to have the
+/// same shape, hence `dedup_first` below still confirms with
+/// `same_shape` before treating a hash match as a real duplicate.
+fn hash_shape<H: Hasher>(r: &ARegex, state: &mut H) {
+    match r {
+        ARegex::Phi => 0u8.hash(state),
+        ARegex::Eps(_) => 1u8.hash(state),
+        ARegex::Lit(_, c) => {
+            2u8.hash(state);
+            c.hash(state);
         }
-        i += 1;
+        ARegex::Alt(_, a, b) => {
+            3u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Seq(_, a, b) => {
+            4u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Star(_, a) => {
+            5u8.hash(state);
+            hash_shape(a, state);
+        }
     }
+}
+
+/// Same result as the all-pairs scan this replaced (keep the first,
+/// i.e. lowest-original-index, branch of each shape-equivalence
+/// class, in original relative order), but O(p) instead of O(p^2):
+/// one shape-hash per branch instead of comparing every branch to
+/// every other. Branches are only ever compared against already-kept
+/// bucket-mates, never against ones already dropped -- safe because
+/// `same_shape` is an equivalence relation (reflexive, symmetric,
+/// transitive, since it's structural equality on a tree minus one
+/// field), so anything that would have matched a dropped duplicate
+/// also matches whichever earlier branch that duplicate itself
+/// matched.
+fn dedup_first(branches: &mut Vec<ARegex>) {
+    let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
+    let mut keep = vec![true; branches.len()];
+    for idx in 0..branches.len() {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        hash_shape(&branches[idx], &mut hasher);
+        let h = hasher.finish();
+
+        let bucket = buckets.entry(h).or_default();
+        if bucket.iter().any(|&prev| same_shape(&branches[prev], &branches[idx])) {
+            keep[idx] = false;
+        } else {
+            bucket.push(idx);
+        }
+    }
+    let mut idx = 0;
+    branches.retain(|_| {
+        let k = keep[idx];
+        idx += 1;
+        k
+    });
 }
 
 
