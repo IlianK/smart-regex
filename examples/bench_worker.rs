@@ -34,7 +34,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use regex_engine::data::prepare::core_regex;
-use regex_engine::parsers::{ALL, BcTiming, parse_bitcoded_recursive_timed, parse_pderiv_bc_timed};
+use regex_engine::parsers::{ALL, BcTiming, parse_bitcoded_recursive_timed, parse_pderiv_bc_timed, parse_pderiv_std_timed};
 
 // Safe here because this process measures exactly one job then exits.
 struct CountingAllocator;
@@ -106,9 +106,10 @@ struct JobResult {
     micros: u64,
     total_bytes: usize,
     peak_bytes: usize,
-    // Breakdown of `micros` for the bit-coded parsers (deriv_bc,
-    // pderiv_bc) only; for the other three, encode_micros and
-    // decode_micros are 0 and derive_micros equals the full `micros`.
+    // Breakdown of `micros` for the three non-recursive parsers
+    // (deriv_bc, pderiv_bc, pderiv_std) only; for the remaining two
+    // (deriv_std_rec, deriv_std_loop), encode_micros and decode_micros
+    // are 0 and derive_micros equals the full `micros`.
     encode_micros: u64,
     derive_micros: u64,
     decode_micros: u64,
@@ -176,6 +177,7 @@ fn main() {
             let timing = match parser_idx {
                 2 => parse_bitcoded_recursive_timed(&input, &regex).1,
                 3 => parse_pderiv_bc_timed(&input, &regex).1,
+                4 => parse_pderiv_std_timed(&input, &regex).1,
                 _ => {
                     let parser = ALL[parser_idx].parser();
                     let _ = parser(&input, &regex);
@@ -185,7 +187,7 @@ fn main() {
             // u64 clamp in principle, no-op in practice.
             let total = u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX);
             match parser_idx {
-                2 | 3 => (total, timing),
+                2 | 3 | 4 => (total, timing),
                 _ => (total, BcTiming { encode_us: 0, derive_us: total, decode_us: 0 }),
             }
         })

@@ -3,9 +3,11 @@
 //! Plain-Regex partial-derivative parser (pderiv_std); 
 //! traced variant in traced.rs reuses step_frontier/select.
 
+use std::time::Instant;
 use crate::types::{ParseTree, Regex};
 use crate::regex::nullable::nullable;
 use crate::regex::mk_eps::mk_eps;
+use crate::parsers::BcTiming;
 use super::inject::{Inj, nub_tree};
 use super::pderiv_tree::pderiv_tree;
 
@@ -57,14 +59,36 @@ pub(super) fn select(frontier: &[(Regex, Inj)]) -> Option<ParseTree> {
 }
 
 pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
+    parse_pderiv_std_timed(input, r).0
+}
+
+/// Same parse, plus how long encode, derive (the per-character frontier
+/// stepping), and decode (final injection-closure application) each
+/// took. `pderiv_std` has no `Regex` -> `ARegex` conversion either, but
+/// like `pderiv_bc` it clones `r` into the initial frontier before
+/// deriving; timed as its own `encode_us` here so all three
+/// non-recursive parsers' phase breakdowns stay comparable instead of
+/// silently folding that cost into `derive_us`.
+pub fn parse_pderiv_std_timed(input: &str, r: &Regex) -> (Option<ParseTree>, BcTiming) {
+    let t_encode = Instant::now();
     let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), Inj::identity())];
+    let encode_us = t_encode.elapsed().as_micros() as u64;
+
+    let t0 = Instant::now();
     for c in input.chars() {
         frontier = step_frontier(frontier, c);
         if frontier.is_empty() {
-            return None;
+            let derive_us = t0.elapsed().as_micros() as u64;
+            return (None, BcTiming { encode_us, derive_us, decode_us: 0 });
         }
     }
-    select(&frontier)
+    let derive_us = t0.elapsed().as_micros() as u64;
+
+    let t1 = Instant::now();
+    let tree = select(&frontier);
+    let decode_us = t1.elapsed().as_micros() as u64;
+
+    (tree, BcTiming { encode_us, derive_us, decode_us })
 }
 
 
@@ -91,6 +115,21 @@ mod tests {
     #[test]
     fn no_match_is_none() {
         assert_eq!(parse_pderiv_std("b", &Regex::lit('a')), None);
+    }
+
+    #[test]
+    fn timed_matches_untimed_output() {
+        let r = Regex::star(Regex::lit('a'));
+        let plain = parse_pderiv_std("aaa", &r);
+        let (timed, _timing) = parse_pderiv_std_timed("aaa", &r);
+        assert_eq!(plain, timed);
+    }
+
+    #[test]
+    fn timed_reports_zero_decode_on_no_match() {
+        let (tree, timing) = parse_pderiv_std_timed("b", &Regex::lit('a'));
+        assert_eq!(tree, None);
+        assert_eq!(timing.decode_us, 0);
     }
 
     #[test]
