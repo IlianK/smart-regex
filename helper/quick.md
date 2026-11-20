@@ -167,11 +167,8 @@ PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100,1000,5000,10000,50000,100000,500000,1
 
 
 # POST-RUN: WORST-OFFENDER PATTERNS
-# Once a benchmark above has written its _entries.csv, find which
-# (pattern, input) caused each parser's worst case by a chosen metric
-# column, instead of grepping/sorting the CSV by hand. Re-run with a
-# different entries CSV / metric / top-n as needed; these four match
-# the CT1/CM1/PT1/PM1 labels used above.
+# Once a benchmark above has written its _entries.csv, 
+# find which (pattern, input) caused each parser's worst case by a chosen metric
 cargo run --release --example demo_peak_offenders -- \
   reports/benches/bench_corpus_time_CT1_entries.csv micros 5
 cargo run --release --example demo_peak_offenders -- \
