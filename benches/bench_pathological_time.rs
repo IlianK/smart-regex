@@ -280,12 +280,15 @@ struct JobResult {
 }
 
 /// `total` is `micros` as before; `setup`/`derive`/`reconstruct` are
-/// only meaningful for the three non-recursive parsers (deriv_bc,
-/// pderiv_bc, pderiv_std) -- 0/total/0 for deriv_std_rec/deriv_std_loop.
-/// What each phase measures differs by parser even among those three:
+/// a breakdown of that same call into the three `PhaseTiming` phases,
+/// for all five parsers. What each phase measures differs by parser:
 /// deriv_bc's are a real encode/decode, pderiv_bc/pderiv_std's `setup`
-/// is just the initial clone, and pderiv_std's `reconstruct` is
-/// injection-closure application, not a decode of anything (see
+/// is just the initial clone, pderiv_std's `reconstruct` is
+/// injection-closure application rather than a decode, and
+/// deriv_std_rec/deriv_std_loop have no `setup` phase at all (always
+/// 0), since neither builds a separate annotated representation
+/// first. deriv_std_rec's own `derive`/`reconstruct` carry more
+/// measurement overhead than the other four parsers' (see
 /// `PhaseTiming`'s own doc comment in src/parsers/mod.rs).
 #[derive(Clone, Copy)]
 struct Timing {
@@ -390,9 +393,10 @@ struct SummaryRow {
     median_ms: Option<f64>,
     p99_ms: Option<f64>,
     max_ms: Option<f64>,
-    // Breakdown of mean_ms for the three non-recursive parsers
-    // (deriv_bc, pderiv_bc, pderiv_std); mean_setup_ms/mean_reconstruct_ms
-    // are 0 and mean_derive_ms equals mean_ms for deriv_std_rec/deriv_std_loop.
+    // Breakdown of mean_ms into the three `PhaseTiming` phases, for
+    // all five parsers; mean_setup_ms is 0 for deriv_std_rec/
+    // deriv_std_loop and for pderiv_bc/pderiv_std (see `Timing`'s doc
+    // comment above).
     mean_setup_ms: Option<f64>,
     mean_derive_ms: Option<f64>,
     mean_reconstruct_ms: Option<f64>,
