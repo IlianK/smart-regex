@@ -312,18 +312,23 @@ stress the parsers.
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
-Dataset & Authored & Duplicate & Rejected & Accepted & Unanchored & Fully-Anchored & Inputs \\
+Dataset & Pattern $n$ & Input $n$ & Rejected & Accepted \\
 \hline
-S2ELab     & 762 & 7 & 177 & 578 & 115 & 463 & 11\,395 \\
-Synthetic  & 112 & 0 &   0 & 112 &   0 & 112 &    891 \\
+S2ELab     &  762 & 18\,930 & 292 & 463 \\
+Synthetic  &  112 &    891  &   0 & 112 \\
 \hline
 \end{tabular*}
-\caption{Benchmark scope. \emph{Authored} = \emph{Duplicate} + \emph{Rejected}
-+ \emph{Accepted}, and \emph{Accepted} = \emph{Full-Anchored} + \emph{Unanchored}.
-Only the \emph{Full-Anchored} patterns are benchmarked after stripping, and the
-\emph{Inputs} column counts entries for those patterns only.}
+\caption{Dataset composition. \emph{Pattern~$n$} and \emph{Input~$n$} are
+each corpus as authored, before any filtering; S2ELab's own given
+matches and non-matches are both counted. A \emph{Rejected} pattern uses
+an unsupported construct; an \emph{Accepted} pattern is only one in the
+shape of a fully anchored pattern. The remaining 7 S2ELab patterns are
+byte-identical duplicates, dropped before classification. Of the 463
+accepted patterns, 11\,395 of the 18\,930 original inputs survive
+deduplication and the match-intent check (Figure~\ref{fig:s2elab-pipeline})
+and are what the benchmarks use.}
 \label{tab:dataset-summary}
 \end{table}
 
@@ -404,9 +409,10 @@ The surviving triples $(r,w,e)$ are the defined entries.}
 \label{fig:s2elab-pipeline}
 \end{figure}
 
-The benchmarks only use the 463 fully anchored patterns after stripping, 
-excluding the 115 unanchored ones, while 177 are rejected, 
-with the causes summarised in Table~\ref{tab:corpus-rejection-causes}.
+The benchmarks use the 463 accepted patterns after stripping.
+A rejected pattern uses an unsupported construct;
+an accepted pattern is only one in the shape of a fully anchored pattern.
+Table~\ref{tab:corpus-rejection-causes} summarises the causes.
 
 \begin{table}[H]
 \centering
@@ -415,16 +421,21 @@ with the causes summarised in Table~\ref{tab:corpus-rejection-causes}.
 \hline
 Cause & S2ELab patterns \\
 \hline
-Anchor (non-strippable) & 106 \\
+Substring Search                            & 221 \\
 Lookaround                                  &  43 \\
 Word boundary                               &  23 \\
 Backreference                               &   3 \\
 Other (node cap, syntax errors)             &   2 \\
 \hline
-Total                                       & 177 \\
+Total                                       & 292 \\
 \hline
 \end{tabular*}
-\caption{S2ELab patterns rejected by the frontend, broken down by cause.}
+\caption{S2ELab patterns rejected, broken down by cause.
+\emph{Substring Search} covers every pattern not in the fully anchored
+\texttt{\textasciicircum\ldots\textdollar} shape this evaluation
+requires, whether because it has no anchor at all or an anchor placed
+elsewhere; the remaining causes are rejected by the frontend for an
+unsupported construct.}
 \label{tab:corpus-rejection-causes}
 \end{table}
 
@@ -2626,8 +2637,8 @@ in Section~\ref{sec:eval-agreement}.
 its conventions; other corpora may have different acceptance
 rates and timing profiles. Timing, memory, and parse agreement
 use the 463-pattern default scope
-(Section~\ref{sec:eval-s2elab}), excluding the 115 unanchored
-and 177 rejected patterns. Comparing the excluded 292 patterns'
+(Section~\ref{sec:eval-s2elab}), excluding the 292 rejected
+patterns. Comparing the excluded 292 patterns'
 raw match and non-match inputs against the 463 used ones shows
 input length and count are not where the two sets differ: mean
 input counts (12.6 matches, 11.9 non-matches per pattern,
@@ -2637,7 +2648,8 @@ are within a few percent either way, well inside normal
 pattern-to-pattern variation. The excluded patterns' own source
 text is longer on average (95 against 70 characters), consistent
 with containing the constructs that caused their exclusion
-(lookaround, backreferences, non-strippable anchors), but this
+(lookaround, backreferences, anchors not in the fully-anchored
+shape), but this
 pattern-side difference does not carry over to the input
 characteristics that drive benchmark cost. Scope therefore
 appears unlikely to skew the measured timing and memory profile
