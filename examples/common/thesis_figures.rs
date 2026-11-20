@@ -154,7 +154,7 @@ pub fn series_frontier(r: &Regex, input: &str) -> Vec<(usize, usize)> {
         for (res, bits) in &frontier {
             for (res_next, extra) in pderiv_bc(res, c) {
                 let mut combined = bits.clone();
-                combined.extend(extra);
+                combined.extend(extra.to_vec());
                 next.push((res_next, combined));
             }
         }

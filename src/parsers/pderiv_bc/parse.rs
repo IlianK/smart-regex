@@ -21,13 +21,18 @@ use crate::regex::decode::decode;
 ///
 /// Each strand's bits accumulate across the whole input so far; a plain
 /// `Vec<bool>` clone-then-extend here is O(current length) per step,
-/// O(n^2) over n characters -- `AppendBits::append` is O(extra.len())
-/// regardless (see src/types/bits.rs).
+/// O(n^2) over n characters -- `AppendBits::append_bits` is O(1)
+/// regardless (see src/types/bits.rs), grafting the two existing chains
+/// together instead of flattening either one. `pderiv_bc`'s own `extra`
+/// is itself an unmaterialized `AppendBits` (its per-leaf prefix out of
+/// a possibly-wide alternation, see `pderiv_bc::flatten_alt`), so the
+/// graft here keeps it that way rather than forcing a flatten on every
+/// character step.
 pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) -> Vec<(Regex, AppendBits)> {
     let mut out = Vec::new();
     for (r, bits) in frontier {
         for (r_next, extra) in pderiv_bc(r, x) {
-            out.push((r_next, bits.append(&extra)));
+            out.push((r_next, bits.append_bits(&extra)));
         }
     }
     nub2(out)

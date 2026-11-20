@@ -95,7 +95,7 @@ fn frontier_sizes(r: &Regex, input: &str) -> Vec<(usize, usize)> {
         for (res, bits) in &frontier {
             for (res_next, extra) in pderiv_bc(res, c) {
                 let mut combined = bits.clone();
-                combined.extend(extra);
+                combined.extend(extra.to_vec());
                 next.push((res_next, combined));
             }
         }
@@ -311,7 +311,7 @@ fn fig_6_3_real_parser_frontier_stays_bounded() {
         for (r, bits) in &frontier {
             for (r_next, extra) in pderiv_bc(r, c) {
                 let mut combined = bits.clone();
-                combined.extend(extra);
+                combined.extend(extra.to_vec());
                 out.push((r_next, combined));
             }
         }

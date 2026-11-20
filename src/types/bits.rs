@@ -192,6 +192,27 @@ impl AppendBits {
         v.reverse();
         v
     }
+
+    /// `self ++ suffix`, O(1) regardless of how long either side already
+    /// is -- grafts the two existing chains together instead of
+    /// flattening either one first. The `AppendBits` analogue of
+    /// `Bits::prepend_bits`; use this (not `suffix.to_vec()` fed into
+    /// `append`) whenever `suffix` is itself another `AppendBits` that
+    /// may already carry its own accumulated history, e.g. one strand's
+    /// own per-step delta out of a wide alternation (see
+    /// `pderiv_bc::flatten_alt`, which builds exactly such per-leaf
+    /// prefixes in O(1) each instead of the O(leaf depth) a `Vec<bool>`
+    /// clone-at-every-leaf would cost, O(p^2) total over a p-leaf
+    /// right-nested chain).
+    pub fn append_bits(&self, suffix: &AppendBits) -> AppendBits {
+        if suffix.is_empty() {
+            return self.clone();
+        }
+        if self.is_empty() {
+            return suffix.clone();
+        }
+        AppendBits(self.0.prepend_bits(&suffix.0))
+    }
 }
 
 impl From<Vec<bool>> for AppendBits {
@@ -336,6 +357,47 @@ mod tests {
         let extended = base.append(&[false]);
         assert_eq!(base.to_vec(), vec![true]);
         assert_eq!(extended.to_vec(), vec![true, false]);
+    }
+
+    #[test]
+    fn append_bits_chain_builds_in_order() {
+        let base: AppendBits = vec![true, false].into();
+        let suffix: AppendBits = vec![false, true].into();
+        assert_eq!(base.append_bits(&suffix).to_vec(), vec![true, false, false, true]);
+    }
+
+    #[test]
+    fn append_bits_chain_empty_suffix_is_identity() {
+        let base: AppendBits = vec![true].into();
+        assert_eq!(base.append_bits(&AppendBits::empty()).to_vec(), vec![true]);
+    }
+
+    #[test]
+    fn append_bits_chain_empty_self_is_suffix() {
+        let suffix: AppendBits = vec![true, false].into();
+        assert_eq!(AppendBits::empty().append_bits(&suffix).to_vec(), vec![true, false]);
+    }
+
+    #[test]
+    fn append_bits_chain_does_not_mutate_either_input() {
+        let base: AppendBits = vec![true].into();
+        let suffix: AppendBits = vec![false].into();
+        let combined = base.append_bits(&suffix);
+        assert_eq!(base.to_vec(), vec![true]);
+        assert_eq!(suffix.to_vec(), vec![false]);
+        assert_eq!(combined.to_vec(), vec![true, false]);
+    }
+
+    #[test]
+    fn append_bits_chain_matches_vec_extend_semantics() {
+        let mut v: Vec<bool> = Vec::new();
+        let mut b = AppendBits::empty();
+        for i in 0..2000 {
+            let chunk: AppendBits = vec![i % 2 == 0, i % 3 == 0].into();
+            v.extend_from_slice(&chunk.to_vec());
+            b = b.append_bits(&chunk);
+        }
+        assert_eq!(b.to_vec(), v);
     }
 
     #[test]
