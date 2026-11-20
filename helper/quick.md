@@ -6,12 +6,6 @@ cargo run --release --example pathological_stats
 
 
 # DATASET EVIDENCE
-# One-off analyses behind specific thesis claims, not part of the
-# routine pipeline, but kept reproducible here rather than only in
-# chat: does excluding non-anchored patterns skew the accepted
-# set's own characteristics (dataset_skew_check), and how large a
-# {m,n} bound real-world rules actually use, as evidence for where
-# MAX_BOUND is set (demo_bound_usage).
 cargo run --release --example dataset_skew_check -- data/raw/s2-elab/RegexEval.json
 cargo run --release --example demo_bound_usage
 
@@ -41,46 +35,32 @@ cargo run --release --example demo_growth_eval
 
 
 # BENCHMARKS: S2ELAB
-#
-# Memory environment for EVERY benchmark below, time and memory alike,
-# S2ELab and pathological alike: BENCH_MEM_CAP_MB=4096 on every command,
-# plus BENCH_MEM_WORKERS=3 on every _memory one (the _time binaries
-# always run one worker at a time by design -- see bench_corpus_time.rs's
-# own module doc -- so BENCH_MEM_WORKERS does not apply to them). Sized
-# for a 16 GiB/12-core host: worst case is 3 x 4096 MiB = 12 GiB,
-# leaving 4 GiB for the OS, the editor, and the cargo process driving
-# the bench itself, whether that worst case comes from one _time worker
-# or three concurrent _memory ones. Known, accepted cost of one flat
-# cap: at least one real entry (deriv_std_loop, peak around 5.7 GiB)
-# now exceeds it and will report as crashed/cap-exceeded rather than
-# measured, in exchange for one consistent environment everywhere.
 cargo build --release --example bench_worker
 
-# Time: full corpus, split by outcome. 60s/entry so deriv_std_rec/deriv_std_loop
-# get a real chance to finish instead of timing out at the old 2s default.
+# Time
 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
   cargo bench --bench bench_corpus_time
 
-# Memory: full corpus.
+# Memory
 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_MEM_WORKERS=3 BENCH_RUN_LABEL=CM1 \
   cargo bench --bench bench_corpus_memory
 
-# Translate: full corpus.
+# Translate
 BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
 
 
 
 # BENCHMARKS: PATHOLOGICAL
 
-# Time: full sweep. Same cap, same reasoning as the S2ELab section above.
+# Time
 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PT1 \
   cargo bench --bench bench_pathological_time
 
-# Memory: full sweep.
+# Memory
 BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_MEM_WORKERS=3 BENCH_RUN_LABEL=PM1 \
   cargo bench --bench bench_pathological_memory
 
-# Translate: full sweep.
+# Translate
 BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
 
 
@@ -99,27 +79,20 @@ BENCH_MEM_CAP_MB=4096 cargo run --release --example demo_parser_agreement_pathol
 
 
 # ENCODE / DERIVE / DECODE: PATTERN-SIZE SWEEP (E37, E38)
-# Same cap as every other command above; CORE_REGEX_MAX_NODES and the
-# 120s timeout are this pair's own override, unrelated to the memory
-# environment, and unchanged.
-
 cargo build --release --example bench_worker
 
-# E37: now reaches the same p-range as E38 instead of stopping at 2,000
+# E37
 CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=4096 \
   PATHO_ROW_ID=E37 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E37_WIDE \
   cargo bench --bench bench_pathological_time
 
-# E38: same override — no longer stops at p=1,000
+# E38
 CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=4096 \
   PATHO_ROW_ID=E38 PATHO_P=100,500,1000,2000,5000,10000 BENCH_RUN_LABEL=PHASE_E38_WIDE \
   cargo bench --bench bench_pathological_time
 
 
 # ENCODE / DERIVE / DECODE: PATTERN-SIZE SWEEP MEMORY (E37, E38)
-# Same row/p/override conventions as the timing sweep above, same
-# labels, just bench_pathological_memory instead of _time.
-
 cargo build --release --example bench_worker
 
 # E37
@@ -134,8 +107,6 @@ CORE_REGEX_MAX_NODES=200000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=4096 
 
 
 # REPRESENTATIVE PATHOLOGICAL CASES: TIMING
-# Same cap as every other command above; the 120s timeout is this
-# section's own override, unrelated to the memory environment.
 
 # P60
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,5000,20000,100000,300000,1000000,5000000,10000000 \
@@ -184,11 +155,7 @@ PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100,1000,5000,10000,50000,100000,500000,1
 
 
 # POST-RUN: WORST-OFFENDER PATTERNS
-# Once a benchmark above has written its _entries.csv, find which
-# (pattern, input) caused each parser's worst case by a chosen metric
-# column, instead of grepping/sorting the CSV by hand. Re-run with a
-# different entries CSV / metric / top-n as needed; these four match
-# the CT1/CM1/PT1/PM1 labels used above.
+
 cargo run --release --example demo_peak_offenders -- \
   reports/benches/bench_corpus_time_CT1_entries.csv micros 5
 cargo run --release --example demo_peak_offenders -- \
