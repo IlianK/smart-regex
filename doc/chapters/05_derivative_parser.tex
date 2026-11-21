@@ -730,19 +730,25 @@ Figure~\ref{fig:aregex-enum} defines \texttt{ARegex},
 the annotated counterpart of \texttt{Regex}, 
 in which every variant except \texttt{Phi} carries a leading \texttt{Bits} field
 (Equation~\eqref{eq:aregex-grammar}). 
-\texttt{Bits} is a persistent, 
-\texttt{Rc}-backed cons list rather than a \texttt{Vec<bool>}, 
+\texttt{Bits} is a persistent,
+\texttt{Rc}-backed cons list rather than a \texttt{Vec<bool>},
 so prepending costs only the new prefix and not the accumulated history,
 which keeps an $n$-character run $O(n)$ rather than $O(n^2)$.
+\texttt{Alt}, \texttt{Seq}, and \texttt{Star}'s own recursive fields are
+\texttt{Rc<ARegex>} for a similar reason: deriving or simplifying one
+operand often leaves another unchanged (Seq's right-hand side
+surviving alongside its own derivative, for instance), and sharing
+that unchanged child costs one reference-count bump regardless of its
+size, rather than a copy of its whole subtree.
 \begin{figure}[H]
 \small
 \begin{verbatim}
 pub enum ARegex {
-    Phi,                   
+    Phi,
     Eps(Bits), Lit(Bits, char),
-    Alt(Bits, Box<ARegex>, Box<ARegex>),
-    Seq(Bits, Box<ARegex>, Box<ARegex>),
-    Star(Bits, Box<ARegex>),
+    Alt(Bits, Rc<ARegex>, Rc<ARegex>),
+    Seq(Bits, Rc<ARegex>, Rc<ARegex>),
+    Star(Bits, Rc<ARegex>),
 }
 \end{verbatim}
 \caption{The annotated-expression type extends \texttt{Regex} with a leading
@@ -896,12 +902,12 @@ pub fn internalize(r: &Regex) -> ARegex {
         Regex::Alt(r1, r2) => {
             let ri1 = fuse(&[false], internalize(r1));
             let ri2 = fuse(&[true], internalize(r2));
-            ARegex::Alt(Bits::empty(), Box::new(ri1), Box::new(ri2))
+            ARegex::Alt(Bits::empty(), Rc::new(ri1), Rc::new(ri2))
         }
         Regex::Seq(r1, r2) => ARegex::Seq(Bits::empty(),
-            Box::new(internalize(r1)), Box::new(internalize(r2))),
+            Rc::new(internalize(r1)), Rc::new(internalize(r2))),
         Regex::Star(r1) => ARegex::Star(Bits::empty(),
-            Box::new(internalize(r1))),
+            Rc::new(internalize(r1))),
     }
 }
 \end{verbatim}
@@ -1068,29 +1074,36 @@ where the recorded choice belongs to the alternation itself
 and derivation does not change it, 
 so the bit stays on the outer constructor until the decoder reads it.
 
-The \texttt{Seq} arm reflects $\mathsf{B}_{\mathrm{seq}}$ 
-and $\mathsf{B}_{\mathrm{seq}}^{\,n}$. 
-In the non-nullable case, \texttt{r1} must consume the character, 
-so only its derivative is needed 
-and \texttt{r2} moves directly into the rebuilt sequence. 
-In the nullable case, both alternatives are possible. 
-The bits of \texttt{r1}'s empty match are extracted 
-by \texttt{mk\_eps\_bc} \emph{before} \texttt{r1} is consumed 
-by \texttt{deriv\_bc}, since after that call the original \texttt{r1} is gone. 
-Those bits are then fused onto the derivative of \texttt{r2}, 
-so the choice made inside \texttt{r1} reaches the surviving branch. 
-The left branch is wrapped in a fresh \texttt{Seq} with an empty bit-list, 
-since the outer \texttt{bs} moves to the new \texttt{Alt} wrapper, 
-matching $\mathsf{B}_{\mathrm{seq}}^{\,n}$. \texttt{r2} is needed twice. 
-Once moved into the left branch, once cloned to compute its own derivative, 
-so exactly one clone (\texttt{r2.clone()}) is required, 
-while \texttt{nullable\_bc} only borrows \texttt{r1} 
-before \texttt{deriv\_bc} consumes it.
+The \texttt{Seq} arm reflects $\mathsf{B}_{\mathrm{seq}}$
+and $\mathsf{B}_{\mathrm{seq}}^{\,n}$.
+\texttt{deriv\_bc} only ever reads a child to derive it,
+so \texttt{r1} and \texttt{r2} need no clone just to recurse into;
+a clone is needed only where a child must also survive, unchanged,
+in the result it builds alongside its own derivative.
+In the non-nullable case, \texttt{r1} must consume the character,
+so only its derivative is needed;
+\texttt{r2} survives unchanged, cloned once, an \texttt{Rc}
+reference-count bump rather than a copy of its subtree,
+into the rebuilt sequence.
+In the nullable case, both alternatives are possible.
+The bits of \texttt{r1}'s empty match are extracted
+by \texttt{mk\_eps\_bc} before \texttt{r1}'s own derivative
+is computed by \texttt{deriv\_bc}, so the same borrow of \texttt{r1}
+serves both calls in turn; neither needs its own clone.
+Those bits are then fused onto the derivative of \texttt{r2},
+so the choice made inside \texttt{r1} reaches the surviving branch.
+The left branch is wrapped in a fresh \texttt{Seq} with an empty bit-list,
+since the outer \texttt{bs} is cloned onto the new \texttt{Alt} wrapper,
+matching $\mathsf{B}_{\mathrm{seq}}^{\,n}$. \texttt{r2} is needed in two places:
+once read to compute its own derivative,
+once surviving unchanged in the left branch,
+so it is cloned exactly once (\texttt{r2.clone()}),
+for the occurrence that survives.
 
-The \texttt{Star} arm follows the same pattern as the nullable case of \texttt{Seq}. 
-The body is needed twice: 
-once cloned to compute its own derivative (\texttt{r.clone()}), and 
-once moved, unchanged, into the reconstructed \texttt{Star}, 
+The \texttt{Star} arm follows the same pattern as the nullable case of \texttt{Seq}.
+The body is needed twice:
+once read to compute its own derivative, and
+once cloned, unchanged, into the reconstructed \texttt{Star},
 wrapped with an empty bit-list for the same reason as the left branch above.
 The leading \texttt{[false]} prepended to the derivative 
 matches the \texttt{[0]} that $\mathsf{B}_{*}$ 
@@ -1100,26 +1113,27 @@ not the outer $bs$, which the Rust code leaves untouched on the surrounding \tex
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub fn deriv_bc(ri: ARegex, l: char) -> ARegex {
+pub fn deriv_bc(ri: &ARegex, l: char) -> ARegex {
     match ri {
         // ...
-        ARegex::Alt(bs, r1, r2) => ARegex::Alt(bs,
-            Box::new(deriv_bc(*r1, l)), Box::new(deriv_bc(*r2, l))),
+        ARegex::Alt(bs, r1, r2) => ARegex::Alt(bs.clone(),
+            Rc::new(deriv_bc(r1, l)), Rc::new(deriv_bc(r2, l))),
         ARegex::Seq(bs, r1, r2) => {
-            if nullable_bc(&r1) {
-                let eps_bits = mk_eps_bc(&r1);
-                let d2 = deriv_bc(*r2.clone(), l);
+            if nullable_bc(r1) {
+                let eps_bits = mk_eps_bc(r1);
+                let d1 = deriv_bc(r1, l);
+                let d2 = deriv_bc(r2, l);
                 let left = ARegex::Seq(Bits::empty(),
-                    Box::new(deriv_bc(*r1, l)), r2);
-                ARegex::Alt(bs, Box::new(left),
-                    Box::new(fuse(&eps_bits, d2)))
+                    Rc::new(d1), r2.clone());
+                ARegex::Alt(bs.clone(), Rc::new(left),
+                    Rc::new(fuse(&eps_bits, d2)))
             } else {
-                ARegex::Seq(bs, Box::new(deriv_bc(*r1, l)), r2)
+                ARegex::Seq(bs.clone(), Rc::new(deriv_bc(r1, l)), r2.clone())
             }
         }
-        ARegex::Star(bs, r) => ARegex::Seq(bs,
-            Box::new(fuse(&[false], deriv_bc(*r.clone(), l))),
-            Box::new(ARegex::Star(Bits::empty(), r))),
+        ARegex::Star(bs, r) => ARegex::Seq(bs.clone(),
+            Rc::new(fuse(&[false], deriv_bc(r, l))),
+            Rc::new(ARegex::Star(Bits::empty(), r.clone()))),
     }
 }
 \end{verbatim}
@@ -1152,8 +1166,14 @@ so $\mathit{simp}$ re-applies itself until the shape stops changing.
 The \texttt{Alt} case follows the same logic, flattening nested
 alternations into one list before deduplicating it, so that a
 branch's duplicate is found regardless of how deeply each was
-originally nested. Comparing $p$ flattened alternatives pairwise for
-duplicates costs $O(p^2)$.
+originally nested. Deduplication groups the $p$ flattened
+alternatives by a structural hash of their shape and only compares
+branches within the same bucket, confirming each apparent match with
+the same shape-equality check an all-pairs scan would use. Two
+branches of the same shape always hash the same way, so nothing is
+missed; a hash collision between differently shaped branches costs
+one extra, correctly negative, comparison rather than a wrong merge.
+This keeps the cost of finding duplicates linear in $p$.
 $\oplus$ takes a list of operands,
 written $bs@\oplus\,[\mathit{ri}_1,\ldots,\mathit{ri}_n]$.
 \begin{equation}
@@ -1206,7 +1226,7 @@ until \texttt{same\_shape} reports no further change.
 pub fn simp(ri: ARegex) -> ARegex {
     let mut cur = ri;
     loop {
-        let next = simp_once(cur.clone());
+        let next = simp_once(&cur);
         if same_shape(&next, &cur) { return next; }
         cur = next;
     }
@@ -1255,31 +1275,33 @@ removing survivors that share the same regex.
 \begin{figure}[H]
 \small
 \begin{verbatim}
-fn simp_once(ri: ARegex) -> ARegex {
+fn simp_once(ri: &ARegex) -> ARegex {
     match ri {
-        ARegex::Phi | ARegex::Eps(_) | ARegex::Lit(_, _) => ri,
+        ARegex::Phi => ARegex::Phi,
+        ARegex::Eps(bs) => ARegex::Eps(bs.clone()),
+        ARegex::Lit(bs, c) => ARegex::Lit(bs.clone(), *c),
         ARegex::Seq(bs, r1, r2) => {
-            let (r1s, r2s) = (simp_once(*r1), simp_once(*r2));
+            let (r1s, r2s) = (simp_once(r1), simp_once(r2));
             if is_phi(&r1s) || is_phi(&r2s) { return ARegex::Phi; }
             if let ARegex::Eps(bs2) = r1s {
-                return fuse_bits(&bs, fuse_bits(&bs2, r2s));  // eps.r -> r
+                return fuse_bits(bs, fuse_bits(&bs2, r2s));  // eps.r -> r
             }
             if let ARegex::Eps(bs2) = &r2s {
-                if bs2.is_empty() { return fuse_bits(&bs, r1s); } // r.eps -> r
+                if bs2.is_empty() { return fuse_bits(bs, r1s); } // r.eps -> r
             }
-            ARegex::Seq(bs, Box::new(r1s), Box::new(r2s))
+            ARegex::Seq(bs.clone(), Rc::new(r1s), Rc::new(r2s))
         }
         ARegex::Alt(bs, r1, r2) => {
-            let mut branches: Vec<ARegex> = collect_alt_branches(*r1, *r2)
-                .into_iter().map(simp_once).filter(|b| !is_phi(b)).collect();
+            let mut branches: Vec<ARegex> = collect_alt_branches(r1, r2)
+                .iter().map(simp_once).filter(|b| !is_phi(b)).collect();
             dedup_first(&mut branches);
             match branches.len() {
                 0 => ARegex::Phi,
-                1 => fuse_bits(&bs, branches.remove(0)),
-                _ => fuse_bits(&bs, fold_alt(branches)),
+                1 => fuse_bits(bs, branches.remove(0)),
+                _ => fuse_bits(bs, fold_alt(branches)),
             }
         }
-        ARegex::Star(bs, r) => ARegex::Star(bs, Box::new(simp_once(*r))),
+        ARegex::Star(bs, r) => ARegex::Star(bs.clone(), Rc::new(simp_once(r))),
     }
 }
 \end{verbatim}
@@ -1297,27 +1319,27 @@ the \texttt{Bits}-native counterpart of \texttt{fuse} (Section~\ref{sec:fuse}).
 \begin{figure}[H]
 \small
 \begin{verbatim}
-fn collect_alt_branches(r1: ARegex, r2: ARegex) -> Vec<ARegex> {
+fn collect_alt_branches(r1: &ARegex, r2: &ARegex) -> Vec<ARegex> {
     let mut out = Vec::new();
     push_branches(r1, &mut out);
     push_branches(r2, &mut out);
     out
 }
 
-fn push_branches(ri: ARegex, out: &mut Vec<ARegex>) {
+fn push_branches(ri: &ARegex, out: &mut Vec<ARegex>) {
     match ri {
         ARegex::Alt(bs, r1, r2) => {
             if bs.is_empty() {
-                push_branches(*r1, out);
-                push_branches(*r2, out);
+                push_branches(r1, out);
+                push_branches(r2, out);
             } else {
-                let r1f = fuse_bits(&bs, *r1);
-                let r2f = fuse_bits(&bs, *r2);
-                push_branches(r1f, out);
-                push_branches(r2f, out);
+                let r1f = fuse_bits(bs, (**r1).clone());
+                let r2f = fuse_bits(bs, (**r2).clone());
+                push_branches(&r1f, out);
+                push_branches(&r2f, out);
             }
         }
-        other => out.push(other),
+        other => out.push((*other).clone()),
     }
 }
 \end{verbatim}
@@ -1341,7 +1363,7 @@ fn fold_alt(mut branches: Vec<ARegex>) -> ARegex {
     branches.reverse();
     let mut acc = branches.remove(0);
     for b in branches {
-        acc = ARegex::Alt(Bits::empty(), Box::new(b), Box::new(acc));
+        acc = ARegex::Alt(Bits::empty(), Rc::new(b), Rc::new(acc));
     }
     acc
 }

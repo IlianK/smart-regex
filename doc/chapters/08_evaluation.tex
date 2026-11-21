@@ -1793,33 +1793,45 @@ So each comparison walks further before failing.
 \small
 \begin{verbatim}
 fn dedup_first(branches: &mut Vec<ARegex>) {
-    let mut i = 0;
-    while i < branches.len() {
-        let mut j = i + 1;
-        while j < branches.len() {
-            if same_shape(&branches[i], &branches[j]) {
-                branches.remove(j);
-            } else {
-                j += 1;
-            }
+    let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
+    let mut keep = vec![true; branches.len()];
+    for idx in 0..branches.len() {
+        let mut hasher = DefaultHasher::new();
+        hash_shape(&branches[idx], &mut hasher);
+        let h = hasher.finish();
+
+        let bucket = buckets.entry(h).or_default();
+        if bucket.iter().any(|&prev| same_shape(&branches[prev], &branches[idx])) {
+            keep[idx] = false;
+        } else {
+            bucket.push(idx);
         }
-        i += 1;
     }
+    let mut idx = 0;
+    branches.retain(|_| { let k = keep[idx]; idx += 1; k });
 }
 \end{verbatim}
-\caption{\texttt{dedup\_first}'s nested loop (Figure~\ref{fig:simp-rust}),
-comparing every branch against every later branch via \texttt{same\_shape}
-and removing matches in place.}
+\caption{\texttt{dedup\_first} (Figure~\ref{fig:simp-rust}): groups
+branches by a structural hash of their shape, bits aside, and runs
+\texttt{same\_shape} only within one hash bucket to confirm a real
+match before dropping a later branch in favour of the earliest one
+of its shape.}
 \label{fig:dedup-first-rust}
 \end{figure}
 
 \clearpage
-Figure~\ref{fig:dedup-first-rust}'s loop compares branch $i$ 
-against every later branch $j$, 
-roughly $p^2/2$ calls to \texttt{same\_shape} per character.
-For $p$ genuinely distinct words, 
-\texttt{same\_shape} is essentially always false, 
-so the full $O(p^2)$ cost is paid every character for zero branches removed.
+Figure~\ref{fig:dedup-first-rust} hashes each of the $p$ branches once
+with \texttt{hash\_shape} (Figure~\ref{fig:hash-shape-rust}), which
+mirrors \texttt{same\_shape}'s own recursion arm for arm, so two
+branches of the same shape always land in the same bucket; a hash
+collision between differently shaped branches costs one extra,
+correctly negative, \texttt{same\_shape} call within that bucket,
+never a wrong merge, since bucket membership is only ever a pre-filter
+for the real equality test. For $p$ genuinely distinct words, each
+one's own characters make its hash distinct from the others, so
+buckets stay singletons and \texttt{same\_shape} is almost never
+called at all; the cost is $O(p)$ hashing, not an $O(p^2)$ comparison
+paid for zero branches removed.
 This implements the \texttt{nub} call 
 in the choice case of
 \citet[sect.~3, Fig.~6]{sulzmannlu2014}'s simplification.
@@ -1828,22 +1840,53 @@ simp\ (bs@{\oplus}(ri : rsi)) = bs@{\oplus}\bigl(\mathit{nub}\
 (\mathit{filter}\ (\neg\,\mathit{isPhi})\ ((simp\ ri) : \mathit{map}\
 simp\ rsi))\bigr),
 \]
-Haskell's \texttt{nub} is quadratic for the same reason, 
+Haskell's own \texttt{nub} is quadratic, 
 since with only an \texttt{Eq} instance 
 it keeps the first occurrence of each element 
-by comparing it against every element already kept.
-\texttt{same\_shape} is this same equality test 
+by comparing it against every element already kept;
+\texttt{dedup\_first} avoids that cost by hashing first and only
+falling back to a pairwise check within one bucket.
+\texttt{same\_shape} is the same equality test \texttt{nub} would use, 
 made insensitive to bit-code history, 
 so identical branches merge regardless of parse path.
 
+\begin{figure}[H]
+\small
+\begin{verbatim}
+fn hash_shape<H: Hasher>(r: &ARegex, state: &mut H) {
+    match r {
+        ARegex::Phi => 0u8.hash(state),
+        ARegex::Eps(_) => 1u8.hash(state),
+        ARegex::Lit(_, c) => { 2u8.hash(state); c.hash(state); }
+        ARegex::Alt(_, a, b) => {
+            3u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Seq(_, a, b) => {
+            4u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Star(_, a) => { 5u8.hash(state); hash_shape(a, state); }
+    }
+}
+\end{verbatim}
+\caption{\texttt{hash\_shape}: a discriminant tag per variant, plus
+whatever \texttt{same\_shape} itself recurses into, always skipping
+the node's own bits.}
+\label{fig:hash-shape-rust}
+\end{figure}
+
 %
 
-The partial-derivative pair deduplicates differently and more cheaply,
-since \texttt{nub2} and \texttt{nub\_tree} are both hash-based and $O(p)$,
-differing only in what carries along with each residual (a bit vector
-in \texttt{pderiv\_bc}, an injection closure in \texttt{pderiv\_std}).
-Since the mechanism is otherwise the same, only \texttt{pderiv\_bc}'s is
-shown (Figure~\ref{fig:nub2-rust}).
+The partial-derivative pair deduplicates via a related but distinct
+mechanism: \texttt{nub2} and \texttt{nub\_tree} are also hash-based
+and $O(p)$, but hash the whole residual directly rather than a
+structural shape, differing only in what carries along with each one
+(a bit vector in \texttt{pderiv\_bc}, an injection closure in
+\texttt{pderiv\_std}). Since the mechanism is otherwise the same,
+only \texttt{pderiv\_bc}'s is shown (Figure~\ref{fig:nub2-rust}).
 
 \begin{figure}[H]
 \small
@@ -1853,7 +1896,7 @@ pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char)
     let mut out = Vec::new();
     for (r, bits) in frontier {
         for (r_next, extra) in pderiv_bc(r, x) {
-            out.push((r_next, bits.append(&extra)));
+            out.push((r_next, bits.append_bits(&extra)));
         }
     }
     nub2(out)
@@ -1888,12 +1931,15 @@ E38's longer shared prefix repeats this cost more often than E37.
 The standard pair pays neither cost, making no cross-branch or
 per-residual comparison at all.
 
-\texttt{deriv\_bc} could be fixed the same way, replacing its pairwise
-\texttt{same\_shape} scan with a hash keyed on bit-code-independent
-structure as \texttt{nub2} and \texttt{nub\_tree} already do, making the
-dedup $O(p)$ without changing what it computes.
-Doing so would need restructuring how residuals are stored, not just
-swapping the comparison, so it remains the one bottleneck still unfixed.
+\texttt{deriv\_bc} deduplicates its own branches the same way in
+spirit, keyed on shape (Figure~\ref{fig:hash-shape-rust}) rather than
+on the whole residual the way \texttt{nub2} and \texttt{nub\_tree} do,
+since a combined annotated expression has branches to flatten and
+deduplicate in the first place, where a partial-derivative frontier
+already keeps one state per surviving residual.
+Either way the dedup itself is $O(p)$, not $O(p^2)$, without changing
+what it computes: a hash collision only ever costs one extra,
+correctly negative, \texttt{same\_shape} call, never a wrong merge.
 
 %
 %
