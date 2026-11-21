@@ -421,6 +421,7 @@ are longer on average (95 versus 70 characters),
 consistent with their unsupported constructs.
 Thus, filtering changes the regex characteristics but shows no
 substantial shift in the measured input characteristics.
+
 However, differences in regex structure may still affect runtime
 and memory behavior, so the results cannot be assumed to
 generalize to the excluded patterns or other corpora.
@@ -517,6 +518,36 @@ gives the resulting pattern and entry counts.
 For example, category A has 160 entries from 16 patterns, each swept
 over $n \in \{10, 20, 30, 1\,000, 10\,000\}$ at $p=100$ and tested
 with both outcomes ($16 \times 5 \times 2 = 160$).
+
+The patterns were generated with the assistance of a large
+language model using category-specific prompts that specified
+the intended stress mechanism and alphabet.
+Table~\ref{tab:patho-prompts} reconstructs the representative
+generation requirements for each category.
+The generated patterns and test inputs were subsequently
+reviewed and validated against actual parser behaviour.
+Several incorrectly labelled matching and non-matching inputs
+were corrected, and the input-size ranges in
+Table~\ref{tab:patho-categories} were calibrated empirically
+to produce meaningful stress tests.
+
+Categories A, B, C, D, and F primarily use small alphabets
+with repeated characters such as \texttt{a}, \texttt{b},
+and \texttt{x}. This was a deliberate choice to increase
+ambiguity in how an input can be divided across quantifiers,
+alternatives, or repeated groups. Repeated characters allow
+multiple branches to consume the same input, while a more
+varied alphabet would often distinguish branches earlier
+and reduce the intended stress.
+
+Category E mainly uses two-character alphabets to examine
+overlapping prefixes and competing parse structures.
+Categories H, I, J, K, and L target additional properties,
+including adjacent repetitions, input-length scaling,
+pattern-size growth, and construct coverage. Their alphabets
+and input structures were selected according to the
+specific mechanism under investigation.
+
 \begin{table}[H]
 \centering
 \small
@@ -575,100 +606,42 @@ hand-curated or generated pattern definitions; \emph{Entries} counts the
 \label{tab:patho-categories}
 \end{table}
 
-The patterns were generated with the assistance of a large
-language model, prompted separately for each category with the
-mechanism and alphabet in Table~\ref{tab:patho-prompts}, then
-manually checked against measured parser behaviour: several
-proposed match or non-match inputs turned out to be mislabelled
-and were corrected, and the sweep ranges in
-Table~\ref{tab:patho-categories} were calibrated empirically
-rather than guessed. Table~\ref{tab:patho-prompts} reconstructs,
-per category, a representative prompt of this form.
-
 \begin{table}[H]
 \centering
 \small
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l p{12.5cm}}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l p{15cm}}
 \hline
-Cat. & Representative generation prompt \\
+Cat. & Representative generation requirements \\
 \hline
-A & Generate patterns with a quantified group nested inside
-    another quantifier (e.g.\ \texttt{(a+)+}, \texttt{(a*)*},
-    triple-nested variants), using one repeated character so
-    every position is an ambiguous split point between the
-    inner and outer quantifier. \\
-B & Generate patterns where alternatives can each match the
-    same run of one repeated character (e.g.\ \texttt{(a|aa)+},
-    \texttt{(a|aa|aaa)+}), so a matching input has many
-    different ways to split across the alternation. \\
-C & Generate patterns combining a bounded repetition
-    \texttt{\{m,n\}} with an unbounded body (e.g.\
-    \texttt{(.*a)\{1,10\}}), so unrolling the bound at
-    translate time multiplies an already-ambiguous unbounded
-    group. \\
-D & Generate patterns where $N$ optional or unbounded copies
-    of a group are immediately followed by an exact
-    \texttt{\{N\}} tail of the same character, so a matching
-    input admits many different splits between the leading
-    group and the tail. \\
-E & Generate alternation patterns where one alternative is a
-    literal prefix of another (e.g.\ \texttt{(ab|a)+}), using
-    two characters, since a prefix relationship needs at least
-    two symbols to tell the shorter alternative apart from the
-    longer one it is a prefix of. \\
-F & Generate patterns combining an alternation or character
-    class under a quantifier with a literal that can appear
-    only once, at the end (e.g.\ \texttt{(a|b)*c}), so a
-    non-matching input forces every split of the quantified
-    part to be tried before failing. \\
-H & Generate patterns with several unbounded groups placed one
-    after another (e.g.\ ten copies of \texttt{(.+)}), so the
-    number of ways to divide one input across all the groups
-    grows with the input length. \\
-I & Generate simple, unambiguous patterns (e.g.\ \texttt{a+},
-    \texttt{\textbackslash d\{1,10\}}) to run on very long
-    inputs, isolating raw per-character cost from any
-    ambiguity-driven blow-up. \\
-J & Generate alternations or sequences with many thousands of
-    distinct literal words or groups (e.g.\ a trie of
-    four-letter words, or $p$ sequential \texttt{(a)} groups),
-    run on a short input, to stress pattern size and
-    translation rather than matching. \\
-K & Generate the same large-pattern families as category J, but
-    on long inputs too, to see both axes at once; include one
-    disjoint alternation (e.g.\ \texttt{(?:ab|cd|ef|gh)+}) as a
-    safe control with no ambiguity. \\
-L & Generate a broad, varied set of small sanity-check
-    patterns, one for each construct the frontend accepts
-    (character classes, bounds, escapes, the empty pattern,
-    lazy markers, and similar edge cases), to confirm none of
-    them misbehaves before scaling anything up. \\
+A & Nested quantifiers (\texttt{(a+)+}, \texttt{(a*)*});
+    unary alphabet; ambiguous repetition boundaries. \\[3pt]
+B & Overlapping alternatives (\texttt{(a|aa)+});
+    shared prefixes; repeated characters. \\[3pt]
+C & Bounded repetition around quantified or wildcard groups
+    (\texttt{(.*a)\{1,10\}}); translation-time unrolling. \\[3pt]
+D & Adjacent bounded or optional repetitions
+    (\texttt{(a?)\{N\}a\{N\}}); unary alphabet;
+    inputs near acceptance boundaries. \\[3pt]
+E & Prefix-overlapping alternatives (\texttt{(ab|a)+});
+    mainly binary alphabet; long repeated inputs. \\[3pt]
+F & Quantified alternatives followed by a required literal
+    (\texttt{(a|b)*c}); late acceptance or rejection. \\[3pt]
+H & Multiple adjacent unbounded groups
+    (\texttt{(.+)(.+)}); repeated inputs;
+    ambiguous group boundaries. \\[3pt]
+I & Simple patterns (\texttt{a+}, \texttt{[ab]*});
+    small alphabet; very long inputs. \\[3pt]
+J & Large alternations, tries, or repeated groups;
+    many distinct words; short inputs. \\[3pt]
+K & Large patterns combined with long inputs;
+    generated words and repeated characters. \\[3pt]
+L & Small baseline and edge-case patterns;
+    literals, classes, bounds, escapes, and empty expressions. \\
 \hline
 \end{tabular*}
-\caption{A representative generation prompt per category,
-reconstructed from each category's mechanism and its actual
-patterns rather than quoted verbatim.}
+\caption{AI generation requirements per category used in prompts.}
 \label{tab:patho-prompts}
 \end{table}
-
-Categories A, B, C, D, and F deliberately repeat one or two
-characters (mostly \texttt{a}, sometimes \texttt{b} or
-\texttt{x}) rather than drawing from a varied alphabet. Their
-stress mechanism is ambiguity in how a matching input can be
-split across a quantifier or alternation, and a repeated
-character maximises the number of positions where such a split
-is possible, since every position looks identical to the
-matcher; a varied alphabet, such as literal words, would make
-most split points immediately distinguishable and collapse the
-ambiguity these categories exist to test. Category E's
-two-character alphabet is required rather than chosen for
-difficulty: a prefix relationship between two alternatives
-needs at least two symbols to express at all. Categories H, I,
-J, K, and L stress other mechanisms -- sequential group count,
-raw throughput, pattern size, and construct coverage,
-respectively -- where alphabet choice is not central, and use
-wildcards, character classes, or a deliberately broad mix
-instead.
 
 %
 %
