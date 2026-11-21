@@ -1,8 +1,8 @@
 //! examples/demo_peak_offenders.rs
 //!
 //! For a benchmark's `..._entries.csv` (one row per (parser, pattern,
-//! input) measurement, written by bench_corpus_time/bench_corpus_memory
-//! or their bench_pathological_* counterparts), finds the top-N entries
+//! input) measurement, written by bench_corpus or its bench_pathological
+//! counterpart), finds the top-N entries
 //! per parser by a chosen metric column (e.g. `micros`, `peak_bytes`) --
 //! "which pattern+input caused parser X's worst case". Those entries
 //! CSVs already carry everything this needs; this just groups, sorts,
@@ -18,11 +18,11 @@
 //!
 //! cargo run --release --example demo_peak_offenders -- <entries_csv> <metric_column> [top_n]
 //!
-//! e.g.:
+//! e.g., both reading the same merged entries CSV for different columns:
 //!   cargo run --release --example demo_peak_offenders -- \
-//!     reports/benches/bench_corpus_time_CT1_entries.csv micros 5
+//!     reports/benches/bench_corpus_C1_entries.csv micros 5
 //!   cargo run --release --example demo_peak_offenders -- \
-//!     reports/benches/bench_corpus_memory_CT1_entries.csv peak_bytes 5
+//!     reports/benches/bench_corpus_C1_entries.csv peak_bytes 5
 //!
 //! Writes reports/demos/peak_offenders_<csv-basename>_<metric>.csv,
 //! same columns as the input plus a leading `rank` (1 = worst), rows
@@ -34,7 +34,7 @@ use std::io::Write;
 /// Splits one CSV line into fields. Every text field in this project's
 /// entries CSVs is unconditionally wrapped in quotes by their own
 /// `csv_quote` (see examples/common/thesis_figures.rs and
-/// benches/bench_corpus_time.rs's own copy), with `"` doubled inside;
+/// benches/bench_corpus.rs's own copy), with `"` doubled inside;
 /// numeric/enum fields never are. That convention, not RFC 4180 in
 /// general, is what this parses.
 fn split_csv_line(line: &str) -> Vec<String> {

@@ -1,24 +1,34 @@
-//! benches/bench_pathological_time.rs
+//! benches/bench_pathological.rs
 //!
-//! Wall-clock cost per parser over the hand-curated stress-pattern
-//! dataset (`data/pathological/pathological_patterns.json`), not the
-//! real corpus -- see `bench_corpus_time.rs` for that one. Every row's
-//! `match_input`/`nomatch_input` is expanded at each swept `n` (input
-//! length) and, for a `generated_patterns` row with a `generator`,
-//! each swept `p` (pattern size) too; each expansion becomes up to two
-//! entries (match + non-match), grouped by category (A-L) for
-//! reporting, the same role `source` plays in `bench_corpus_time.rs`.
+//! Wall-clock cost and heap allocation per parser over the hand-curated
+//! stress-pattern dataset (`data/pathological/pathological_patterns.json`),
+//! in one pass, not the real corpus -- see `bench_corpus.rs` for that
+//! one. Every row's `match_input`/`nomatch_input` is expanded at each
+//! swept `n` (input length) and, for a `generated_patterns` row with a
+//! `generator`, each swept `p` (pattern size) too; each expansion
+//! becomes up to two entries (match + non-match), grouped by category
+//! (A-L) for reporting, the same role `source` plays in
+//! `bench_corpus.rs`.
 //!
-//! Same process-isolation architecture as `bench_corpus_time.rs`,
-//! deliberately duplicated rather than shared (this codebase's existing
-//! convention -- see that file's own module doc): every entry runs in
-//! its own `bench_worker` process, bounded by `BENCH_ENTRY_TIMEOUT_MS`,
-//! killed on timeout. No pre-filtering by `core_regex` before spawning
-//! a worker here, unlike the real-corpus benches: a pathological
-//! pattern's translation itself failing (hitting `core_regex`'s own
-//! depth/node cap) is a real outcome worth seeing, not a bug to filter
-//! out before measuring -- it surfaces as `crashed`, same as any other
-//! non-zero worker exit.
+//! Used to be two separate binaries (`bench_pathological_time`,
+//! `bench_pathological_memory`), each spawning its own `bench_worker`
+//! process per entry. That was redundant: `bench_worker` already
+//! computes both the timing breakdown and the allocation totals for
+//! every single job it runs, in one `JobResult` (see
+//! `examples/bench_worker.rs`) -- the two binaries differed only in
+//! which half of that result they kept. Merging them means every
+//! pathological entry is parsed once instead of twice, for the same
+//! two CSVs' worth of information. See `bench_corpus.rs`'s module doc
+//! for the fuller rationale, process-isolation history, and the
+//! timing-vs-contention tradeoff `BENCH_MEM_WORKERS` above 1
+//! introduces -- all identical here, just over a different dataset.
+//!
+//! No pre-filtering by `core_regex` before spawning a worker here,
+//! unlike the real-corpus bench: a pathological pattern's translation
+//! itself failing (hitting `core_regex`'s own depth/node cap) is a
+//! real outcome worth seeing, not a bug to filter out before
+//! measuring -- it surfaces as `crashed`, same as any other non-zero
+//! worker exit.
 //!
 //! Configuration is this file's own `PATHO_*` variables, kept distinct
 //! from `BENCH_SOURCE`-style names since nothing here selects a
@@ -33,29 +43,44 @@
 //!   - `PATHO_N` / `PATHO_P` (comma-separated sweep overrides; default
 //!     each row's own category `suggested_n`/`suggested_p`, falling
 //!     back to `pathological::DEFAULT_N`/`DEFAULT_P` if absent)
-//! `BENCH_PATTERN_LIMIT`, `BENCH_ENTRY_TIMEOUT_MS`, and `BENCH_RUN_LABEL`
-//! keep their existing names and meaning -- here, `BENCH_PATTERN_LIMIT`
+//! `BENCH_PATTERN_LIMIT`, `BENCH_ENTRY_TIMEOUT_MS`, `BENCH_MEM_CAP_MB`,
+//! `BENCH_MEM_WORKERS`, and `BENCH_RUN_LABEL` keep their existing
+//! names and meaning from `bench_corpus.rs` -- here, `BENCH_PATTERN_LIMIT`
 //! caps the number of *rows* admitted, after section/category/row-id
-//! filtering and before the `n`/`p` sweep. No `BENCH_MATCH_INTENT`:
-//! these patterns have no anchor/match-intent concept.
+//! filtering and before the `n`/`p` sweep. No `BENCH_MATCH_INTENT` and
+//! no `BENCH_SPLIT_OUTCOME`: these patterns have no anchor/match-intent
+//! concept, and a category already mixes match/non-match sides (the
+//! `side` column on the entries file), so there is no separate
+//! by-outcome summary here the way `bench_corpus.rs` has one.
 //!
-//! Writes `reports/benches/bench_pathological_time.csv` (one row per
-//! category x parser, mean/median/p99/max over every entry in that
-//! category -- a category can mix several rows and several `n`, so
-//! this number does not describe any one pattern's own growth curve)
-//! and `reports/benches/bench_pathological_time_entries.csv` (one row
-//! per individual (row, n, p, parser, match/non-match side) measurement,
-//! including the actual pattern and input text used (truncated past 200
-//! characters -- `row_id`/`n`/`p` identify the full spec exactly if the
-//! swept size runs larger than that) -- group this by `row_id` and
-//! `parser`, sort by `n`, and it is exactly the (input size, time)
-//! series a Fig.-7-style plot needs for one pattern). Both replace any
-//! existing file, same "latest run, not
-//! a log" convention as `bench_corpus_time.rs`.
+//! Unlike `bench_corpus.rs`, `mean_ms`/`avg_bytes` here are flat
+//! averages over every measured entry in a category, not macro-
+//! averages by pattern: a category can mix several rows and several
+//! swept `n`/`p` values by design (that *is* the point of the sweep),
+//! so there is no single "this pattern's own examples" group to
+//! average within first the way a corpus pattern's repeated examples
+//! have. `median`/`p99`/`max`/`total_bytes`/`max_peak_bytes` stay
+//! exactly as in `bench_corpus.rs` (pooled, not averaged).
+//!
+//! Writes `reports/benches/bench_pathological.csv` (one row per
+//! category x parser, over every entry in that category -- a category
+//! can mix several rows and several `n`, so this number does not
+//! describe any one pattern's own growth curve) and
+//! `reports/benches/bench_pathological_entries.csv` (one row per
+//! individual (row, n, p, parser, match/non-match side) measurement,
+//! including the actual pattern and input text used (truncated past
+//! 200 characters -- `row_id`/`n`/`p` identify the full spec exactly
+//! if the swept size runs larger than that) -- group this by `row_id`
+//! and `parser`, sort by `n`, and it is exactly the (input size, time)
+//! or (input size, bytes) series a Fig.-7-style plot needs for one
+//! pattern). Both replace any existing file, same "latest run, not a
+//! log" convention as `bench_corpus.rs`; written again after every
+//! category, not just once at the end, so a long sweep's progress
+//! survives a crash partway through.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_worker
-//!   cargo bench --bench bench_pathological_time
+//!   cargo bench --bench bench_pathological
 
 use std::collections::{BTreeMap, HashSet};
 use std::io::{Read, Write};
@@ -118,7 +143,7 @@ fn pattern_limit() -> usize {
         .unwrap_or(PATTERN_LIMIT)
 }
 
-/// Per-entry cap. See `bench_corpus_time.rs`'s module doc for what this
+/// Per-entry cap. See `bench_corpus.rs`'s module doc for what this
 /// does and does not protect against.
 fn entry_timeout() -> Duration {
     let ms: u64 = std::env::var("BENCH_ENTRY_TIMEOUT_MS")
@@ -129,7 +154,7 @@ fn entry_timeout() -> Duration {
 }
 
 /// Per-worker virtual-memory ceiling. See the identical function in
-/// `bench_corpus_time.rs` for why.
+/// `bench_corpus.rs` for why.
 fn mem_cap_bytes() -> Option<u64> {
     std::env::var("BENCH_MEM_CAP_MB").ok().map(|s| {
         let mb: u64 = s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_CAP_MB must be a positive integer, got {s:?}"));
@@ -137,9 +162,21 @@ fn mem_cap_bytes() -> Option<u64> {
     })
 }
 
-/// Optional filename suffix, same role as in `bench_corpus_time.rs`.
+/// Optional filename suffix, same role as in `bench_corpus.rs`.
 fn run_label_suffix() -> String {
     std::env::var("BENCH_RUN_LABEL").ok().map(|l| format!("_{l}")).unwrap_or_default()
+}
+
+/// Upper bound on concurrently-running `bench_worker` processes for a
+/// single parser's pass over one category's entries. See the
+/// identical function in `bench_corpus.rs` for why this is safe for
+/// the byte counts at any value, and what it costs the timing numbers
+/// above 1.
+fn worker_concurrency() -> usize {
+    std::env::var("BENCH_MEM_WORKERS")
+        .ok()
+        .map(|s| s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_WORKERS must be a positive integer, got {s:?}")))
+        .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
 }
 
 fn json_path() -> PathBuf {
@@ -249,8 +286,9 @@ fn group_by_category(entries: Vec<Entry>) -> BTreeMap<String, Vec<Entry>> {
 }
 
 // -------------------------------
-// Isolated call -- mirrors bench_corpus_time.rs's run_entry_isolated
-// exactly; duplicated, not shared, per this codebase's convention.
+// Isolated call -- mirrors bench_corpus.rs's run_entry_isolated/
+// run_all_entries exactly; duplicated, not shared, per this
+// codebase's convention.
 // -------------------------------
 
 fn worker_path() -> PathBuf {
@@ -270,26 +308,15 @@ fn worker_path() -> PathBuf {
 #[derive(serde::Deserialize)]
 struct JobResult {
     micros: u64,
-    #[allow(dead_code)]
     total_bytes: usize,
-    #[allow(dead_code)]
     peak_bytes: usize,
     setup_micros: u64,
     derive_micros: u64,
     reconstruct_micros: u64,
 }
 
-/// `total` is `micros` as before; `setup`/`derive`/`reconstruct` are
-/// a breakdown of that same call into the three `PhaseTiming` phases,
-/// for all five parsers. What each phase measures differs by parser:
-/// deriv_bc's are a real encode/decode, pderiv_bc/pderiv_std's `setup`
-/// is just the initial clone, pderiv_std's `reconstruct` is
-/// injection-closure application rather than a decode, and
-/// deriv_std_rec/deriv_std_loop have no `setup` phase at all (always
-/// 0), since neither builds a separate annotated representation
-/// first. deriv_std_rec's own `derive`/`reconstruct` carry more
-/// measurement overhead than the other four parsers' (see
-/// `PhaseTiming`'s own doc comment in src/parsers/mod.rs).
+/// See the identical type in `bench_corpus.rs` for what each phase
+/// means per parser.
 #[derive(Clone, Copy)]
 struct Timing {
     total: Duration,
@@ -298,8 +325,17 @@ struct Timing {
     reconstruct: Duration,
 }
 
+/// One completed job's full report. See the identical type in
+/// `bench_corpus.rs`.
+#[derive(Clone, Copy)]
+struct Measurement {
+    timing: Timing,
+    total_bytes: usize,
+    peak_bytes: usize,
+}
+
 enum Outcome {
-    Done(Timing),
+    Done(Measurement),
     TimedOut,
     Crashed(String),
 }
@@ -348,11 +384,15 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
                     return Outcome::Crashed(format!("{reason}; stderr={}", err.trim()));
                 }
                 return match serde_json::from_str::<JobResult>(out.trim()) {
-                    Ok(r) => Outcome::Done(Timing {
-                        total: Duration::from_micros(r.micros),
-                        setup: Duration::from_micros(r.setup_micros),
-                        derive: Duration::from_micros(r.derive_micros),
-                        reconstruct: Duration::from_micros(r.reconstruct_micros),
+                    Ok(r) => Outcome::Done(Measurement {
+                        timing: Timing {
+                            total: Duration::from_micros(r.micros),
+                            setup: Duration::from_micros(r.setup_micros),
+                            derive: Duration::from_micros(r.derive_micros),
+                            reconstruct: Duration::from_micros(r.reconstruct_micros),
+                        },
+                        total_bytes: r.total_bytes,
+                        peak_bytes: r.peak_bytes,
                     }),
                     Err(e) => Outcome::Crashed(format!(
                         "worker exited 0 but its output did not parse: {e}; stdout={:?} stderr={:?}",
@@ -376,6 +416,35 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
     }
 }
 
+/// Runs `run_entry_isolated` for every entry in `corpus` against a
+/// fixed `parser_idx`, across up to `worker_concurrency()` worker
+/// processes at once, returning outcomes in the same order as
+/// `corpus`. See the identical function in `bench_corpus.rs` for the
+/// full rationale; duplicated, not shared, per this codebase's
+/// convention.
+fn run_all_entries(worker: &Path, cap: Duration, parser_idx: usize, corpus: &[Entry]) -> Vec<Outcome> {
+    let n_workers = worker_concurrency().min(corpus.len()).max(1);
+    if n_workers <= 1 {
+        return corpus.iter().map(|e| run_entry_isolated(worker, cap, parser_idx, &e.pattern, &e.input)).collect();
+    }
+
+    let next_idx = std::sync::atomic::AtomicUsize::new(0);
+    let slots: Vec<std::sync::Mutex<Option<Outcome>>> = (0..corpus.len()).map(|_| std::sync::Mutex::new(None)).collect();
+
+    std::thread::scope(|scope| {
+        for _ in 0..n_workers {
+            scope.spawn(|| loop {
+                let idx = next_idx.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let Some(entry) = corpus.get(idx) else { break };
+                let outcome = run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input);
+                *slots[idx].lock().expect("slot mutex poisoned") = Some(outcome);
+            });
+        }
+    });
+
+    slots.into_iter().map(|m| m.into_inner().expect("slot mutex poisoned").expect("every index assigned exactly once")).collect()
+}
+
 // -------------------------------
 // Reporting -- grouped by category instead of SourceKind
 // -------------------------------
@@ -393,13 +462,12 @@ struct SummaryRow {
     median_ms: Option<f64>,
     p99_ms: Option<f64>,
     max_ms: Option<f64>,
-    // Breakdown of mean_ms into the three `PhaseTiming` phases, for
-    // all five parsers; mean_setup_ms is 0 for deriv_std_rec/
-    // deriv_std_loop and for pderiv_bc/pderiv_std (see `Timing`'s doc
-    // comment above).
     mean_setup_ms: Option<f64>,
     mean_derive_ms: Option<f64>,
     mean_reconstruct_ms: Option<f64>,
+    total_bytes: usize,
+    avg_bytes: Option<usize>,
+    max_peak_bytes: usize,
 }
 
 /// One (row, n, p, parser, side) measurement -- the raw material for a
@@ -419,6 +487,8 @@ struct EntryResult {
     setup_micros: Option<u64>,
     derive_micros: Option<u64>,
     reconstruct_micros: Option<u64>,
+    total_bytes: Option<usize>,
+    peak_bytes: Option<usize>,
 }
 
 fn csv_quote(s: &str) -> String {
@@ -461,33 +531,39 @@ fn report(
     let mut entry_rows = Vec::new();
     println!("\n{category} ({category_name}, {} entries)", corpus.len());
     println!(
-        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12}",
+        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
         "parser", "measured", "timed_out", "crashed", "wall (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)",
-        "setup (ms)", "derive (ms)", "reconstruct (ms)"
+        "setup (ms)", "derive (ms)", "reconstruct (ms)", "total bytes", "avg/entry", "max peak"
     );
-    println!("{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12}", "", "", "", "", "", "", "", "", "", "", "", "");
+    println!(
+        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->14} {:->14} {:->14}",
+        "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
+    );
 
     for (parser_idx, parser_type) in ALL.iter().enumerate() {
-        let mut all: Vec<Timing> = Vec::with_capacity(corpus.len());
+        let mut all: Vec<Measurement> = Vec::with_capacity(corpus.len());
         let mut timed_out = 0usize;
         let mut crashed = 0usize;
         let start = Instant::now();
-        for entry in corpus {
-            let (outcome, micros, setup_micros, derive_micros, reconstruct_micros) =
-                match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                    Outcome::Done(t) => {
-                        all.push(t);
+        let outcomes = run_all_entries(worker, cap, parser_idx, corpus);
+        for (entry, outcome) in corpus.iter().zip(outcomes) {
+            let (outcome_label, micros, setup_micros, derive_micros, reconstruct_micros, total_bytes, peak_bytes) =
+                match outcome {
+                    Outcome::Done(m) => {
+                        all.push(m);
                         (
                             "measured",
-                            Some(t.total.as_micros() as u64),
-                            Some(t.setup.as_micros() as u64),
-                            Some(t.derive.as_micros() as u64),
-                            Some(t.reconstruct.as_micros() as u64),
+                            Some(m.timing.total.as_micros() as u64),
+                            Some(m.timing.setup.as_micros() as u64),
+                            Some(m.timing.derive.as_micros() as u64),
+                            Some(m.timing.reconstruct.as_micros() as u64),
+                            Some(m.total_bytes),
+                            Some(m.peak_bytes),
                         )
                     }
                     Outcome::TimedOut => {
                         timed_out += 1;
-                        ("timed_out", None, None, None, None)
+                        ("timed_out", None, None, None, None, None, None)
                     }
                     Outcome::Crashed(reason) => {
                         crashed += 1;
@@ -500,7 +576,7 @@ fn report(
                             entry.pattern,
                             entry.input,
                         );
-                        ("crashed", None, None, None, None)
+                        ("crashed", None, None, None, None, None, None)
                     }
                 };
             entry_rows.push(EntryResult {
@@ -512,35 +588,43 @@ fn report(
                 side: entry.side,
                 pattern: entry.pattern.clone(),
                 input: entry.input.clone(),
-                outcome,
+                outcome: outcome_label,
                 micros,
                 setup_micros,
                 derive_micros,
                 reconstruct_micros,
+                total_bytes,
+                peak_bytes,
             });
         }
         let total = start.elapsed();
 
+        // Flat averages, not macro-averages -- see the module doc for
+        // why: a category mixes several rows and swept n/p by design.
         let (mean, median, p99, max, mean_setup, mean_derive, mean_reconstruct) = if all.is_empty() {
             (None, None, None, None, None, None, None)
         } else {
-            let mut sorted: Vec<Duration> = all.iter().map(|t| t.total).collect();
+            let mut sorted: Vec<Duration> = all.iter().map(|m| m.timing.total).collect();
             sorted.sort();
             let n = sorted.len();
-            let mean_of = |pick: fn(&Timing) -> Duration| ms(all.iter().map(pick).sum::<Duration>() / n as u32);
+            let mean_of = |pick: fn(&Measurement) -> Duration| ms(all.iter().map(pick).sum::<Duration>() / n as u32);
             (
                 Some(ms(sorted.iter().sum::<Duration>() / n as u32)),
                 Some(ms(sorted[n / 2])),
                 Some(ms(sorted[(n * 99) / 100])),
                 Some(ms(*sorted.last().expect("non-empty"))),
-                Some(mean_of(|t| t.setup)),
-                Some(mean_of(|t| t.derive)),
-                Some(mean_of(|t| t.reconstruct)),
+                Some(mean_of(|m| m.timing.setup)),
+                Some(mean_of(|m| m.timing.derive)),
+                Some(mean_of(|m| m.timing.reconstruct)),
             )
         };
 
+        let total_bytes_sum: usize = all.iter().map(|m| m.total_bytes).sum();
+        let max_peak_bytes: usize = all.iter().map(|m| m.peak_bytes).max().unwrap_or(0);
+        let avg_bytes = if !all.is_empty() { Some(total_bytes_sum / all.len()) } else { None };
+
         println!(
-            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12}",
+            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
             parser_type.name(),
             all.len(),
             timed_out,
@@ -553,6 +637,9 @@ fn report(
             fmt_opt_ms(mean_setup),
             fmt_opt_ms(mean_derive),
             fmt_opt_ms(mean_reconstruct),
+            total_bytes_sum,
+            avg_bytes.map(|v| v.to_string()).unwrap_or_else(|| "n/a".to_string()),
+            max_peak_bytes,
         );
 
         rows.push(SummaryRow {
@@ -571,6 +658,9 @@ fn report(
             mean_setup_ms: mean_setup,
             mean_derive_ms: mean_derive,
             mean_reconstruct_ms: mean_reconstruct,
+            total_bytes: total_bytes_sum,
+            avg_bytes,
+            max_peak_bytes,
         });
     }
     (rows, entry_rows)
@@ -578,11 +668,11 @@ fn report(
 
 fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "row_id,category,parser,n,p,side,pattern,input,outcome,micros,setup_micros,derive_micros,reconstruct_micros")?;
+    writeln!(f, "row_id,category,parser,n,p,side,pattern,input,outcome,micros,setup_micros,derive_micros,reconstruct_micros,total_bytes,peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             r.row_id,
             r.category,
             r.parser,
@@ -596,6 +686,8 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
             r.setup_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.derive_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.reconstruct_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.total_bytes.map(|v| v.to_string()).unwrap_or_default(),
+            r.peak_bytes.map(|v| v.to_string()).unwrap_or_default(),
         )?;
     }
     Ok(())
@@ -603,11 +695,11 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "category,category_name,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms")?;
+    writeln!(f, "category,category_name,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms,total_bytes,avg_bytes,max_peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{},{},{},{}",
             r.category,
             csv_quote(&r.category_name),
             r.parser,
@@ -623,6 +715,9 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
             r.mean_setup_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_derive_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_reconstruct_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.total_bytes,
+            r.avg_bytes.map(|v| v.to_string()).unwrap_or_default(),
+            r.max_peak_bytes,
         )?;
     }
     Ok(())
@@ -650,7 +745,7 @@ fn main() {
         panic!("{} rows selected but every match_input/nomatch_input was null", rows.len());
     }
     eprintln!(
-        "bench_pathological_time: {} rows -> {} entries (limit {}, entry_timeout={:?})",
+        "bench_pathological: {} rows -> {} entries (limit {}, entry_timeout={:?})",
         rows.len(),
         entries.len(),
         fmt_limit(limit),
@@ -662,11 +757,11 @@ fn main() {
         return;
     }
     let label = run_label_suffix();
-    let summary_path = format!("{REPORTS_DIR}/bench_pathological_time{label}.csv");
-    let entries_path = format!("{REPORTS_DIR}/bench_pathological_time{label}_entries.csv");
+    let summary_path = format!("{REPORTS_DIR}/bench_pathological{label}.csv");
+    let entries_path = format!("{REPORTS_DIR}/bench_pathological{label}_entries.csv");
 
     // Written again after every category, not just once at the end --
-    // same crash-safety reasoning as bench_corpus_time.rs's main().
+    // same crash-safety reasoning as bench_corpus.rs's main().
     let mut all_summary = Vec::new();
     let mut all_entries = Vec::new();
     for (category, corpus) in group_by_category(entries) {

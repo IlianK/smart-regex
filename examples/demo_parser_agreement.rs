@@ -115,7 +115,7 @@ fn selection() -> Selection {
     let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT").ok().map(|s| {
         s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
     });
-    // Same default and env var as bench_corpus_time.rs/bench_corpus_memory.rs:
+    // Same default and env var as bench_corpus.rs:
     // every measurement in this evaluation runs on the same scope, the 463
     // anchor-stripped (full-match) patterns, unless BENCH_MATCH_INTENT
     // explicitly asks to fold in the 115 "direct" patterns too. A prepared

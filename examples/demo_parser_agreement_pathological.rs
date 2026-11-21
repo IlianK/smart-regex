@@ -12,7 +12,7 @@
 //! category (A-L) instead of `SourceKind`, with `expected_match` taken
 //! from which side (`match_input` vs `nomatch_input`) produced the entry.
 //!
-//! Row selection reuses `bench_pathological_time`'s own env vars:
+//! Row selection reuses `bench_pathological`'s own env vars:
 //!   - `PATHO_JSON_PATH` (default `data/pathological/pathological_patterns.json`)
 //!   - `PATHO_SECTION` (`pathological`/`baseline`/`generated`/`all`, default `all`)
 //!   - `PATHO_CATEGORY` (comma-separated `A`-`L`, default every category present)
@@ -57,7 +57,7 @@ const WORKER_NAME: &str = "demo_parser_agreement_worker";
 const PARSER_NAMES: [&str; 5] = ["rec", "loop", "bc", "pstd", "pbc"];
 
 // -------------------------------
-// Row selection -- mirrors bench_pathological_time.rs's own, duplicated
+// Row selection -- mirrors bench_pathological.rs's own, duplicated
 // rather than shared per this codebase's convention (see that file's
 // own module doc).
 // -------------------------------

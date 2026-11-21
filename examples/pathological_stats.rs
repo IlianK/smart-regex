@@ -60,7 +60,7 @@ fn all_rows(doc: &PathologicalDoc) -> Vec<(&PathologicalRow, &'static str)> {
 }
 
 /// Test cases a default sweep (no env overrides) produces for one
-/// pattern, mirroring `bench_pathological_time.rs::build_entries` exactly.
+/// pattern, mirroring `bench_pathological.rs::build_entries` exactly.
 fn test_case_count(doc: &PathologicalDoc, row: &PathologicalRow) -> usize {
     let cat = doc.categories.get(&row.category);
     let n_list = row.suggested_n.clone().or_else(|| cat.and_then(|c| c.suggested_n.clone())).unwrap_or_else(|| vec![pathological::DEFAULT_N]);

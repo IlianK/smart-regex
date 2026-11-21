@@ -118,7 +118,7 @@
         100,
         500
       ],
-      "suggested_p_notes": "Lowered from [100,1000,10000,100000]: a real full-category run (bench_pathological_translate PX1) showed p=10000 and p=100000 reject at translation for every J row (core_regex_tagged's 20,000-node cap), so those two points contributed zero measured comparisons -- pure wasted wall-clock, not a stress result. Further lowered from [100,500,1000,2000]: at p=1000/2000, E36, E38 (p=2000 only), and E39 exceed the translation cap identically for every parser -- a controlled, parser-independent rejection before any parser-specific code runs, so those entries contributed no parser-comparison signal to the routine timing sweep (bench_pathological_time PT1) either. E37 keeps its own suggested_p override at the full [100,500,1000,2000] range, since it translates cleanly throughout and is used as the representative encode/derive/decode sweep."
+      "suggested_p_notes": "Lowered from [100,1000,10000,100000]: a real full-category run (bench_pathological_translate PX1) showed p=10000 and p=100000 reject at translation for every J row (core_regex_tagged's 20,000-node cap), so those two points contributed zero measured comparisons -- pure wasted wall-clock, not a stress result. Further lowered from [100,500,1000,2000]: at p=1000/2000, E36, E38 (p=2000 only), and E39 exceed the translation cap identically for every parser -- a controlled, parser-independent rejection before any parser-specific code runs, so those entries contributed no parser-comparison signal to the routine timing sweep (bench_pathological P1) either. E37 keeps its own suggested_p override at the full [100,500,1000,2000] range, since it translates cleanly throughout and is used as the representative encode/derive/decode sweep."
     },
     "K": {
       "name": "Large pattern, large input",
@@ -483,7 +483,7 @@
         "suffix": "c"
       },
       "stress_axis": "derivative-state explosion",
-      "notes": "literal reproduction of FLOPS14 Fig. 7(a) (paper notation (a+b+ab)*, union-+, = (a|b|ab)* here) -- the paper sweeps 1-10 million 'a's; this row's own default sweep stays small like its category siblings so routine/unscoped runs aren't slowed by it, so for the real comparison override explicitly, e.g.: PATHO_ROW_ID=P60 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A cargo bench --bench bench_pathological_time"
+      "notes": "literal reproduction of FLOPS14 Fig. 7(a) (paper notation (a+b+ab)*, union-+, = (a|b|ab)* here) -- the paper sweeps 1-10 million 'a's; this row's own default sweep stays small like its category siblings so routine/unscoped runs aren't slowed by it, so for the real comparison override explicitly, e.g.: PATHO_ROW_ID=P60 PATHO_N=1000000,5000000,10000000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7A cargo bench --bench bench_pathological"
     },
     {
       "id": "P61",
@@ -499,7 +499,7 @@
         "suffix": "c"
       },
       "stress_axis": "derivative-state explosion",
-      "notes": "literal reproduction of FLOPS14 Fig. 7(b) -- P20 is the same pattern family but with + (one-or-more) and no dedicated large-N sweep; this row uses * (Kleene star, matching the paper's own notation exactly) and exists specifically for paper-scale comparison. The paper sweeps 0.5-5 million 'ab's; override explicitly for the real comparison, e.g.: PATHO_ROW_ID=P61 PATHO_N=500000,2500000,5000000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B cargo bench --bench bench_pathological_time"
+      "notes": "literal reproduction of FLOPS14 Fig. 7(b) -- P20 is the same pattern family but with + (one-or-more) and no dedicated large-N sweep; this row uses * (Kleene star, matching the paper's own notation exactly) and exists specifically for paper-scale comparison. The paper sweeps 0.5-5 million 'ab's; override explicitly for the real comparison, e.g.: PATHO_ROW_ID=P61 PATHO_N=500000,2500000,5000000 BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_RUN_LABEL=FIG7B cargo bench --bench bench_pathological"
     },
     {
       "id": "P22",

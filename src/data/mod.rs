@@ -10,7 +10,7 @@
 //! would bias a thinly-labeled pattern's measurement; the benches that
 //! consume this data avoid that bias a different way, by averaging
 //! per-pattern rather than per-input, which needs no input-count
-//! truncation at all -- see `bench_corpus_time.rs`'s own module doc.
+//! truncation at all -- see `bench_corpus.rs`'s own module doc.
 //! `dataset_stats` separately still uses the other four extractors for
 //! raw-corpus diagnostics unrelated to this pipeline, which is why they
 //! still exist in `extract.rs`.

@@ -76,7 +76,7 @@
 //! for this bench, which only measures what exists today.
 //!
 //! Each probe is its own `bench_stack_depth_worker` subprocess, the same
-//! process-isolation reasoning `bench_worker.rs`/`bench_corpus_time.rs`
+//! process-isolation reasoning `bench_worker.rs`/`bench_corpus.rs`
 //! already use: a crashed PROCESS is cleanly detected (killed by a
 //! signal) and its memory reclaimed; a crashed THREAD is not. Unlike
 //! `bench_worker.rs`, the worker here deliberately does NOT run on a
@@ -101,7 +101,7 @@
 //!
 //! Writes `reports/benches/bench_stack_depth.csv`, replacing any
 //! existing file -- the same "latest run, not a log" convention as
-//! `bench_pathological_time.rs`.
+//! `bench_pathological.rs`.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_stack_depth_worker
@@ -165,7 +165,7 @@ fn n_cap() -> u32 {
 }
 
 // -------------------------------
-// Isolated probe -- same shape as bench_pathological_time.rs's
+// Isolated probe -- same shape as bench_pathological.rs's
 // run_entry_isolated, duplicated rather than shared per this codebase's
 // convention (see that file's own module doc).
 // -------------------------------

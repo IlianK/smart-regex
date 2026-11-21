@@ -1,25 +1,34 @@
-//! benches/bench_corpus_time.rs
+//! benches/bench_corpus.rs
 //!
-//! Wall-clock cost per parser over the real corpus.
-//! S2ELab only -- the only source with real prepared data today (see
-//! `docs/DATASET.md`); no source selection. One pass, each entry timed
-//! individually. No sampling, no per-pattern group.
+//! Wall-clock cost and heap allocation per parser over the real corpus,
+//! in one pass. S2ELab only -- the only source with real prepared data
+//! today (see `docs/DATASET.md`); no source selection.
 //!
-//! A plain reporting binary rather than a Criterion target.
-//! Criterion's model assumes a cheap closure measured many times; a
-//! full corpus pass (five parsers, 11,395 entries each) takes on the
-//! order of ten minutes -- confirmed from this repository's own
-//! wall_s columns, not an estimate -- and the full benchmark suite
-//! this file is one part of (corpus + pathological sweeps + the eight
-//! representative-pattern curves) takes on the order of a couple of
-//! hours. Repeating that 10-30x for Criterion-style confidence
-//! intervals would turn a run that already needs to be left overnight
-//! into one spanning days, and the statistics produced would describe
-//! how much this harness's own wall-clock time varies run to run, not
-//! a property of the parser being measured.
+//! Used to be two separate binaries (`bench_corpus_time`,
+//! `bench_corpus_memory`), each spawning its own `bench_worker` process
+//! per entry. That was redundant: `bench_worker` already computes both
+//! the timing breakdown and the allocation totals for every single job
+//! it runs, in one `JobResult` (see `examples/bench_worker.rs`) -- the
+//! two binaries differed only in which half of that result they kept
+//! and which half they discarded. Merging them means every corpus
+//! entry is parsed once instead of twice, for the same two CSVs' worth
+//! of information.
+//!
+//! A plain reporting binary rather than a Criterion target. Criterion's
+//! model assumes a cheap closure measured many times; a full corpus
+//! pass (five parsers, 11,395 entries each) takes on the order of ten
+//! minutes -- confirmed from this repository's own `wall_s` column,
+//! not an estimate -- and the full benchmark suite this file is one
+//! part of (corpus + pathological sweeps + the eight representative-
+//! pattern curves) takes on the order of a couple of hours. Repeating
+//! that 10-30x for Criterion-style confidence intervals would turn a
+//! run that already needs to be left overnight into one spanning days,
+//! and the statistics produced would describe how much this harness's
+//! own wall-clock time varies run to run, not a property of the parser
+//! being measured.
 //!
 //! Every entry runs in its own worker *process* (`bench_worker`,
-//! shared with `bench_corpus_memory`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
+//! shared with `bench_pathological`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
 //! (default 60000). A call that exceeds the cap is counted as
 //! `timed_out`, not folded into the duration stats as if it were a
 //! real measurement: on real corpora (Innovatorved and RegexLib
@@ -38,67 +47,91 @@
 //! abandoned call's own growth reached a kernel OOM kill (~14 GB)
 //! regardless of whether 1 or 2 such calls were allowed to run
 //! concurrently. The bound on concurrency was never the limiting
-//! factor -- one pathological entry was enough on its own, and no
-//! pool size fixes that. A process can be killed outright
-//! (`Child::kill()`), which actually reclaims its memory; a thread
-//! cannot be. See `examples/bench_worker.rs` for the worker side of
-//! this and the exact protocol between it and this file.
+//! factor -- one pathological entry was enough on its own, and no pool
+//! size fixes that. A process can be killed outright (`Child::kill()`),
+//! which actually reclaims its memory; a thread cannot be. See
+//! `examples/bench_worker.rs` for the worker side of this and the
+//! exact protocol between it and this file.
 //!
 //! A `crashed` entry (the worker exited non-zero or died by signal,
 //! e.g. a stack overflow) is counted separately from `timed_out`:
-//! unlike the old thread-based version, that failure now only takes
-//! down one worker process instead of this whole run.
+//! that failure only takes down one worker process, not this run.
+//!
+//! Entries within one parser's pass can run across several worker
+//! processes at once (`run_all_entries`, bounded by `BENCH_MEM_WORKERS`,
+//! default the available parallelism, override to e.g. `1` to force
+//! strictly sequential). Each worker's byte counters are `static`
+//! state scoped to that worker's own process, so running several at
+//! once never contaminates any of them there -- but unlike byte
+//! counts, a wall-clock measurement *is* affected by CPU contention
+//! between concurrently-scheduled sibling processes. Concurrency
+//! beyond 1 trades clean timing numbers for a faster memory-side pass;
+//! `helper/quick.md` pins `BENCH_MEM_WORKERS=1` for exactly this
+//! reason, accepting a slower run in exchange for timing figures with
+//! no cross-process noise. "Heap", specifically, for the byte counts:
+//! the counting allocator hooks `GlobalAlloc`, which sees heap traffic
+//! only. Each worker's 256 MB call-thread stack (see `bench_worker.rs`)
+//! is invisible to it, so a pattern whose cost were dominated by
+//! recursion depth rather than allocation would under-report here. The
+//! patterns that motivated process isolation reached multiple GB; a
+//! fixed 256 MB stack cannot account for that on its own (it would
+//! overflow and crash well before contributing gigabytes), so the heap
+//! figures below are the right number for those cases specifically --
+//! but they are heap numbers, not a general memory bound.
 //!
 //! `wall (s)` and the distribution columns measure different things,
 //! and do not satisfy `wall ~= entries x mean`: `wall` is this file's
-//! own wall clock around the whole per-source loop, so it includes
-//! one process spawn and one pipe round trip per entry; the
-//! distribution columns come from each worker's self-reported
-//! `micros`, which covers only the parser call itself (see
-//! `bench_worker.rs`'s module doc for exactly what that excludes).
-//! On sources whose patterns are individually cheap, spawn overhead
-//! can dominate `wall` while barely showing up in `mean` at all.
+//! own wall clock around the whole per-parser pass, so it includes one
+//! process spawn and one pipe round trip per entry (divided by however
+//! many ran concurrently); the distribution columns come from each
+//! worker's self-reported `micros`, which covers only the parser call
+//! itself (see `bench_worker.rs`'s module doc for exactly what that
+//! excludes). On sources whose patterns are individually cheap, spawn
+//! overhead can dominate `wall` while barely showing up in `mean` at
+//! all.
 //!
 //! `median`/`p99`/`max` are computed over entries that completed --
-//! `timed_out` and `crashed` entries contribute nothing to them, not
-//! a value capped at the timeout. The entries most likely to be
-//! excluded are the ones process isolation exists to contain, so
-//! `max` is a lower bound on the corpus's true worst case, not the
-//! true worst case itself. The `measured` column is how many entries
-//! those statistics are actually computed over.
+//! `timed_out` and `crashed` entries contribute nothing to them, not a
+//! value capped at the timeout. The entries most likely to be excluded
+//! are the ones process isolation exists to contain, so `max` (and
+//! `max_peak_bytes`) is a lower bound on the corpus's true worst case,
+//! not the true worst case itself. The `measured` column is how many
+//! entries these statistics are actually computed over.
 //!
-//! `mean` (and its `setup`/`derive`/`reconstruct` breakdown) is a
-//! macro-average, not a flat average over every measured entry: each
-//! *pattern*'s own mean is computed first, then those per-pattern
-//! means are averaged together, unweighted. `dataset_prepare` no
-//! longer truncates every pattern down to the dataset-wide rarest
-//! pattern's own example count (see `src/data/mod.rs`'s module doc for
-//! why that was removed) -- patterns now keep however many given
-//! examples they actually have, which can vary a lot. Without
-//! macro-averaging, a pattern with 50 examples would outweigh one with
-//! 2 by 25x in a flat mean, for no reason connected to how hard either
-//! pattern is to parse. `median`/`p99`/`max` are intentionally left as
-//! flat per-input statistics -- they already answer a different
-//! question ("how bad does the single worst input get"), where
-//! pattern-weighting isn't the relevant correction.
+//! `mean_ms` and `avg_bytes` (and the `setup`/`derive`/`reconstruct_ms`
+//! breakdown) are macro-averages, not flat averages over every
+//! measured entry: each *pattern*'s own mean/average is computed
+//! first, then those per-pattern figures are averaged together,
+//! unweighted. `dataset_prepare` no longer truncates every pattern
+//! down to the dataset-wide rarest pattern's own example count (see
+//! `src/data/mod.rs`'s module doc for why that was removed) -- patterns
+//! now keep however many given examples they actually have, which can
+//! vary a lot. Without macro-averaging, a pattern with 50 examples
+//! would outweigh one with 2 by 25x, for no reason connected to how
+//! hard or memory-hungry either pattern actually is. `median`/`p99`/
+//! `max` stay flat per-input statistics, and `total_bytes` (a sum) and
+//! `max_peak_bytes` (a max) are left as flat, pooled-over-every-entry
+//! figures -- macro-averaging doesn't apply to a sum or a max the way
+//! it does to a mean.
 //!
-//! Writes a CSV summary to `reports/benches/bench_corpus_time.csv`
-//! (and `..._by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`), replacing
-//! any existing file -- the same "latest run, not a log" convention
+//! Writes a CSV summary to `reports/benches/bench_corpus.csv` (and
+//! `..._by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`), replacing any
+//! existing file -- the same "latest run, not a log" convention
 //! `dataset_prepare` uses for `prepared.jsonl`. Also writes
 //! `..._entries.csv`, one row per individual
 //! `source,parser,pattern,input,expected_match,outcome,micros,
-//! setup_micros,derive_micros,reconstruct_micros` measurement -- the
-//! summary's raw material, before it collapses into one mean/median/
-//! p99/max per parser. `pattern`/`input` are the actual text that ran,
-//! truncated past 200 characters, same convention as
-//! `bench_pathological_time.rs`'s own entries file: filter to one
-//! `pattern` and compare across parsers for that single real pattern's
-//! own numbers, instead of only the whole-corpus aggregate above.
+//! setup_micros,derive_micros,reconstruct_micros,total_bytes,
+//! peak_bytes` measurement -- the summary's raw material, before it
+//! collapses into one mean/median/p99/max/avg/max_peak per parser.
+//! `pattern`/`input` are the actual text that ran, truncated past 200
+//! characters, same convention as `bench_pathological.rs`'s own
+//! entries file: filter to one `pattern` and compare across parsers
+//! for that single real pattern's own numbers, instead of only the
+//! whole-corpus aggregate above.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_worker
-//!   cargo bench --bench bench_corpus_time
+//!   cargo bench --bench bench_corpus
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -174,12 +207,41 @@ fn mem_cap_bytes() -> Option<u64> {
     })
 }
 
-/// Optional filename suffix (e.g. `_T3`) so a sweep of differently
+/// Optional filename suffix (e.g. `_C1`) so a sweep of differently
 /// -configured runs lands in separate files instead of each one
 /// overwriting the last. Unset keeps today's bare filename, so a
 /// one-off run is unaffected.
 fn run_label_suffix() -> String {
     std::env::var("BENCH_RUN_LABEL").ok().map(|l| format!("_{l}")).unwrap_or_default()
+}
+
+/// Upper bound on concurrently-running `bench_worker` processes for a
+/// single parser's pass over the corpus. Defaults to
+/// `std::thread::available_parallelism()` -- the number of threads the
+/// program can expect to run concurrently, i.e. the logical core
+/// count, or a container's CPU quota where one applies, which is the
+/// more honest bound in a shared/cloud environment than a fixed
+/// physical-core-count guess would be -- overridable via
+/// `BENCH_MEM_WORKERS` to pin it (e.g. to `1` for strictly sequential,
+/// uncontended timing; see the module doc for why that is this
+/// repository's own convention everywhere this binary is actually
+/// invoked, in `helper/quick.md`).
+///
+/// Named `BENCH_MEM_WORKERS` rather than something timing-neutral for
+/// continuity with this binary's predecessor, `bench_corpus_memory`,
+/// where the name originated: concurrency was only ever safe there
+/// because each worker's counting allocator is `static` state scoped
+/// to that worker's own process, never shared or contended over by
+/// concurrently-running siblings. Now that one pass reports both
+/// timing and memory, the same knob governs both, with the asymmetry
+/// noted in the module doc: it is still safe for the byte counts at
+/// any value, but above 1 it lets CPU contention between sibling
+/// processes leak into the wall-clock numbers.
+fn worker_concurrency() -> usize {
+    std::env::var("BENCH_MEM_WORKERS")
+        .ok()
+        .map(|s| s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_WORKERS must be a positive integer, got {s:?}")))
+        .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1))
 }
 
 struct Entry {
@@ -260,9 +322,7 @@ fn worker_path() -> PathBuf {
 #[derive(serde::Deserialize)]
 struct JobResult {
     micros: u64,
-    #[allow(dead_code)] // bench_corpus_memory reads this field from the same wire format
     total_bytes: usize,
-    #[allow(dead_code)]
     peak_bytes: usize,
     setup_micros: u64,
     derive_micros: u64,
@@ -272,8 +332,9 @@ struct JobResult {
 /// `total` is `micros` as before; `setup`/`derive`/`reconstruct` are
 /// a breakdown of that same call into the three `PhaseTiming` phases,
 /// for all five parsers. What each phase measures differs by parser:
-/// deriv_bc's are a real encode/decode, pderiv_bc/pderiv_std's `setup`
-/// is just the initial clone, pderiv_std's `reconstruct` is
+/// deriv_bc's are a real encode/decode, pderiv_std's `setup` is just
+/// the initial clone, pderiv_bc's `setup` is that same clone plus the
+/// accumulated Alt bit-tagging time, pderiv_std's `reconstruct` is
 /// injection-closure application rather than a decode, and
 /// deriv_std_rec/deriv_std_loop have no `setup` phase at all (always
 /// 0), since neither builds a separate annotated representation
@@ -288,14 +349,25 @@ struct Timing {
     reconstruct: Duration,
 }
 
+/// One completed job's full report: the timing breakdown and the
+/// allocation totals `bench_worker` computed together, in the one
+/// process that ran this entry.
+#[derive(Clone, Copy)]
+struct Measurement {
+    timing: Timing,
+    total_bytes: usize,
+    peak_bytes: usize,
+}
+
 enum Outcome {
-    Done(Timing),
+    Done(Measurement),
     TimedOut,
     Crashed(String),
 }
 
-/// Runs one (parser, pattern, input) job in its own process
-/// On timeout, kills the child
+/// Runs one (parser, pattern, input) job in its own process, reading
+/// back both its timing breakdown and its allocation totals from the
+/// single `JobResult` the worker reports. On timeout, kills the child.
 fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: &str, input: &str) -> Outcome {
     let mut child: Child = match Command::new(worker)
         .arg(parser_idx.to_string())
@@ -340,11 +412,15 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
                     return Outcome::Crashed(format!("{reason}; stderr={}", err.trim()));
                 }
                 return match serde_json::from_str::<JobResult>(out.trim()) {
-                    Ok(r) => Outcome::Done(Timing {
-                        total: Duration::from_micros(r.micros),
-                        setup: Duration::from_micros(r.setup_micros),
-                        derive: Duration::from_micros(r.derive_micros),
-                        reconstruct: Duration::from_micros(r.reconstruct_micros),
+                    Ok(r) => Outcome::Done(Measurement {
+                        timing: Timing {
+                            total: Duration::from_micros(r.micros),
+                            setup: Duration::from_micros(r.setup_micros),
+                            derive: Duration::from_micros(r.derive_micros),
+                            reconstruct: Duration::from_micros(r.reconstruct_micros),
+                        },
+                        total_bytes: r.total_bytes,
+                        peak_bytes: r.peak_bytes,
                     }),
                     Err(e) => Outcome::Crashed(format!(
                         "worker exited 0 but its output did not parse: {e}; stdout={:?} stderr={:?}",
@@ -368,6 +444,40 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
     }
 }
 
+/// Runs `run_entry_isolated` for every entry in `corpus` against a
+/// fixed `parser_idx`, across up to `worker_concurrency()` worker
+/// processes at once, returning outcomes in the same order as
+/// `corpus`. Each worker thread here only spawns, polls, and (on
+/// timeout) kills its own `bench_worker` child process -- the same
+/// thing `run_entry_isolated` already did on the driver's one thread
+/// sequentially, just with several in flight at once. This is not a
+/// thread-based parser-call pool: the parser call always runs inside
+/// an isolated, killable child process, and these driver threads
+/// never do anything but wait on one. See the module doc for the
+/// timing-vs-memory tradeoff `worker_concurrency` above 1 introduces.
+fn run_all_entries(worker: &Path, cap: Duration, parser_idx: usize, corpus: &[Entry]) -> Vec<Outcome> {
+    let n_workers = worker_concurrency().min(corpus.len()).max(1);
+    if n_workers <= 1 {
+        return corpus.iter().map(|e| run_entry_isolated(worker, cap, parser_idx, &e.pattern, &e.input)).collect();
+    }
+
+    let next_idx = std::sync::atomic::AtomicUsize::new(0);
+    let slots: Vec<std::sync::Mutex<Option<Outcome>>> = (0..corpus.len()).map(|_| std::sync::Mutex::new(None)).collect();
+
+    std::thread::scope(|scope| {
+        for _ in 0..n_workers {
+            scope.spawn(|| loop {
+                let idx = next_idx.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let Some(entry) = corpus.get(idx) else { break };
+                let outcome = run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input);
+                *slots[idx].lock().expect("slot mutex poisoned") = Some(outcome);
+            });
+        }
+    });
+
+    slots.into_iter().map(|m| m.into_inner().expect("slot mutex poisoned").expect("every index assigned exactly once")).collect()
+}
+
 // -------------------------------
 // Reporting
 // -------------------------------
@@ -386,11 +496,13 @@ struct SummaryRow {
     max_ms: Option<f64>,
     // Breakdown of mean_ms into the three `PhaseTiming` phases, for
     // all five parsers; mean_setup_ms is 0 for deriv_std_rec/
-    // deriv_std_loop and for pderiv_bc/pderiv_std (see `Timing`'s doc
-    // comment above).
+    // deriv_std_loop (see `Timing`'s doc comment above).
     mean_setup_ms: Option<f64>,
     mean_derive_ms: Option<f64>,
     mean_reconstruct_ms: Option<f64>,
+    total_bytes: usize,
+    avg_bytes: Option<usize>,
+    max_peak_bytes: usize,
 }
 
 struct OutcomeRow {
@@ -413,6 +525,8 @@ struct EntryResult {
     setup_micros: Option<u64>,
     derive_micros: Option<u64>,
     reconstruct_micros: Option<u64>,
+    total_bytes: Option<usize>,
+    peak_bytes: Option<usize>,
 }
 
 fn csv_quote(s: &str) -> String {
@@ -420,7 +534,7 @@ fn csv_quote(s: &str) -> String {
 }
 
 /// Caps how much of `pattern`/`input` lands in the entries CSV -- same
-/// convention and reasoning as `bench_pathological_time.rs`'s own
+/// convention and reasoning as `bench_pathological.rs`'s own
 /// `truncate`: keeps the file usable even if a real corpus pattern or
 /// input happens to be unusually long.
 fn truncate(s: &str, n: usize) -> String {
@@ -456,45 +570,49 @@ fn report(
 
     println!("\n{label} ({} entries)", corpus.len());
     println!(
-        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12}",
+        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
         "parser", "measured", "timed_out", "crashed", "wall (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)",
-        "setup (ms)", "derive (ms)", "reconstruct (ms)"
+        "setup (ms)", "derive (ms)", "reconstruct (ms)", "total bytes", "avg/entry", "max peak"
     );
     println!(
-        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12}",
-        "", "", "", "", "", "", "", "", "", "", "", ""
+        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->14} {:->14} {:->14}",
+        "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
     );
 
     for (parser_idx, parser_type) in ALL.iter().enumerate() {
-        let mut all: Vec<Timing> = Vec::with_capacity(corpus.len());
-        let mut by_pattern: HashMap<&str, Vec<Timing>> = HashMap::new();
+        let mut all: Vec<Measurement> = Vec::with_capacity(corpus.len());
+        let mut by_pattern: HashMap<&str, Vec<Measurement>> = HashMap::new();
         let mut matches: Vec<Duration> = Vec::new();
         let mut non_matches: Vec<Duration> = Vec::new();
         let mut timed_out = 0usize;
         let mut crashed = 0usize;
+
         let start = Instant::now();
-        for entry in corpus {
-            let (outcome, micros, setup_micros, derive_micros, reconstruct_micros) =
-                match run_entry_isolated(worker, cap, parser_idx, &entry.pattern, &entry.input) {
-                    Outcome::Done(t) => {
-                        all.push(t);
-                        by_pattern.entry(entry.pattern.as_str()).or_default().push(t);
+        let outcomes = run_all_entries(worker, cap, parser_idx, corpus);
+        for (entry, outcome) in corpus.iter().zip(outcomes) {
+            let (outcome_label, micros, setup_micros, derive_micros, reconstruct_micros, total_bytes, peak_bytes) =
+                match outcome {
+                    Outcome::Done(m) => {
+                        all.push(m);
+                        by_pattern.entry(entry.pattern.as_str()).or_default().push(m);
                         if entry.expected_match {
-                            matches.push(t.total);
+                            matches.push(m.timing.total);
                         } else {
-                            non_matches.push(t.total);
+                            non_matches.push(m.timing.total);
                         }
                         (
                             "measured",
-                            Some(t.total.as_micros() as u64),
-                            Some(t.setup.as_micros() as u64),
-                            Some(t.derive.as_micros() as u64),
-                            Some(t.reconstruct.as_micros() as u64),
+                            Some(m.timing.total.as_micros() as u64),
+                            Some(m.timing.setup.as_micros() as u64),
+                            Some(m.timing.derive.as_micros() as u64),
+                            Some(m.timing.reconstruct.as_micros() as u64),
+                            Some(m.total_bytes),
+                            Some(m.peak_bytes),
                         )
                     }
                     Outcome::TimedOut => {
                         timed_out += 1;
-                        ("timed_out", None, None, None, None)
+                        ("timed_out", None, None, None, None, None, None)
                     }
                     Outcome::Crashed(reason) => {
                         crashed += 1;
@@ -504,7 +622,7 @@ fn report(
                             entry.pattern,
                             entry.input,
                         );
-                        ("crashed", None, None, None, None)
+                        ("crashed", None, None, None, None, None, None)
                     }
                 };
             entry_rows.push(EntryResult {
@@ -513,49 +631,63 @@ fn report(
                 pattern: entry.pattern.clone(),
                 input: entry.input.clone(),
                 expected_match: entry.expected_match,
-                outcome,
+                outcome: outcome_label,
                 micros,
                 setup_micros,
                 derive_micros,
                 reconstruct_micros,
+                total_bytes,
+                peak_bytes,
             });
         }
         let total = start.elapsed();
 
-        // `mean*` are macro-averages -- each pattern's own mean first,
-        // then the unweighted average of those per-pattern means -- so
-        // a pattern with many given examples does not outweigh one
-        // with few. `median`/`p99`/`max` stay pooled over every
-        // measured *input*, describing the shape of the full per-input
-        // distribution (a different, still-useful question: "how bad
-        // does the worst single input get"), not a pattern-weighted
-        // figure. See the module doc.
+        // `mean*`/`avg_bytes` are macro-averages -- each pattern's own
+        // mean first, then the unweighted average of those per-pattern
+        // means -- so a pattern with many given examples does not
+        // outweigh one with few. `median`/`p99`/`max` stay pooled over
+        // every measured *input* (a different, still-useful question:
+        // "how bad does the worst single input get"), and
+        // `total_bytes`/`max_peak_bytes` stay flat sums/maxes. See the
+        // module doc.
         let (mean, median, p99, max, mean_setup, mean_derive, mean_reconstruct) = if all.is_empty() {
             (None, None, None, None, None, None, None)
         } else {
-            let mut sorted: Vec<Duration> = all.iter().map(|t| t.total).collect();
+            let mut sorted: Vec<Duration> = all.iter().map(|m| m.timing.total).collect();
             sorted.sort();
             let n = sorted.len();
-            let macro_mean_of = |pick: fn(&Timing) -> Duration| -> f64 {
+            let macro_mean_of = |pick: fn(&Measurement) -> Duration| -> f64 {
                 let pattern_means: Vec<f64> = by_pattern
                     .values()
-                    .map(|timings| ms(timings.iter().map(pick).sum::<Duration>() / timings.len() as u32))
+                    .map(|ms_| ms(ms_.iter().map(pick).sum::<Duration>() / ms_.len() as u32))
                     .collect();
                 pattern_means.iter().sum::<f64>() / pattern_means.len() as f64
             };
             (
-                Some(macro_mean_of(|t| t.total)),
+                Some(macro_mean_of(|m| m.timing.total)),
                 Some(ms(sorted[n / 2])),
                 Some(ms(sorted[(n * 99) / 100])),
                 Some(ms(*sorted.last().expect("non-empty"))),
-                Some(macro_mean_of(|t| t.setup)),
-                Some(macro_mean_of(|t| t.derive)),
-                Some(macro_mean_of(|t| t.reconstruct)),
+                Some(macro_mean_of(|m| m.timing.setup)),
+                Some(macro_mean_of(|m| m.timing.derive)),
+                Some(macro_mean_of(|m| m.timing.reconstruct)),
             )
         };
 
+        let total_bytes_sum: usize = all.iter().map(|m| m.total_bytes).sum();
+        let max_peak_bytes: usize = all.iter().map(|m| m.peak_bytes).max().unwrap_or(0);
+        let avg_bytes = if by_pattern.is_empty() {
+            None
+        } else {
+            let pattern_means: Vec<f64> = by_pattern
+                .values()
+                .map(|ms_| ms_.iter().map(|m| m.total_bytes).sum::<usize>() as f64 / ms_.len() as f64)
+                .collect();
+            Some((pattern_means.iter().sum::<f64>() / pattern_means.len() as f64) as usize)
+        };
+
         println!(
-            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12}",
+            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
             parser_type.name(),
             all.len(),
             timed_out,
@@ -568,6 +700,9 @@ fn report(
             fmt_opt_ms(mean_setup),
             fmt_opt_ms(mean_derive),
             fmt_opt_ms(mean_reconstruct),
+            total_bytes_sum,
+            avg_bytes.map(|v| v.to_string()).unwrap_or_else(|| "n/a".to_string()),
+            max_peak_bytes,
         );
 
         summary_rows.push(SummaryRow {
@@ -585,6 +720,9 @@ fn report(
             mean_setup_ms: mean_setup,
             mean_derive_ms: mean_derive,
             mean_reconstruct_ms: mean_reconstruct,
+            total_bytes: total_bytes_sum,
+            avg_bytes,
+            max_peak_bytes,
         });
 
         if split_outcome {
@@ -629,11 +767,11 @@ fn report(
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "source,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms")?;
+    writeln!(f, "source,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms,total_bytes,avg_bytes,max_peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{},{},{},{}",
             r.source,
             r.parser,
             r.entries,
@@ -648,6 +786,9 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
             r.mean_setup_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_derive_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_reconstruct_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.total_bytes,
+            r.avg_bytes.map(|v| v.to_string()).unwrap_or_default(),
+            r.max_peak_bytes,
         )?;
     }
     Ok(())
@@ -655,11 +796,11 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
 
 fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "source,parser,pattern,input,expected_match,outcome,micros,setup_micros,derive_micros,reconstruct_micros")?;
+    writeln!(f, "source,parser,pattern,input,expected_match,outcome,micros,setup_micros,derive_micros,reconstruct_micros,total_bytes,peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{}",
             r.source,
             r.parser,
             csv_quote(&truncate(&r.pattern, 200)),
@@ -670,6 +811,8 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
             r.setup_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.derive_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.reconstruct_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.total_bytes.map(|v| v.to_string()).unwrap_or_default(),
+            r.peak_bytes.map(|v| v.to_string()).unwrap_or_default(),
         )?;
     }
     Ok(())
@@ -702,7 +845,7 @@ fn main() {
         .unwrap_or(false);
     let corpus = load_corpus(&sel);
     eprintln!(
-        "bench_corpus_time: {} s2-elab entries (limit {}, match_intent={:?}, split_outcome={}, entry_timeout={:?})",
+        "bench_corpus: {} s2-elab entries (limit {}, match_intent={:?}, split_outcome={}, entry_timeout={:?})",
         corpus.len(),
         fmt_limit(sel.pattern_limit),
         sel.match_intent,
@@ -715,9 +858,9 @@ fn main() {
         return;
     }
     let label = run_label_suffix();
-    let summary_path = format!("{REPORTS_DIR}/bench_corpus_time{label}.csv");
-    let outcome_path = format!("{REPORTS_DIR}/bench_corpus_time{label}_by_outcome.csv");
-    let entries_path = format!("{REPORTS_DIR}/bench_corpus_time{label}_entries.csv");
+    let summary_path = format!("{REPORTS_DIR}/bench_corpus{label}.csv");
+    let outcome_path = format!("{REPORTS_DIR}/bench_corpus{label}_by_outcome.csv");
+    let entries_path = format!("{REPORTS_DIR}/bench_corpus{label}_entries.csv");
 
     let (summary, outcome, entries) = report("dataset_s2_elab", &corpus, &worker, cap, split_outcome);
     if let Err(e) = write_summary_csv(&summary_path, &summary) {

@@ -2,8 +2,7 @@
 //!
 //! cargo build --release --example bench_worker
 //!
-//! Shared worker for `bench_corpus_time`, `bench_corpus_memory`,
-//! `bench_pathological_time`, and `bench_pathological_memory`.
+//! Shared worker for `bench_corpus` and `bench_pathological`.
 //! Runs one (parser, pattern, input) job and exits.
 //! Reports elapsed time and allocation stats for that call.
 //!

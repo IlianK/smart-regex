@@ -1,25 +1,23 @@
 # Benchmarks
 
-Seven `cargo bench` targets. Two datasets, three axes each (corpus and pathological against time, memory, and translate), plus one scoped comparison.
+Five `cargo bench` targets. Two datasets, two axes each (corpus and pathological against parser cost -- time and memory together in one pass -- and translate), plus one scoped comparison.
 
 | Target | Dataset | Measures |
 |---|---|---|
-| `bench_corpus_time` | S2ELab corpus | parser wall-clock time |
-| `bench_corpus_memory` | S2ELab corpus | parser heap allocation |
+| `bench_corpus` | S2ELab corpus | parser wall-clock time and heap allocation, together |
 | `bench_corpus_translate` | S2ELab corpus | translation time, memory, node count |
-| `bench_pathological_time` | pathological stress patterns | parser wall-clock time |
-| `bench_pathological_memory` | pathological stress patterns | parser heap allocation |
+| `bench_pathological` | pathological stress patterns | parser wall-clock time and heap allocation, together |
 | `bench_pathological_translate` | pathological stress patterns | translation time, memory, node count |
 | `bench_stack_depth` | pathological stress patterns (3 rows) | `deriv_std_rec` vs `deriv_std_loop` stack-depth limit |
 
-None use Criterion. All seven are plain reporting binaries (`harness = false`) that print a table and write a CSV under `reports/benches/`.
+None use Criterion. All five are plain reporting binaries (`harness = false`) that print a table and write a CSV under `reports/benches/`.
 
-`bench_corpus_*` reads `data/processed/s2-elab/prepared.jsonl`. See [DATASET.md](DATASET.md) for how to build it. `bench_pathological_*` and `bench_stack_depth` read `data/pathological/pathological_patterns.json` directly, no preparation step.
+`bench_corpus*` reads `data/processed/s2-elab/prepared.jsonl`. See [DATASET.md](DATASET.md) for how to build it. `bench_pathological*` and `bench_stack_depth` read `data/pathological/pathological_patterns.json` directly, no preparation step.
 
-Five targets run every entry in its own subprocess so a pathological entry can be killed and its memory reclaimed, by using two workers:.
+Three targets run every entry in its own subprocess so a pathological entry can be killed and its memory reclaimed: `bench_corpus` and `bench_pathological` share `bench_worker`; `bench_stack_depth` has its own:
 
 ```bash
-cargo build --release --example bench_worker              # for the four time/memory targets
+cargo build --release --example bench_worker              # for bench_corpus and bench_pathological
 cargo build --release --example bench_stack_depth_worker  # for bench_stack_depth only
 ```
 
@@ -34,19 +32,20 @@ Every target reads configuration from the environment. No flags, no CLI argument
 |---|---|---|---|
 | `BENCH_SOURCE` | `bench_corpus_translate` only | `suricata`, `snort`, `spamassassin`, `regexlib`, `s2-elab`, `innovatorved` (comma-separated) | S2ELab |
 | `BENCH_PATTERN_LIMIT` | all except `bench_stack_depth` | positive integer | unset (no cap) |
-| `BENCH_MATCH_INTENT` | `bench_corpus_*` only | `direct`, `explicit`, `both` | `explicit` |
-| `BENCH_SPLIT_OUTCOME` | `bench_corpus_time` only | `1` or `0` | `0` |
-| `BENCH_ENTRY_TIMEOUT_MS` | corpus and pathological time/memory | positive integer (ms) | `2000` |
-| `BENCH_MEM_CAP_MB` | corpus and pathological time/memory | positive integer (MiB) | unset (unbounded) |
+| `BENCH_MATCH_INTENT` | `bench_corpus` only | `direct`, `explicit`, `both` | `explicit` |
+| `BENCH_SPLIT_OUTCOME` | `bench_corpus` only | `1` or `0` | `0` |
+| `BENCH_ENTRY_TIMEOUT_MS` | `bench_corpus`, `bench_pathological` | positive integer (ms) | `2000` |
+| `BENCH_MEM_CAP_MB` | `bench_corpus`, `bench_pathological` | positive integer (MiB) | unset (unbounded) |
+| `BENCH_MEM_WORKERS` | `bench_corpus`, `bench_pathological` | positive integer | available parallelism |
 | `BENCH_RUN_LABEL` | all except translate aggregates and `bench_stack_depth` | filename-safe string | unset |
 | `BENCH_TRANSLATE_RENDER_MAX_NODES` | `bench_corpus_translate` only | positive integer | `150` |
 | `BENCH_TRANSLATE_EXAMPLES` | `bench_corpus_translate` only | non-negative integer | `5` |
-| `PATHO_JSON_PATH` | `bench_pathological_*`, `bench_stack_depth` (as `STACKDEPTH_JSON_PATH`) | file path | `data/pathological/pathological_patterns.json` |
-| `PATHO_SECTION` | `bench_pathological_*` | `pathological`, `baseline`, `generated`, `all` | `all` |
-| `PATHO_CATEGORY` | `bench_pathological_*` | comma-separated `A` to `L` | unset (every category) |
-| `PATHO_ROW_ID` | `bench_pathological_time` and `memory` | comma-separated row ids | unset |
-| `PATHO_N` | `bench_pathological_*` | comma-separated integers | each row's `suggested_n`, fallback 20 |
-| `PATHO_P` | `bench_pathological_*` | comma-separated integers | each row's `suggested_p`, fallback 100 |
+| `PATHO_JSON_PATH` | `bench_pathological*`, `bench_stack_depth` (as `STACKDEPTH_JSON_PATH`) | file path | `data/pathological/pathological_patterns.json` |
+| `PATHO_SECTION` | `bench_pathological*` | `pathological`, `baseline`, `generated`, `all` | `all` |
+| `PATHO_CATEGORY` | `bench_pathological*` | comma-separated `A` to `L` | unset (every category) |
+| `PATHO_ROW_ID` | `bench_pathological` only | comma-separated row ids | unset |
+| `PATHO_N` | `bench_pathological*` | comma-separated integers | each row's `suggested_n`, fallback 20 |
+| `PATHO_P` | `bench_pathological*` | comma-separated integers | each row's `suggested_p`, fallback 100 |
 | `STACKDEPTH_ROW_IDS` | `bench_stack_depth` only | comma-separated row ids | `P01,P30,E51` |
 | `STACKDEPTH_TIMEOUT_MS` | `bench_stack_depth` only | positive integer (ms) | `15000` |
 | `STACKDEPTH_N_START` and `STACKDEPTH_N_CAP` | `bench_stack_depth` only | positive integers | `1` and `2000000` |
@@ -61,22 +60,25 @@ Short notes on the more involved variables.
 - **`BENCH_SPLIT_OUTCOME`** — Adds separate match/non-match timing tables.
 - **`BENCH_ENTRY_TIMEOUT_MS`** — Per-entry timeout; kills the worker and reclaims its memory. Runtime overhead is roughly `timed_out entries × timeout`.
 - **`BENCH_MEM_CAP_MB`** — Per-worker virtual-memory limit (Unix `RLIMIT_AS`). Exceeding it reports `crashed`. Unset means unlimited, risking system-wide OOM. Too low a cap—including below translation needs plus the worker's 256 MiB stack—can cause every entry to fail.
+- **`BENCH_MEM_WORKERS`** — Upper bound on concurrently-running `bench_worker` processes for one parser's pass. Byte counts are unaffected by concurrency (each worker's counters are scoped to its own process); wall-clock timing is, since sibling processes contend for CPU. Set to `1` for strictly sequential, uncontended timing numbers at the cost of a slower run; unset uses the available parallelism.
 - **`BENCH_RUN_LABEL`** — Adds filename suffixes and a `run_label` column, except translation aggregate CSVs, which append to fixed filenames. `bench_stack_depth` ignores it and always writes `bench_stack_depth.csv`.
-- **`PATHO_ROW_ID`** — Filters rows for pathological time/memory benchmarks only, not translation.
+- **`PATHO_ROW_ID`** — Filters rows for the pathological parser-cost benchmark only, not translation.
 - **`PATHO_N`** — For pathological translation, affects only `n`-templated patterns without a generator (category D).
 - **`PATHO_P`** — Affects only `generated_patterns` rows with a generator.
 If filtering loads nothing, these targets panic naming the active filters.
 
 
-## bench_corpus_time
+## bench_corpus
 
 ```bash
-cargo bench --bench bench_corpus_time
-BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_corpus_time
-BENCH_SPLIT_OUTCOME=1 cargo bench --bench bench_corpus_time
+cargo bench --bench bench_corpus
+BENCH_PATTERN_LIMIT=5 cargo bench --bench bench_corpus
+BENCH_SPLIT_OUTCOME=1 cargo bench --bench bench_corpus
 ```
 
-S2ELab only. One pass. Each entry timed in its own worker. Writes `reports/benches/bench_corpus_time.csv`.
+S2ELab only. One pass. Each entry timed *and* measured for heap allocation in its own worker -- `bench_worker` reports both from the same call, so this one pass replaces what used to be two separate binaries (`bench_corpus_time`, `bench_corpus_memory`) each re-running every entry for half the result. Writes `reports/benches/bench_corpus.csv`.
+
+The counting `#[global_allocator]` lives in `bench_worker`. It sees `GlobalAlloc` traffic only. A cost dominated by stack depth rather than allocation does not show up in the byte columns.
 
 Per-parser summary columns.
 
@@ -85,38 +87,20 @@ Per-parser summary columns.
 | `measured` | Neither timed out nor crashed. Distribution columns are computed over these. |
 | `timed_out` | Worker exceeded `BENCH_ENTRY_TIMEOUT_MS`. |
 | `crashed` | Worker died by signal before the cap. |
-| `wall (s)` | This process's own time around the whole loop, including spawn and pipe overhead. |
+| `wall (s)` | This process's own time around the whole pass, including spawn and pipe overhead (divided across however many workers ran concurrently; see `BENCH_MEM_WORKERS`). |
 | `mean` | Macro-average. Each pattern's own mean first, then an unweighted average of those per-pattern means. A pattern with many examples does not outweigh one with few. |
 | `median` | Flat over every measured input. |
 | `p99` | Flat over every measured input. |
 | `max (ms)` | Flat over every measured input. A lower bound on the corpus's true worst case, since the entries likeliest to time out are excluded. |
+| `total bytes` | Every allocation including freed-and-reallocated churn, over `measured` entries. |
+| `avg/entry` | Macro-average, same reasoning as `mean`. |
+| `max peak` | Highest live-byte high-water mark on any single entry. Flat, not macro-averaged. |
 
-`mean` answers the per-pattern question. `median`, `p99`, and `max` answer the per-input question.
+`mean`/`avg/entry` answer the per-pattern question. `median`, `p99`, `max`, and `total bytes`/`max peak` answer the per-input question (a flat sum/max, for the latter two).
 
 With `BENCH_SPLIT_OUTCOME=1`, a second table splits time by match and non-match.
 
-Also writes `..._entries.csv`. One row per measurement, with columns `source,parser,pattern,input,expected_match,outcome,micros,setup_micros,derive_micros,reconstruct_micros`. Pattern and input text included, truncated past 200 characters. Filter to one `pattern` and compare across parsers.
-
-
-## bench_corpus_memory
-
-```bash
-cargo bench --bench bench_corpus_memory
-```
-
-Same source, worker, timeout, and crash accounting as `bench_corpus_time`. Reports bytes instead of durations. Writes `reports/benches/bench_corpus_memory.csv`.
-
-The counting `#[global_allocator]` lives in `bench_worker`. It sees `GlobalAlloc` traffic only. A cost dominated by stack depth rather than allocation does not show up.
-
-Summary columns.
-
-| Column | Meaning |
-|---|---|
-| `total bytes` | Every allocation including freed-and-reallocated churn, over `measured` entries. |
-| `avg/entry` | Macro-average, same reasoning as `bench_corpus_time`'s `mean`. |
-| `max peak` | Highest live-byte high-water mark on any single entry. Flat, not macro-averaged. |
-
-Also writes `..._entries.csv`, one row per measurement, with columns `source,parser,pattern,input,outcome,total_bytes,peak_bytes`.
+Also writes `..._entries.csv`. One row per measurement, with columns `source,parser,pattern,input,expected_match,outcome,micros,setup_micros,derive_micros,reconstruct_micros,total_bytes,peak_bytes`. Pattern and input text included, truncated past 200 characters. Filter to one `pattern` and compare across parsers.
 
 `deriv_std_rec` and `deriv_std_loop` allocate noticeably more than `deriv_bc`, `pderiv_bc`, and `pderiv_std`. `deriv_std` retains its whole derivation sequence. `deriv_bc` reassigns one `ARegex` in place.
 
@@ -143,107 +127,56 @@ Three outputs.
 | `reports/demos/translation_examples.txt` | The `BENCH_TRANSLATE_EXAMPLES` smallest patterns per source, fully rendered. Never labelled. |
 
 
-## bench_pathological_time
+## bench_pathological
 
 ```bash
-cargo bench --bench bench_pathological_time
-PATHO_CATEGORY=A,B cargo bench --bench bench_pathological_time
+cargo bench --bench bench_pathological
+PATHO_CATEGORY=A,B cargo bench --bench bench_pathological
 ```
 
-Entries grouped by category (A to L). Reported the same way as `bench_corpus_time`, reusing `bench_worker`. A pathological pattern that fails to translate at all shows up as `crashed`, not filtered beforehand.
+Entries grouped by category (A to L). Reported the same way as `bench_corpus`, reusing `bench_worker` -- one pass measures time and heap allocation together, replacing what used to be two separate binaries (`bench_pathological_time`, `bench_pathological_memory`). A pathological pattern that fails to translate at all shows up as `crashed`, not filtered beforehand.
 
-Writes `reports/benches/bench_pathological_time.csv` (category and parser summary) and `..._entries.csv`, one row per measurement, with columns `row_id,category,parser,n,p,side,pattern,input,outcome,micros,setup_micros,derive_micros,reconstruct_micros`. Pattern and input text included, truncated past 200 characters.
+Writes `reports/benches/bench_pathological.csv` (category and parser summary, with `total_bytes`/`avg_bytes`/`max_peak_bytes` alongside the duration columns -- flat, not macro-averaged, since a category mixes several rows and swept `n`/`p` by design) and `..._entries.csv`, one row per measurement, with columns `row_id,category,parser,n,p,side,pattern,input,outcome,micros,setup_micros,derive_micros,reconstruct_micros,total_bytes,peak_bytes`. Pattern and input text included, truncated past 200 characters.
 
-Filter the entries file to one `row_id` and `parser`, sort by `n`, and you have a single pattern's (input size, time) curve.
+Filter the entries file to one `row_id` and `parser`, sort by `n`, and you have a single pattern's (input size, time) or (input size, bytes) curve.
 
 
-### Representative Pathological Cases: Timing
+### Representative Pathological Cases
 
-Each `PATHO_N` list below mixes small points where `deriv_std_rec`/`deriv_std_loop` still complete (confirmed by probing each row's own entries CSV for exactly where `outcome` flips from `measured` to `timed_out`) with the original large/paper-scale points for the other three parsers. That way every single-row run reports a real number for all five parsers, not just the ones fast enough for the paper-scale input.
+Each `PATHO_N` list below mixes small points where `deriv_std_rec`/`deriv_std_loop` still complete (confirmed by probing each row's own entries CSV for exactly where `outcome` flips from `measured` to `timed_out`) with the original large/paper-scale points for the other three parsers. That way every single-row run reports a real number for all five parsers, not just the ones fast enough for the paper-scale input. One command per row now covers both time and memory.
 
 ```bash
-# REPRESENTATIVE PATHOLOGICAL CASES: TIMING
+# REPRESENTATIVE PATHOLOGICAL CASES
 
 # P60 (E): (a|b|ab)*, 'a'-repeated.
 PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7A \
-  cargo bench --bench bench_pathological_time
+  cargo bench --bench bench_pathological
 
 # P61 (E): (a|b|ab)*, 'ab'-repeated.
 PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7B \
-  cargo bench --bench bench_pathological_time
+  cargo bench --bench bench_pathological
 
 # P20 (E): (a|b|ab)+.
 PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
-  cargo bench --bench bench_pathological_time
+  cargo bench --bench bench_pathological
 
 # P01 (A): (a+)+.
 PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
   BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
-  cargo bench --bench bench_pathological_time
+  cargo bench --bench bench_pathological
 
 # P09 (B): (a|aa)+.
 PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
   BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
-  cargo bench --bench bench_pathological_time
+  cargo bench --bench bench_pathological
 
 # P25/P27/P28 (F): (a|b)*c / ([ab]+)*c / ([ab]*)*c.
 PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
   BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
-  cargo bench --bench bench_pathological_time
-```
-
-These are starting points. Raise or lower timeouts and caps once real run costs on the target machine are known.
-
-
-
-## bench_pathological_memory
-
-```bash
-cargo bench --bench bench_pathological_memory
-```
-
-Same dataset, grouping, sweep, `PATHO_*` variables, worker, and timeout and crash accounting as `bench_pathological_time`. Reports `total_bytes`, `avg_bytes`, and `max_peak` instead of durations. Writes `reports/benches/bench_pathological_memory.csv` and `..._entries.csv`, with `total_bytes` and `peak_bytes` in place of the micros columns.
-
-
-### Representative Pathological Cases: Memory
-
-Same six representatives and the same `PATHO_N` lists as the time section above, so each row's memory curve covers the same small points where `deriv_std_rec`/`deriv_std_loop` complete, plus the large/paper-scale points for the other three parsers.
-
-```bash
-# REPRESENTATIVE PATHOLOGICAL CASES: MEMORY
-
-# P60 (E): (a|b|ab)*, 'a'-repeated.
-PATHO_ROW_ID=P60 PATHO_N=10,50,100,500,1000,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7A \
-  cargo bench --bench bench_pathological_memory
-
-# P61 (E): (a|b|ab)*, 'ab'-repeated.
-PATHO_ROW_ID=P61 PATHO_N=5,10,15,500000,2500000,5000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7B \
-  cargo bench --bench bench_pathological_memory
-
-# P20 (E): (a|b|ab)+.
-PATHO_ROW_ID=P20 PATHO_N=5,10,13,16,1000000,5000000,10000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG7C \
-  cargo bench --bench bench_pathological_memory
-
-# P01 (A): (a+)+.
-PATHO_ROW_ID=P01 PATHO_N=5,10,15,20,10000,30000,50000,200000,1000000 \
-  BENCH_ENTRY_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_A \
-  cargo bench --bench bench_pathological_memory
-
-# P09 (B): (a|aa)+.
-PATHO_ROW_ID=P09 PATHO_N=5,10,15,20,25,100000,500000,1000000,5000000 \
-  BENCH_ENTRY_TIMEOUT_MS=120000 BENCH_MEM_CAP_MB=8192 BENCH_RUN_LABEL=FIG_B \
-  cargo bench --bench bench_pathological_memory
-
-# P25/P27/P28 (F): (a|b)*c / ([ab]+)*c / ([ab]*)*c.
-PATHO_ROW_ID=P25,P27,P28 PATHO_N=1,3,7,10,50,300,1000,5000,10000,30000,50000,200000 \
-  BENCH_ENTRY_TIMEOUT_MS=30000 BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=FIG_F \
-  cargo bench --bench bench_pathological_memory
+  cargo bench --bench bench_pathological
 ```
 
 These are starting points. Raise or lower timeouts and caps once real run costs on the target machine are known.
@@ -259,7 +192,7 @@ PATHO_CATEGORY=C,D,J,K cargo bench --bench bench_pathological_translate
 PATHO_SECTION=generated PATHO_P=100000 cargo bench --bench bench_pathological_translate
 ```
 
-Categories C, D, J, and K stress compile and translate blow-up as their own stress axis. The other two pathological targets only measure the parser call on an already-translated `Regex`. This target measures translation cost itself.
+Categories C, D, J, and K stress compile and translate blow-up as their own stress axis. `bench_pathological` only measures the parser call on an already-translated `Regex`. This target measures translation cost itself.
 
 Sweeps `PATHO_P` for a `generated_patterns` row with a `generator` (J and K). Sweeps `PATHO_N` for a `pattern_template` row with no generator (category D, where the unrolled quantifier bound is `n`, not `p`). Other rows are measured once.
 
@@ -297,7 +230,7 @@ Default rows.
 
 ## Quick reference
 
-Corpus and pathological commands set `BENCH_RUN_LABEL` so each CSV lands in its own file under `reports/benches/`. Naming scheme is `<dataset><axis><tier>`. `C` or `P` for corpus or pathological. `T`, `M`, or `X` for time, memory, or translate. `0` or `1` for smoke or full sweep.
+Corpus and pathological commands set `BENCH_RUN_LABEL` so each CSV lands in its own file under `reports/benches/`. Naming scheme is `<dataset><tier>` for the merged parser-cost benchmarks (`C0`/`C1`, `P0`/`P1` -- time and memory are the same pass now, so there is no separate axis letter for them) and `<dataset>X<tier>` for translate. `C` or `P` for corpus or pathological, `X` for translate, `0` or `1` for smoke or full sweep.
 
 The two translate aggregate CSVs record the label as a `run_label` column rather than renaming the file.
 
@@ -313,13 +246,9 @@ cargo build --release --example bench_worker
 
 #### SMOKE TESTS
 ```bash
-# Time
-BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CT0 \
-  cargo bench --bench bench_corpus_time
-
-# Memory
-BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=CM0 \
-  cargo bench --bench bench_corpus_memory
+# Time and memory, together
+BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=1000 BENCH_RUN_LABEL=C0 \
+  cargo bench --bench bench_corpus
 
 # Translate
 BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=CX0 \
@@ -328,12 +257,9 @@ BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=CX0 \
 
 #### FULL CORPUS
 ```bash
-# Time
-BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=CT1 \
-  cargo bench --bench bench_corpus_time
-
-# Memory
-BENCH_RUN_LABEL=CM1 cargo bench --bench bench_corpus_memory
+# Time and memory, together
+BENCH_SPLIT_OUTCOME=1 BENCH_RUN_LABEL=C1 \
+  cargo bench --bench bench_corpus
 
 # Translate
 BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
@@ -345,13 +271,9 @@ BENCH_RUN_LABEL=CX1 cargo bench --bench bench_corpus_translate
 #### SMOKE TESTS
 
 ```bash
-# Time
-PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PT0 \
-  cargo bench --bench bench_pathological_time
-
-# Memory
-PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=PM0 \
-  cargo bench --bench bench_pathological_memory
+# Time and memory, together
+PATHO_N=5 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_ENTRY_TIMEOUT_MS=500 BENCH_RUN_LABEL=P0 \
+  cargo bench --bench bench_pathological
 
 # Translate
 PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=PX0 \
@@ -361,13 +283,9 @@ PATHO_P=5 BENCH_PATTERN_LIMIT=5 BENCH_RUN_LABEL=PX0 \
 #### FULL CORPUS
 
 ```bash
-# Time
-BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PT1 \
-  cargo bench --bench bench_pathological_time
-
-# Memory
-BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=PM1 \
-  cargo bench --bench bench_pathological_memory
+# Time and memory, together
+BENCH_MEM_CAP_MB=4096 BENCH_RUN_LABEL=P1 \
+  cargo bench --bench bench_pathological
 
 # Translate
 BENCH_RUN_LABEL=PX1 cargo bench --bench bench_pathological_translate
