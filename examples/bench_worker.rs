@@ -108,15 +108,24 @@ struct JobResult {
     micros: u64,
     total_bytes: usize,
     peak_bytes: usize,
-    // Breakdown of `micros` into the three `PhaseTiming` phases, for
-    // all five parsers. setup_micros is 0 for deriv_std_rec/
-    // deriv_std_loop (neither builds a separate annotated
-    // representation first) and for pderiv_bc/pderiv_std (folded into
-    // derive instead); see `PhaseTiming`'s own doc comment in
+    // Breakdown of `micros` into the four `PhaseTiming` phases, for
+    // all five parsers; see `PhaseTiming`'s own doc comment in
     // src/parsers/mod.rs for what each phase means per parser.
+    // setup_micros is 0 only for deriv_std_rec/deriv_std_loop (neither
+    // builds a separate annotated representation or frontier first);
+    // the other three report a real, nonzero setup. teardown_micros is
+    // filled in here, not by any parser function itself: it is the
+    // cost of dropping the `ParseTree` this worker's caller never asked
+    // for (every parser_idx branch below keeps only the `PhaseTiming`
+    // half of what the timed functions return), measured once, right
+    // after the match, before `start.elapsed()` is read -- the one
+    // part of the four-way breakdown that cannot live inside any one
+    // parser's own `_timed` function, since none of them controls what
+    // its caller does with the tree it hands back.
     setup_micros: u64,
     derive_micros: u64,
     reconstruct_micros: u64,
+    teardown_micros: u64,
 }
 
 // Deep recursion on deriv_std_rec needs more than the default stack.
@@ -178,14 +187,23 @@ fn main() {
         .stack_size(WORKER_STACK_BYTES)
         .spawn(move || {
             let start = Instant::now();
-            let timing = match parser_idx {
-                0 => parse_deriv_std_rec_timed(&input, &regex).1,
-                1 => parse_deriv_std_loop_timed(&input, &regex).1,
-                2 => parse_bitcoded_recursive_timed(&input, &regex).1,
-                3 => parse_pderiv_bc_timed(&input, &regex).1,
-                4 => parse_pderiv_std_timed(&input, &regex).1,
+            let (tree, mut timing) = match parser_idx {
+                0 => parse_deriv_std_rec_timed(&input, &regex),
+                1 => parse_deriv_std_loop_timed(&input, &regex),
+                2 => parse_bitcoded_recursive_timed(&input, &regex),
+                3 => parse_pderiv_bc_timed(&input, &regex),
+                4 => parse_pderiv_std_timed(&input, &regex),
                 _ => unreachable!("parser_idx {parser_idx} out of range 0..=4; validated at startup"),
             };
+            // None of the five functions above controls what its own
+            // caller does with the tree it returns, so none of them
+            // can time this drop itself -- it has to happen here,
+            // explicitly, timed, before `start.elapsed()` is read, so
+            // `teardown_us` captures it instead of leaving it as part
+            // of this thread's unmeasured tail.
+            let t = Instant::now();
+            drop(tree);
+            timing.teardown_us += t.elapsed().as_micros() as u64;
             // u64 clamp in principle, no-op in practice.
             let total = u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX);
             (total, timing)
@@ -209,6 +227,7 @@ fn main() {
         setup_micros: timing.setup_us,
         derive_micros: timing.derive_us,
         reconstruct_micros: timing.reconstruct_us,
+        teardown_micros: timing.teardown_us,
     };
     println!("{}", serde_json::to_string(&result).expect("serializing the result"));
     // Explicit flush: println! is buffered.

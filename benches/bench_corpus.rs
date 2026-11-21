@@ -120,8 +120,8 @@
 //! `dataset_prepare` uses for `prepared.jsonl`. Also writes
 //! `..._entries.csv`, one row per individual
 //! `source,parser,pattern,input,expected_match,outcome,micros,
-//! setup_micros,derive_micros,reconstruct_micros,total_bytes,
-//! peak_bytes` measurement -- the summary's raw material, before it
+//! setup_micros,derive_micros,reconstruct_micros,teardown_micros,
+//! total_bytes,peak_bytes` measurement -- the summary's raw material, before it
 //! collapses into one mean/median/p99/max/avg/max_peak per parser.
 //! `pattern`/`input` are the actual text that ran, truncated past 200
 //! characters, same convention as `bench_pathological.rs`'s own
@@ -327,26 +327,34 @@ struct JobResult {
     setup_micros: u64,
     derive_micros: u64,
     reconstruct_micros: u64,
+    teardown_micros: u64,
 }
 
-/// `total` is `micros` as before; `setup`/`derive`/`reconstruct` are
-/// a breakdown of that same call into the three `PhaseTiming` phases,
-/// for all five parsers. What each phase measures differs by parser:
-/// deriv_bc's are a real encode/decode, pderiv_std's `setup` is just
+/// `total` is `micros` as before; `setup`/`derive`/`reconstruct`/
+/// `teardown` are a breakdown of that same call into the four
+/// `PhaseTiming` phases, for all five parsers -- the four now sum to
+/// `total`, within measurement noise, for every parser (see
+/// `PhaseTiming`'s own doc comment in src/parsers/mod.rs for how).
+/// What each phase measures differs by parser: deriv_bc's setup/
+/// reconstruct are a real encode/decode, pderiv_std's `setup` is just
 /// the initial clone, pderiv_bc's `setup` is that same clone plus the
 /// accumulated Alt bit-tagging time, pderiv_std's `reconstruct` is
 /// injection-closure application rather than a decode, and
 /// deriv_std_rec/deriv_std_loop have no `setup` phase at all (always
 /// 0), since neither builds a separate annotated representation
-/// first. deriv_std_rec's own `derive`/`reconstruct` carry more
-/// measurement overhead than the other four parsers' (see
-/// `PhaseTiming`'s own doc comment in src/parsers/mod.rs).
+/// first. `teardown` is the one phase that is always 0 coming out of
+/// any of the five parser functions themselves: it is filled in by
+/// `bench_worker` alone, timing the drop of the `ParseTree` this
+/// process's own caller (this file) never asked for. deriv_std_rec's
+/// own `derive`/`reconstruct` carry more measurement overhead than the
+/// other four parsers' (see `PhaseTiming`'s own doc comment).
 #[derive(Clone, Copy)]
 struct Timing {
     total: Duration,
     setup: Duration,
     derive: Duration,
     reconstruct: Duration,
+    teardown: Duration,
 }
 
 /// One completed job's full report: the timing breakdown and the
@@ -418,6 +426,7 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
                             setup: Duration::from_micros(r.setup_micros),
                             derive: Duration::from_micros(r.derive_micros),
                             reconstruct: Duration::from_micros(r.reconstruct_micros),
+                            teardown: Duration::from_micros(r.teardown_micros),
                         },
                         total_bytes: r.total_bytes,
                         peak_bytes: r.peak_bytes,
@@ -494,12 +503,14 @@ struct SummaryRow {
     median_ms: Option<f64>,
     p99_ms: Option<f64>,
     max_ms: Option<f64>,
-    // Breakdown of mean_ms into the three `PhaseTiming` phases, for
+    // Breakdown of mean_ms into the four `PhaseTiming` phases, for
     // all five parsers; mean_setup_ms is 0 for deriv_std_rec/
-    // deriv_std_loop (see `Timing`'s doc comment above).
+    // deriv_std_loop (see `Timing`'s doc comment above). The four
+    // mean_*_ms fields sum to mean_ms, within measurement noise.
     mean_setup_ms: Option<f64>,
     mean_derive_ms: Option<f64>,
     mean_reconstruct_ms: Option<f64>,
+    mean_teardown_ms: Option<f64>,
     total_bytes: usize,
     avg_bytes: Option<usize>,
     max_peak_bytes: usize,
@@ -525,6 +536,7 @@ struct EntryResult {
     setup_micros: Option<u64>,
     derive_micros: Option<u64>,
     reconstruct_micros: Option<u64>,
+    teardown_micros: Option<u64>,
     total_bytes: Option<usize>,
     peak_bytes: Option<usize>,
 }
@@ -570,13 +582,13 @@ fn report(
 
     println!("\n{label} ({} entries)", corpus.len());
     println!(
-        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
+        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
         "parser", "measured", "timed_out", "crashed", "wall (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)",
-        "setup (ms)", "derive (ms)", "reconstruct (ms)", "total bytes", "avg/entry", "max peak"
+        "setup (ms)", "derive (ms)", "reconstruct (ms)", "teardown (ms)", "total bytes", "avg/entry", "max peak"
     );
     println!(
-        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->14} {:->14} {:->14}",
-        "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
+        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->14} {:->14} {:->14}",
+        "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
     );
 
     for (parser_idx, parser_type) in ALL.iter().enumerate() {
@@ -590,7 +602,7 @@ fn report(
         let start = Instant::now();
         let outcomes = run_all_entries(worker, cap, parser_idx, corpus);
         for (entry, outcome) in corpus.iter().zip(outcomes) {
-            let (outcome_label, micros, setup_micros, derive_micros, reconstruct_micros, total_bytes, peak_bytes) =
+            let (outcome_label, micros, setup_micros, derive_micros, reconstruct_micros, teardown_micros, total_bytes, peak_bytes) =
                 match outcome {
                     Outcome::Done(m) => {
                         all.push(m);
@@ -606,13 +618,14 @@ fn report(
                             Some(m.timing.setup.as_micros() as u64),
                             Some(m.timing.derive.as_micros() as u64),
                             Some(m.timing.reconstruct.as_micros() as u64),
+                            Some(m.timing.teardown.as_micros() as u64),
                             Some(m.total_bytes),
                             Some(m.peak_bytes),
                         )
                     }
                     Outcome::TimedOut => {
                         timed_out += 1;
-                        ("timed_out", None, None, None, None, None, None)
+                        ("timed_out", None, None, None, None, None, None, None)
                     }
                     Outcome::Crashed(reason) => {
                         crashed += 1;
@@ -622,7 +635,7 @@ fn report(
                             entry.pattern,
                             entry.input,
                         );
-                        ("crashed", None, None, None, None, None, None)
+                        ("crashed", None, None, None, None, None, None, None)
                     }
                 };
             entry_rows.push(EntryResult {
@@ -636,6 +649,7 @@ fn report(
                 setup_micros,
                 derive_micros,
                 reconstruct_micros,
+                teardown_micros,
                 total_bytes,
                 peak_bytes,
             });
@@ -650,8 +664,8 @@ fn report(
         // "how bad does the worst single input get"), and
         // `total_bytes`/`max_peak_bytes` stay flat sums/maxes. See the
         // module doc.
-        let (mean, median, p99, max, mean_setup, mean_derive, mean_reconstruct) = if all.is_empty() {
-            (None, None, None, None, None, None, None)
+        let (mean, median, p99, max, mean_setup, mean_derive, mean_reconstruct, mean_teardown) = if all.is_empty() {
+            (None, None, None, None, None, None, None, None)
         } else {
             let mut sorted: Vec<Duration> = all.iter().map(|m| m.timing.total).collect();
             sorted.sort();
@@ -671,6 +685,7 @@ fn report(
                 Some(macro_mean_of(|m| m.timing.setup)),
                 Some(macro_mean_of(|m| m.timing.derive)),
                 Some(macro_mean_of(|m| m.timing.reconstruct)),
+                Some(macro_mean_of(|m| m.timing.teardown)),
             )
         };
 
@@ -687,7 +702,7 @@ fn report(
         };
 
         println!(
-            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
+            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
             parser_type.name(),
             all.len(),
             timed_out,
@@ -700,6 +715,7 @@ fn report(
             fmt_opt_ms(mean_setup),
             fmt_opt_ms(mean_derive),
             fmt_opt_ms(mean_reconstruct),
+            fmt_opt_ms(mean_teardown),
             total_bytes_sum,
             avg_bytes.map(|v| v.to_string()).unwrap_or_else(|| "n/a".to_string()),
             max_peak_bytes,
@@ -720,6 +736,7 @@ fn report(
             mean_setup_ms: mean_setup,
             mean_derive_ms: mean_derive,
             mean_reconstruct_ms: mean_reconstruct,
+            mean_teardown_ms: mean_teardown,
             total_bytes: total_bytes_sum,
             avg_bytes,
             max_peak_bytes,
@@ -767,11 +784,11 @@ fn report(
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "source,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms,total_bytes,avg_bytes,max_peak_bytes")?;
+    writeln!(f, "source,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms,mean_teardown_ms,total_bytes,avg_bytes,max_peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{},{},{},{},{}",
             r.source,
             r.parser,
             r.entries,
@@ -786,6 +803,7 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
             r.mean_setup_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_derive_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_reconstruct_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.mean_teardown_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.total_bytes,
             r.avg_bytes.map(|v| v.to_string()).unwrap_or_default(),
             r.max_peak_bytes,
@@ -796,11 +814,11 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
 
 fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "source,parser,pattern,input,expected_match,outcome,micros,setup_micros,derive_micros,reconstruct_micros,total_bytes,peak_bytes")?;
+    writeln!(f, "source,parser,pattern,input,expected_match,outcome,micros,setup_micros,derive_micros,reconstruct_micros,teardown_micros,total_bytes,peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{}",
             r.source,
             r.parser,
             csv_quote(&truncate(&r.pattern, 200)),
@@ -811,6 +829,7 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
             r.setup_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.derive_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.reconstruct_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.teardown_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.total_bytes.map(|v| v.to_string()).unwrap_or_default(),
             r.peak_bytes.map(|v| v.to_string()).unwrap_or_default(),
         )?;

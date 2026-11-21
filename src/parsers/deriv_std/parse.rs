@@ -52,6 +52,18 @@ pub fn parse_deriv_std_rec(input: &str, r: &Regex) -> Option<ParseTree> {
 /// plain functions delegate to their own `_timed` counterpart: doing
 /// so would tax every ordinary call with this function's own
 /// per-character measurement overhead for no benefit.
+///
+/// Each level also drops its own `r_deriv` -- the derivative it built
+/// just to make the recursive call below -- inside the same timed
+/// window already charged to `reconstruct_us`, right before `inject`
+/// runs, instead of letting it drop implicitly when this stack frame
+/// unwinds after that window closes. `r_deriv` is only borrowed by the
+/// recursive call (`&r_deriv`), never moved into it, so it is still
+/// ours to drop once that call returns. Across the whole recursion
+/// this accounts for the same retained-derivative-history cost
+/// `deriv_std_loop` pays in one bulk drop of `expressions`, just paid
+/// here in per-level slices instead, with no new clock reads: it rides
+/// inside the `Instant::now()` that was already there for `inject`.
 fn parse_recursive_helper_timed(
     r: &Regex,
     chars: &[char],
@@ -74,6 +86,7 @@ fn parse_recursive_helper_timed(
             let subtree = parse_recursive_helper_timed(&r_deriv, chars, pos + 1, derive_us, reconstruct_us)?;
 
             let t = Instant::now();
+            drop(r_deriv);
             let result = inject(r, l, subtree);
             *reconstruct_us += t.elapsed().as_micros() as u64;
             Some(result)
@@ -81,9 +94,19 @@ fn parse_recursive_helper_timed(
     }
 }
 
+/// Unlike the three non-recursive parsers' `_timed` functions, the
+/// initial `let chars = input.chars().collect()` here used to happen
+/// before any timer started -- invisible to every phase, though still
+/// inside `bench_worker`'s own outer wall-clock measurement. It is now
+/// timed into `derive_us`'s own starting value, the same phase the
+/// other four parsers' equivalent char-handling already falls inside
+/// (see `PhaseTiming`'s doc comment): one one-time timer pair in this
+/// wrapper, not per character, so the accepted two-reads-per-character
+/// trade-off below is unchanged.
 pub fn parse_deriv_std_rec_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
+    let t_collect = Instant::now();
     let chars: Vec<char> = input.chars().collect();
-    let mut derive_us = 0u64;
+    let mut derive_us = t_collect.elapsed().as_micros() as u64;
     let mut reconstruct_us = 0u64;
     let tree = parse_recursive_helper_timed(r, &chars, 0, &mut derive_us, &mut reconstruct_us);
 
@@ -91,7 +114,7 @@ pub fn parse_deriv_std_rec_timed(input: &str, r: &Regex) -> (Option<ParseTree>, 
     let tree = tree.map(reverse_stars);
     reconstruct_us += t.elapsed().as_micros() as u64;
 
-    (tree, PhaseTiming { setup_us: 0, derive_us, reconstruct_us })
+    (tree, PhaseTiming { setup_us: 0, derive_us, reconstruct_us, teardown_us: 0 })
 }
 
 /// Reverses every `Star`'s items exactly once. `inject`'s Star case
@@ -131,6 +154,16 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree> {
 /// phase distinct from derive: unlike `deriv_bc`, this parser has no
 /// separate annotated representation to build first, so `setup_us` is
 /// always 0, the same reason `pderiv_bc`/`pderiv_std` report 0 there.
+///
+/// `expressions` holds every intermediate derivative, one full `Regex`
+/// per input position -- POSIX injection has to revisit each one by
+/// index, unlike the bit-coded/partial-derivative parsers, which only
+/// ever carry their current state forward. Dropping the whole vector
+/// used to happen implicitly when this function returned, after
+/// `reconstruct_us`'s own timer had already stopped; it is now dropped
+/// explicitly inside that same timed window instead, right after the
+/// backward pass and `reverse_stars` are done with it, so this
+/// previously-largest unaccounted cost is now counted where it belongs.
 pub fn parse_deriv_std_loop_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t0 = Instant::now();
     let chars: Vec<char> = input.chars().collect();
@@ -148,7 +181,7 @@ pub fn parse_deriv_std_loop_timed(input: &str, r: &Regex) -> (Option<ParseTree>,
 
     let final_r = expressions.last().unwrap();
     if !nullable(final_r) {
-        return (None, PhaseTiming { setup_us: 0, derive_us, reconstruct_us: 0 });
+        return (None, PhaseTiming { setup_us: 0, derive_us, reconstruct_us: 0, teardown_us: 0 });
     }
 
     let t1 = Instant::now();
@@ -157,9 +190,10 @@ pub fn parse_deriv_std_loop_timed(input: &str, r: &Regex) -> (Option<ParseTree>,
         tree = inject(&expressions[i], chars[i], tree);
     }
     let tree = reverse_stars(tree);
+    drop(expressions);
     let reconstruct_us = t1.elapsed().as_micros() as u64;
 
-    (Some(tree), PhaseTiming { setup_us: 0, derive_us, reconstruct_us })
+    (Some(tree), PhaseTiming { setup_us: 0, derive_us, reconstruct_us, teardown_us: 0 })
 }
 
 
@@ -219,6 +253,10 @@ mod tests {
         let (timed, timing) = parse_deriv_std_rec_timed("aaa", &r);
         assert_eq!(plain, timed);
         assert_eq!(timing.setup_us, 0, "deriv_std has no setup phase");
+        // teardown_us is always 0 as directly returned from any of the
+        // five parser functions -- only bench_worker fills it in, once
+        // it knows what its own caller does with the returned tree.
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -228,6 +266,26 @@ mod tests {
         let (timed, timing) = parse_deriv_std_rec_timed("aab", &r);
         assert_eq!(plain, timed);
         assert_eq!(timing.setup_us, 0);
+        assert_eq!(timing.teardown_us, 0);
+    }
+
+    // Exercises the timed recursive helper's new `drop(r_deriv)` across
+    // several levels of real recursion (not just the single-character
+    // cases above), on a pattern with Seq/Alt/Star all nested together
+    // -- confirms dropping each level's own derivative early, right
+    // before `inject` runs, changes nothing about the tree `inject`
+    // still builds from `r`/`l`/`subtree`.
+    #[test]
+    fn rec_timed_matches_untimed_on_nested_pattern() {
+        let pair = Regex::seq(
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+        );
+        let r = Regex::star(pair);
+        let plain = parse_deriv_std_rec("abba", &r);
+        let (timed, timing) = parse_deriv_std_rec_timed("abba", &r);
+        assert_eq!(plain, timed);
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -237,6 +295,7 @@ mod tests {
         let (timed, timing) = parse_deriv_std_loop_timed("aaa", &r);
         assert_eq!(plain, timed);
         assert_eq!(timing.setup_us, 0, "deriv_std has no setup phase");
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -246,6 +305,26 @@ mod tests {
         let (timed, timing) = parse_deriv_std_loop_timed("aab", &r);
         assert_eq!(plain, timed);
         assert_eq!(timing.setup_us, 0);
+        assert_eq!(timing.teardown_us, 0);
+    }
+
+    // Exercises the timed loop variant's new `drop(expressions)` on a
+    // pattern whose `expressions` history holds more than one shape of
+    // derivative across its run -- confirms dropping the whole
+    // retained-derivative vector right after the backward pass and
+    // `reverse_stars` are done with it changes nothing about the tree
+    // already built from it.
+    #[test]
+    fn loop_timed_matches_untimed_on_nested_pattern() {
+        let pair = Regex::seq(
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+        );
+        let r = Regex::star(pair);
+        let plain = parse_deriv_std_loop("abba", &r);
+        let (timed, timing) = parse_deriv_std_loop_timed("abba", &r);
+        assert_eq!(plain, timed);
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -258,6 +337,7 @@ mod tests {
         let (tree, timing) = parse_deriv_std_loop_timed("aab", &Regex::star(Regex::lit('a')));
         assert_eq!(tree, None);
         assert_eq!(timing.reconstruct_us, 0);
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]

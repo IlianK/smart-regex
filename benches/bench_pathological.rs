@@ -313,16 +313,18 @@ struct JobResult {
     setup_micros: u64,
     derive_micros: u64,
     reconstruct_micros: u64,
+    teardown_micros: u64,
 }
 
 /// See the identical type in `bench_corpus.rs` for what each phase
-/// means per parser.
+/// means per parser, and for why the four now sum to `total`.
 #[derive(Clone, Copy)]
 struct Timing {
     total: Duration,
     setup: Duration,
     derive: Duration,
     reconstruct: Duration,
+    teardown: Duration,
 }
 
 /// One completed job's full report. See the identical type in
@@ -390,6 +392,7 @@ fn run_entry_isolated(worker: &Path, cap: Duration, parser_idx: usize, pattern: 
                             setup: Duration::from_micros(r.setup_micros),
                             derive: Duration::from_micros(r.derive_micros),
                             reconstruct: Duration::from_micros(r.reconstruct_micros),
+                            teardown: Duration::from_micros(r.teardown_micros),
                         },
                         total_bytes: r.total_bytes,
                         peak_bytes: r.peak_bytes,
@@ -465,6 +468,7 @@ struct SummaryRow {
     mean_setup_ms: Option<f64>,
     mean_derive_ms: Option<f64>,
     mean_reconstruct_ms: Option<f64>,
+    mean_teardown_ms: Option<f64>,
     total_bytes: usize,
     avg_bytes: Option<usize>,
     max_peak_bytes: usize,
@@ -487,6 +491,7 @@ struct EntryResult {
     setup_micros: Option<u64>,
     derive_micros: Option<u64>,
     reconstruct_micros: Option<u64>,
+    teardown_micros: Option<u64>,
     total_bytes: Option<usize>,
     peak_bytes: Option<usize>,
 }
@@ -531,13 +536,13 @@ fn report(
     let mut entry_rows = Vec::new();
     println!("\n{category} ({category_name}, {} entries)", corpus.len());
     println!(
-        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
+        "{:<16} {:>9} {:>9} {:>7} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
         "parser", "measured", "timed_out", "crashed", "wall (s)", "mean (ms)", "median (ms)", "p99 (ms)", "max (ms)",
-        "setup (ms)", "derive (ms)", "reconstruct (ms)", "total bytes", "avg/entry", "max peak"
+        "setup (ms)", "derive (ms)", "reconstruct (ms)", "teardown (ms)", "total bytes", "avg/entry", "max peak"
     );
     println!(
-        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->14} {:->14} {:->14}",
-        "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
+        "{:-<16} {:->9} {:->9} {:->7} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->12} {:->14} {:->14} {:->14}",
+        "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
     );
 
     for (parser_idx, parser_type) in ALL.iter().enumerate() {
@@ -547,7 +552,7 @@ fn report(
         let start = Instant::now();
         let outcomes = run_all_entries(worker, cap, parser_idx, corpus);
         for (entry, outcome) in corpus.iter().zip(outcomes) {
-            let (outcome_label, micros, setup_micros, derive_micros, reconstruct_micros, total_bytes, peak_bytes) =
+            let (outcome_label, micros, setup_micros, derive_micros, reconstruct_micros, teardown_micros, total_bytes, peak_bytes) =
                 match outcome {
                     Outcome::Done(m) => {
                         all.push(m);
@@ -557,13 +562,14 @@ fn report(
                             Some(m.timing.setup.as_micros() as u64),
                             Some(m.timing.derive.as_micros() as u64),
                             Some(m.timing.reconstruct.as_micros() as u64),
+                            Some(m.timing.teardown.as_micros() as u64),
                             Some(m.total_bytes),
                             Some(m.peak_bytes),
                         )
                     }
                     Outcome::TimedOut => {
                         timed_out += 1;
-                        ("timed_out", None, None, None, None, None, None)
+                        ("timed_out", None, None, None, None, None, None, None)
                     }
                     Outcome::Crashed(reason) => {
                         crashed += 1;
@@ -576,7 +582,7 @@ fn report(
                             entry.pattern,
                             entry.input,
                         );
-                        ("crashed", None, None, None, None, None, None)
+                        ("crashed", None, None, None, None, None, None, None)
                     }
                 };
             entry_rows.push(EntryResult {
@@ -593,6 +599,7 @@ fn report(
                 setup_micros,
                 derive_micros,
                 reconstruct_micros,
+                teardown_micros,
                 total_bytes,
                 peak_bytes,
             });
@@ -601,8 +608,8 @@ fn report(
 
         // Flat averages, not macro-averages -- see the module doc for
         // why: a category mixes several rows and swept n/p by design.
-        let (mean, median, p99, max, mean_setup, mean_derive, mean_reconstruct) = if all.is_empty() {
-            (None, None, None, None, None, None, None)
+        let (mean, median, p99, max, mean_setup, mean_derive, mean_reconstruct, mean_teardown) = if all.is_empty() {
+            (None, None, None, None, None, None, None, None)
         } else {
             let mut sorted: Vec<Duration> = all.iter().map(|m| m.timing.total).collect();
             sorted.sort();
@@ -616,6 +623,7 @@ fn report(
                 Some(mean_of(|m| m.timing.setup)),
                 Some(mean_of(|m| m.timing.derive)),
                 Some(mean_of(|m| m.timing.reconstruct)),
+                Some(mean_of(|m| m.timing.teardown)),
             )
         };
 
@@ -624,7 +632,7 @@ fn report(
         let avg_bytes = if !all.is_empty() { Some(total_bytes_sum / all.len()) } else { None };
 
         println!(
-            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
+            "{:<16} {:>9} {:>9} {:>7} {:>12.3} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>12} {:>14} {:>14} {:>14}",
             parser_type.name(),
             all.len(),
             timed_out,
@@ -637,6 +645,7 @@ fn report(
             fmt_opt_ms(mean_setup),
             fmt_opt_ms(mean_derive),
             fmt_opt_ms(mean_reconstruct),
+            fmt_opt_ms(mean_teardown),
             total_bytes_sum,
             avg_bytes.map(|v| v.to_string()).unwrap_or_else(|| "n/a".to_string()),
             max_peak_bytes,
@@ -658,6 +667,7 @@ fn report(
             mean_setup_ms: mean_setup,
             mean_derive_ms: mean_derive,
             mean_reconstruct_ms: mean_reconstruct,
+            mean_teardown_ms: mean_teardown,
             total_bytes: total_bytes_sum,
             avg_bytes,
             max_peak_bytes,
@@ -668,11 +678,11 @@ fn report(
 
 fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "row_id,category,parser,n,p,side,pattern,input,outcome,micros,setup_micros,derive_micros,reconstruct_micros,total_bytes,peak_bytes")?;
+    writeln!(f, "row_id,category,parser,n,p,side,pattern,input,outcome,micros,setup_micros,derive_micros,reconstruct_micros,teardown_micros,total_bytes,peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             r.row_id,
             r.category,
             r.parser,
@@ -686,6 +696,7 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
             r.setup_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.derive_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.reconstruct_micros.map(|v| v.to_string()).unwrap_or_default(),
+            r.teardown_micros.map(|v| v.to_string()).unwrap_or_default(),
             r.total_bytes.map(|v| v.to_string()).unwrap_or_default(),
             r.peak_bytes.map(|v| v.to_string()).unwrap_or_default(),
         )?;
@@ -695,11 +706,11 @@ fn write_entries_csv(path: &str, rows: &[EntryResult]) -> std::io::Result<()> {
 
 fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
-    writeln!(f, "category,category_name,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms,total_bytes,avg_bytes,max_peak_bytes")?;
+    writeln!(f, "category,category_name,parser,entries,measured,timed_out,crashed,wall_s,mean_ms,median_ms,p99_ms,max_ms,mean_setup_ms,mean_derive_ms,mean_reconstruct_ms,mean_teardown_ms,total_bytes,avg_bytes,max_peak_bytes")?;
     for r in rows {
         writeln!(
             f,
-            "{},{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{:.6},{},{},{},{},{},{},{},{},{},{},{}",
             r.category,
             csv_quote(&r.category_name),
             r.parser,
@@ -715,6 +726,7 @@ fn write_summary_csv(path: &str, rows: &[SummaryRow]) -> std::io::Result<()> {
             r.mean_setup_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_derive_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.mean_reconstruct_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
+            r.mean_teardown_ms.map(|v| format!("{v:.6}")).unwrap_or_default(),
             r.total_bytes,
             r.avg_bytes.map(|v| v.to_string()).unwrap_or_default(),
             r.max_peak_bytes,

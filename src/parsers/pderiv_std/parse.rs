@@ -62,14 +62,16 @@ pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_pderiv_std_timed(input, r).0
 }
 
-/// Same parse, plus `PhaseTiming`'s three positionally-aligned phases.
+/// Same parse, plus `PhaseTiming`'s positionally-aligned phases.
 /// `pderiv_std` has no bits and no `Regex` -> `ARegex` conversion:
 /// `setup_us` is just the clone into the initial frontier (timed as
 /// its own phase purely so all three non-recursive parsers' phase
 /// breakdowns stay comparable, not because it is a real encode), and
 /// `reconstruct_us` is `Inj::apply` -- running the composed chain of
 /// injection closures built up during the derive phase -- not a
-/// decode of anything.
+/// decode of anything. The final `frontier` is now dropped inside
+/// this same timed window too, right after `select` is done reading
+/// from it, instead of implicitly once this function returns.
 pub fn parse_pderiv_std_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t_setup = Instant::now();
     let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), Inj::identity())];
@@ -80,16 +82,17 @@ pub fn parse_pderiv_std_timed(input: &str, r: &Regex) -> (Option<ParseTree>, Pha
         frontier = step_frontier(frontier, c);
         if frontier.is_empty() {
             let derive_us = t0.elapsed().as_micros() as u64;
-            return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
+            return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0, teardown_us: 0 });
         }
     }
     let derive_us = t0.elapsed().as_micros() as u64;
 
     let t1 = Instant::now();
     let tree = select(&frontier);
+    drop(frontier);
     let reconstruct_us = t1.elapsed().as_micros() as u64;
 
-    (tree, PhaseTiming { setup_us, derive_us, reconstruct_us })
+    (tree, PhaseTiming { setup_us, derive_us, reconstruct_us, teardown_us: 0 })
 }
 
 
@@ -122,8 +125,11 @@ mod tests {
     fn timed_matches_untimed_output() {
         let r = Regex::star(Regex::lit('a'));
         let plain = parse_pderiv_std("aaa", &r);
-        let (timed, _timing) = parse_pderiv_std_timed("aaa", &r);
+        let (timed, timing) = parse_pderiv_std_timed("aaa", &r);
         assert_eq!(plain, timed);
+        // teardown_us is always 0 as directly returned from any of the
+        // five parser functions -- only bench_worker fills it in.
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -131,6 +137,24 @@ mod tests {
         let (tree, timing) = parse_pderiv_std_timed("b", &Regex::lit('a'));
         assert_eq!(tree, None);
         assert_eq!(timing.reconstruct_us, 0);
+        assert_eq!(timing.teardown_us, 0);
+    }
+
+    // Exercises the new `drop(frontier)` on a frontier that actually
+    // holds more than one strand (via a pattern with Seq/Alt/Star all
+    // nested), confirming dropping it right after `select` is done
+    // reading from it changes nothing about the selected tree.
+    #[test]
+    fn timed_matches_untimed_on_nested_pattern() {
+        let pair = Regex::seq(
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+        );
+        let r = Regex::star(pair);
+        let plain = parse_pderiv_std("abba", &r);
+        let (timed, timing) = parse_pderiv_std_timed("abba", &r);
+        assert_eq!(plain, timed);
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]

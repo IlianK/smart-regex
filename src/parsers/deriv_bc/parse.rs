@@ -32,12 +32,16 @@ pub fn parse_bitcoded_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_bitcoded_recursive_timed(input, r).0
 }
 
-/// Same parse, plus `PhaseTiming`'s three phases. For deriv_bc these
-/// are genuinely encode (Regex -> ARegex via `internalize`), derive
-/// (the per-character stepping), and decode (bits -> ParseTree) --
-/// unlike pderiv_bc/pderiv_std, whose `setup_us`/`reconstruct_us`
-/// measure a plain clone and a closure application respectively, not
-/// an actual encode/decode.
+/// Same parse, plus `PhaseTiming`'s phases. For deriv_bc these are
+/// genuinely encode (Regex -> ARegex via `internalize`), derive (the
+/// per-character stepping), and decode (bits -> ParseTree) -- unlike
+/// pderiv_bc/pderiv_std, whose `setup_us`/`reconstruct_us` measure a
+/// plain clone and a closure application respectively, not an actual
+/// encode/decode. `chars` and `final_ri` (the fully-derived `ARegex`)
+/// are both dropped explicitly inside the same timed window already
+/// charged to `reconstruct_us`, right after `decode` is done with
+/// them -- previously they dropped implicitly when this function
+/// returned, after that timer had already stopped.
 pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t0 = Instant::now();
     let ri = internalize(r);
@@ -49,15 +53,17 @@ pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTr
     let derive_us = t1.elapsed().as_micros() as u64;
 
     if !nullable_bc(&final_ri) {
-        return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
+        return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0, teardown_us: 0 });
     }
 
     let t2 = Instant::now();
     let bits = mk_eps_bc(&final_ri);
     let tree = decode(r, &bits);
+    drop(chars);
+    drop(final_ri);
     let reconstruct_us = t2.elapsed().as_micros() as u64;
 
-    (Some(tree), PhaseTiming { setup_us, derive_us, reconstruct_us })
+    (Some(tree), PhaseTiming { setup_us, derive_us, reconstruct_us, teardown_us: 0 })
 }
 
 
@@ -92,8 +98,11 @@ mod tests {
     fn timed_matches_untimed_on_success() {
         let r = Regex::star(Regex::lit('a'));
         let plain = parse_bitcoded_recursive("aaa", &r);
-        let (timed, _) = parse_bitcoded_recursive_timed("aaa", &r);
+        let (timed, timing) = parse_bitcoded_recursive_timed("aaa", &r);
         assert_eq!(plain, timed);
+        // teardown_us is always 0 as directly returned from any of the
+        // five parser functions -- only bench_worker fills it in.
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -103,6 +112,7 @@ mod tests {
         let (timed, timing) = parse_bitcoded_recursive_timed("aab", &r);
         assert_eq!(plain, timed);
         assert_eq!(timing.reconstruct_us, 0, "no decode happens on a non-match");
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -110,5 +120,25 @@ mod tests {
         let (tree, timing) = parse_bitcoded_recursive_timed("a", &Regex::Phi);
         assert_eq!(tree, None);
         assert_eq!(timing.reconstruct_us, 0);
+        assert_eq!(timing.teardown_us, 0);
+    }
+
+    // Exercises the new `drop(chars); drop(final_ri);` on a pattern
+    // with Seq/Alt/Star all nested, including a Star iteration so the
+    // Seq-nullable/Star bit-construction `simp`/`fuse` paths all run --
+    // confirms dropping both early, right after `decode` is done
+    // reading from `final_ri` (not `chars`, which `decode` never
+    // touches at all), changes nothing about the decoded tree.
+    #[test]
+    fn timed_matches_untimed_on_nested_pattern() {
+        let pair = Regex::seq(
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+            Regex::alt(Regex::lit('a'), Regex::lit('b')),
+        );
+        let r = Regex::star(pair);
+        let plain = parse_bitcoded_recursive("abba", &r);
+        let (timed, timing) = parse_bitcoded_recursive_timed("abba", &r);
+        assert_eq!(plain, timed);
+        assert_eq!(timing.teardown_us, 0);
     }
 }

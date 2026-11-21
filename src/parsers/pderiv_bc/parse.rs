@@ -78,11 +78,14 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
 /// every character here instead. `derive_us` is the rest of the
 /// per-character work (the actual `pderiv_bc` transition computation
 /// plus `nub2` dedup) with that tagging time subtracted back out, so
-/// the three fields still sum to the true total and nothing is
+/// the four fields still sum to the true total and nothing is
 /// double-counted. `reconstruct_us` is unchanged, a genuine decode:
 /// `decode(r, &bits)` interprets the accumulated bit string against
-/// the pattern. See `pderiv_bc_timed`'s own doc comment for exactly
-/// what does and doesn't count as tagging.
+/// the pattern -- it also now drops the final `frontier` inside this
+/// same timed window, right after `decode` is done reading from it,
+/// instead of letting it drop implicitly once this function returns.
+/// See `pderiv_bc_timed`'s own doc comment for exactly what does and
+/// doesn't count as tagging.
 pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t_setup = Instant::now();
     let mut frontier = vec![(r.clone(), AppendBits::empty())];
@@ -95,7 +98,7 @@ pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, Phas
         if frontier.is_empty() {
             let derive_us = (t0.elapsed().as_micros() as u64).saturating_sub(tag_us);
             let setup_us = clone_us + tag_us;
-            return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
+            return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0, teardown_us: 0 });
         }
     }
     let derive_us = (t0.elapsed().as_micros() as u64).saturating_sub(tag_us);
@@ -103,12 +106,13 @@ pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, Phas
 
     let t1 = Instant::now();
     let Some(bits) = select_bits(&frontier) else {
-        return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
+        return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0, teardown_us: 0 });
     };
     let tree = decode(r, &bits);
+    drop(frontier);
     let reconstruct_us = t1.elapsed().as_micros() as u64;
 
-    (Some(tree), PhaseTiming { setup_us, derive_us, reconstruct_us })
+    (Some(tree), PhaseTiming { setup_us, derive_us, reconstruct_us, teardown_us: 0 })
 }
 
 
@@ -140,20 +144,25 @@ mod tests {
     fn timed_matches_untimed_output() {
         let r = Regex::star(Regex::lit('a'));
         let plain = parse_pderiv_bc("aaa", &r);
-        let (timed, _timing) = parse_pderiv_bc_timed("aaa", &r);
+        let (timed, timing) = parse_pderiv_bc_timed("aaa", &r);
         assert_eq!(plain, timed);
+        // teardown_us is always 0 as directly returned from any of the
+        // five parser functions -- only bench_worker fills it in.
+        assert_eq!(timing.teardown_us, 0);
     }
 
     // Same check, but through an Alt-containing pattern -- the only
     // one that exercises step_frontier_timed's/pderiv_bc_timed's new
     // tag_us threading end to end, which the Star-only case above
-    // never touches.
+    // never touches. Also exercises the new `drop(frontier)` on a
+    // frontier that actually holds more than one strand.
     #[test]
     fn timed_matches_untimed_output_with_alt() {
         let r = Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b')));
         let plain = parse_pderiv_bc("ab", &r);
-        let (timed, _timing) = parse_pderiv_bc_timed("ab", &r);
+        let (timed, timing) = parse_pderiv_bc_timed("ab", &r);
         assert_eq!(plain, timed);
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
@@ -161,6 +170,7 @@ mod tests {
         let (tree, timing) = parse_pderiv_bc_timed("b", &Regex::lit('a'));
         assert_eq!(tree, None);
         assert_eq!(timing.reconstruct_us, 0);
+        assert_eq!(timing.teardown_us, 0);
     }
 
     #[test]
