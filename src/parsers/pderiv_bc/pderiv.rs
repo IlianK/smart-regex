@@ -82,18 +82,31 @@ pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
 /// at depth k, so a `Vec<bool>`'s O(depth) clone at every leaf still
 /// costs O(p) + O(p-1) + ... = O(p^2) total across a p-leaf chain, even
 /// after the fix above removed the redundant per-level dedup passes.
-/// `AppendBits::append`/`clone` are both O(1) amortized regardless of
-/// the existing chain's length (the same sharing `Inj`/`InjNode` use
+/// `AppendBits::append_one`/`clone` are both O(1) amortized regardless
+/// of the existing chain's length (the same sharing `Inj`/`InjNode` use
 /// for injection closures, see pderiv_std), so extending the prefix by
 /// one bit per level and cloning the handle at each leaf is O(1) each,
 /// O(p) total -- and needs no explicit pop, since each recursive call
 /// gets its own extended value and the caller's own `prefix` binding is
 /// untouched by it.
+///
+/// This runs fresh on every character this function is called for
+/// *any* `Alt` still live in the current residual, not just once for a
+/// whole p-wide pattern the way `internalize` tags a wide alternation
+/// up front for `deriv_bc` -- so the per-level cost here is paid far
+/// more often, on far narrower alternations on average, than the O(p)
+/// bound above suggests on its own. `append_one` (not `append(&[bit])`)
+/// is what keeps each of those per-level, per-character calls to the
+/// one allocation this needs rather than the `Vec` collection plus
+/// slice copy `append`'s general form pays for any prefix, long or
+/// short; at this call frequency that difference is the gap between a
+/// narrow alternation inside a loop staying cheap over a long input and
+/// not.
 fn flatten_alt<'a>(r: &'a Regex, prefix: &AppendBits, out: &mut Vec<(&'a Regex, AppendBits)>) {
     match r {
         Regex::Alt(r1, r2) => {
-            flatten_alt(r1, &prefix.append(&[false]), out);
-            flatten_alt(r2, &prefix.append(&[true]), out);
+            flatten_alt(r1, &prefix.append_one(false), out);
+            flatten_alt(r2, &prefix.append_one(true), out);
         }
         other => out.push((other, prefix.clone())),
     }
@@ -163,7 +176,7 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
             let out: Vec<(Regex, AppendBits)> = pderiv_bc(r1, x)
                 .into_iter()
                 .map(|(r1_, bs)| {
-                    let b = AppendBits::from(vec![false]).append_bits(&bs);
+                    let b = bs.prepend_one(false);
                     (smart_seq(r1_, &Regex::star(*r1.clone())), b)
                 })
                 .collect();
@@ -184,7 +197,7 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
 /// accumulators are (see that function's own doc comment), so the
 /// plain `pderiv_bc` above pays no cost for this.
 ///
-/// `Star`'s own tagging just below (`AppendBits::from(vec![false])`)
+/// `Star`'s own tagging just below (`bs.prepend_one(false)`)
 /// is deliberately NOT counted into `tag_us`: `internalize` does not
 /// tag `Star` either (`ARegex::Star(Bits::empty(), ...)`; see
 /// `internalize.rs`) -- that cost is carried by `deriv_bc`'s own
@@ -243,7 +256,7 @@ pub fn pderiv_bc_timed(r: &Regex, x: char, tag_us: &mut u64) -> Vec<(Regex, Appe
             let out: Vec<(Regex, AppendBits)> = pderiv_bc_timed(r1, x, tag_us)
                 .into_iter()
                 .map(|(r1_, bs)| {
-                    let b = AppendBits::from(vec![false]).append_bits(&bs);
+                    let b = bs.prepend_one(false);
                     (smart_seq(r1_, &Regex::star(*r1.clone())), b)
                 })
                 .collect();
