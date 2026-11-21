@@ -20,12 +20,18 @@ pub use pderiv_bc::{parse_pderiv_bc, parse_pderiv_bc_traced, parse_pderiv_bc_tim
 /// parsers -- only its position in the parse is:
 ///   - `setup_us`: work done before any character is consumed. For
 ///     deriv_bc this is a real encode (Regex -> ARegex via
-///     `internalize`, building the bit-annotated representation); for
-///     the other four there is no annotated representation to build,
-///     so this is always 0 (pderiv_bc/pderiv_std's own initial clone
-///     is folded into derive_us instead, and deriv_std_rec/
-///     deriv_std_loop never had a comparable "0.65ms" bump; see
-///     `parse_deriv_std_loop_timed`'s doc comment).
+///     `internalize`, building the bit-annotated representation);
+///     pderiv_bc/pderiv_std have no such conversion, so their
+///     `setup_us` is just the initial `r.clone()` into the starting
+///     frontier (a plain tree clone, no bits or injection closures
+///     involved), timed as its own phase purely so all three
+///     non-recursive parsers' breakdowns stay comparable -- it is a
+///     real, nonzero number, not folded into `derive_us`. Calling it
+///     an "encode" the way deriv_bc's is would overclaim what it does.
+///     deriv_std_rec/deriv_std_loop are the ones whose `setup_us` is
+///     always 0: neither ever builds a frontier or wrapper before
+///     deriving, so there is nothing to time here at all; see
+///     `parse_deriv_std_loop_timed`'s doc comment.
 ///   - `derive_us`: the per-character stepping loop, for all five.
 ///   - `reconstruct_us`: producing the final `ParseTree` from whatever
 ///     witness survived. For deriv_bc/pderiv_bc this is a genuine
