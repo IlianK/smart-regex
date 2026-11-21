@@ -5,7 +5,7 @@
 use std::time::Instant;
 use crate::types::{Regex, ParseTree, AppendBits};
 use crate::regex::nullable::nullable;
-use crate::parsers::pderiv_bc::pderiv::{pderiv_bc, mk_eps_bits, nub2};
+use crate::parsers::pderiv_bc::pderiv::{pderiv_bc, pderiv_bc_timed, mk_eps_bits, nub2};
 use crate::parsers::PhaseTiming;
 use crate::regex::decode::decode;
 
@@ -38,6 +38,22 @@ pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) -> Vec<(R
     nub2(out)
 }
 
+/// Same step, plus threading `pderiv_bc_timed`'s `tag_us` accumulator
+/// through -- see that function's own doc comment for what it counts.
+pub(super) fn step_frontier_timed(
+    frontier: &[(Regex, AppendBits)],
+    x: char,
+    tag_us: &mut u64,
+) -> Vec<(Regex, AppendBits)> {
+    let mut out = Vec::new();
+    for (r, bits) in frontier {
+        for (r_next, extra) in pderiv_bc_timed(r, x, tag_us) {
+            out.push((r_next, bits.append_bits(&extra)));
+        }
+    }
+    nub2(out)
+}
+
 /// `filter (\(r,_) -> nullable r) rs`, take head, and append `mkEpsBC`.
 pub(super) fn select_bits(frontier: &[(Regex, AppendBits)]) -> Option<Vec<bool>> {
     for (r, bits) in frontier {
@@ -52,31 +68,38 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
     parse_pderiv_bc_timed(input, r).0
 }
 
-/// Same parse, plus how long encode, derive (the per-character frontier
-/// stepping), and decode (bits -> ParseTree) each took. pderiv_bc has no
-/// `Regex` -> `ARegex` conversion the way deriv_bc does, but it still
-/// clones `r` into the initial frontier before deriving, and that clone
-/// is a full recursive walk of the same pattern tree (`Regex`'s `Clone`
-/// is derived over `Box<Regex>` fields, not `Rc`/`Arc`), the same order
-/// of work as `internalize` does there. Timed as its own `setup_us`
-/// here so all three non-recursive parsers' phase breakdowns stay
-/// comparable, instead of silently folding that cost into `derive_us`.
-/// `reconstruct_us` here is a genuine decode: `decode(r, &bits)`
-/// interprets the accumulated bit string against the pattern.
+/// Same parse, plus `setup_us`/`derive_us`/`reconstruct_us` sized to be
+/// genuinely comparable to `deriv_bc`'s encode/derive/decode, not just
+/// positionally aligned with them. `setup_us` here is the trivial
+/// initial clone (`r.clone()` into the starting frontier) PLUS the
+/// total time spent in `flatten_alt` tagging `Alt` branches with bit
+/// prefixes across the whole parse: the same operation `internalize`
+/// performs once, upfront, for `deriv_bc`, just repeated fresh on
+/// every character here instead. `derive_us` is the rest of the
+/// per-character work (the actual `pderiv_bc` transition computation
+/// plus `nub2` dedup) with that tagging time subtracted back out, so
+/// the three fields still sum to the true total and nothing is
+/// double-counted. `reconstruct_us` is unchanged, a genuine decode:
+/// `decode(r, &bits)` interprets the accumulated bit string against
+/// the pattern. See `pderiv_bc_timed`'s own doc comment for exactly
+/// what does and doesn't count as tagging.
 pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t_setup = Instant::now();
     let mut frontier = vec![(r.clone(), AppendBits::empty())];
-    let setup_us = t_setup.elapsed().as_micros() as u64;
+    let clone_us = t_setup.elapsed().as_micros() as u64;
 
+    let mut tag_us = 0u64;
     let t0 = Instant::now();
     for c in input.chars() {
-        frontier = step_frontier(&frontier, c);
+        frontier = step_frontier_timed(&frontier, c, &mut tag_us);
         if frontier.is_empty() {
-            let derive_us = t0.elapsed().as_micros() as u64;
+            let derive_us = (t0.elapsed().as_micros() as u64).saturating_sub(tag_us);
+            let setup_us = clone_us + tag_us;
             return (None, PhaseTiming { setup_us, derive_us, reconstruct_us: 0 });
         }
     }
-    let derive_us = t0.elapsed().as_micros() as u64;
+    let derive_us = (t0.elapsed().as_micros() as u64).saturating_sub(tag_us);
+    let setup_us = clone_us + tag_us;
 
     let t1 = Instant::now();
     let Some(bits) = select_bits(&frontier) else {
@@ -118,6 +141,18 @@ mod tests {
         let r = Regex::star(Regex::lit('a'));
         let plain = parse_pderiv_bc("aaa", &r);
         let (timed, _timing) = parse_pderiv_bc_timed("aaa", &r);
+        assert_eq!(plain, timed);
+    }
+
+    // Same check, but through an Alt-containing pattern -- the only
+    // one that exercises step_frontier_timed's/pderiv_bc_timed's new
+    // tag_us threading end to end, which the Star-only case above
+    // never touches.
+    #[test]
+    fn timed_matches_untimed_output_with_alt() {
+        let r = Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b')));
+        let plain = parse_pderiv_bc("ab", &r);
+        let (timed, _timing) = parse_pderiv_bc_timed("ab", &r);
         assert_eq!(plain, timed);
     }
 

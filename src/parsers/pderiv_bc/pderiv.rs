@@ -5,6 +5,7 @@
 //! plain Regex + external per-strand bits, GREEDY.
 
 use std::collections::HashSet;
+use std::time::Instant;
 use crate::types::{AppendBits, Regex};
 use crate::regex::nullable::nullable;
 use crate::regex::simplify::smart_seq;
@@ -160,6 +161,86 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
 
         Regex::Star(r1) => {
             let out: Vec<(Regex, AppendBits)> = pderiv_bc(r1, x)
+                .into_iter()
+                .map(|(r1_, bs)| {
+                    let b = AppendBits::from(vec![false]).append_bits(&bs);
+                    (smart_seq(r1_, &Regex::star(*r1.clone())), b)
+                })
+                .collect();
+            nub2(out)
+        }
+    }
+}
+
+/// Same partial derivative, plus the accumulated time spent tagging
+/// `Alt` branches via `flatten_alt` -- the same bit-prefix assignment
+/// (`false` for a left branch, `true` for a right one) that
+/// `internalize` does once, upfront, for the whole tree, for
+/// `deriv_bc`. Here it happens fresh on every character instead, for
+/// whatever `Alt` nodes survive in the current residual, which is
+/// exactly why it was invisible before: buried inside the same
+/// `derive_us` total as everything else `pderiv_bc` does. Threaded
+/// through recursion the same way `deriv_std_rec_timed`'s
+/// accumulators are (see that function's own doc comment), so the
+/// plain `pderiv_bc` above pays no cost for this.
+///
+/// `Star`'s own tagging just below (`AppendBits::from(vec![false])`)
+/// is deliberately NOT counted into `tag_us`: `internalize` does not
+/// tag `Star` either (`ARegex::Star(Bits::empty(), ...)`; see
+/// `internalize.rs`) -- that cost is carried by `deriv_bc`'s own
+/// derive loop on the bit-coded-derivative side, so it stays part of
+/// this function's "derive" time here too, consistently.
+pub fn pderiv_bc_timed(r: &Regex, x: char, tag_us: &mut u64) -> Vec<(Regex, AppendBits)> {
+    match r {
+        Regex::Eps => Vec::new(),
+        Regex::Phi => Vec::new(),
+
+        Regex::Lit(y) => {
+            if *y == x {
+                vec![(Regex::Eps, AppendBits::empty())]
+            } else {
+                Vec::new()
+            }
+        }
+
+        Regex::Alt(_, _) => {
+            let t = Instant::now();
+            let mut leaves: Vec<(&Regex, AppendBits)> = Vec::new();
+            flatten_alt(r, &AppendBits::empty(), &mut leaves);
+            *tag_us += t.elapsed().as_micros() as u64;
+
+            let mut out: Vec<(Regex, AppendBits)> = Vec::new();
+            for (leaf, leaf_prefix) in leaves {
+                for (r_, bs) in pderiv_bc_timed(leaf, x, tag_us) {
+                    out.push((r_, leaf_prefix.append_bits(&bs)));
+                }
+            }
+            nub2(out)
+        }
+
+        Regex::Seq(r1, r2) => {
+            if nullable(r1) {
+                let mut out: Vec<(Regex, AppendBits)> = pderiv_bc_timed(r1, x, tag_us)
+                    .into_iter()
+                    .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
+                    .collect();
+
+                let eps_bits = AppendBits::from(mk_eps_bits(r1));
+                out.extend(pderiv_bc_timed(r2, x, tag_us).into_iter().map(|(r2_, bs)| {
+                    (r2_, eps_bits.append_bits(&bs))
+                }));
+
+                nub2(out)
+            } else {
+                pderiv_bc_timed(r1, x, tag_us)
+                    .into_iter()
+                    .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
+                    .collect()
+            }
+        }
+
+        Regex::Star(r1) => {
+            let out: Vec<(Regex, AppendBits)> = pderiv_bc_timed(r1, x, tag_us)
                 .into_iter()
                 .map(|(r1_, bs)| {
                     let b = AppendBits::from(vec![false]).append_bits(&bs);
@@ -339,5 +420,49 @@ mod tests {
     #[should_panic(expected = "mk_eps_bits called on Lit")]
     fn mk_eps_bits_lit_panics() {
         mk_eps_bits(&Regex::lit('a'));
+    }
+
+    // pderiv_bc_timed must compute exactly the same residuals/bits as
+    // plain pderiv_bc -- tag_us is purely an added side channel, never
+    // a change to what's returned -- across both a flat and a nested
+    // alternation, since flatten_alt (the only thing tag_us measures)
+    // behaves differently at each depth.
+    #[test]
+    fn timed_matches_untimed_on_flat_alt() {
+        let r = Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b')));
+        for x in ['a', 'b'] {
+            let mut tag_us = 0u64;
+            assert_eq!(
+                as_set(materialize(pderiv_bc(&r, x))),
+                as_set(materialize(pderiv_bc_timed(&r, x, &mut tag_us))),
+            );
+        }
+    }
+
+    #[test]
+    fn timed_matches_untimed_on_nested_alt() {
+        let r = Regex::alt(
+            Regex::lit('a'),
+            Regex::alt(Regex::lit('b'), Regex::alt(Regex::lit('c'), Regex::lit('d'))),
+        );
+        for x in ['a', 'b', 'c', 'd'] {
+            let mut tag_us = 0u64;
+            assert_eq!(
+                as_set(materialize(pderiv_bc(&r, x))),
+                as_set(materialize(pderiv_bc_timed(&r, x, &mut tag_us))),
+            );
+        }
+    }
+
+    // Star/Seq/Lit/Eps/Phi never reach the Alt arm, so a pattern built
+    // only from those must leave tag_us at exactly 0, not just small --
+    // the Alt arm is the only code that ever increments it.
+    #[test]
+    fn tag_us_stays_zero_without_any_alt() {
+        let r = Regex::seq(Regex::star(Regex::lit('a')), Regex::lit('b'));
+        let mut tag_us = 0u64;
+        let _ = pderiv_bc_timed(&r, 'a', &mut tag_us);
+        let _ = pderiv_bc_timed(&r, 'b', &mut tag_us);
+        assert_eq!(tag_us, 0);
     }
 }

@@ -20,19 +20,35 @@ pub use pderiv_bc::{parse_pderiv_bc, parse_pderiv_bc_traced, parse_pderiv_bc_tim
 /// parsers -- only its position in the parse is:
 ///   - `setup_us`: work done before any character is consumed. For
 ///     deriv_bc this is a real encode (Regex -> ARegex via
-///     `internalize`, building the bit-annotated representation);
-///     pderiv_bc/pderiv_std have no such conversion, so their
-///     `setup_us` is just the initial `r.clone()` into the starting
-///     frontier (a plain tree clone, no bits or injection closures
-///     involved), timed as its own phase purely so all three
-///     non-recursive parsers' breakdowns stay comparable -- it is a
-///     real, nonzero number, not folded into `derive_us`. Calling it
-///     an "encode" the way deriv_bc's is would overclaim what it does.
-///     deriv_std_rec/deriv_std_loop are the ones whose `setup_us` is
-///     always 0: neither ever builds a frontier or wrapper before
-///     deriving, so there is nothing to time here at all; see
-///     `parse_deriv_std_loop_timed`'s doc comment.
-///   - `derive_us`: the per-character stepping loop, for all five.
+///     `internalize`, building the bit-annotated representation).
+///     pderiv_std has no such conversion, so its `setup_us` is just
+///     the initial `r.clone()` into the starting frontier (a plain
+///     tree clone, no bits or injection closures involved), timed as
+///     its own phase purely so all three non-recursive parsers'
+///     breakdowns stay comparable -- it is a real, nonzero number,
+///     not folded into `derive_us`. Calling it an "encode" the way
+///     deriv_bc's is would overclaim what it does. pderiv_bc also has
+///     no upfront conversion, but its `setup_us` is NOT just that
+///     trivial clone: it additionally carries the accumulated time
+///     spent in `flatten_alt` tagging `Alt` branches with bit prefixes
+///     across the whole parse, which is the exact per-character
+///     equivalent of what `internalize` does once, upfront, for
+///     deriv_bc (see `internalize.rs`'s `Alt` case) -- pulled out of
+///     what would otherwise be undifferentiated per-character work so
+///     the two bit-coded parsers' "encoding" numbers are genuinely
+///     comparable, not just positionally aligned. See
+///     `pderiv_bc_timed`'s and `parse_pderiv_bc_timed`'s own doc
+///     comments for exactly where that boundary falls -- in
+///     particular, `Star`'s own bit-tagging stays in `derive_us` on
+///     both bit-coded parsers, since `internalize` does not tag `Star`
+///     either. deriv_std_rec/deriv_std_loop are the ones whose
+///     `setup_us` is always 0: neither ever builds a frontier or
+///     wrapper before deriving, so there is nothing to time here at
+///     all; see `parse_deriv_std_loop_timed`'s doc comment.
+///   - `derive_us`: the per-character stepping loop, for all five --
+///     for pderiv_bc specifically, that loop's wall-clock time with
+///     the `setup_us` portion above subtracted back out, so the three
+///     fields still sum to the true total with nothing double-counted.
 ///   - `reconstruct_us`: producing the final `ParseTree` from whatever
 ///     witness survived. For deriv_bc/pderiv_bc this is a genuine
 ///     decode (interpreting an accumulated bit string via `decode`);
