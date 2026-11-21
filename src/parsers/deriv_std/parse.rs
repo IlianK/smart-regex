@@ -54,16 +54,26 @@ pub fn parse_deriv_std_rec(input: &str, r: &Regex) -> Option<ParseTree> {
 /// per-character measurement overhead for no benefit.
 ///
 /// Each level also drops its own `r_deriv` -- the derivative it built
-/// just to make the recursive call below -- inside the same timed
-/// window already charged to `reconstruct_us`, right before `inject`
-/// runs, instead of letting it drop implicitly when this stack frame
-/// unwinds after that window closes. `r_deriv` is only borrowed by the
-/// recursive call (`&r_deriv`), never moved into it, so it is still
-/// ours to drop once that call returns. Across the whole recursion
+/// just to make the recursive call below -- inside a timed window
+/// charged to `reconstruct_us`, instead of letting it drop implicitly
+/// when this stack frame unwinds after that window closes. `r_deriv`
+/// is only borrowed by the recursive call (`&r_deriv`), never moved
+/// into it, so it is still ours to drop once that call returns, on
+/// *either* outcome: a match, right before `inject` runs, or a
+/// non-match, right before propagating `None` onward. Both branches
+/// need their own drop -- a non-match reaching this level means the
+/// recursive call below just returned `None`, which never reaches the
+/// `inject` line at all, so folding the drop into that line's timer
+/// only would leave it untimed (and, cascading, untimed at every
+/// enclosing level too) on exactly the inputs that don't match, which
+/// is where this fix matters least if skipped quietly and most if
+/// it's wrong: half of any real corpus. Across the whole recursion
 /// this accounts for the same retained-derivative-history cost
 /// `deriv_std_loop` pays in one bulk drop of `expressions`, just paid
-/// here in per-level slices instead, with no new clock reads: it rides
-/// inside the `Instant::now()` that was already there for `inject`.
+/// here in per-level slices instead. The non-match branch costs one
+/// more clock read per level than the match branch already had, but
+/// only on levels actually returning `None`, so a full match still
+/// pays the original two reads per character, not three.
 fn parse_recursive_helper_timed(
     r: &Regex,
     chars: &[char],
@@ -83,7 +93,12 @@ fn parse_recursive_helper_timed(
             let r_deriv = deriv(r, l);
             *derive_us += t.elapsed().as_micros() as u64;
 
-            let subtree = parse_recursive_helper_timed(&r_deriv, chars, pos + 1, derive_us, reconstruct_us)?;
+            let Some(subtree) = parse_recursive_helper_timed(&r_deriv, chars, pos + 1, derive_us, reconstruct_us) else {
+                let t = Instant::now();
+                drop(r_deriv);
+                *reconstruct_us += t.elapsed().as_micros() as u64;
+                return None;
+            };
 
             let t = Instant::now();
             drop(r_deriv);
@@ -161,9 +176,13 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree> {
 /// ever carry their current state forward. Dropping the whole vector
 /// used to happen implicitly when this function returned, after
 /// `reconstruct_us`'s own timer had already stopped; it is now dropped
-/// explicitly inside that same timed window instead, right after the
-/// backward pass and `reverse_stars` are done with it, so this
-/// previously-largest unaccounted cost is now counted where it belongs.
+/// explicitly inside a timed window instead, on *both* outcomes: after
+/// the backward pass and `reverse_stars` on a match, or immediately on
+/// the `!nullable` early return for a non-match, which never reaches
+/// the backward pass (or that drop) at all. A non-match never runs
+/// `inject`, so there is no reconstruct work to fold this into here;
+/// it is added onto `derive_us` instead, since that is the phase whose
+/// own work is what left `expressions` needing to be dropped.
 pub fn parse_deriv_std_loop_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t0 = Instant::now();
     let chars: Vec<char> = input.chars().collect();
@@ -181,6 +200,9 @@ pub fn parse_deriv_std_loop_timed(input: &str, r: &Regex) -> (Option<ParseTree>,
 
     let final_r = expressions.last().unwrap();
     if !nullable(final_r) {
+        let t_drop = Instant::now();
+        drop(expressions);
+        let derive_us = derive_us + t_drop.elapsed().as_micros() as u64;
         return (None, PhaseTiming { setup_us: 0, derive_us, reconstruct_us: 0, teardown_us: 0 });
     }
 
