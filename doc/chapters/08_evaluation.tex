@@ -114,10 +114,17 @@ with translation being timed separately
 (Section~\ref{sec:eval-criteria-translation}).
 So timings cover only the parser call $p(r,w)$.
 For standard parsers, the entire call is reported as \emph{mean}.
-Bit-coded parsers split it into three phases:
-\emph{encode}, building the initial annotated state;
-\emph{derive}, consuming $w$ one character at a time; and
-\emph{decode}, converting the final bit-string into a parse tree.
+Bit-coded parsers split it into three phases, positionally aligned
+across the two but not identical in what they measure: for
+\texttt{deriv\_bc}, \emph{encode} is a genuine one-time step, building
+the initial annotated state via \texttt{internalize}. \texttt{pderiv\_bc}
+builds no such state, so its own \emph{encode} entry times only the
+initial clone into the starting frontier; the per-character bit-tagging
+it does instead (Section~\ref{sec:eval-memory-representative}) is not
+isolated here and falls under \emph{derive}.
+\emph{Derive}, consuming $w$ one character at a time, and \emph{decode},
+converting the final bit-string into a parse tree, are reported for
+both parsers.
 Four statistics are reported, aggregated differently for the two datasets:
 \begin{table}[ht]
 \centering
@@ -2687,10 +2694,20 @@ Section~\ref{sec:eval-memory-representative}. On matching
 input, this cost is offset by the quadratic deduplication
 it replaces. When every alternative rejects immediately,
 deduplication is already cheap, leaving no comparable
-saving. The \texttt{pderiv\_bc} encode step remains cheaper
-than that of \texttt{deriv\_bc} in both cases, since cloning
-the pattern tree requires less work per node than building
-the annotated state.
+saving. \texttt{pderiv\_bc}'s own \emph{encode} figure is
+smaller than \texttt{deriv\_bc}'s in both cases, but this is
+not a fair comparison of tagging cost: \texttt{pderiv\_bc}
+builds no annotated state upfront, so its \emph{encode} entry
+times only the initial clone, with no tagging in it at all.
+The real counterpart to \texttt{deriv\_bc}'s one-time tagging
+by \texttt{internalize} is the flattening cost described
+above -- paid by \texttt{pderiv\_bc} freshly on every
+character instead of once -- and it falls under \emph{derive}
+here, not \emph{encode}. Comparing the two \emph{encode}
+figures directly therefore says nothing about which parser
+tags its bits more cheaply; the flattening cost already
+discussed in this paragraph is the real counterpart, and it
+is not small.
 
 Memory tells a sharper version of the same story. On the widest
 swept alternations (Section~\ref{sec:eval-memory-representative}),
