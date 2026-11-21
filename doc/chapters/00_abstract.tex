@@ -1,0 +1,43 @@
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+Regular expression matching is foundational to lexing, input
+validation, and search, but once the Boolean membership question
+becomes parsing -- recovering the shape of a match, not just whether
+one exists -- the choice of disambiguation policy and internal
+representation determines both correctness and performance.
+Backtracking engines risk exponential blowup on adversarial input;
+automata-based approaches need costly precomputation or suffer
+state-space explosion. Brzozowski's derivatives and Antimirov's
+partial derivatives offer an alternative that builds no automaton in
+advance, instead recomputing the relevant residual expression on
+demand, one input symbol at a time. \citet{sulzmannlu2014} formalized
+a derivative-based POSIX parser, including a bit-coded variant that
+defers tree construction to a final decode step, and, in earlier
+work, \citet{sulzmannlu2012} studied a partial-derivative-based
+approach to submatching -- but neither extended partial derivatives
+to full, greedily disambiguated parse-tree construction, and both
+studied their constructions in Haskell, with little attention to
+practical execution time or memory behavior.
+
+This thesis implements five parser candidates in Rust: the standard
+derivative parser in recursive and iterative form, its bit-coded
+variant, and a partial-derivative parser -- in both plain and
+bit-coded form -- built by threading Sulzmann and Lu's POSIX
+injection rules through the partial-derivative rules, recovering a
+full, non-POSIX parse tree under greedy disambiguation. All five are
+evaluated for execution time, memory consumption, and translation
+cost against a real-world corpus~\citep{s2elab-regexeval-dataset} and
+a synthetic stress-test dataset designed to isolate specific
+worst-case mechanisms.
+
+Across both datasets, the five parsers order consistently from
+slowest to fastest: the recursive standard parser, its iterative
+form, the bit-coded standard parser, the plain partial-derivative
+parser, and the bit-coded partial-derivative parser. Bit-coding
+speeds up the standard parser by four to five times while cutting its
+peak memory by roughly two orders of magnitude, but brings little
+benefit to the already-efficient partial-derivative parser. No family
+is uniformly superior: relative performance depends on how fast each
+pattern's residual set grows under its input, so the right choice is
+workload-dependent rather than universal.

@@ -114,10 +114,17 @@ with translation being timed separately
 (Section~\ref{sec:eval-criteria-translation}).
 So timings cover only the parser call $p(r,w)$.
 For standard parsers, the entire call is reported as \emph{mean}.
-Bit-coded parsers split it into three phases:
-\emph{encode}, building the initial annotated state;
-\emph{derive}, consuming $w$ one character at a time; and
-\emph{decode}, converting the final bit-string into a parse tree.
+Bit-coded parsers split it into three phases, positionally aligned
+across the two but not identical in what they measure: for
+\texttt{deriv\_bc}, \emph{encode} is a genuine one-time step, building
+the initial annotated state via \texttt{internalize}. \texttt{pderiv\_bc}
+builds no such state, so its own \emph{encode} entry times only the
+initial clone into the starting frontier; the per-character bit-tagging
+it does instead (Section~\ref{sec:eval-memory-representative}) is not
+isolated here and falls under \emph{derive}.
+\emph{Derive}, consuming $w$ one character at a time, and \emph{decode},
+converting the final bit-string into a parse tree, are reported for
+both parsers.
 Four statistics are reported, aggregated differently for the two datasets:
 \begin{table}[ht]
 \centering
@@ -305,25 +312,29 @@ but are not required too, since their disambiguation policies differ.
 
 The evaluation uses two datasets (Table~\ref{tab:dataset-summary}): 
 S2ELab, a corpus of human-authored
-patterns, and a synthetic set of manually authored patterns designed to
-stress the parsers.
+patterns, and a synthetic set of AI-generated, manually verified
+patterns designed to stress the parsers.
 
 \begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrr}
 \hline
-Dataset & Authored & Duplicate & Rejected & Accepted & Unanchored & Fully-Anchored & Inputs \\
+Dataset & Pattern $n$ & Input $n$ & Rejected & Accepted \\
 \hline
-S2ELab     & 762 & 7 & 177 & 578 & 115 & 463 & 11\,395 \\
-Synthetic  & 112 & 0 &   0 & 112 &   0 & 112 &    891 \\
+S2ELab     &  762 & 18\,930 & 292 & 463 \\
+Synthetic  &  112 &    891  &   0 & 112 \\
 \hline
 \end{tabular*}
-\caption{Benchmark scope. \emph{Authored} = \emph{Duplicate} + \emph{Rejected}
-+ \emph{Accepted}, and \emph{Accepted} = \emph{Full-Anchored} + \emph{Unanchored}.
-Only the \emph{Full-Anchored} patterns are benchmarked after stripping, and the
-\emph{Inputs} column counts entries for those patterns only.}
+\caption{Dataset composition. \emph{Pattern~$n$} and \emph{Input~$n$} are
+each corpus as authored, before any filtering; S2ELab's own given
+matches and non-matches are both counted. A \emph{Rejected} pattern uses
+an unsupported construct; an \emph{Accepted} pattern is only one in the
+shape of a fully anchored pattern. The remaining 7 S2ELab patterns are
+byte-identical duplicates, dropped before classification. Of the 463
+accepted patterns, 11\,395 of the 18\,930 original inputs survive
+deduplication.}
 \label{tab:dataset-summary}
 \end{table}
 
@@ -343,18 +354,20 @@ so the corpus is not balanced between the two.
 The source patterns conventionally use \texttt{\textasciicircum} 
 and \texttt{\textdollar} as beginning- and end-of-input anchors. 
 A pattern surrounded by anchors requires a full-string match, 
-where a pattern without them can match a substring. 
+where a pattern without them is intended for substring matching. 
 As described in Section~\ref{sec:frontend-rejected}, 
-anchors are rejected constructs.
+substring matching is not supported and anchors are rejected constructs.
 However, entries with fully anchored patterns can still be used by stripping them.
-Since the parsers perform full-string matching, 
+Since the parsers perform full-string matching,
 the stripped pattern accepts exactly 
 the inputs intended by the original anchored pattern.
+So the benchmarks only use the 463 accepted patterns after anchor stripping.
 Figure~\ref{fig:s2elab-pipeline} shows this 
 as part of the data preparation, that turns one example pattern into an $entry$.
 
 \begin{figure}[H]
 \centering
+\small
 \begin{tikzpicture}[
   stage/.style={draw, rounded corners=2pt, minimum height=7mm,
                 minimum width=2.3cm, font=\small, align=center,
@@ -404,9 +417,21 @@ The surviving triples $(r,w,e)$ are the defined entries.}
 \label{fig:s2elab-pipeline}
 \end{figure}
 
-The benchmarks only use the 463 fully anchored patterns after stripping, 
-excluding the 115 unanchored ones, while 177 are rejected, 
-with the causes summarised in Table~\ref{tab:corpus-rejection-causes}.
+Filtering unsupported constructs excludes 292 S2ELab patterns,
+potentially introducing selection bias into the 463-pattern benchmark scope.
+To assess this, the kept and excluded subsets are compared.
+Their mean counts of matching and non-matching inputs are similar
+(13.0/12.0 versus 12.6/11.9 per pattern), as are their mean input
+lengths (17.3/8.4 versus 17.8/9.2 characters).
+However, the excluded patterns themselves
+are longer on average (95 versus 70 characters),
+consistent with their unsupported constructs.
+Thus, filtering changes the regex characteristics but shows no
+substantial shift in the measured input characteristics.
+
+However, differences in regex structure may still affect runtime
+and memory behavior, so the results cannot be assumed to
+generalize to the excluded patterns or other corpora.
 
 \begin{table}[H]
 \centering
@@ -415,29 +440,36 @@ with the causes summarised in Table~\ref{tab:corpus-rejection-causes}.
 \hline
 Cause & S2ELab patterns \\
 \hline
-Anchor (non-strippable) & 106 \\
+Substring Search (Anchors)                  & 221 \\
 Lookaround                                  &  43 \\
 Word boundary                               &  23 \\
 Backreference                               &   3 \\
 Other (node cap, syntax errors)             &   2 \\
 \hline
-Total                                       & 177 \\
+Total                                       & 292 \\
 \hline
 \end{tabular*}
-\caption{S2ELab patterns rejected by the frontend, broken down by cause.}
+\caption{S2ELab patterns rejected, broken down by cause.
+\emph{Substring Search} covers every pattern not in the fully anchored
+\texttt{\textasciicircum\ldots\textdollar} shape this evaluation
+requires, whether because it has no anchor at all or an anchor placed
+elsewhere; the remaining causes are rejected by the frontend for an
+unsupported construct.}
 \label{tab:corpus-rejection-causes}
 \end{table}
 
+
+
 %
 %
 %
 
-\clearpage
 \subsection{Synthetic Stress Set}
 \label{sec:eval-pathological}
 
-The synthetic set contains 112 manually authored patterns
-designed to stress the parsers and investigate 
+The synthetic set contains 112 patterns, generated with the
+assistance of a large language model and manually verified,
+designed to stress the parsers and investigate
 how their costs grow with input length and pattern size.
 All patterns are intended for full-string matching. 
 Each row defines a base pattern 
@@ -493,6 +525,36 @@ gives the resulting pattern and entry counts.
 For example, category A has 160 entries from 16 patterns, each swept
 over $n \in \{10, 20, 30, 1\,000, 10\,000\}$ at $p=100$ and tested
 with both outcomes ($16 \times 5 \times 2 = 160$).
+
+The patterns were generated with the assistance of a large
+language model using category-specific prompts that specified
+the intended stress mechanism and alphabet.
+Table~\ref{tab:patho-prompts} reconstructs the representative
+generation requirements for each category.
+The generated patterns and test inputs were subsequently
+reviewed and validated against actual parser behaviour.
+Several incorrectly labelled matching and non-matching inputs
+were corrected, and the input-size ranges in
+Table~\ref{tab:patho-categories} were calibrated empirically
+to produce meaningful stress tests.
+
+Categories A, B, C, D, and F primarily use small alphabets
+with repeated characters such as \texttt{a}, \texttt{b},
+and \texttt{x}. This was a deliberate choice to increase
+ambiguity in how an input can be divided across quantifiers,
+alternatives, or repeated groups. Repeated characters allow
+multiple branches to consume the same input, while a more
+varied alphabet would often distinguish branches earlier
+and reduce the intended stress.
+
+Category E mainly uses two-character alphabets to examine
+overlapping prefixes and competing parse structures.
+Categories H, I, J, K, and L target additional properties,
+including adjacent repetitions, input-length scaling,
+pattern-size growth, and construct coverage. Their alphabets
+and input structures were selected according to the
+specific mechanism under investigation.
+
 \begin{table}[H]
 \centering
 \small
@@ -549,6 +611,43 @@ seven each stress one cost mechanism. \emph{Patterns} counts distinct
 hand-curated or generated pattern definitions; \emph{Entries} counts the
 (pattern, input) pairs.}
 \label{tab:patho-categories}
+\end{table}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l p{15cm}}
+\hline
+Cat. & Representative generation requirements \\
+\hline
+A & Nested quantifiers (\texttt{(a+)+}, \texttt{(a*)*});
+    unary alphabet; ambiguous repetition boundaries. \\[3pt]
+B & Overlapping alternatives (\texttt{(a|aa)+});
+    shared prefixes; repeated characters. \\[3pt]
+C & Bounded repetition around quantified or wildcard groups
+    (\texttt{(.*a)\{1,10\}}); translation-time unrolling. \\[3pt]
+D & Adjacent bounded or optional repetitions
+    (\texttt{(a?)\{N\}a\{N\}}); unary alphabet;
+    inputs near acceptance boundaries. \\[3pt]
+E & Prefix-overlapping alternatives (\texttt{(ab|a)+});
+    mainly binary alphabet; long repeated inputs. \\[3pt]
+F & Quantified alternatives followed by a required literal
+    (\texttt{(a|b)*c}); late acceptance or rejection. \\[3pt]
+H & Multiple adjacent unbounded groups
+    (\texttt{(.+)(.+)}); repeated inputs;
+    ambiguous group boundaries. \\[3pt]
+I & Simple patterns (\texttt{a+}, \texttt{[ab]*});
+    small alphabet; very long inputs. \\[3pt]
+J & Large alternations, tries, or repeated groups;
+    many distinct words; short inputs. \\[3pt]
+K & Large patterns combined with long inputs;
+    generated words and repeated characters. \\[3pt]
+L & Small baseline and edge-case patterns;
+    literals, classes, bounds, escapes, and empty expressions. \\
+\hline
+\end{tabular*}
+\caption{AI generation requirements per category used in prompts.}
+\label{tab:patho-prompts}
 \end{table}
 
 %
@@ -2500,6 +2599,24 @@ least memory on the S2ELab corpus. Representing the residual
 as a set of states rather than one combined expression limits
 the alternation growth seen with standard derivatives.
 
+This difference is sharpest on wide alternations, where it also
+separates \texttt{pderiv\_bc} from \texttt{deriv\_bc}, not only from
+the standard pair. \texttt{deriv\_bc}'s simplification pass removes
+duplicate branches of a combined \texttt{Alt} expression with
+\texttt{dedup\_first} (Section~\ref{sec:simp-impl}), which compares
+every pair of flattened branches and costs $O(p^2)$ for $p$
+alternatives. \texttt{pderiv\_bc} deduplicates its own flattened
+frontier with \texttt{nub2} (Section~\ref{sec:pderiv-bc-impl}), a
+hash-set membership test costing $O(p)$ for the same $p$ branches.
+Both parsers flatten nested alternations into one list before
+deduplicating it, avoiding a cost that would otherwise be repeated
+once per nesting level; what still differs is the cost of the single
+deduplication pass itself, pairwise for \texttt{deriv\_bc} against
+hash-based for \texttt{pderiv\_bc}. The E37/E38 phase breakdown
+(Table~\ref{tab:patho-phases-e37}) reflects exactly this: both
+parsers' derive time grows with $p$, but \texttt{deriv\_bc}'s grows
+faster.
+
 Within this pair, bit-coding has mixed effects. On the full
 corpus, \texttt{pderiv\_bc} is marginally faster
 (0.664\,ms against 0.759\,ms for \texttt{pderiv\_std}) and
@@ -2577,10 +2694,20 @@ Section~\ref{sec:eval-memory-representative}. On matching
 input, this cost is offset by the quadratic deduplication
 it replaces. When every alternative rejects immediately,
 deduplication is already cheap, leaving no comparable
-saving. The \texttt{pderiv\_bc} encode step remains cheaper
-than that of \texttt{deriv\_bc} in both cases, since cloning
-the pattern tree requires less work per node than building
-the annotated state.
+saving. \texttt{pderiv\_bc}'s own \emph{encode} figure is
+smaller than \texttt{deriv\_bc}'s in both cases, but this is
+not a fair comparison of tagging cost: \texttt{pderiv\_bc}
+builds no annotated state upfront, so its \emph{encode} entry
+times only the initial clone, with no tagging in it at all.
+The real counterpart to \texttt{deriv\_bc}'s one-time tagging
+by \texttt{internalize} is the flattening cost described
+above -- paid by \texttt{pderiv\_bc} freshly on every
+character instead of once -- and it falls under \emph{derive}
+here, not \emph{encode}. Comparing the two \emph{encode}
+figures directly therefore says nothing about which parser
+tags its bits more cheaply; the flattening cost already
+discussed in this paragraph is the real counterpart, and it
+is not small.
 
 Memory tells a sharper version of the same story. On the widest
 swept alternations (Section~\ref{sec:eval-memory-representative}),
@@ -2603,14 +2730,6 @@ and motivates comparing the two parser families separately
 in Section~\ref{sec:eval-agreement}.
 
 \subsection{Threats to validity}
-
-\textbf{Corpus scope.} S2ELab represents one domain and
-its conventions; other corpora may have different acceptance
-rates and timing profiles. Timing, memory, and parse agreement
-use the 463-pattern default scope
-(Section~\ref{sec:eval-s2elab}). Including the remaining
-115 unanchored patterns could
-change the absolute results and possibly the candidate ranking.
 
 \textbf{The synthetic set.} Its 112 rows isolate individual
 complexity mechanisms at controlled scales rather than
