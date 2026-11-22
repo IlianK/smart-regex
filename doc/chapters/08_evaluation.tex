@@ -908,23 +908,29 @@ where it keeps the derivation sequence for the backward pass
 \hline
 Parser & Stat. & Setup & Derive & Reconstruct & Teardown & Total \\
 \hline
-\texttt{deriv\_std\_loop} & Mean   & 0.000 & 38.633 & 11.178 & 0.001 & 49.812 \\
-                          & Median & 0.000 &  0.200 &  0.005 & 0.000 &  0.205 \\
-\texttt{deriv\_bc}        & Mean   & 0.094 &  1.552 &  0.016 & 0.001 &  1.664 \\
-                          & Median & 0.040 &  0.246 &  0.001 & 0.000 &  0.287 \\
-\texttt{pderiv\_std}      & Mean   & 0.025 &  0.733 &  0.012 & 0.001 &  0.771 \\
-                          & Median & 0.011 &  0.095 &  0.002 & 0.000 &  0.108 \\
-\texttt{pderiv\_bc}       & Mean   & 0.099 &  0.608 &  0.013 & 0.001 &  0.722 \\
-                          & Median & 0.018 &  0.082 &  0.001 & 0.000 &  0.101 \\
+\texttt{deriv\_std\_loop} & Mean   & 0.000 & 40.604 & 11.767 & 0.001 & 52.391 \\
+                          & Median & 0.000 &  0.200 &  0.005 & 0.000 &  0.235 \\
+\texttt{deriv\_bc}        & Mean   & 0.090 &  1.527 &  0.015 & 0.001 &  1.639 \\
+                          & Median & 0.040 &  0.246 &  0.001 & 0.000 &  0.296 \\
+\texttt{pderiv\_std}      & Mean   & 0.024 &  0.714 &  0.012 & 0.001 &  0.752 \\
+                          & Median & 0.011 &  0.095 &  0.002 & 0.000 &  0.114 \\
+\texttt{pderiv\_bc}       & Mean   & 0.097 &  0.593 &  0.013 & 0.001 &  0.706 \\
+                          & Median & 0.018 &  0.082 &  0.001 & 0.000 &  0.109 \\
 \hline
 \end{tabular*}
 \caption{Four-phase timing breakdown (ms) over the same corpus scope as
-Table~\ref{tab:corpus-timing}, mean and median per phase.
-\texttt{deriv\_std\_loop}'s own \emph{Reconstruct} is its backward
-injection pass; its mean is dominated by the same slow entries as
-Table~\ref{tab:corpus-timing}'s, while its median shows the typical
-entry costs almost nothing to reconstruct, same as the other three.
-\texttt{deriv\_std\_rec} is omitted (Section~\ref{sec:eval-criteria-timing}).}
+Table~\ref{tab:corpus-timing}, mean (macro-averaged per pattern, as in
+Table~\ref{tab:eval-timing-statistics}) and median (pooled per entry)
+per phase. \texttt{deriv\_std\_loop}'s own \emph{Reconstruct} is its
+backward injection pass; its mean is dominated by the same slow
+entries as Table~\ref{tab:corpus-timing}'s, while its median shows
+the typical entry costs almost nothing to reconstruct, same as the
+other three. Each row's four phases sum to its own \emph{Total}
+within measurement noise for \emph{Mean}; for \emph{Median},
+\emph{Total} is each entry's own median total time rather than the
+sum of the per-phase medians beside it, since medians do not add the
+way means do. \texttt{deriv\_std\_rec} is omitted
+(Section~\ref{sec:eval-criteria-timing}).}
 \label{tab:corpus-timing-phases}
 \end{table}
 
@@ -1164,7 +1170,7 @@ and the partial-derivative pair are far more robust throughout, crashing
 nowhere in A--H and timing out only on \texttt{deriv\_bc} in F and on all
 three in I, J, and K (Table~\ref{tab:patho-timing-size}).
 The partial-derivative variants outperform
-\texttt{deriv\_bc} on median in A, B, E, F, J, and K.
+\texttt{deriv\_bc} on median in A, B, E, F, I, J, and K.
 J reverses on mean: \texttt{deriv\_bc}'s 47.45\,ms is far below
 \texttt{pderiv\_std}'s 3\,662.92 and \texttt{pderiv\_bc}'s 3\,093.44,
 pulled up by a few entries near J's own maxima (35\,048.00 and
@@ -1176,11 +1182,11 @@ In D, simplification merges residuals
 that are equivalent but not syntactically equal.
 In H, the single expression avoids the per-element cost of a residual set
 that grows with the number of groups.
-In I, all three exclude exactly 4 of 60 entries to timeout, with no
-difference in robustness between them; the partial-derivative pair is
-nonetheless far faster on the entries it completes, with a median
-around a fifth of \texttt{deriv\_bc}'s
-(195.11 and 193.99\,ms against 991.08).
+On I, the median margin above comes with no difference in
+robustness: all three exclude exactly 4 of 60 entries to timeout,
+so the partial-derivative pair's median of around a fifth of
+\texttt{deriv\_bc}'s (195.11 and 193.99\,ms against 991.08) describes
+the same measured population for all three, not an easier subset.
 
 Within the partial-derivative pair,
 the mean favours \texttt{pderiv\_bc} in six of these eleven categories
@@ -3034,9 +3040,14 @@ slower, on both matching and non-matching input.
 For a $p$-way alternation of equal-length words
 (Table~\ref{tab:patho-phases-e37}), \texttt{deriv\_bc}'s derive time
 is roughly $2.5\times$ \texttt{pderiv\_bc}'s at $p=10\,000$ on
-matching input, and within a similar band on non-matching input
-(for instance $2.9\times$ at $p=10\,000$: 23.41\,ms against
-7.98\,ms). Rejecting
+matching input; non-matching input shows a comparable gap in total
+per-call time, $2.9\times$ at $p=10\,000$ (23.41\,ms against
+7.98\,ms), though derive alone diverges further there (about
+$7.5\times$: 14.02\,ms against 1.88\,ms) -- \texttt{pderiv\_bc}'s own
+\emph{setup} there (6.10\,ms) makes up more of its total than
+\texttt{deriv\_bc}'s does (9.39\,ms of 23.41\,ms), narrowing the gap
+once setup and derive are combined into the total figure quoted
+above. Rejecting
 \texttt{"zzzz"} still requires deriving all $p$ alternatives, but
 none survive, leaving nothing to deduplicate; \texttt{deriv\_bc}'s
 branch deduplication (Figure~\ref{fig:dedup-first-rust}) accordingly
