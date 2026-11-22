@@ -1298,10 +1298,40 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
 \end{verbatim}
 \caption{\texttt{dedup\_first}: keeps the first occurrence of each
 regex shape among \texttt{branches}, bits aside. \texttt{hash\_shape}
-and \texttt{same\_shape} are discussed further, with their own
-complexity, in Section~\ref{sec:eval-cost-bit-coding}
-(Figure~\ref{fig:dedup-first-rust}).}
+(Figure~\ref{fig:hash-shape-ch5-rust}) computes that shape; both are
+discussed further, with their own complexity, in
+Section~\ref{sec:eval-cost-bit-coding}.}
 \label{fig:dedup-first-ch5-rust}
+\end{figure}
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+fn hash_shape<H: Hasher>(r: &ARegex, state: &mut H) {
+    match r {
+        ARegex::Phi => 0u8.hash(state),
+        ARegex::Eps(_) => 1u8.hash(state),
+        ARegex::Lit(_, c) => { 2u8.hash(state); c.hash(state); }
+        ARegex::Alt(_, a, b) => {
+            3u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Seq(_, a, b) => {
+            4u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Star(_, a) => { 5u8.hash(state); hash_shape(a, state); }
+    }
+}
+\end{verbatim}
+\caption{\texttt{hash\_shape}: the structural hash \texttt{dedup\_first}
+buckets branches by -- a discriminant tag per variant, plus whatever
+\texttt{same\_shape} itself recurses into, always skipping the node's
+own bits, so two branches of the same shape always land in the same
+bucket.}
+\label{fig:hash-shape-ch5-rust}
 \end{figure}
 
 \begin{figure}[H]

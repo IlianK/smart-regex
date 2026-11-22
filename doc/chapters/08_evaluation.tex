@@ -2190,46 +2190,17 @@ as one combined expression to flatten and simplify in the first place --
 a narrower gap than on \texttt{deriv\_std\_loop}, now that \texttt{deriv\_bc}'s
 own deduplication is $O(p)$ rather than $O(p^2)$.
 \texttt{deriv\_bc} still pays more on E38 than on E37 at every $p$.
-\texttt{hash\_shape} (Figure~\ref{fig:hash-shape-rust}) walks a word's
+\texttt{hash\_shape} (Figure~\ref{fig:hash-shape-ch5-rust},
+Chapter~\ref{sec:derivative-parser}) walks a word's
 whole chain of \texttt{Seq} nodes to hash it, one recursive call per
 character, so its cost tracks word length regardless of whether that
 word shares a prefix with any other.
 E38's numbered words are longer than E37's fixed four-letter ones,
 so hashing each one costs more.
 
-\begin{figure}[H]
-\small
-\begin{verbatim}
-fn dedup_first(branches: &mut Vec<ARegex>) {
-    let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
-    let mut keep = vec![true; branches.len()];
-    for idx in 0..branches.len() {
-        let mut hasher = DefaultHasher::new();
-        hash_shape(&branches[idx], &mut hasher);
-        let h = hasher.finish();
-
-        let bucket = buckets.entry(h).or_default();
-        if bucket.iter().any(|&prev| same_shape(&branches[prev], &branches[idx])) {
-            keep[idx] = false;
-        } else {
-            bucket.push(idx);
-        }
-    }
-    let mut idx = 0;
-    branches.retain(|_| { let k = keep[idx]; idx += 1; k });
-}
-\end{verbatim}
-\caption{\texttt{dedup\_first} (Figure~\ref{fig:simp-rust}): groups
-branches by a structural hash of their shape, bits aside, and runs
-\texttt{same\_shape} only within one hash bucket to confirm a real
-match before dropping a later branch in favour of the earliest one
-of its shape.}
-\label{fig:dedup-first-rust}
-\end{figure}
-
-\clearpage
-Figure~\ref{fig:dedup-first-rust} hashes each of the $p$ branches once
-with \texttt{hash\_shape} (Figure~\ref{fig:hash-shape-rust}), which
+\texttt{dedup\_first} (Figure~\ref{fig:dedup-first-ch5-rust},
+Section~\ref{sec:simp}) hashes each of the $p$ branches once
+with \texttt{hash\_shape}, which
 mirrors \texttt{same\_shape}'s own recursion arm for arm, so two
 branches of the same shape always land in the same bucket; a hash
 collision between differently shaped branches costs one extra,
@@ -2258,75 +2229,15 @@ falling back to a pairwise check within one bucket.
 made insensitive to bit-code history, 
 so identical branches merge regardless of parse path.
 
-\begin{figure}[H]
-\small
-\begin{verbatim}
-fn hash_shape<H: Hasher>(r: &ARegex, state: &mut H) {
-    match r {
-        ARegex::Phi => 0u8.hash(state),
-        ARegex::Eps(_) => 1u8.hash(state),
-        ARegex::Lit(_, c) => { 2u8.hash(state); c.hash(state); }
-        ARegex::Alt(_, a, b) => {
-            3u8.hash(state);
-            hash_shape(a, state);
-            hash_shape(b, state);
-        }
-        ARegex::Seq(_, a, b) => {
-            4u8.hash(state);
-            hash_shape(a, state);
-            hash_shape(b, state);
-        }
-        ARegex::Star(_, a) => { 5u8.hash(state); hash_shape(a, state); }
-    }
-}
-\end{verbatim}
-\caption{\texttt{hash\_shape}: a discriminant tag per variant, plus
-whatever \texttt{same\_shape} itself recurses into, always skipping
-the node's own bits.}
-\label{fig:hash-shape-rust}
-\end{figure}
-
-%
-
 The partial-derivative pair deduplicates via a related but distinct
 mechanism: \texttt{nub2} and \texttt{nub\_tree} are also hash-based
 and $O(p)$, but hash the whole residual directly rather than a
 structural shape, differing only in what carries along with each one
 (a bit vector in \texttt{pderiv\_bc}, an injection closure in
 \texttt{pderiv\_std}). Since the mechanism is otherwise the same,
-only \texttt{pderiv\_bc}'s is shown (Figure~\ref{fig:nub2-rust}).
-
-\begin{figure}[H]
-\small
-\begin{verbatim}
-pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) 
--> Vec<(Regex, AppendBits)> {
-    let mut out = Vec::new();
-    for (r, bits) in frontier {
-        for (r_next, extra) in pderiv_bc(r, x) {
-            out.push((r_next, bits.append_bits(&extra)));
-        }
-    }
-    nub2(out)
-}
-
-pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
-    let mut seen: HashSet<Regex> = HashSet::with_capacity(pairs.len());
-    let mut out = Vec::with_capacity(pairs.len());
-    for (r, bs) in pairs {
-        if seen.insert(r.clone()) {
-            out.push((r, bs));
-        }
-    }
-    out
-}
-\end{verbatim}
-\caption{\texttt{pderiv\_bc}'s \texttt{step\_frontier} and \texttt{nub2}.
-Each residual steps through \texttt{pderiv\_bc}, then results are
-deduplicated once via a \texttt{HashSet} keyed on the residual,
-implementing \citet{sulzmannlu2012} Def.~8.}
-\label{fig:nub2-rust}
-\end{figure}
+only \texttt{pderiv\_bc}'s is shown, alongside \texttt{step\_frontier}
+which calls it (Figure~\ref{fig:step-frontier-bc-rust},
+Section~\ref{sec:pderiv-bc-state-set-impl}).
 
 Before the alternation splits into separate residuals, the first call
 must flatten the whole $p$-deep nested \texttt{Alt} into its $p$ leaves
@@ -2340,7 +2251,7 @@ E38's longer shared prefix repeats this cost more often than E37.
 per-residual comparison at all.
 
 \texttt{deriv\_bc} deduplicates its own branches the same way in
-spirit, keyed on shape (Figure~\ref{fig:hash-shape-rust}) rather than
+spirit, keyed on shape (Figure~\ref{fig:hash-shape-ch5-rust}) rather than
 on the whole residual the way \texttt{nub2} and \texttt{nub\_tree} do,
 since a combined annotated expression has branches to flatten and
 deduplicate in the first place, where a partial-derivative frontier
@@ -3266,7 +3177,7 @@ once setup and derive are combined into the total figure quoted
 above. Rejecting
 \texttt{"zzzz"} still requires deriving all $p$ alternatives, but
 none survive, leaving nothing to deduplicate; \texttt{deriv\_bc}'s
-branch deduplication (Figure~\ref{fig:dedup-first-rust}) accordingly
+branch deduplication (Figure~\ref{fig:dedup-first-ch5-rust}) accordingly
 contributes little extra cost here, yet \texttt{pderiv\_bc} is
 still the faster parser on this side too, so deduplication cost
 alone does not account for the gap between them.

@@ -1141,11 +1141,16 @@ The full sequence is materialized, and reversed back into the right
 order, only once, inside \texttt{decode}'s single call at the end of the
 parse (Section~\ref{sec:pderiv-bc-parser}), never on an intermediate step.
 Figure~\ref{fig:step-frontier-bc-rust} shows the resulting
-\texttt{step\_frontier}.
+\texttt{step\_frontier}, together with \texttt{nub2}, the
+deduplication it calls once every character: both hash-based and
+$O(p)$ like \texttt{dedup\_first} (Section~\ref{sec:simp}), but
+hashing the whole residual \texttt{Regex} directly via a
+\texttt{HashSet} rather than a structural shape, since here there is
+no leading bit-sequence to skip over.
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) 
+pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char)
     -> Vec<(Regex, AppendBits)> {
     let mut out = Vec::new();
     for (r, bits) in frontier {
@@ -1155,9 +1160,23 @@ pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char)
     }
     nub2(out)
 }
+
+pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
+    let mut seen: HashSet<Regex> = HashSet::with_capacity(pairs.len());
+    let mut out = Vec::with_capacity(pairs.len());
+    for (r, bs) in pairs {
+        if seen.insert(r.clone()) {
+            out.push((r, bs));
+        }
+    }
+    out
+}
 \end{verbatim}
 \caption{\texttt{step\_frontier} (bit-coded): counterpart of
-Figure~\ref{fig:step-frontier-rust}, \texttt{nub2} for \texttt{nub\_tree}.}
+Figure~\ref{fig:step-frontier-rust}. Each residual steps through
+\texttt{pderiv\_bc}, then results are deduplicated once via
+\texttt{nub2}, keyed on the residual itself, implementing
+\citet{sulzmannlu2012} Def.~8.}
 \label{fig:step-frontier-bc-rust}
 \end{figure}
 
