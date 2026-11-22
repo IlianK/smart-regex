@@ -1311,21 +1311,25 @@ that records only a Kleene star's last match,
 allowing comparison with TDFA, RE2, and C-POSIX. 
 The candidate results are therefore not directly comparable to the paper's curves.
 Both inputs grow roughly linearly.
-The lower panels show the
-partial-derivative parsers' timings relative to \texttt{deriv\_bc}.
-On P60, \texttt{pderiv\_std} is consistently faster than
-\texttt{deriv\_bc} at every sampled length, by roughly 6\% to 26\%:
+The lower panels show each of the three candidates' time as a ratio
+to whichever of the three is fastest at that sampled length, so the
+fastest always sits at $1.0$ and the other two show how far behind
+it they fall.
+On P60, \texttt{pderiv\_std} is fastest at every sampled length:
 \texttt{deriv\_bc} holds one residual that is simplified after every
 character, while \texttt{pderiv\_std} keeps a set of distinct
 residuals and checks each new one against it once, which is cheaper
-here. \texttt{pderiv\_bc} tracks \texttt{deriv\_bc} far more closely
-on this row, within about 16\% in either direction at every sampled
-length rather than consistently favouring one side.
-On P61 both partial-derivative variants stay close to parity with
-\texttt{deriv\_bc} throughout, each within roughly 30\% in either
-direction depending on the sampled length and crossing back and forth
-across the $1\times$ line;
-neither is consistently faster or slower at this row's scale.
+here. Its margin over the other two ranges from about 3\% to 42\%,
+and which of \texttt{deriv\_bc} or \texttt{pderiv\_bc} is the closer
+second changes from point to point rather than one consistently
+leading the other.
+On P61 the fastest parser changes repeatedly across the sweep --
+\texttt{deriv\_bc} leads at five of the eleven sampled lengths,
+\texttt{pderiv\_std} at another five, and \texttt{pderiv\_bc} at the
+remaining one ($n=15$) -- yet all three stay within about 34\% of
+whichever is fastest at each point, so despite the swapping the three
+remain close to parity throughout; neither is consistently faster or
+slower at this row's scale.
 All three candidates reach $n=10{,}000{,}000$ on both rows without
 crashing or timing out (Table~\ref{tab:patho-crash-thresholds}).
 \begin{figure}[H]
@@ -1362,27 +1366,31 @@ crashing or timing out (Table~\ref{tab:patho-crash-thresholds}).
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=2.4cm,
+  height=5cm,
   xmode=log,
   xlabel={Input length (characters)},
-  ylabel={Ratio to \texttt{deriv\_bc}},
+  ylabel={Ratio to fastest},
   label style={font=\small},
   tick label style={font=\scriptsize},
   grid=major,
-  ymin=0.5, ymax=1.3,
-  ytick={0.6,0.8,1,1.2},
+  ymin=0.95, ymax=1.45,
+  ytick={1,1.1,1.2,1.3,1.4},
 ]
 \addplot[dashed, gray, no markers]
   coordinates {(10,1) (10000000,1)};
+\addplot[mark=*, thick, blue]
+  coordinates {(10,1.170) (50,1.191) (100,1.352) (500,1.068) (1000,1.143) (5000,1.230) (20000,1.177) (100000,1.165) (300000,1.176) (1000000,1.135) (5000000,1.153) (10000000,1.145)};
 \addplot[mark=square*, thick, red]
-  coordinates {(10,0.919) (50,1.014) (100,1.049) (500,1.107) (1000,1.160) (5000,0.838) (20000,0.932) (100000,0.973) (300000,0.958) (1000000,0.994) (5000000,1.007) (10000000,1.023)};
+  coordinates {(10,1.075) (50,1.208) (100,1.419) (500,1.183) (1000,1.326) (5000,1.031) (20000,1.097) (100000,1.133) (300000,1.127) (1000000,1.128) (5000000,1.161) (10000000,1.171)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(10,0.855) (50,0.839) (100,0.740) (500,0.936) (1000,0.875) (5000,0.813) (20000,0.850) (100000,0.859) (300000,0.850) (1000000,0.881) (5000000,0.868) (10000000,0.874)};
+  coordinates {(10,1.000) (50,1.000) (100,1.000) (500,1.000) (1000,1.000) (5000,1.000) (20000,1.000) (100000,1.000) (300000,1.000) (1000000,1.000) (5000000,1.000) (10000000,1.000)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P60, \texttt{(a|b|ab)*} against \texttt{a} repeated,
-to the scale of \citet{sulzmannlu2014}'s Figure~7(a). The lower panel plots
-the partial-derivative pair as a ratio to \texttt{deriv\_bc}.}
+to the scale of \citet{sulzmannlu2014}'s Figure~7(a). The lower panel
+plots each parser's time as a ratio to whichever of the three is
+fastest at that $n$, so the fastest always sits at $1.0$.
+\texttt{pderiv\_std} is fastest at every sampled length here.}
 \label{fig:patho-fig7a}
 \end{figure}
 
@@ -1463,28 +1471,31 @@ fails long before this point and is omitted
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=2.4cm,
+  height=5cm,
   xmode=log,
   xlabel={Input length (characters)},
-  ylabel={Ratio to \texttt{deriv\_bc}},
+  ylabel={Ratio to fastest},
   label style={font=\small},
   tick label style={font=\scriptsize},
   grid=major,
-  ymin=0.5, ymax=1.4,
-  ytick={0.6,0.8,1,1.2},
+  ymin=0.95, ymax=1.4,
+  ytick={1,1.1,1.2,1.3,1.4},
 ]
 \addplot[dashed, gray, no markers]
   coordinates {(5,1) (10000000,1)};
+\addplot[mark=*, thick, blue]
+  coordinates {(5,1.244) (10,1.056) (15,1.237) (100,1.342) (1000,1.000) (10000,1.045) (100000,1.000) (500000,1.000) (2500000,1.000) (5000000,1.029) (10000000,1.000)};
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.875) (10,1.107) (15,0.808) (100,0.841) (1000,1.042) (10000,1.015) (100000,1.026) (500000,1.096) (2500000,1.059) (5000000,1.027) (10000000,1.054)};
+  coordinates {(5,1.089) (10,1.169) (15,1.000) (100,1.129) (1000,1.042) (10000,1.061) (100000,1.026) (500000,1.096) (2500000,1.059) (5000000,1.057) (10000000,1.054)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.804) (10,0.947) (15,0.858) (100,0.745) (1000,1.306) (10000,0.957) (100000,1.001) (500000,1.040) (2500000,1.023) (5000000,0.972) (10000000,1.015)};
+  coordinates {(5,1.000) (10,1.000) (15,1.062) (100,1.000) (1000,1.306) (10000,1.000) (100000,1.001) (500000,1.040) (2500000,1.023) (5000000,1.000) (10000000,1.015)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P61, \texttt{(a|b|ab)*} against \texttt{ab} repeated,
 to the scale of \citet{sulzmannlu2014}'s Figure~7(b).
-The lower panel plots the partial-derivative pair as a
-ratio to \texttt{deriv\_bc}.}
+The lower panel plots each parser's time as a ratio to whichever of
+the three is fastest at that $n$; which one that is changes
+repeatedly across the sweep (see prose below).}
 \label{fig:patho-fig7bc}
 \end{figure}
 
@@ -1629,20 +1640,24 @@ Tables~\ref{tab:patho-p01-all-parsers} and~\ref{tab:patho-p09-all-parsers}
 give the wall time behind both figures,
 and P01's missing \texttt{deriv\_bc} entries past $n=1\,000$ are that timeout,
 not a gap in measurement.
-On P01, over the range
-where \texttt{deriv\_bc} itself has data (up to $n=50\,000$),
-the ratio starts near parity at the smallest inputs,
-occasionally slightly above 1,
-and falls below 0.01 by $n=50\,000$,
-since \texttt{deriv\_bc}'s own cost grows far faster
-than the partial-derivative pair's as it nears its timeout.
-On P09, where \texttt{deriv\_bc} completes the whole sweep
-instead of nearing a timeout,
-both partial-derivative variants instead stay in a roughly steady band
-from $n=100$ on: \texttt{pderiv\_std} from about 0.46 to 0.52 of
-\texttt{deriv\_bc}'s time, and \texttt{pderiv\_bc} a little higher,
-from about 0.50 to 0.57,
-visible in Table~\ref{tab:patho-p09-all-parsers}.
+On P01, \texttt{deriv\_bc} is briefly the fastest of the three at
+$n=15$ and $n=20$, but loses ground rapidly from there: by $n=100$ it
+already trails the fastest by about 30\%, and its gap widens to
+roughly $95\times$ at $n=30\,000$ and $156\times$ at $n=50\,000$, the
+last point it reaches before timing out, since its own cost grows far
+faster than either partial-derivative variant's as it nears that
+timeout. Over the same range, \texttt{pderiv\_bc} and
+\texttt{pderiv\_std} themselves trade the lead repeatedly but stay
+within about 20\% of each other throughout
+(Table~\ref{tab:patho-p01-all-parsers}).
+On P09, where \texttt{deriv\_bc} completes the whole sweep instead of
+nearing a timeout, it never leads: it trails the faster of the other
+two by roughly $1.4\times$ to $2.4\times$ across the whole sweep.
+\texttt{pderiv\_std} is fastest from $n=15$ on, with
+\texttt{pderiv\_bc} narrowly ahead only at the two smallest lengths
+($n=5$ and $n=10$); from $n=15$ on, \texttt{pderiv\_bc} stays within
+about 19\% of \texttt{pderiv\_std}
+(Table~\ref{tab:patho-p09-all-parsers}).
 
 \begin{figure}[H]
 \centering
@@ -1678,25 +1693,30 @@ visible in Table~\ref{tab:patho-p09-all-parsers}.
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=2.6cm,
+  height=5cm,
   xmode=log, ymode=log,
   xlabel={Input length (characters)},
-  ylabel={Ratio to \texttt{deriv\_bc}},
+  ylabel={Ratio to fastest},
   label style={font=\small},
   tick label style={font=\scriptsize},
   grid=major,
 ]
 \addplot[dashed, gray, no markers]
   coordinates {(5,1) (50000,1)};
+\addplot[mark=*, thick, blue]
+  coordinates {(5,1.333) (10,1.059) (15,1.000) (20,1.000) (50,1.328) (100,1.298) (500,2.269) (1000,2.937) (2000,6.157) (5000,15.766) (10000,31.706) (30000,94.622) (50000,156.268)};
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.781) (10,0.972) (15,1.021) (20,1.197) (50,0.753) (100,0.770) (500,0.465) (1000,0.340) (2000,0.162) (5000,0.067) (10000,0.032) (30000,0.011) (50000,0.007)};
+  coordinates {(5,1.042) (10,1.029) (15,1.021) (20,1.197) (50,1.000) (100,1.000) (500,1.055) (1000,1.000) (2000,1.000) (5000,1.058) (10000,1.000) (30000,1.012) (50000,1.114) (200000,1.019) (1000000,1.003) (5000000,1.017) (10000000,1.044)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.750) (10,0.944) (15,1.149) (20,1.082) (50,0.786) (100,0.913) (500,0.441) (1000,0.342) (2000,0.165) (5000,0.063) (10000,0.032) (30000,0.011) (50000,0.006)};
+  coordinates {(5,1.000) (10,1.000) (15,1.149) (20,1.082) (50,1.043) (100,1.185) (500,1.000) (1000,1.006) (2000,1.014) (5000,1.000) (10000,1.011) (30000,1.000) (50000,1.000) (200000,1.000) (1000000,1.000) (5000000,1.000) (10000000,1.000)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P01, \texttt{(a+)+} against \texttt{a} repeated,
-every swept $n$ on a log-log axis. The lower panel plots the
-partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
+every swept $n$ on a log-log axis. The lower panel plots each
+parser's time as a ratio to whichever of the three is fastest at
+that $n$, log-scaled since \texttt{deriv\_bc}'s own ratio spans two
+orders of magnitude as it nears its timeout; \texttt{deriv\_bc} has
+no data past $n=50\,000$ (Table~\ref{tab:patho-crash-thresholds}).}
 \label{fig:patho-p01}
 \end{figure}
 
@@ -1734,27 +1754,30 @@ partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
 \begin{tikzpicture}
 \begin{axis}[
   width=0.78\textwidth,
-  height=2.6cm,
+  height=5cm,
   xmode=log,
   xlabel={Input length (characters)},
-  ylabel={Ratio to \texttt{deriv\_bc}},
+  ylabel={Ratio to fastest},
   label style={font=\small},
   tick label style={font=\scriptsize},
   grid=major,
-  ymin=0.3, ymax=1.0,
-  ytick={0.4,0.6,0.8,1},
+  ymin=0.9, ymax=2.5,
+  ytick={1,1.5,2,2.5},
 ]
 \addplot[dashed, gray, no markers]
   coordinates {(5,1) (10000000,1)};
+\addplot[mark=*, thick, blue]
+  coordinates {(5,1.857) (10,1.949) (15,2.377) (20,1.808) (25,1.439) (100,2.151) (1000,2.094) (5000,2.194) (10000,1.973) (50000,1.988) (100000,1.936) (500000,1.980) (1000000,1.943) (5000000,1.958) (10000000,1.980)};
 \addplot[mark=square*, thick, red]
-  coordinates {(5,0.538) (10,0.513) (15,0.468) (20,0.645) (25,0.766) (100,0.555) (1000,0.497) (5000,0.543) (10000,0.563) (50000,0.562) (100000,0.549) (500000,0.563) (1000000,0.559) (5000000,0.567) (10000000,0.558)};
+  coordinates {(5,1.000) (10,1.000) (15,1.113) (20,1.167) (25,1.103) (100,1.194) (1000,1.041) (5000,1.191) (10000,1.111) (50000,1.119) (100000,1.063) (500000,1.115) (1000000,1.087) (5000000,1.110) (10000000,1.104)};
 \addplot[mark=triangle*, thick, orange!80!black]
-  coordinates {(5,0.538) (10,0.592) (15,0.421) (20,0.553) (25,0.695) (100,0.465) (1000,0.478) (5000,0.456) (10000,0.507) (50000,0.503) (100000,0.516) (500000,0.505) (1000000,0.515) (5000000,0.511) (10000000,0.505)};
+  coordinates {(5,1.000) (10,1.154) (15,1.000) (20,1.000) (25,1.000) (100,1.000) (1000,1.000) (5000,1.000) (10000,1.000) (50000,1.000) (100000,1.000) (500000,1.000) (1000000,1.000) (5000000,1.000) (10000000,1.000)};
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on P09, \texttt{(a|aa)+} against \texttt{a} repeated,
-every swept $n$ on a log-log axis. The lower panel plots the
-partial-derivative pair's time as a ratio to \texttt{deriv\_bc}.}
+every swept $n$ on a log-log axis. The lower panel plots each
+parser's time as a ratio to whichever of the three is fastest at
+that $n$.}
 \label{fig:patho-p09}
 \end{figure}
 
@@ -1765,8 +1788,9 @@ could split into iterations,
 making each derivative step near-exponential. 
 \texttt{deriv\_bc} keeps all live splits in one expression
 and compares every pair per character,
-so the cost grows with $n$
-and the ratio collapses from near parity to below 0.01 before timeout.
+so its cost grows with $n$ faster than either partial-derivative
+variant's, and its ratio to the fastest of the three climbs from
+near parity to roughly $156\times$ before timeout.
 The gap is already visible in Table~\ref{tab:patho-p01-all-parsers},
 where \texttt{deriv\_bc}'s $n=1\,000$ time of 7.840\,ms
 is close to three times either partial-derivative variant's,
@@ -1776,7 +1800,8 @@ Category B's shared-prefix alternatives
 under one flat quantifier leave only a couple of live readings at each position,
 not a count tied to iterations passed.
 Pairwise cleanup is therefore bounded per character,
-holding the ratio in roughly the 0.46--0.57 band from $n=100$ to ten
+holding \texttt{deriv\_bc}'s ratio to the fastest of the three in
+roughly the $1.9$--$2.2\times$ band from $n=100$ to ten
 million characters,
 and Table~\ref{tab:patho-p09-all-parsers} shows this directly:
 from that point on, \texttt{deriv\_bc} takes roughly twice
