@@ -55,14 +55,19 @@ so neither family was uniformly superior.
 
 For future work, four directions follow from these results.
 First, \texttt{deriv\_bc} still trails the partial-derivative variants
-on several large-scale patterns, 
-partly because it repeatedly re-simplifies one shared expression 
-representing every live alternative, 
-whereas partial derivatives already keep each alternative as an independent residual.
+on some large-scale patterns, though by a narrower margin than before:
+the re-simplification behind that gap -- repeatedly re-simplifying one
+shared expression representing every live alternative, where partial
+derivatives instead keep each alternative as an independent residual
+-- now deduplicates those alternatives by a shape hash rather than an
+all-pairs scan, bringing that step from quadratic to linear in the
+alternation's width.
 Sulzmann and Lu also report memory problems in their
 bit-coded implementation and propose computing the POSIX path
 separately before constructing the parse tree with a
-space-efficient tree builder~\citep[p.~14]{sulzmannlu2014}.
+space-efficient tree builder~\citep[p.~14]{sulzmannlu2014};
+whether that would help further, now that the dominant simplification
+cost has been reduced rather than left quadratic, remains open.
 Second, the surface syntax could be extended to include further
 constructs or implement operations currently rejected by the frontend, 
 such as anchors, bounded lookaround, and backreferences.
@@ -75,13 +80,15 @@ Pairing it with a submatching extension
 could also be used to report which substring each subexpression matched,
 helping to localise remaining performance problems
 or explain why a given input failed to match.
-Fourth, the timing breakdown used for the bit-coded parsers
-covers only \texttt{deriv\_bc} and \texttt{pderiv\_bc}; the standard
-partial-derivative parser's own per-character cost is reported as a
-single total, with no separate figure for the cost of maintaining its
-injection closures. Unlike a bit list, a closure chain has no cheap,
-directly inspectable size, so tracking this cost would mean
+Fourth, the four-phase timing breakdown now covers all five parsers,
+including \texttt{pderiv\_std} and the two standard derivative
+parsers, but \texttt{pderiv\_std}'s own setup phase only times its
+initial clone, not the cost of maintaining its injection closures as
+derivation proceeds -- that cost still rides inside its single derive
+total, the same way it always has. Unlike a bit list, a closure chain
+has no cheap, directly inspectable size, so isolating it would mean
 instrumenting closure construction itself, for example by counting
-how many \texttt{InjStep} wrappers accumulate per residual, mirroring
-the per-phase breakdown already available for the bit-coded parsers
+how many \texttt{InjStep} wrappers accumulate per residual, the way
+\texttt{pderiv\_bc}'s own setup phase already isolates its
+per-character bit-tagging cost
 (Section~\ref{sec:eval-cost-bit-coding}).
