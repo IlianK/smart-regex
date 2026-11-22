@@ -1250,7 +1250,7 @@ while \texttt{fold\_alt} rebuilds the binary \texttt{Alt} chain
 (Figure~\ref{fig:fold-alt-rust}).
 The subsequent \texttt{nub} is implemented by
 \texttt{dedup\_first}
-(Figure~\ref{fig:dedup-first-rust}).
+(Figure~\ref{fig:dedup-first-ch5-rust}).
 The duplicate criterion for \texttt{nub} is unspecified
 in \citet[Fig.~6]{sulzmannlu2014}.
 Here, expressions are compared without their bits,
@@ -1265,7 +1265,44 @@ During flattening, \texttt{push\_branches} fuses each
 \texttt{Alt} node's bits onto its children, preserving
 the encoded choices. This allows \texttt{dedup\_first}
 to compare all branches across nesting levels and retain
-only the first occurrence of each regex shape.
+only the first occurrence of each regex shape, by grouping them
+under a structural hash of their shape, bits aside, and confirming
+each apparent match with \texttt{same\_shape} only within its own
+hash bucket, rather than comparing every pair.
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+fn dedup_first(branches: &mut Vec<ARegex>) {
+    let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
+    let mut keep = vec![true; branches.len()];
+    for idx in 0..branches.len() {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        hash_shape(&branches[idx], &mut hasher);
+        let h = hasher.finish();
+
+        let bucket = buckets.entry(h).or_default();
+        if bucket.iter().any(|&prev| same_shape(&branches[prev], &branches[idx])) {
+            keep[idx] = false;
+        } else {
+            bucket.push(idx);
+        }
+    }
+    let mut idx = 0;
+    branches.retain(|_| {
+        let k = keep[idx];
+        idx += 1;
+        k
+    });
+}
+\end{verbatim}
+\caption{\texttt{dedup\_first}: keeps the first occurrence of each
+regex shape among \texttt{branches}, bits aside. \texttt{hash\_shape}
+and \texttt{same\_shape} are discussed further, with their own
+complexity, in Section~\ref{sec:eval-cost-bit-coding}
+(Figure~\ref{fig:dedup-first-rust}).}
+\label{fig:dedup-first-ch5-rust}
+\end{figure}
 
 \begin{figure}[H]
 \small
