@@ -69,9 +69,10 @@ pub fn parse_pderiv_std(input: &str, r: &Regex) -> Option<ParseTree> {
 /// breakdowns stay comparable, not because it is a real encode), and
 /// `reconstruct_us` is `Inj::apply` -- running the composed chain of
 /// injection closures built up during the derive phase -- not a
-/// decode of anything. The final `frontier` is now dropped inside
-/// this same timed window too, right after `select` is done reading
-/// from it, instead of implicitly once this function returns.
+/// decode of anything. The final `frontier` is dropped inside this
+/// same timed window too, right after `select` is done reading from
+/// it, so that cost isn't attributed to whatever runs after this
+/// function returns.
 pub fn parse_pderiv_std_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t_setup = Instant::now();
     let mut frontier: Vec<(Regex, Inj)> = vec![(r.clone(), Inj::identity())];

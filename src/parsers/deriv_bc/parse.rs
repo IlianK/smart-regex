@@ -37,11 +37,10 @@ pub fn parse_bitcoded_recursive(input: &str, r: &Regex) -> Option<ParseTree> {
 /// per-character stepping), and decode (bits -> ParseTree) -- unlike
 /// pderiv_bc/pderiv_std, whose `setup_us`/`reconstruct_us` measure a
 /// plain clone and a closure application respectively, not an actual
-/// encode/decode. `chars` and `final_ri` (the fully-derived `ARegex`)
-/// are both dropped explicitly inside the same timed window already
-/// charged to `reconstruct_us`, right after `decode` is done with
-/// them -- previously they dropped implicitly when this function
-/// returned, after that timer had already stopped.
+/// encode/decode. `chars` and `final_ri` are dropped explicitly right
+/// after `decode` is done with them, inside the same timed window
+/// charged to `reconstruct_us`, so that cost isn't attributed to
+/// whatever runs after this function returns.
 pub fn parse_bitcoded_recursive_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t0 = Instant::now();
     let ri = internalize(r);

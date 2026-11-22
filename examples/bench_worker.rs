@@ -24,8 +24,7 @@
 //! Rust's allocator-failure handler abort the process by signal, which
 //! looks exactly like any other crash to the caller -- no special case
 //! needed. Omitted (the default -- every existing caller), this process
-//! behaves exactly as before: unbounded. See `bench_deriv_std_blowup_worker.rs`,
-//! where this originated, for the fuller rationale.
+//! is unbounded.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::{Read, Write};
@@ -108,20 +107,12 @@ struct JobResult {
     micros: u64,
     total_bytes: usize,
     peak_bytes: usize,
-    // Breakdown of `micros` into the four `PhaseTiming` phases, for
-    // all five parsers; see `PhaseTiming`'s own doc comment in
-    // src/parsers/mod.rs for what each phase means per parser.
-    // setup_micros is 0 only for deriv_std_rec/deriv_std_loop (neither
-    // builds a separate annotated representation or frontier first);
-    // the other three report a real, nonzero setup. teardown_micros is
-    // filled in here, not by any parser function itself: it is the
-    // cost of dropping the `ParseTree` this worker's caller never asked
-    // for (every parser_idx branch below keeps only the `PhaseTiming`
-    // half of what the timed functions return), measured once, right
-    // after the match, before `start.elapsed()` is read -- the one
-    // part of the four-way breakdown that cannot live inside any one
-    // parser's own `_timed` function, since none of them controls what
-    // its caller does with the tree it hands back.
+    // Breakdown of `micros` into the four `PhaseTiming` phases; see
+    // `PhaseTiming`'s own doc comment in src/parsers/mod.rs for what
+    // each phase means per parser. teardown_micros is filled in here,
+    // not by any parser function, since none of them controls what
+    // its caller does with the tree it hands back: measured once,
+    // right after the match, before `start.elapsed()` is read.
     setup_micros: u64,
     derive_micros: u64,
     reconstruct_micros: u64,

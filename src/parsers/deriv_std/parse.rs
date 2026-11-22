@@ -55,25 +55,21 @@ pub fn parse_deriv_std_rec(input: &str, r: &Regex) -> Option<ParseTree> {
 ///
 /// Each level also drops its own `r_deriv` -- the derivative it built
 /// just to make the recursive call below -- inside a timed window
-/// charged to `reconstruct_us`, instead of letting it drop implicitly
-/// when this stack frame unwinds after that window closes. `r_deriv`
-/// is only borrowed by the recursive call (`&r_deriv`), never moved
-/// into it, so it is still ours to drop once that call returns, on
-/// *either* outcome: a match, right before `inject` runs, or a
-/// non-match, right before propagating `None` onward. Both branches
-/// need their own drop -- a non-match reaching this level means the
-/// recursive call below just returned `None`, which never reaches the
-/// `inject` line at all, so folding the drop into that line's timer
-/// only would leave it untimed (and, cascading, untimed at every
-/// enclosing level too) on exactly the inputs that don't match, which
-/// is where this fix matters least if skipped quietly and most if
-/// it's wrong: half of any real corpus. Across the whole recursion
-/// this accounts for the same retained-derivative-history cost
-/// `deriv_std_loop` pays in one bulk drop of `expressions`, just paid
-/// here in per-level slices instead. The non-match branch costs one
-/// more clock read per level than the match branch already had, but
-/// only on levels actually returning `None`, so a full match still
-/// pays the original two reads per character, not three.
+/// charged to `reconstruct_us`, on *either* outcome: a match, right
+/// before `inject` runs, or a non-match, right before propagating
+/// `None` onward. `r_deriv` is only borrowed by the recursive call
+/// (`&r_deriv`), never moved into it, so it is still ours to drop once
+/// that call returns. Both branches need their own drop: a non-match
+/// never reaches the `inject` line, so folding the drop into that
+/// line's timer alone would leave every non-matching input -- half of
+/// any real corpus -- untimed at every enclosing level too. Across the
+/// whole recursion this accounts for the same retained-derivative-
+/// history cost `deriv_std_loop` pays in one bulk drop of
+/// `expressions`, just paid here in per-level slices. The non-match
+/// branch costs one more clock read per level than the match branch
+/// already had, but only on levels actually returning `None`, so a
+/// full match still pays the original two reads per character, not
+/// three.
 fn parse_recursive_helper_timed(
     r: &Regex,
     chars: &[char],
@@ -110,14 +106,12 @@ fn parse_recursive_helper_timed(
 }
 
 /// Unlike the three non-recursive parsers' `_timed` functions, the
-/// initial `let chars = input.chars().collect()` here used to happen
-/// before any timer started -- invisible to every phase, though still
-/// inside `bench_worker`'s own outer wall-clock measurement. It is now
-/// timed into `derive_us`'s own starting value, the same phase the
-/// other four parsers' equivalent char-handling already falls inside
-/// (see `PhaseTiming`'s doc comment): one one-time timer pair in this
-/// wrapper, not per character, so the accepted two-reads-per-character
-/// trade-off below is unchanged.
+/// initial `let chars = input.chars().collect()` here is timed into
+/// `derive_us`'s own starting value -- the same phase the other four
+/// parsers' equivalent char-handling falls inside (see `PhaseTiming`'s
+/// doc comment) -- via one one-time timer pair in this wrapper, not
+/// per character, so the accepted two-reads-per-character trade-off
+/// below is unchanged.
 pub fn parse_deriv_std_rec_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
     let t_collect = Instant::now();
     let chars: Vec<char> = input.chars().collect();
@@ -174,9 +168,7 @@ pub fn parse_deriv_std_loop(input: &str, r: &Regex) -> Option<ParseTree> {
 /// per input position -- POSIX injection has to revisit each one by
 /// index, unlike the bit-coded/partial-derivative parsers, which only
 /// ever carry their current state forward. Dropping the whole vector
-/// used to happen implicitly when this function returned, after
-/// `reconstruct_us`'s own timer had already stopped; it is now dropped
-/// explicitly inside a timed window instead, on *both* outcomes: after
+/// is charged inside a timed window on *both* outcomes: after
 /// the backward pass and `reverse_stars` on a match, or immediately on
 /// the `!nullable` early return for a non-match, which never reaches
 /// the backward pass (or that drop) at all. A non-match never runs

@@ -1,6 +1,6 @@
 //! benches/bench_stack_depth.rs
 //!
-//! Replaces `examples/demo_crash.rs` (removed). Compares the one pair in
+//! Compares the one pair in
 //! this engine where the same algorithm has two implementations whose
 //! *stack* behaviour differs: `deriv_std_rec` (native recursion, one
 //! stack frame per input character -- see `parse_recursive_helper` in
@@ -32,8 +32,8 @@
 //!     budget -- milder than P01 (polynomial vs. P01's near-exponential
 //!     growth, matching this category's documented `stress_axis`), but
 //!     still a derivative-SIZE wall reached at double-digit N, long
-//!     before `deriv_std_rec`'s native recursion (which survived well
-//!     past 10,000 characters of plain `a*` in the old demo) would ever
+//!     before `deriv_std_rec`'s native recursion -- which can survive
+//!     well past 10,000 characters on a plain `a*` input -- would ever
 //!     be the bottleneck.
 //!
 //! Consequence, confirmed by the two findings above: for BOTH rows, the
@@ -83,9 +83,8 @@
 //! custom large-stack thread -- see that file's own module doc for why.
 //!
 //! Sweep: for each (row, parser), N starts at `STACKDEPTH_N_START` and
-//! doubles ("sweep N upward" -- not a binary search like the old demo,
-//! since a binary search needs an upper bound in hand first, which is
-//! exactly what is not known up front here) until the worker is killed
+//! doubles -- not a binary search, since that needs an upper bound in
+//! hand first, which isn't known up front here -- until the worker is killed
 //! by a signal (`outcome = crashed`), a probe exceeds the per-probe time
 //! cap (`outcome = timed_out`), or N exceeds `STACKDEPTH_N_CAP` without
 //! either (`outcome = reached_sweep_cap`). The last N that completed

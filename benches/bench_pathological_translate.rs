@@ -60,7 +60,7 @@
 //! for its own aggregate CSV, so a run scoped to one category and a
 //! run covering every category both add their row(s) to the same
 //! growing file. `run_label` and `pattern_limit` columns record each
-//! row's own invocation, since the filename no longer can.
+//! row's own invocation, since the shared filename can't.
 //!
 //! Also writes `reports/benches/bench_pathological_translate{label}_patterns.csv`
 //! (one row per distinct row/`p`/`n` entry that translated

@@ -16,13 +16,11 @@ use crate::parsers::deriv_bc::mk_eps_bc::mk_eps_bc;
 /// own convention: every recursive call here only needs to *read* a
 /// child to derive it, never to consume/move it, so there is nothing
 /// to clone at a call site like `deriv_bc(r1, l)` -- `&Rc<ARegex>`
-/// coerces to `&ARegex` for free, the same way `&Box<ARegex>` already
-/// did before this was `Rc`-based. The one real cost in this function
+/// coerces to `&ARegex` for free. The one real cost in this function
 /// is wherever a child needs to appear *twice* in the result (Seq's
 /// `r2` surviving unchanged alongside its own derivative, Star's `r`
 /// likewise) -- there, `r2.clone()`/`r.clone()` is an `Rc::clone`
-/// (O(1)), not the subtree-sized copy the equivalent `Box`-based
-/// `*r2.clone()` paid for.
+/// (O(1)), not a subtree-sized copy.
 pub fn deriv_bc(ri: &ARegex, l: char) -> ARegex {
     match ri {
         ARegex::Phi => ARegex::Phi,

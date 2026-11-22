@@ -79,11 +79,11 @@ pub fn parse_pderiv_bc(input: &str, r: &Regex) -> Option<ParseTree> {
 /// per-character work (the actual `pderiv_bc` transition computation
 /// plus `nub2` dedup) with that tagging time subtracted back out, so
 /// the four fields still sum to the true total and nothing is
-/// double-counted. `reconstruct_us` is unchanged, a genuine decode:
-/// `decode(r, &bits)` interprets the accumulated bit string against
-/// the pattern -- it also now drops the final `frontier` inside this
-/// same timed window, right after `decode` is done reading from it,
-/// instead of letting it drop implicitly once this function returns.
+/// double-counted. `reconstruct_us` is a genuine decode: `decode(r,
+/// &bits)` interprets the accumulated bit string against the pattern,
+/// and also drops the final `frontier` inside this same timed window,
+/// right after `decode` is done reading from it, so that cost isn't
+/// attributed to whatever runs after this function returns.
 /// See `pderiv_bc_timed`'s own doc comment for exactly what does and
 /// doesn't count as tagging.
 pub fn parse_pderiv_bc_timed(input: &str, r: &Regex) -> (Option<ParseTree>, PhaseTiming) {
