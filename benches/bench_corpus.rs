@@ -2,132 +2,96 @@
 //!
 //! Wall-clock cost and heap allocation per parser over the real corpus,
 //! in one pass. S2ELab only -- the only source with real prepared data
-//! today (see `docs/DATASET.md`); no source selection.
-//!
-//! Used to be two separate binaries (`bench_corpus_time`,
-//! `bench_corpus_memory`), each spawning its own `bench_worker` process
-//! per entry. That was redundant: `bench_worker` already computes both
-//! the timing breakdown and the allocation totals for every single job
-//! it runs, in one `JobResult` (see `examples/bench_worker.rs`) -- the
-//! two binaries differed only in which half of that result they kept
-//! and which half they discarded. Merging them means every corpus
-//! entry is parsed once instead of twice, for the same two CSVs' worth
-//! of information.
+//! today (see `docs/DATASET.md`); no source selection. Each entry is
+//! parsed once per parser: `bench_worker` reports both the timing
+//! breakdown and the allocation total together in one `JobResult`
+//! (see `examples/bench_worker.rs`), so one pass yields both CSVs.
 //!
 //! A plain reporting binary rather than a Criterion target. Criterion's
 //! model assumes a cheap closure measured many times; a full corpus
 //! pass (five parsers, 11,395 entries each) takes on the order of ten
-//! minutes -- confirmed from this repository's own `wall_s` column,
-//! not an estimate -- and the full benchmark suite this file is one
-//! part of (corpus + pathological sweeps + the eight representative-
-//! pattern curves) takes on the order of a couple of hours. Repeating
-//! that 10-30x for Criterion-style confidence intervals would turn a
-//! run that already needs to be left overnight into one spanning days,
-//! and the statistics produced would describe how much this harness's
-//! own wall-clock time varies run to run, not a property of the parser
-//! being measured.
+//! minutes by this file's own `wall_s` column, and the full benchmark
+//! suite this file is one part of (corpus + pathological sweeps + the
+//! eight representative-pattern curves) takes on the order of a couple
+//! of hours. Repeating that 10-30x for Criterion-style confidence
+//! intervals would turn an overnight run into one spanning days, and
+//! the statistics produced would describe this harness's own
+//! run-to-run variance, not a property of the parser being measured.
 //!
-//! Every entry runs in its own worker *process* (`bench_worker`,
-//! shared with `bench_pathological`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
-//! (default 60000). A call that exceeds the cap is counted as
-//! `timed_out`, not folded into the duration stats as if it were a
-//! real measurement: on real corpora (Innovatorved and RegexLib
-//! especially), a small fraction of entries make `deriv_std_rec` /
-//! `deriv_std_loop` run for seconds to minutes on a single call, and
-//! averaging that into "max" would just report however long this run
-//! happened to wait, not a property of the parser.
-//!
-//! This used to run each entry on its own *thread* instead, bounded
-//! the same way. That design had a fatal gap: giving up on
-//! `rx.recv_timeout` does not stop the thread -- Rust cannot cancel a
-//! thread -- so a capped-out call kept running and kept allocating in
-//! the background. Bounding how many such threads could be
-//! concurrently outstanding (a `StragglerPool`) was tried next, and
-//! disproved empirically: on a real Innovatorved entry, a *single*
-//! abandoned call's own growth reached a kernel OOM kill (~14 GB)
-//! regardless of whether 1 or 2 such calls were allowed to run
-//! concurrently. The bound on concurrency was never the limiting
-//! factor -- one pathological entry was enough on its own, and no pool
-//! size fixes that. A process can be killed outright (`Child::kill()`),
-//! which actually reclaims its memory; a thread cannot be. See
-//! `examples/bench_worker.rs` for the worker side of this and the
-//! exact protocol between it and this file.
+//! Every entry runs in its own worker *process* (`bench_worker`, shared
+//! with `bench_pathological`), bounded by `BENCH_ENTRY_TIMEOUT_MS`
+//! (default 60000); a call that exceeds the cap counts as `timed_out`,
+//! not folded into the duration stats as a real measurement -- on real
+//! corpora (Innovatorved and RegexLib especially), a small fraction of
+//! entries make `deriv_std_rec`/`deriv_std_loop` run for seconds to
+//! minutes on a single call. Process isolation, not a thread with the
+//! same timeout, because a process can be killed outright
+//! (`Child::kill()`), reclaiming its memory; a thread cannot be killed
+//! in Rust, so giving up on it after a timeout leaves it running (and
+//! allocating) in the background -- a single abandoned call on a real
+//! Innovatorved entry reaches a kernel OOM kill on its own. See
+//! `examples/bench_worker.rs` for the worker side and the exact
+//! protocol between it and this file.
 //!
 //! A `crashed` entry (the worker exited non-zero or died by signal,
-//! e.g. a stack overflow) is counted separately from `timed_out`:
-//! that failure only takes down one worker process, not this run.
+//! e.g. a stack overflow) is counted separately from `timed_out`: that
+//! failure only takes down one worker process, not this run.
 //!
 //! Entries within one parser's pass can run across several worker
 //! processes at once (`run_all_entries`, bounded by `BENCH_MEM_WORKERS`,
 //! default the available parallelism, override to e.g. `1` to force
 //! strictly sequential). Each worker's byte counters are `static`
-//! state scoped to that worker's own process, so running several at
-//! once never contaminates any of them there -- but unlike byte
-//! counts, a wall-clock measurement *is* affected by CPU contention
-//! between concurrently-scheduled sibling processes. Concurrency
-//! beyond 1 trades clean timing numbers for a faster memory-side pass;
-//! `helper/quick.md` pins `BENCH_MEM_WORKERS=1` for exactly this
-//! reason, accepting a slower run in exchange for timing figures with
-//! no cross-process noise. "Heap", specifically, for the byte counts:
-//! the counting allocator hooks `GlobalAlloc`, which sees heap traffic
-//! only. Each worker's 256 MB call-thread stack (see `bench_worker.rs`)
-//! is invisible to it, so a pattern whose cost were dominated by
-//! recursion depth rather than allocation would under-report here. The
-//! patterns that motivated process isolation reached multiple GB; a
-//! fixed 256 MB stack cannot account for that on its own (it would
-//! overflow and crash well before contributing gigabytes), so the heap
-//! figures below are the right number for those cases specifically --
-//! but they are heap numbers, not a general memory bound.
+//! state scoped to its own process, so concurrency never contaminates
+//! them -- but unlike byte counts, wall-clock *is* affected by CPU
+//! contention between sibling processes, so `helper/quick.md` pins
+//! `BENCH_MEM_WORKERS=1` to keep timing figures free of cross-process
+//! noise, accepting a slower run in exchange. "Heap", specifically, for
+//! the byte counts: the counting allocator hooks `GlobalAlloc`, which
+//! sees heap traffic only -- each worker's 256 MB call-thread stack
+//! (see `bench_worker.rs`) is invisible to it, so a pattern whose cost
+//! is dominated by recursion depth rather than allocation would
+//! under-report here. The figures below are heap numbers, not a
+//! general memory bound.
 //!
 //! `wall (s)` and the distribution columns measure different things,
 //! and do not satisfy `wall ~= entries x mean`: `wall` is this file's
-//! own wall clock around the whole per-parser pass, so it includes one
+//! own wall clock around the whole per-parser pass, including one
 //! process spawn and one pipe round trip per entry (divided by however
 //! many ran concurrently); the distribution columns come from each
-//! worker's self-reported `micros`, which covers only the parser call
+//! worker's self-reported `micros`, covering only the parser call
 //! itself (see `bench_worker.rs`'s module doc for exactly what that
 //! excludes). On sources whose patterns are individually cheap, spawn
-//! overhead can dominate `wall` while barely showing up in `mean` at
-//! all.
+//! overhead can dominate `wall` while barely showing up in `mean`.
 //!
 //! `median`/`p99`/`max` are computed over entries that completed --
-//! `timed_out` and `crashed` entries contribute nothing to them, not a
-//! value capped at the timeout. The entries most likely to be excluded
-//! are the ones process isolation exists to contain, so `max` (and
-//! `max_peak_bytes`) is a lower bound on the corpus's true worst case,
-//! not the true worst case itself. The `measured` column is how many
-//! entries these statistics are actually computed over.
+//! `timed_out`/`crashed` entries contribute nothing to them, not a
+//! value capped at the timeout -- so `max` (and `max_peak_bytes`) is a
+//! lower bound on the corpus's true worst case, not the true worst
+//! case itself. `measured` is how many entries these statistics are
+//! actually computed over.
 //!
-//! `mean_ms` and `avg_bytes` (and the `setup`/`derive`/`reconstruct_ms`
-//! breakdown) are macro-averages, not flat averages over every
-//! measured entry: each *pattern*'s own mean/average is computed
-//! first, then those per-pattern figures are averaged together,
-//! unweighted. `dataset_prepare` no longer truncates every pattern
-//! down to the dataset-wide rarest pattern's own example count (see
-//! `src/data/mod.rs`'s module doc for why that was removed) -- patterns
-//! now keep however many given examples they actually have, which can
-//! vary a lot. Without macro-averaging, a pattern with 50 examples
+//! `mean_ms`/`avg_bytes` (and the `setup`/`derive`/`reconstruct_ms`
+//! breakdown) are macro-averages, not flat averages over every measured
+//! entry: each *pattern*'s own mean/average is computed first, then
+//! those per-pattern figures are averaged together, unweighted.
+//! Patterns keep however many examples they actually have, which
+//! varies a lot -- without macro-averaging, a pattern with 50 examples
 //! would outweigh one with 2 by 25x, for no reason connected to how
-//! hard or memory-hungry either pattern actually is. `median`/`p99`/
-//! `max` stay flat per-input statistics, and `total_bytes` (a sum) and
-//! `max_peak_bytes` (a max) are left as flat, pooled-over-every-entry
-//! figures -- macro-averaging doesn't apply to a sum or a max the way
-//! it does to a mean.
+//! hard either pattern actually is. `median`/`p99`/`max` stay flat
+//! per-input statistics, and `total_bytes` (a sum) and `max_peak_bytes`
+//! (a max) stay flat, pooled-over-every-entry figures -- macro-averaging
+//! doesn't apply to a sum or a max the way it does to a mean.
 //!
 //! Writes a CSV summary to `reports/benches/bench_corpus.csv` (and
 //! `..._by_outcome.csv` when `BENCH_SPLIT_OUTCOME=1`), replacing any
-//! existing file -- the same "latest run, not a log" convention
-//! `dataset_prepare` uses for `prepared.jsonl`. Also writes
-//! `..._entries.csv`, one row per individual
+//! existing file, plus `..._entries.csv`, one row per individual
 //! `source,parser,pattern,input,expected_match,outcome,micros,
 //! setup_micros,derive_micros,reconstruct_micros,teardown_micros,
-//! total_bytes,peak_bytes` measurement -- the summary's raw material, before it
-//! collapses into one mean/median/p99/max/avg/max_peak per parser.
-//! `pattern`/`input` are the actual text that ran, truncated past 200
-//! characters, same convention as `bench_pathological.rs`'s own
-//! entries file: filter to one `pattern` and compare across parsers
-//! for that single real pattern's own numbers, instead of only the
-//! whole-corpus aggregate above.
+//! total_bytes,peak_bytes` measurement -- the summary's raw material.
+//! `pattern`/`input` are truncated past 200 characters, same convention
+//! as `bench_pathological.rs`'s own entries file: filter to one
+//! `pattern` and compare across parsers for that single real pattern,
+//! instead of only the whole-corpus aggregate above.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_worker

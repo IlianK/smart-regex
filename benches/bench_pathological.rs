@@ -10,18 +10,13 @@
 //! (A-L) for reporting, the same role `source` plays in
 //! `bench_corpus.rs`.
 //!
-//! Used to be two separate binaries (`bench_pathological_time`,
-//! `bench_pathological_memory`), each spawning its own `bench_worker`
-//! process per entry. That was redundant: `bench_worker` already
-//! computes both the timing breakdown and the allocation totals for
-//! every single job it runs, in one `JobResult` (see
-//! `examples/bench_worker.rs`) -- the two binaries differed only in
-//! which half of that result they kept. Merging them means every
-//! pathological entry is parsed once instead of twice, for the same
-//! two CSVs' worth of information. See `bench_corpus.rs`'s module doc
-//! for the fuller rationale, process-isolation history, and the
-//! timing-vs-contention tradeoff `BENCH_MEM_WORKERS` above 1
-//! introduces -- all identical here, just over a different dataset.
+//! Each entry is parsed once per parser: `bench_worker` reports both
+//! the timing breakdown and the allocation total together in one
+//! `JobResult` (see `examples/bench_worker.rs`), so one pass yields
+//! both CSVs. See `bench_corpus.rs`'s module doc for the fuller
+//! rationale and the timing-vs-contention tradeoff `BENCH_MEM_WORKERS`
+//! above 1 introduces -- all identical here, just over a different
+//! dataset.
 //!
 //! No pre-filtering by `core_regex` before spawning a worker here,
 //! unlike the real-corpus bench: a pathological pattern's translation

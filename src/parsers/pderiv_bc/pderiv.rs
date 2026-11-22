@@ -61,47 +61,19 @@ pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
 /// Flattens a chain of nested `Alt`s into its leaves, pairing each leaf
 /// with the bit prefix its position in the chain assigns (`false` for
 /// a left branch, `true` for a right, accumulated down the spine in
-/// encounter order, which is also append order).
+/// encounter order). Flattening once and deduping the whole list after
+/// (rather than once per nesting level) keeps this O(p), not O(p^2),
+/// for a p-wide alternation.
 ///
-/// Recursing through `pderiv_bc`'s own `Alt` arm one nesting level at a
-/// time and calling `nub2` at every level was semantically fine
-/// (`nub2`'s "keep first occurrence" composes correctly regardless of
-/// whether it's applied once on the flattened list or once per level
-/// on a list that grows by one element per level) but cost O(p)
-/// redundant dedup passes for a p-wide alternation -- O(p^2) clones at
-/// minimum, confirmed empirically closer to O(p^2.5-3) once allocation
-/// overhead is included, almost entirely inside the single call that
-/// processes the first character of a p-wide pattern, before the
-/// frontier has even split into separate residuals. Flattening first
-/// and deduping exactly once after gives the identical result (same
-/// residuals, same bits, same leftmost-priority winner on a tie) for a
-/// fraction of the cost.
-///
-/// `prefix` is an `AppendBits`, not a `Vec<bool>` with push-before/
-/// pop-after backtracking: on a right-nested chain, the k-th leaf sits
-/// at depth k, so a `Vec<bool>`'s O(depth) clone at every leaf still
-/// costs O(p) + O(p-1) + ... = O(p^2) total across a p-leaf chain, even
-/// after the fix above removed the redundant per-level dedup passes.
-/// `AppendBits::append_one`/`clone` are both O(1) amortized regardless
-/// of the existing chain's length (the same sharing `Inj`/`InjNode` use
-/// for injection closures, see pderiv_std), so extending the prefix by
-/// one bit per level and cloning the handle at each leaf is O(1) each,
-/// O(p) total -- and needs no explicit pop, since each recursive call
-/// gets its own extended value and the caller's own `prefix` binding is
-/// untouched by it.
-///
-/// This runs fresh on every character this function is called for
-/// *any* `Alt` still live in the current residual, not just once for a
-/// whole p-wide pattern the way `internalize` tags a wide alternation
-/// up front for `deriv_bc` -- so the per-level cost here is paid far
-/// more often, on far narrower alternations on average, than the O(p)
-/// bound above suggests on its own. `append_one` (not `append(&[bit])`)
-/// is what keeps each of those per-level, per-character calls to the
-/// one allocation this needs rather than the `Vec` collection plus
-/// slice copy `append`'s general form pays for any prefix, long or
-/// short; at this call frequency that difference is the gap between a
-/// narrow alternation inside a loop staying cheap over a long input and
-/// not.
+/// `prefix` is an `AppendBits`, not a `Vec<bool>`: its `append_one`/
+/// `clone` are O(1) amortized regardless of chain length, where a
+/// `Vec<bool>`'s O(depth) clone at each of a p-leaf chain's leaves
+/// would cost O(p^2) total. This runs fresh on every character for any
+/// `Alt` still live in the current residual -- not once per pattern the
+/// way `internalize` tags a whole alternation up front for `deriv_bc`
+/// -- so `append_one`'s one allocation per call (vs. `append(&[bit])`'s
+/// `Vec` collection plus slice copy) is what keeps a narrow alternation
+/// inside a loop cheap over a long input.
 fn flatten_alt<'a>(r: &'a Regex, prefix: &AppendBits, out: &mut Vec<(&'a Regex, AppendBits)>) {
     match r {
         Regex::Alt(r1, r2) => {
@@ -187,22 +159,18 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
 
 /// Same partial derivative, plus the accumulated time spent tagging
 /// `Alt` branches via `flatten_alt` -- the same bit-prefix assignment
-/// (`false` for a left branch, `true` for a right one) that
 /// `internalize` does once, upfront, for the whole tree, for
 /// `deriv_bc`. Here it happens fresh on every character instead, for
-/// whatever `Alt` nodes survive in the current residual, which is
-/// exactly why it was invisible before: buried inside the same
-/// `derive_us` total as everything else `pderiv_bc` does. Threaded
-/// through recursion the same way `deriv_std_rec_timed`'s
-/// accumulators are (see that function's own doc comment), so the
-/// plain `pderiv_bc` above pays no cost for this.
+/// whatever `Alt` nodes survive in the current residual; without this
+/// separate `tag_us` accumulator that cost would be indistinguishable
+/// from the rest of `derive_us`. Threaded through recursion the same
+/// way `deriv_std_rec_timed`'s accumulators are; the plain `pderiv_bc`
+/// above pays no cost for this.
 ///
-/// `Star`'s own tagging just below (`bs.prepend_one(false)`)
-/// is deliberately NOT counted into `tag_us`: `internalize` does not
-/// tag `Star` either (`ARegex::Star(Bits::empty(), ...)`; see
-/// `internalize.rs`) -- that cost is carried by `deriv_bc`'s own
-/// derive loop on the bit-coded-derivative side, so it stays part of
-/// this function's "derive" time here too, consistently.
+/// `Star`'s own tagging just below (`bs.prepend_one(false)`) is
+/// deliberately NOT counted into `tag_us`, matching `deriv_bc`: its
+/// `internalize` doesn't tag `Star` either, so that cost stays folded
+/// into "derive" time on both sides, consistently.
 pub fn pderiv_bc_timed(r: &Regex, x: char, tag_us: &mut u64) -> Vec<(Regex, AppendBits)> {
     match r {
         Regex::Eps => Vec::new(),

@@ -18,18 +18,11 @@ use std::rc::Rc;
 enum Node {
     Nil,
     Prepend(Rc<[bool]>, Rc<Node>),
-    /// A single bit prepended onto `rest`, O(1) with exactly one
-    /// allocation (the `Node` itself). The cheap specialization of
-    /// `Prepend` for the one-bit-at-a-time case `flatten_alt`'s `Alt`
-    /// tagging and `Star`'s per-step marker both are: `Prepend` always
-    /// pays for collecting a `Vec` and copying it into a fresh
-    /// `Rc<[bool]>` slice before it ever gets here, pure overhead when
-    /// the caller already knows there's only one bit. That overhead is
-    /// paid once per `Alt`/`Star` level, every character, for any
-    /// pattern that keeps one live in its current residual -- a tiny
-    /// alternation inside a loop, run over a long input, pays it far
-    /// more often than the wide-but-shallow alternations `Prepend`'s
-    /// general form was built for.
+    /// A single bit prepended onto `rest` with one allocation (the
+    /// `Node` itself), vs `Prepend`'s `Vec` + slice-copy + `Rc<[bool]>`
+    /// for the general case. Matters because `flatten_alt`'s `Alt`
+    /// tagging and `Star`'s per-step marker pay this every character,
+    /// for every live `Alt`/`Star` level.
     PrependOne(bool, Rc<Node>),
     /// `left` followed by `right`, both already-lazy chains grafted
     /// together in O(1): see `Bits::prepend_bits`.
@@ -37,12 +30,11 @@ enum Node {
 }
 
 thread_local! {
-    /// The one shared empty chain. Every `Bits::empty()` call --
+    /// The one shared empty chain: every `Bits::empty()` call --
     /// directly, or via `AppendBits::empty()`/`prepend_one` composing
-    /// with it -- used to allocate its own fresh `Node::Nil`; sharing
-    /// one `Rc` here instead removes an allocation from what is
-    /// otherwise a per-character hot path for any pattern with a live
-    /// `Alt` or `Star`.
+    /// with it -- clones this `Rc` instead of allocating a fresh
+    /// `Node::Nil`, on what is otherwise a per-character hot path for
+    /// any pattern with a live `Alt` or `Star`.
     static EMPTY_NODE: Rc<Node> = Rc::new(Node::Nil);
 }
 

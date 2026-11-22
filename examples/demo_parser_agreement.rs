@@ -10,15 +10,15 @@
 //!   - non-POSIX parsers agree among themselves;
 //!   - all five agree on membership.
 //!
-//! Each parser call runs in its own subprocess, not a thread.
-//! An earlier version used threads with a channel-based timeout.
-//! `rx.recv_timeout` gives up waiting, but Rust cannot cancel the thread.
-//! A hung call keeps running and keeps allocating in the background.
-//! Enough of those piling up is what OOM-killed full differential sweeps.
-//! A process can be killed outright (`Child::kill()`), reclaiming memory.
-//! Cost: up to five short-lived processes per entry, not five threads.
-//! Slower in wall-clock terms when parsers finish quickly.
-//! Bounded, correct memory over raw throughput is the point.
+//! Each parser call runs in its own subprocess, not a thread: a
+//! channel-based timeout can give up waiting on a thread, but Rust
+//! cannot cancel it, so a hung call keeps running and allocating in
+//! the background -- enough of those piling up is what OOM-kills a
+//! full differential sweep. A process can be killed outright
+//! (`Child::kill()`), reclaiming its memory. Cost: up to five
+//! short-lived processes per entry, slower in wall-clock terms when
+//! parsers finish quickly -- bounded, correct memory over raw
+//! throughput is the point.
 //! `BENCH_PATTERN_LIMIT` caps a sweep's size.
 //!
 //! Build the worker first:

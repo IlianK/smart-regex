@@ -207,11 +207,10 @@ fn hash_shape<H: Hasher>(r: &ARegex, state: &mut H) {
     }
 }
 
-/// Same result as the all-pairs scan this replaced (keep the first,
-/// i.e. lowest-original-index, branch of each shape-equivalence
-/// class, in original relative order), but O(p) instead of O(p^2):
-/// one shape-hash per branch instead of comparing every branch to
-/// every other. Branches are only ever compared against already-kept
+/// Keeps the first (lowest-original-index) branch of each
+/// shape-equivalence class, in original relative order, in O(p): one
+/// shape-hash per branch bucketed by hash, rather than comparing every
+/// branch to every other. Branches are only ever compared against already-kept
 /// bucket-mates, never against ones already dropped -- safe because
 /// `same_shape` is an equivalence relation (reflexive, symmetric,
 /// transitive, since it's structural equality on a tree minus one
