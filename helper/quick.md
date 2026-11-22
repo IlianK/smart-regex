@@ -65,8 +65,7 @@ STACKDEPTH_N_CAP=4294967295 cargo bench --bench bench_stack_depth
 
 # PARSER AGREEMENT
 cargo build --release --example demo_parser_agreement_worker
-cargo run --release --example demo_parser_agreement
-BENCH_MEM_CAP_MB=12288 cargo run --release --example demo_parser_agreement_pathological
+AGREEMENT_TIMEOUT_MS=60000 BENCH_MEM_CAP_MB=12288 cargo run --release --example demo_parser_agreement_pathological
 
 
 
