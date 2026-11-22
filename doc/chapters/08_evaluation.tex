@@ -922,32 +922,24 @@ where it keeps the derivation sequence for the backward pass
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l l rrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l rrrrr}
 \hline
-Parser & Stat. & Setup & Derive & Reconstruct & Teardown & Total \\
+Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \hline
-\texttt{deriv\_std\_loop} & Mean   & 0.000 & 40.604 & 11.767 & 0.001 & 52.391 \\
-                          & Median & 0.000 &  0.200 &  0.005 & 0.000 &  0.235 \\
-\texttt{deriv\_bc}        & Mean   & 0.090 &  1.527 &  0.015 & 0.001 &  1.639 \\
-                          & Median & 0.040 &  0.246 &  0.001 & 0.000 &  0.296 \\
-\texttt{pderiv\_std}      & Mean   & 0.024 &  0.714 &  0.012 & 0.001 &  0.752 \\
-                          & Median & 0.011 &  0.095 &  0.002 & 0.000 &  0.114 \\
-\texttt{pderiv\_bc}       & Mean   & 0.097 &  0.593 &  0.013 & 0.001 &  0.706 \\
-                          & Median & 0.018 &  0.082 &  0.001 & 0.000 &  0.109 \\
+\texttt{deriv\_std\_loop} & 0.000 &  0.200 &  0.005 & 0.000 &  0.235 \\
+\texttt{deriv\_bc}        & 0.040 &  0.246 &  0.001 & 0.000 &  0.296 \\
+\texttt{pderiv\_std}      & 0.011 &  0.095 &  0.002 & 0.000 &  0.114 \\
+\texttt{pderiv\_bc}       & 0.018 &  0.082 &  0.001 & 0.000 &  0.109 \\
 \hline
 \end{tabular*}
 \caption{Four-phase timing breakdown (ms) over the same corpus scope as
-Table~\ref{tab:corpus-timing}, mean (macro-averaged per pattern, as in
-Table~\ref{tab:eval-timing-statistics}) and median (pooled per entry)
-per phase. \texttt{deriv\_std\_loop}'s own \emph{Reconstruct} is its
-backward injection pass; its mean is dominated by the same slow
-entries as Table~\ref{tab:corpus-timing}'s, while its median shows
-the typical entry costs almost nothing to reconstruct, same as the
-other three. Each row's four phases sum to its own \emph{Total}
-within measurement noise for \emph{Mean}; for \emph{Median},
-\emph{Total} is each entry's own median total time rather than the
-sum of the per-phase medians beside it, since medians do not add the
-way means do. \texttt{deriv\_std\_rec} is omitted
+Table~\ref{tab:corpus-timing}, median per phase, pooled per entry.
+\texttt{deriv\_std\_loop}'s own \emph{Reconstruct} is its backward
+injection pass; at the median it costs almost nothing, same as the
+other three candidates. Each row's \emph{Total} is the entry's own
+median total time rather than the sum of the per-phase medians beside
+it, since medians do not add the way means do.
+\texttt{deriv\_std\_rec} is omitted
 (Section~\ref{sec:eval-criteria-timing}).}
 \label{tab:corpus-timing-phases}
 \end{table}
@@ -958,13 +950,13 @@ way means do. \texttt{deriv\_std\_rec} is omitted
 \setlength{\tabcolsep}{4pt}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r l r rrrr}
 \hline
-Rank & Pattern & Input len.\ & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} & \texttt{deriv\_std\_loop} \\
+Rank & Pattern & Input len.\ & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 \hline
-1 & path validator        & 203 &    213.976 &    124.558 &    117.695 &        crashed \\
-2 & dot-separated run     & 138 &     63.353 &     88.353 &     92.146 &        crashed \\
-3 & dot-separated (var.)  & 138 &     66.004 &     86.683 &     88.606 &        crashed \\
-4 & alphanumeric+underscore & 203 &    120.558 &     80.195 &     88.296 &        crashed \\
-5 & email address         & 189 &     66.103 &     69.459 &     61.403 & 22\,155.554 \\
+1 & path validator        & 203 &        crashed &    213.976 &    124.558 &    117.695 \\
+2 & dot-separated run     & 138 &        crashed &     63.353 &     88.353 &     92.146 \\
+3 & dot-separated (var.)  & 138 &        crashed &     66.004 &     86.683 &     88.606 \\
+4 & alphanumeric+underscore & 203 &        crashed &    120.558 &     80.195 &     88.296 \\
+5 & email address         & 189 & 22\,155.554 &     66.103 &     69.459 &     61.403 \\
 \hline
 \end{tabular*}
 \caption{The five costliest S2ELab entries by \texttt{pderiv\_bc}'s own
@@ -1934,9 +1926,11 @@ Both are drawn from category J (``large pattern, short input''),
 whose mechanism is the per-node cost of a very large pattern.
 Alternation was chosen to grow a pattern's node count by a
 single parameter $p$ while leaving the input length fixed at $n=20$.
-Table~\ref{tab:patho-phases-e37} reports E37,
-a $p$-way alternation of distinct four-letter words.
-Table~\ref{tab:patho-phases-e38} shows E38,
+Figure~\ref{fig:patho-e37} plots E37's full sweep,
+a $p$-way alternation of distinct four-letter words;
+Table~\ref{tab:patho-phases-e37} breaks down its widest point into phases.
+Figure~\ref{fig:patho-e38} and Table~\ref{tab:patho-phases-e38}
+do the same for E38,
 a $p$-way alternation of distinct numbered placeholder words.
 Both sweep the same range,
 $p \in \{100, 500, 1\,000, 2\,000, 5\,000, 10\,000\}$,
@@ -1949,6 +1943,72 @@ At $p = 10\,000$, E38's seven-character words each translate to 13 nodes
 (seven literals chained by six concatenations), and joining all
 $10\,000$ of them adds $9\,999$ more nodes for the alternation itself:
 $10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=3.3cm,
+  xmode=log, ymode=log,
+  xlabel={Alternation width $p$},
+  ylabel={Wall time (ms)},
+  title={E37: $p$-way Alt., distinct words, $n=20$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=diamond*, thick, black]
+  coordinates {(100,0.341) (500,2.340) (1000,5.301) (2000,12.287) (5000,53.522) (10000,185.589)};
+\addlegendentry{\texttt{deriv\_std\_loop}}
+\addplot[mark=*, thick, blue]
+  coordinates {(100,0.474) (500,2.344) (1000,4.375) (2000,7.488) (5000,18.144) (10000,39.732)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(100,0.246) (500,1.097) (1000,2.294) (2000,4.474) (5000,10.314) (10000,17.535)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(100,0.283) (500,1.206) (1000,2.679) (2000,5.018) (5000,13.732) (10000,26.117)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+
+\vspace{0.4em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=5cm,
+  xmode=log, ymode=log,
+  xlabel={Alternation width $p$},
+  ylabel={Ratio to fastest},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  grid=major,
+]
+\addplot[dashed, gray, no markers]
+  coordinates {(100,1) (10000,1)};
+\addplot[mark=diamond*, thick, black]
+  coordinates {(100,1.386) (500,2.134) (1000,2.311) (2000,2.746) (5000,5.192) (10000,10.588)};
+\addplot[mark=*, thick, blue]
+  coordinates {(100,1.927) (500,2.137) (1000,1.907) (2000,1.674) (5000,1.759) (10000,2.266)};
+\addplot[mark=square*, thick, red]
+  coordinates {(100,1.000) (500,1.000) (1000,1.000) (2000,1.000) (5000,1.000) (10000,1.000)};
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(100,1.150) (500,1.099) (1000,1.168) (2000,1.122) (5000,1.331) (10000,1.489)};
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on E37, a $p$-way alternation of distinct
+four-letter words at fixed input length $n=20$, across the full
+swept width on a log-log axis. The lower panel plots each parser's
+time as a ratio to whichever of the four is fastest at that $p$,
+log-scaled since \texttt{deriv\_std\_loop}'s own ratio spans about
+one order of magnitude; \texttt{pderiv\_bc} is fastest throughout.}
+\label{fig:patho-e37}
+\end{figure}
 
 \begin{table}[H]
 \centering
@@ -1995,6 +2055,72 @@ is about $2.5\times$: both parsers' branch deduplication is $O(p)$
 hashes each branch's shape once, the same way \texttt{pderiv\_bc}'s
 \texttt{nub2} hashes each residual), so the gap between them reflects
 a difference in constant factor, not in growth rate.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=3.3cm,
+  xmode=log, ymode=log,
+  xlabel={Alternation width $p$},
+  ylabel={Wall time (ms)},
+  title={E38: $p$-way Alt., numbered words, $n=20$},
+  title style={font=\small},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  legend style={font=\scriptsize},
+  legend pos=north west,
+  grid=major,
+]
+\addplot[mark=diamond*, thick, black]
+  coordinates {(100,1.183) (500,5.126) (1000,14.192) (2000,25.699) (5000,97.412) (10000,332.002)};
+\addlegendentry{\texttt{deriv\_std\_loop}}
+\addplot[mark=*, thick, blue]
+  coordinates {(100,0.984) (500,5.450) (1000,9.416) (2000,18.853) (5000,45.816) (10000,94.461)};
+\addlegendentry{\texttt{deriv\_bc}}
+\addplot[mark=square*, thick, red]
+  coordinates {(100,0.638) (500,2.667) (1000,5.279) (2000,10.377) (5000,26.216) (10000,47.865)};
+\addlegendentry{\texttt{pderiv\_bc}}
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(100,0.795) (500,3.336) (1000,7.256) (2000,12.335) (5000,32.000) (10000,57.281)};
+\addlegendentry{\texttt{pderiv\_std}}
+\end{axis}
+\end{tikzpicture}
+
+\vspace{0.4em}
+
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.78\textwidth,
+  height=5cm,
+  xmode=log, ymode=log,
+  xlabel={Alternation width $p$},
+  ylabel={Ratio to fastest},
+  label style={font=\small},
+  tick label style={font=\scriptsize},
+  grid=major,
+]
+\addplot[dashed, gray, no markers]
+  coordinates {(100,1) (10000,1)};
+\addplot[mark=diamond*, thick, black]
+  coordinates {(100,1.854) (500,1.922) (1000,2.688) (2000,2.477) (5000,3.715) (10000,6.937)};
+\addplot[mark=*, thick, blue]
+  coordinates {(100,1.542) (500,2.043) (1000,1.784) (2000,1.817) (5000,1.748) (10000,1.973)};
+\addplot[mark=square*, thick, red]
+  coordinates {(100,1.000) (500,1.000) (1000,1.000) (2000,1.000) (5000,1.000) (10000,1.000)};
+\addplot[mark=triangle*, thick, orange!80!black]
+  coordinates {(100,1.246) (500,1.251) (1000,1.375) (2000,1.189) (5000,1.221) (10000,1.197)};
+\end{axis}
+\end{tikzpicture}
+\caption{Wall time on E38, a $p$-way alternation of distinct
+numbered words at fixed input length $n=20$, across the full swept
+width on a log-log axis. The lower panel plots each parser's time
+as a ratio to whichever of the four is fastest at that $p$, same
+log scale and convention as Figure~\ref{fig:patho-e37};
+\texttt{pderiv\_bc} is fastest throughout here too.}
+\label{fig:patho-e38}
+\end{figure}
 
 \begin{table}[H]
 \centering
@@ -2315,6 +2441,10 @@ D &  8\,624.1 &   3.6 &  28.6 &  18.8 \\
 E &  8\,454.2 &  19.3 &  43.6 &  32.5 \\
 F &  1\,409.3 &  42.0 &  85.2 & 108.1 \\
 H &  1\,871.0 &   2.1 &   4.1 &   4.7 \\
+I &  6\,052.0 & 4\,792.4 & 5\,125.3 & 5\,192.4 \\
+J &    646.8 &   2.6 & 169.0 & 253.0 \\
+K &  7\,310.1 &  40.9 &  86.4 &  22.2 \\
+L &  4\,673.4 &   2.2 &   2.8 &   3.1 \\
 \hline
 \end{tabular*}
 \renewcommand{\arraystretch}{1}
@@ -2328,10 +2458,20 @@ timed-out and crashed entries excluded.}
 Table~\ref{tab:patho-memory-baseline}
 shows that \texttt{deriv\_std\_loop} uses
 at least ten times as much peak memory
-as the other parsers in every one of the seven categories,
-narrowest on F, where the gap is still just over $13\times$
+as the other parsers in nine of the eleven categories,
+narrowest among those nine on F, where the gap is still just over $13\times$
 (1\,409.3 against \texttt{pderiv\_bc}'s $108.1$\,MB, the highest
 value any of the three non-recursive parsers reaches in this table).
+The two exceptions are I and J, both size-matrix categories
+(Table~\ref{tab:patho-categories}) rather than mechanism categories:
+on I, \texttt{deriv\_std\_loop}'s $6\,052.0$\,MB is only about
+$1.2\times$ \texttt{pderiv\_bc}'s $5\,192.4$\,MB; on J, its
+$646.8$\,MB is about $2.6\times$ \texttt{pderiv\_bc}'s $253.0$\,MB.
+In both, the other three parsers themselves reach unusually high peaks
+for this table -- multi-gigabyte on I, from its ten-million-character
+inputs, and in the hundreds of megabytes on J, from its widest
+alternations -- so \texttt{deriv\_std\_loop}'s margin narrows because
+the other three catch up, not because its own peak is unusually low.
 This is consistent with \texttt{deriv\_std\_loop} keeping the full
 derivation sequence, regardless of which complexity mechanism the
 pattern exercises.
@@ -2340,13 +2480,21 @@ sweep manages to measure (Section~\ref{sec:eval-criteria-setup}): where
 a category excludes fewer entries than before, the peak it reports can
 rise even for a parser whose own per-entry behavior is unchanged, simply
 because a wider population includes more of its memory-heavy cases.
+Categories I, J, and K exclude the largest shares of entries to crashes
+or timeouts among these eleven, K most of all: \texttt{deriv\_std\_loop}
+completes only 12 of its 30 entries there, and the partial-derivative
+pair only 20 each, so K's peaks are the most likely of the eleven to
+rise further if the remaining entries had completed.
 
 Among the other three parsers, no single one leads throughout:
-\texttt{pderiv\_std} has the highest peak in four categories (A, B, D,
-and E), \texttt{pderiv\_bc} in two (F and H), and \texttt{deriv\_bc} in
-the remaining one, C.
-\texttt{pderiv\_std}'s peak ranges from 4.1\,MB on H to 90.6\,MB on A,
-and \texttt{pderiv\_bc}'s from 4.7\,MB on H to 108.1\,MB on F.
+\texttt{pderiv\_std} has the highest peak in five categories (A, B, D,
+E, and K), \texttt{pderiv\_bc} in five (F, H, I, J, and L), and
+\texttt{deriv\_bc} in the remaining one, C.
+\texttt{pderiv\_std}'s peak ranges from 2.8\,MB on L to
+$5\,125.3$\,MB on I, and \texttt{pderiv\_bc}'s from 3.1\,MB on L to
+$5\,192.4$\,MB on I -- I's inputs reach ten million characters, far
+beyond any other category in this table, which is why both parsers'
+peaks there dwarf every other entry.
 The two represent injection closures differently:
 \texttt{pderiv\_std}'s closures grow by one layer for each residual kept
 alive, whereas \texttt{pderiv\_bc} uses a bit vector whose own size does
@@ -2356,11 +2504,12 @@ and how long each one's own encoding is, which varies by category and is
 not resolved by this aggregate table alone.
 
 The gap between \texttt{pderiv\_std} and \texttt{pderiv\_bc} is largest
-on A (90.6 against 11.0\,MB) and smallest on H, where the two are within
-1\,MB of each other (4.1 against 4.7).
-Category H also has the tightest three-way spread, with
-\texttt{deriv\_bc} included: all three stay within 2.6\,MB of each
-other (2.1, 4.1, and 4.7).
+on A, where \texttt{pderiv\_std}'s 90.6\,MB is about $8.3\times$
+\texttt{pderiv\_bc}'s 11.0\,MB, and smallest on I, where the two are
+within $1.3\,\%$ of each other ($5\,125.3$ against $5\,192.4$\,MB).
+Category L has the tightest three-way spread, with \texttt{deriv\_bc}
+included: all three stay within 0.9\,MB of each other (2.2, 2.8, and
+3.1); H is next-tightest, within 2.6\,MB (2.1, 4.1, and 4.7).
 \texttt{deriv\_bc} is the exception to the partial-derivative ordering
 only on C, where it reaches 27.7\,MB, against 9.9 and 14.5\,MB for the
 two partial-derivative parsers.
@@ -2495,72 +2644,91 @@ for memory, sweeping $p\in\{100,500,1\,000,2\,000,5\,000,
 sweep; \texttt{deriv\_std\_rec} is omitted from the tables below
 since it tracks \texttt{deriv\_std\_loop} closely
 (Section~\ref{sec:eval-criteria-timing}), so the remaining four are
-compared directly, at the widest swept width, $p=10\,000$.
+compared directly across the full sweep.
 
 \begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l r}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrrr}
 \hline
-Parser & Peak (MB) \\
+$p$ & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 \hline
-\texttt{deriv\_std\_loop} & 11.35 \\
-\texttt{deriv\_bc}        & 12.93 \\
-\texttt{pderiv\_std}      &  7.63 \\
-\texttt{pderiv\_bc}       &  6.05 \\
+100     &  0.124 &  0.127 &  0.074 &  0.059 \\
+500     &  0.613 &  0.650 &  0.374 &  0.298 \\
+1\,000  &  1.194 &  1.300 &  0.748 &  0.596 \\
+2\,000  &  2.322 &  2.599 &  1.496 &  1.192 \\
+5\,000  &  5.706 &  6.467 &  3.813 &  3.027 \\
+10\,000 & 11.346 & 12.934 &  7.625 &  6.054 \\
 \hline
 \end{tabular*}
-\caption{E37 peak live memory (MB) at $p=10\,000$, the widest swept
-Alt width, same sweep as Table~\ref{tab:patho-phases-e37}.
-\texttt{deriv\_std\_rec} is omitted (Section~\ref{sec:eval-criteria-timing});
-its own peak tracks \texttt{deriv\_std\_loop}'s closely (31.11\,MB).}
+\caption{E37 peak live memory (MB) across the full swept Alt width,
+same sweep as Table~\ref{tab:patho-phases-e37} and
+Figure~\ref{fig:patho-e37}. \texttt{deriv\_std\_rec} is omitted
+(Section~\ref{sec:eval-criteria-timing}); its own peak tracks
+\texttt{deriv\_std\_loop}'s closely at every point (31.11\,MB at
+$p=10\,000$).}
 \label{tab:patho-mem-e37}
 \end{table}
 
-At $p=10\,000$, \texttt{deriv\_bc} has the highest peak, narrowly
-above \texttt{deriv\_std\_loop} by about 14\,\%.
-\texttt{pderiv\_std} and \texttt{pderiv\_bc} are the two cheapest
-parsers, \texttt{pderiv\_std} slightly above \texttt{pderiv\_bc}
-(7.63 against 6.05\,MB), so the bit-coded pair does not reverse
-ranking here. Peak memory grows close to linearly in $p$ for all
-four parsers on this row rather than quadratically, confirmed
-against the full sweep behind this table.
+\texttt{deriv\_bc} has the highest peak at every swept width, and
+\texttt{pderiv\_bc} the lowest; the ranking never changes down to
+$p=100$. The gap between \texttt{deriv\_bc} and
+\texttt{deriv\_std\_loop} widens as $p$ grows, from about $2\,\%$ at
+$p=100$ to about $14\,\%$ at $p=10\,000$.
+\texttt{pderiv\_std} stays close to \texttt{pderiv\_bc} throughout
+instead, about $25$--$26\,\%$ above it at every swept point rather
+than widening, so the bit-coded pair's advantage over the
+non-bit-coded one is the one relationship here that does not grow
+with $p$. Peak memory grows close to linearly in $p$ for all four
+parsers, visible directly in the sweep above rather than inferred
+from a single point.
 
 \begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l r}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrrr}
 \hline
-Parser & Peak (MB) \\
+$p$ & \texttt{deriv\_std\_loop} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
 \hline
-\texttt{deriv\_std\_loop} & 34.47 \\
-\texttt{deriv\_bc}        & 21.57 \\
-\texttt{pderiv\_std}      & 12.91 \\
-\texttt{pderiv\_bc}       & 10.37 \\
+100     &  0.368 &  0.213 &  0.127 &  0.102 \\
+500     &  1.798 &  1.082 &  0.638 &  0.514 \\
+1\,000  &  3.586 &  2.164 &  1.276 &  1.028 \\
+2\,000  &  7.018 &  4.327 &  2.552 &  2.056 \\
+5\,000  & 17.314 & 10.787 &  6.453 &  5.187 \\
+10\,000 & 34.474 & 21.574 & 12.905 & 10.374 \\
 \hline
 \end{tabular*}
-\caption{E38 peak live memory (MB) at $p=10\,000$, same width and
-columns as Table~\ref{tab:patho-mem-e37}. \texttt{deriv\_std\_rec}
-is omitted; its own peak tracks \texttt{deriv\_std\_loop}'s closely
-(31.11\,MB).}
+\caption{E38 peak live memory (MB) across the full swept Alt width,
+same width and columns as Table~\ref{tab:patho-mem-e37}.
+\texttt{deriv\_std\_rec} is omitted; its own peak tracks
+\texttt{deriv\_std\_loop}'s closely at every point (31.11\,MB at
+$p=10\,000$).}
 \label{tab:patho-mem-e38}
 \end{table}
 
-E38 shows the same close-to-linear growth as E37 for every parser.
-\texttt{deriv\_bc}, \texttt{pderiv\_std}, and \texttt{pderiv\_bc} each
-peak at roughly $1.6\times$ to $1.7\times$ their corresponding E37
-figure at $p=10\,000$ (for instance \texttt{pderiv\_bc}: 10.37
-against 6.05\,MB), consistent with E38's words being longer than
-E37's fixed four-letter ones
-(Section~\ref{sec:eval-timing-representative}).
-\texttt{deriv\_std\_loop} grows faster still between the two rows, around
-$3\times$ rather than $1.6$--$1.7\times$, so the longer words
-cost it more than they cost the other three parsers.
+E38's ranking differs from E37's at every swept width, not only at
+the widest: \texttt{deriv\_std\_loop} has the highest peak throughout,
+above \texttt{deriv\_bc} by a fairly stable $1.6$--$1.7\times$, rather
+than \texttt{deriv\_bc} leading as it does on E37.
+\texttt{pderiv\_std} stays close to \texttt{pderiv\_bc} here too, about
+$24$--$25\,\%$ above it at every point, matching E37's similarly
+stable gap for the same pair.
+Comparing the two rows directly, \texttt{deriv\_bc},
+\texttt{pderiv\_std}, and \texttt{pderiv\_bc} each peak at a stable
+$1.6\times$ to $1.7\times$ their corresponding E37 figure at every
+swept $p$ (for instance \texttt{pderiv\_bc}: 10.37 against 6.05\,MB
+at $p=10\,000$, and 0.102 against 0.059\,MB already at $p=100$),
+consistent with E38's words being longer than E37's fixed four-letter
+ones (Section~\ref{sec:eval-timing-representative}).
+\texttt{deriv\_std\_loop} grows faster still between the two rows,
+a stable $3\times$ rather than $1.6$--$1.7\times$ at every swept
+point, so the longer words cost it more than they cost the other
+three parsers throughout, not only at the widest width.
 The ranking also matches its timing counterpart
-(Table~\ref{tab:patho-phases-e38}): \texttt{pderiv\_bc} and
-\texttt{pderiv\_std} are the two cheapest parsers at $p=10\,000$,
+(Table~\ref{tab:patho-phases-e38}) at $p=10\,000$: \texttt{pderiv\_bc}
+and \texttt{pderiv\_std} are the two cheapest parsers there,
 at 10.37 and 12.91\,MB, and \texttt{deriv\_bc} sits
 between them and \texttt{deriv\_std\_loop} rather than above all three, at
 21.57\,MB against 34.47\,MB for \texttt{deriv\_std\_loop}.
@@ -2575,19 +2743,20 @@ leaf's injection by wrapping the previous closure in a newly
 allocated one, so the $k$-th leaf retains a chain of $k$
 allocations unless earlier links are shared rather than copied.
 Neither cost shows up at this scale: both parsers' peaks grow
-in close proportion to $p$ over the sweep (roughly doubling
-each time $p$ doubles, the same rate as \texttt{deriv\_bc} and
-\texttt{deriv\_std\_loop}), well short of the quadratic growth either
-worst case allows. This is consistent with the flattened
-structure's sharing most of each leaf's encoding with its
-neighbors rather than each leaf holding an independent copy,
-though profiling would be needed to establish the exact
-contribution. \texttt{pderiv\_std} has similar timing to
+in close proportion to $p$ over the sweep -- exactly doubling
+each time $p$ doubles in Table~\ref{tab:patho-mem-e38}, and
+\texttt{deriv\_bc} does the same, with \texttt{deriv\_std\_loop}
+close behind at just under a $2\times$ doubling -- well
+short of the quadratic growth either worst case allows. This is
+consistent with the flattened structure's sharing most of each
+leaf's encoding with its neighbors rather than each leaf holding an
+independent copy, though profiling would be needed to establish the
+exact contribution. \texttt{pderiv\_std} has similar timing to
 \texttt{pderiv\_bc}, and both are much faster than the other
 three parsers (Section~\ref{sec:eval-timing-representative}).
 The trade-off is inherent in the representations, but at this
 width it is modest: \texttt{deriv\_bc}'s own peak over
-\texttt{pderiv\_bc}'s stays under $2.2\times$.
+\texttt{pderiv\_bc}'s stays under $2.2\times$ throughout the sweep.
 
 %
 %
