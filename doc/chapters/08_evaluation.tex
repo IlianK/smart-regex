@@ -116,55 +116,73 @@ Runs are classified as follows:
 \subsection{Timing}
 \label{sec:eval-criteria-timing}
 
-Each entry $(r,w)$ is timed once, without warm-up or repetition,
-with translation being timed separately
+Each entry $(r,w)$ is timed once, without warm-up or repetition.
+Translation is measured separately
 (Section~\ref{sec:eval-criteria-translation}).
-So timings cover only the parser call $p(r,w)$, split into four
-phases for all five candidates, positionally aligned across all of
-them but not identical in what each one measures.
-\emph{Setup} is work done before any character of $w$ is consumed:
-for \texttt{deriv\_bc} this is a genuine encode, building the initial
-annotated state via \texttt{internalize}. \texttt{pderiv\_bc} builds
-no such state, so its own \emph{setup} instead times the initial clone
-into the starting frontier plus the accumulated cost of
-\texttt{flatten\_alt} tagging \texttt{Alt} branches with bit prefixes
-across the whole parse -- the per-character equivalent of what
-\texttt{internalize} does once, upfront
-(Section~\ref{sec:eval-memory-representative}).
-\texttt{pderiv\_std} has neither an annotated state nor bit tagging, so
-its own \emph{setup} is just that initial clone, timed as its own
-phase purely so the three non-recursive candidates' breakdowns stay
-comparable; calling it an ``encode'' the way \texttt{deriv\_bc}'s is
-would overclaim what it does.
-\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop} never build a
-frontier or wrapper before deriving, so their own \emph{setup} is
-always $0$.
-\emph{Derive} is the per-character stepping loop, for all five.
-\emph{Reconstruct} produces the final \texttt{ParseTree} from whatever
-witness survived: a genuine decode for \texttt{deriv\_bc} and
-\texttt{pderiv\_bc}, interpreting an accumulated bit string;
-\texttt{Inj::apply}, applying the composed chain of injection closures
-built up during \emph{derive}, for \texttt{pderiv\_std}; and the
-backward injection pass itself for \texttt{deriv\_std\_rec} and
-\texttt{deriv\_std\_loop}, which build the parse tree directly during
-that pass rather than applying a separately composed closure.
-\emph{Teardown} is the cost of dropping the \texttt{ParseTree} this
-call returns, once its caller is done with it; it is measured
-identically for all five candidates by the harness itself, outside any
-parser function, since none of them controls what its own caller does
-with the tree it hands back.
-These four phases always sum to the call's true wall-clock cost, with
-nothing left unaccounted.
-Under the heap-capped setting used for every benchmark except the one
-in Section~\ref{sec:eval-stack-depth}, \texttt{deriv\_std\_rec} and
-\texttt{deriv\_std\_loop} exhaust that cap at the same inputs and
-report almost identical times, since both are limited by retained
-derivation state rather than by recursion depth; the results below
-therefore report \texttt{deriv\_std\_loop} alone as the standard
-construction's representative, with \texttt{deriv\_std\_rec} reported
-separately in Section~\ref{sec:eval-stack-depth}, the one measurement
-that isolates recursion depth itself as the limiting factor.
-Four statistics are reported, aggregated differently for the two datasets:
+Timings cover the parser call $p(r,w)$ and are divided into
+four phases across all five candidates.
+The phases align positionally, although their operations differ.
+
+\emph{Setup} differs substantially between implementations.
+For \texttt{deriv\_bc}, it measures the one-time
+\texttt{internalize} step that converts $r$ into the annotated
+expression $\mathit{ri}_0$ before derivation
+(Section~\ref{sec:internalize}).
+This is necessary because \texttt{deriv\_bc} preserves
+\texttt{Alt} nodes in its residual expressions,
+requiring their branches to be tagged beforehand.
+Later \texttt{fuse} operations in \texttt{deriv\_bc}
+and \texttt{simp} merely transfer existing bits
+and are not part of this encoding step.
+
+In contrast, \texttt{pderiv\_bc} eliminates alternations
+by splitting them into separate states
+(Section~\ref{sec:pderiv-bc-impl}).
+Its branch bits are assigned during derivation through
+\texttt{flatten\_alt}, so no initial encoding is needed.
+For consistent phase accounting, its \emph{setup}
+includes the initial clone of $r$ and the accumulated
+cost of all \texttt{flatten\_alt} calls, although
+these occur during \emph{derive}.
+This is a reporting convention, not preprocessing.
+It also explains why \texttt{pderiv\_bc} needs no
+\texttt{fuse}, since it does not maintain an annotated
+tree whose removed nodes must transfer bits.
+
+For \texttt{pderiv\_std}, \emph{setup} consists only
+of the initial clone, with no encoding or bit tagging.
+Both \texttt{deriv\_std\_rec} and
+\texttt{deriv\_std\_loop} have zero setup cost.
+Thus, setup timings do not represent equivalent
+operations and should not be compared as encoding costs.
+Only the complete timings provide a common basis.
+
+\emph{Derive} measures per-character stepping for all candidates.
+\emph{Reconstruct} produces the final \texttt{ParseTree}.
+For the bit-coded parsers, it decodes the accumulated bits.
+For \texttt{pderiv\_std}, it applies the composed injection
+closures through \texttt{Inj::apply}.
+For \texttt{deriv\_std\_rec} and
+\texttt{deriv\_std\_loop}, it performs backward injection,
+constructing the tree directly rather than applying
+a separately composed closure.
+\emph{Teardown} measures the destruction of the returned
+\texttt{ParseTree}, timed uniformly by the harness
+after the parser returns.
+The four phases account for the complete measured cost.
+
+Under the heap cap used in all benchmarks except
+Section~\ref{sec:eval-stack-depth},
+\texttt{deriv\_std\_rec} and \texttt{deriv\_std\_loop}
+fail on the same inputs and show nearly identical timings.
+Both are limited by retained derivation state rather
+than recursion depth. The results therefore use
+\texttt{deriv\_std\_loop} as the representative standard
+parser, while Section~\ref{sec:eval-stack-depth}
+examines recursion depth separately.
+
+Four timing statistics are reported, with aggregation
+depending on the dataset:
 \begin{table}[ht]
 \centering
 \small
@@ -181,13 +199,13 @@ Four statistics are reported, aggregated differently for the two datasets:
 \label{tab:eval-timing-statistics}
 \end{table}
 
-All four statistics are lower bounds 
-on the corresponding execution times, 
-because timed-out and crashed entries are excluded.
-A separate \emph{wall} column measures the full benchmark loop per pattern, 
-including process-spawn and pipe overhead excluded from individual timings.
-It captures total harness cost but is not suitable for comparing candidates.
-
+All four statistics underestimate the corresponding
+execution times when timed-out or crashed entries
+are excluded. A separate \emph{wall} column measures
+the complete benchmark loop per pattern, including
+process-spawn and pipe overhead.
+It captures harness cost but is unsuitable
+for comparing parser performance.
 %
 %
 %

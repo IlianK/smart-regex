@@ -1,43 +1,43 @@
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-Regular expression matching is foundational to lexing, input
-validation, and search, but once the Boolean membership question
-becomes parsing -- recovering the shape of a match, not just whether
-one exists -- the choice of disambiguation policy and internal
-representation determines both correctness and performance.
-Backtracking engines risk exponential blowup on adversarial input;
-automata-based approaches need costly precomputation or suffer
-state-space explosion. Brzozowski's derivatives and Antimirov's
-partial derivatives offer an alternative that builds no automaton in
-advance, instead recomputing the relevant residual expression on
-demand, one input symbol at a time. \citet{sulzmannlu2014} formalized
-a derivative-based POSIX parser, including a bit-coded variant that
-defers tree construction to a final decode step, and, in earlier
-work, \citet{sulzmannlu2012} studied a partial-derivative-based
-approach to submatching -- but neither extended partial derivatives
-to full, greedily disambiguated parse-tree construction, and both
-studied their constructions in Haskell, with little attention to
-practical execution time or memory behavior.
+Brzozowski derivatives and Antimirov partial derivatives
+offer a way to process regular expressions incrementally,
+providing a foundation not only for matching but also for
+recovering the structure of a match. Building on these
+methods, \citet{sulzmannlu2014} studied POSIX parse-tree
+construction using Brzozowski derivatives, while
+\citet{sulzmannlu2012} examined non-POSIX submatching
+using partial derivatives. Drawing on this work,
+the thesis examines the implementation and practical
+performance of derivative-based regular expression parsers.
 
-This thesis implements five parser candidates in Rust: the standard
-derivative parser in recursive and iterative form, its bit-coded
-variant, and a partial-derivative parser -- in both plain and
-bit-coded form -- built by threading Sulzmann and Lu's POSIX
-injection rules through the partial-derivative rules, recovering a
-full, non-POSIX parse tree under greedy disambiguation. All five are
-evaluated for execution time, memory consumption, and translation
-cost against a real-world corpus~\citep{s2elab-regexeval-dataset} and
-a synthetic stress-test dataset designed to isolate specific
-worst-case mechanisms.
+To investigate the two approaches, four parsers are
+implemented in Rust, two based on Brzozowski derivatives
+and two on Antimirov partial derivatives. For each approach,
+one implementation uses injection functions to reconstruct
+parse trees, while the other employs bit-coding as an
+optimization, recording parsing decisions as compact bit
+sequences for subsequent tree reconstruction. The
+Brzozowski-based parsers follow Sulzmann and Lu's POSIX
+parsing construction, whereas the partial-derivative parsers
+construct full parse trees under non-POSIX
+disambiguation. The implementations are evaluated in terms
+of execution time, memory consumption, and translation cost
+using a real-world regular expression corpus and a synthetic
+stress-test dataset designed to expose specific performance
+bottlenecks.
 
-Across both datasets, the five parsers order consistently from
-slowest to fastest: the recursive standard parser, its iterative
-form, the bit-coded standard parser, the plain partial-derivative
-parser, and the bit-coded partial-derivative parser. Bit-coding
-speeds up the standard parser by four to five times while cutting its
-peak memory by roughly two orders of magnitude, but brings little
-benefit to the already-efficient partial-derivative parser. No family
-is uniformly superior: relative performance depends on how fast each
-pattern's residual set grows under its input, so the right choice is
-workload-dependent rather than universal.
+The results indicate that partial-derivative parsers
+generally achieve lower execution times, although their
+relative performance varies across patterns and inputs.
+Bit-coding proves particularly effective for the
+Brzozowski-based parser, improving execution time by
+approximately a factor of four to five and reducing peak
+memory consumption by roughly two orders of magnitude.
+For partial derivatives, however, the benefits of
+bit-coding are smaller and less consistent. These findings
+demonstrate that the practical efficiency of derivative-based
+parsing depends not only on the underlying derivative
+construction but also on the representation of parsing
+information and the characteristics of the workload.

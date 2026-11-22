@@ -1154,26 +1154,22 @@ from the figure.}
 \label{sec:simp}
 
 $\mathit{simp}$, from \citep[Fig.~6]{sulzmannlu2014},
-keeps the annotated expression's size bounded as derivation proceeds.
-It discards dead ($\emptyset$) branches,
-collapses an $\varepsilon$ operand out of a concatenation,
-and removes duplicate alternation branches.
-This is done by fusing (Section~\ref{sec:fuse}) 
-each removed node's bits onto its replacement.
-A single bottom-up pass does not always reach a fixpoint.
-Collapsing a branch at one level can expose a new collapse above,
-so $\mathit{simp}$ re-applies itself until the shape stops changing.
-The \texttt{Alt} case follows the same logic, flattening nested
-alternations into one list before deduplicating it, so that a
-branch's duplicate is found regardless of how deeply each was
-originally nested. Deduplication groups the $p$ flattened
-alternatives by a structural hash of their shape and only compares
-branches within the same bucket, confirming each apparent match with
-the same shape-equality check an all-pairs scan would use. Two
-branches of the same shape always hash the same way, so nothing is
-missed; a hash collision between differently shaped branches costs
-one extra, correctly negative, comparison rather than a wrong merge.
-This keeps the cost of finding duplicates linear in $p$.
+controls the growth of annotated expressions during derivation.
+It removes dead ($\emptyset$) branches,
+collapses concatenations containing $\varepsilon$,
+and eliminates duplicate alternatives,
+fusing (Section~\ref{sec:fuse}) removed nodes' bits
+onto their replacements.
+Since one bottom-up pass may expose further simplifications,
+$\mathit{simp}$ repeats until the expression's shape stabilizes.
+The \texttt{Alt} case first flattens nested alternations,
+allowing duplicates to be detected across nesting levels.
+The $p$ branches are grouped by structural hash,
+with shape equality checked within each bucket.
+Identical shapes always share a hash, while collisions
+only cause additional comparisons, not incorrect merges.
+This gives expected linear deduplication time in $p$,
+though collisions can increase the worst-case cost.
 $\oplus$ takes a list of operands,
 written $bs@\oplus\,[\mathit{ri}_1,\ldots,\mathit{ri}_n]$.
 \begin{equation}
@@ -1238,39 +1234,38 @@ pub fn simp(ri: ARegex) -> ARegex {
 
 %
 
-
 The theoretical rules (Equation~\eqref{eq:simp-theory})
-flatten nested alternations into a single list of branches.
+flatten nested alternations into a list of branches.
 Since \texttt{ARegex::Alt} uses nested binary nodes
-(Section~\ref{sec:aregex-type}), the implementation first
-collects the branches, then applies \texttt{map}, \texttt{filter},
-and \texttt{nub} before rebuilding the tree.
-\texttt{map} and \texttt{filter} are exactly \texttt{.map(simp\_once)} 
-and \texttt{.filter(|b| !is\_phi(b))} 
-in Figure~\ref{fig:simp-rust}'s \texttt{Alt} arm.
-Flattening is implemented by the functions
-\texttt{collect\_alt\_branches} and \texttt{push\_branches}
-(Figure~\ref{fig:collect-alt-branches-rust}), while 
-\texttt{fold\_alt} rebuilds the list into a binary \texttt{Alt} chain
+(Section~\ref{sec:aregex-type}), the implementation
+collects the branches, applies \texttt{map}, \texttt{filter},
+and \texttt{nub}, then rebuilds the tree.
+In Figure~\ref{fig:simp-rust}, \texttt{map} and \texttt{filter}
+correspond to \texttt{.map(simp\_once)} and
+\texttt{.filter(|b| !is\_phi(b))}.
+Flattening uses \texttt{collect\_alt\_branches} and
+\texttt{push\_branches}
+(Figure~\ref{fig:collect-alt-branches-rust}),
+while \texttt{fold\_alt} rebuilds the binary \texttt{Alt} chain
 (Figure~\ref{fig:fold-alt-rust}).
-\texttt{dedup\_first} implements the \texttt{nub} called right after. 
-Only what \texttt{nub} treats as a `duplicate' 
-is left unspecified by \citep[Fig.~6]{sulzmannlu2014}.
-Here, bits are ignored when comparing expressions, 
-following the pattern equality in \citep[Fig.~9]{sulzmannlu2012}. 
-But this is not a form of disambiguation. 
-\texttt{simp} works on one expression, not a set of states, 
-so there is nothing to choose between. 
-\texttt{same\_shape} only merges branches that are structurally identical, 
-so they always derive and decode the same way. 
-Discarding one of them has no effect on which parse tree is selected.
-\texttt{collect\_alt\_branches} flattens nested \texttt{Alt} nodes 
-via \texttt{push\_branches}, 
-fusing each node's bits onto its children so no choice is lost. 
-This lets \texttt{dedup\_first} compare every branch together, 
-instead of once per nesting level,
-removing survivors that share the same regex. 
-\texttt{dedup\_first} is shown later in full in Figure~\ref{fig:dedup-first-rust}.
+The subsequent \texttt{nub} is implemented by
+\texttt{dedup\_first}
+(Figure~\ref{fig:dedup-first-rust}).
+The duplicate criterion for \texttt{nub} is unspecified
+in \citet[Fig.~6]{sulzmannlu2014}.
+Here, expressions are compared without their bits,
+following the pattern equality in
+\citet[Fig.~9]{sulzmannlu2012}.
+This is not disambiguation, since \texttt{simp}
+simplifies a single expression rather than selecting
+among states. \texttt{same\_shape} identifies structurally
+identical branches that derive and decode identically,
+so removing duplicates does not change the selected parse tree.
+During flattening, \texttt{push\_branches} fuses each
+\texttt{Alt} node's bits onto its children, preserving
+the encoded choices. This allows \texttt{dedup\_first}
+to compare all branches across nesting levels and retain
+only the first occurrence of each regex shape.
 
 \begin{figure}[H]
 \small
@@ -1306,10 +1301,7 @@ fn simp_once(ri: &ARegex) -> ARegex {
 }
 \end{verbatim}
 \caption{\texttt{simp\_once}: \texttt{Seq}/\texttt{Alt} simplification for
-annotated expressions. \texttt{Seq} removes dead ($\emptyset$) or
-already-\texttt{Eps} operands, while \texttt{Alt} removes dead and
-duplicate branches. Removed bits are transferred using \texttt{fuse\_bits},
-the \texttt{Bits}-native counterpart of \texttt{fuse} (Section~\ref{sec:fuse}).
+annotated expressions.
 }
 \label{fig:simp-rust}
 \end{figure}

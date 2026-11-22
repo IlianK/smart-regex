@@ -936,26 +936,6 @@ residual: collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
 \begin{figure}[H]
 \small
 \begin{verbatim}
-fn flatten_alt<'a>(r: &'a Regex, prefix: &AppendBits,
-                    out: &mut Vec<(&'a Regex, AppendBits)>) {
-    match r {
-        Regex::Alt(r1, r2) => {
-            flatten_alt(r1, &prefix.append_one(false), out);
-            flatten_alt(r2, &prefix.append_one(true), out);
-        }
-        other => out.push((other, prefix.clone())),
-    }
-}
-\end{verbatim}
-\caption{\texttt{flatten\_alt}: flattens a chain of nested \texttt{Alt}s
-into its leaves, pairing each with the bit prefix its position in the
-chain assigns.}
-\label{fig:pderiv-bc-flatten-rust}
-\end{figure}
-
-\begin{figure}[H]
-\small
-\begin{verbatim}
 pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
     match r {
         Regex::Phi | Regex::Eps => vec![],
@@ -1014,6 +994,26 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
 \label{fig:pderiv-bc-rust}
 \end{figure}
 
+\begin{figure}[H]
+\small
+\begin{verbatim}
+fn flatten_alt<'a>(r: &'a Regex, prefix: &AppendBits,
+                    out: &mut Vec<(&'a Regex, AppendBits)>) {
+    match r {
+        Regex::Alt(r1, r2) => {
+            flatten_alt(r1, &prefix.append_one(false), out);
+            flatten_alt(r2, &prefix.append_one(true), out);
+        }
+        other => out.push((other, prefix.clone())),
+    }
+}
+\end{verbatim}
+\caption{\texttt{flatten\_alt}: flattens a chain of nested \texttt{Alt}s
+into its leaves, pairing each with the bit prefix its position in the
+chain assigns.}
+\label{fig:pderiv-bc-flatten-rust}
+\end{figure}
+
 
 %
 %
@@ -1041,22 +1041,23 @@ parse tree.
 \end{aligned}
 \end{equation}
 
-The alternation rule reproduces the left preference of $\mathit{mkEps}$,
-emitting $0$ when the left branch is nullable and $1$
-otherwise. The star rule emits a single terminating $1$, since a
-star matching the empty word uses zero iterations. Where $\mathit{mkEps}$ builds a parse-tree node per case
-(Chapter~\ref{sec:derivative-parser}), $\mathit{mkEpsBC}$ only concatenates
-bit-lists: $\mathit{Alt}$ and $r^{*}$ contribute the same leading bit their
-$\mathit{pderivBC}$ counterparts do (Equation~\eqref{eq:pderiv-bc}), and
-$r_1 r_2$ needs no case split, since $r_1 \cdot r_2$ is nullable only when
-both $r_1, r_2$ are.
+The alternation rule preserves $\mathit{mkEps}$'s left preference,
+emitting $0$ if the left branch is nullable and $1$ otherwise.
+The star rule emits a terminating $1$ for zero iterations.
+Unlike $\mathit{mkEps}$, which constructs parse-tree nodes
+(Chapter~\ref{sec:derivative-parser}),
+$\mathit{mkEpsBC}$ only concatenates bit-lists.
+$\mathit{Alt}$ and $r^{*}$ contribute the same leading bits
+as in $\mathit{pderivBC}$ (Equation~\eqref{eq:pderiv-bc}),
+while $r_1 r_2$ needs no case split, since both operands
+must be nullable.
 
 %
 
 \paragraph{In Rust.}
 \label{sec:mk-eps-bits-impl}
 
-Figure~\ref{fig:mk-eps-bits-rust} implements~\eqref{eq:pderiv-mkepsbc} directly.
+Figure~\ref{fig:mk-eps-bits-rust} implements Equation~\eqref{eq:pderiv-mkepsbc} directly.
 
 \begin{figure}[H]
 \small
@@ -1103,7 +1104,6 @@ applies $\mathit{mkEps}$ to its injection.
 %
 %
 
-\clearpage
 \subsection{State Sets and Selection}
 \label{sec:pderiv-bc-state-set}
 
