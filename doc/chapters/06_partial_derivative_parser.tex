@@ -896,8 +896,12 @@ accumulated down the spine in encounter order. Each prefix is an
 \texttt{AppendBits} chain rather than a flat list: extending it one
 level down grafts a single new bit onto the existing chain instead of
 copying everything accumulated so far, and the clone taken at each
-leaf shares that chain rather than duplicating it. This is the
-persistent-chain counterpart of the $\mathit{Left}$/$\mathit{Right}$-wrapped
+leaf shares that chain rather than duplicating it.
+\texttt{append\_one} is the operation behind that graft: the
+single-bit case of \texttt{AppendBits}'s general \texttt{append},
+built so that extending the prefix by exactly one bit costs one
+allocation rather than the collection a multi-bit suffix would need.
+This is the persistent-chain counterpart of the $\mathit{Left}$/$\mathit{Right}$-wrapped
 closure \texttt{pderiv\_tree}'s own flattening builds for the same leaf.
 Deriving each leaf and grafting its own derivative's bits onto that
 leaf's prefix, another $O(1)$ operation rather than a copy, then
@@ -917,6 +921,10 @@ exactly as Equation~\eqref{eq:pderiv-bc} specifies.
 The star case prepends a leading $0$ marking that this
 transition continues an iteration, the counterpart of the single
 terminating $1$ that $\mathit{mkEpsBC}$'s star rule emits.
+\texttt{prepend\_one} is \texttt{append\_one}'s counterpart for the
+opposite end, grafting one bit onto the front of an existing
+\texttt{AppendBits} chain rather than its back, for the same
+one-allocation cost.
 
 Both \texttt{Seq} and \texttt{Star} call \texttt{smart\_seq},
 since $r_1$'s derivative can be $\varepsilon$
@@ -932,8 +940,8 @@ fn flatten_alt<'a>(r: &'a Regex, prefix: &AppendBits,
                     out: &mut Vec<(&'a Regex, AppendBits)>) {
     match r {
         Regex::Alt(r1, r2) => {
-            flatten_alt(r1, &prefix.append(&[false]), out);
-            flatten_alt(r2, &prefix.append(&[true]), out);
+            flatten_alt(r1, &prefix.append_one(false), out);
+            flatten_alt(r2, &prefix.append_one(true), out);
         }
         other => out.push((other, prefix.clone())),
     }
@@ -993,7 +1001,7 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
             let out: Vec<(Regex, AppendBits)> = pderiv_bc(r1, x)
                 .into_iter()
                 .map(|(r1_, bs)| {
-                    let b = AppendBits::from(vec![false]).append_bits(&bs);
+                    let b = bs.prepend_one(false);
                     (smart_seq(r1_, &Regex::star(*r1.clone())), b)
                 })
                 .collect();
