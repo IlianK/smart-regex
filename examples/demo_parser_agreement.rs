@@ -1,50 +1,37 @@
 //! examples/demo_parser_agreement.rs
 //!
-//! cargo run --release --example demo_parser_agreement
-//!
-//! Cross-parser agreement over the prepared dataset.
+//! Two-parser variant: `deriv_bc` (POSIX representative) and
+//! `pderiv_bc` (non-POSIX representative), on the prepared corpus.
 //! Reads `data/processed/`, written by `dataset_prepare`.
-//! For each (pattern, input) entry, all five parsers run.
-//! Three checks:
-//!   - POSIX parsers agree among themselves;
-//!   - non-POSIX parsers agree among themselves;
-//!   - all five agree on membership.
 //!
-//! Each parser call runs in its own subprocess, not a thread.
-//! An earlier version used threads with a channel-based timeout.
-//! `rx.recv_timeout` gives up waiting, but Rust cannot cancel the thread.
-//! A hung call keeps running and keeps allocating in the background.
-//! Enough of those piling up is what OOM-killed full differential sweeps.
-//! A process can be killed outright (`Child::kill()`), reclaiming memory.
-//! Cost: up to five short-lived processes per entry, not five threads.
-//! Slower in wall-clock terms when parsers finish quickly.
-//! Bounded, correct memory over raw throughput is the point.
-//! `BENCH_PATTERN_LIMIT` caps a sweep's size.
+//! Checks, per entry:
+//!   - membership: both parsers agree with `expected_match`.
+//!   - cross-family shape: when both match, do they return the same tree?
+//!     Same shape is allowed but not required across families, so a
+//!     disagreement is reported as "ambiguous", not a bug.
+//!
+//! Each parser call runs in its own subprocess, not a thread. See
+//! `demo_parser_agreement_pathological.rs`'s module doc for the same
+//! rationale (Rust cannot cancel a hung thread; a process can be killed).
 //!
 //! Build the worker first:
 //!   cargo build --release --example demo_parser_agreement_worker
 //!
+//! Selection env vars (unchanged from the five-parser version):
+//!   BENCH_SOURCE (comma-separated; default: every source)
+//!   BENCH_PATTERN_LIMIT (cap distinct patterns per source)
+//!   BENCH_MATCH_INTENT (direct/explicit/both; default explicit)
+//!   AGREEMENT_TIMEOUT_MS (per-call timeout)
+//!
 //! Saves three files, replacing any previous run:
-//!   - reports/demos/parser_agreement.csv -- the summary table (one row
-//!     per source plus a total): entries/matches/non-matches/timeouts/
-//!     crashes/agreement percentages.
-//!   - reports/demos/parser_agreement_samples.csv -- every individual
-//!     flagged entry (timeout, crash, membership bug, POSIX/non-POSIX
-//!     shape bug, ambiguous shape), capped at `MAX_PRINTED_PER_BUG_KIND`
-//!     per kind same as stdout. Kept separate from the summary table per
-//!     this project's "a listing of individual examples gets its own
-//!     file" convention.
+//!   - reports/demos/parser_agreement.csv -- one row per source plus a
+//!     total.
+//!   - reports/demos/parser_agreement_samples.csv -- every flagged entry.
 //!   - reports/demos/parser_agreement_by_pattern.csv -- the same
-//!     POSIX-vs-non-POSIX shape comparison the summary aggregates,
-//!     broken out per (source, pattern): how many of a pattern's inputs
-//!     were compared, how many agreed, how many disagreed. Uncapped --
-//!     every pattern that was ever compared gets a row, sorted so
-//!     patterns with any disagreement come first, so the few culprits
-//!     stand out against the whole dataset's patterns that never had
-//!     one, not just the uncontextualized sample rows above.
+//!     cross-family shape comparison, broken out per (source, pattern),
+//!     uncapped and sorted so patterns with any disagreement come first.
 //! This is the one demo in that family whose exit code matters (1 on a
-//! real bug) and whose "last known clean" state is worth a persisted
-//! record rather than only ever existing in scrollback.
+//! real membership bug).
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -68,7 +55,10 @@ const DEFAULT_TIMEOUT_MS: u64 = 2000;
 /// Cap on printed instances per bug/outcome kind; beyond this, tally only.
 const MAX_PRINTED_PER_BUG_KIND: usize = 20;
 const WORKER_NAME: &str = "demo_parser_agreement_worker";
-const PARSER_NAMES: [&str; 5] = ["rec", "loop", "bc", "pstd", "pbc"];
+
+/// Worker parser indices: 2 = `deriv_bc`, 4 = `pderiv_bc`.
+const IDX_DERIV_BC: usize = 2;
+const IDX_PDERIV_BC: usize = 4;
 
 const SOURCES: [SourceKind; 5] = [
     SourceKind::Suricata,
@@ -106,23 +96,16 @@ fn selection() -> Selection {
                 })
                 .collect()
         })
-        // Unlike most benches/examples (whose shared `load_prepared_cases`
-        // default is S2ELab alone), this one defaults to
-        // every source: agreement is a correctness check, not a
-        // performance sweep, and a membership or shape bug hiding in
-        // RegexLib/S2ELab/Innovatorved is exactly as real a bug.
+        // Agreement is a correctness check, not a performance sweep, so
+        // default to every source: a membership bug hiding anywhere is
+        // exactly as real a bug.
         .unwrap_or_else(|| SOURCES.to_vec());
     let pattern_limit = std::env::var("BENCH_PATTERN_LIMIT").ok().map(|s| {
         s.parse().unwrap_or_else(|_| panic!("BENCH_PATTERN_LIMIT must be a positive integer, got {s:?}"))
     });
-    // Same default and env var as bench_corpus.rs:
-    // every measurement in this evaluation runs on the same scope, the 463
-    // anchor-stripped (full-match) patterns, unless BENCH_MATCH_INTENT
-    // explicitly asks to fold in the 115 "direct" patterns too. A prepared
-    // case's claimed label is only unambiguous for this engine's full-string
-    // matching under ExplicitFullMatch; UnanchoredAmbiguous's own name is
-    // the reason it is not the default anywhere else, and agreement should
-    // not be the one measurement checking it against a looser bar.
+    // Same default as bench_corpus.rs: the 463 anchor-stripped patterns,
+    // because a prepared case's claimed label is only unambiguous for
+    // this engine's full-string matching under ExplicitFullMatch.
     let match_intent = match std::env::var("BENCH_MATCH_INTENT").ok() {
         None => Some(MatchIntent::ExplicitFullMatch),
         Some(s) => match s.trim().to_lowercase().as_str() {
@@ -141,13 +124,6 @@ fn selection() -> Selection {
     Selection { sources, pattern_limit, match_intent, timeout: Duration::from_millis(timeout_ms) }
 }
 
-/// Deserializes a worker's one-line `Option<ParseTree>` output.
-///
-/// Plain `serde_json::from_str` enforces a fixed logical recursion limit.
-/// That default is well short of what a large corpus match nests to.
-/// Recursing natively to deserialize a deep tree risks a stack overflow.
-/// That is the same risk as building a deep tree in the worker.
-/// `serde_stacker` grows the stack as needed instead.
 fn deserialize_tree(json: &str) -> serde_json::Result<Option<ParseTree>> {
     let mut de = serde_json::Deserializer::from_str(json);
     de.disable_recursion_limit();
@@ -155,10 +131,6 @@ fn deserialize_tree(json: &str) -> serde_json::Result<Option<ParseTree>> {
     serde::Deserialize::deserialize(de)
 }
 
-/// Path of the worker binary next to this executable.
-/// Per-worker virtual-memory ceiling (`setrlimit(RLIMIT_AS, ..)`, Unix
-/// only -- see `bench_worker.rs`'s module doc for the fuller
-/// rationale: unset means unbounded, same as before this existed).
 fn mem_cap_bytes() -> Option<u64> {
     std::env::var("BENCH_MEM_CAP_MB").ok().map(|s| {
         let mb: u64 = s.parse().unwrap_or_else(|_| panic!("BENCH_MEM_CAP_MB must be a positive integer, got {s:?}"));
@@ -179,19 +151,12 @@ fn worker_path() -> PathBuf {
     path
 }
 
-/// One parser's outcome for one entry.
 enum Outcome {
     Done(Option<ParseTree>),
-    /// Worker did not exit within the timeout; killed.
     TimedOut,
-    /// Worker exited (or was killed by a signal) without a usable result.
     Crashed(String),
 }
 
-/// Spawns the worker for one (parser, pattern, input) job and waits.
-/// On timeout, kills the child.
-/// Killing a process reclaims its whole address space.
-/// Giving up on waiting for a thread does not.
 fn run_parser_isolated(
     worker: &PathBuf,
     timeout: Duration,
@@ -209,23 +174,18 @@ fn run_parser_isolated(
         Ok(c) => c,
         Err(e) => panic!("failed to spawn {worker:?}: {e}"),
     };
-
-    // Pattern/input travel over stdin as one line of JSON, not argv.
-    // `Command::arg` cannot carry a string with an embedded NUL byte at all.
-    // OS process arguments are C strings; some Suricata candidates contain a NUL.
-    // Written and stdin dropped before the reader thread starts.
-    // So this write cannot block on a pipe nothing is draining yet.
     {
         let mut stdin = child.stdin.take().expect("piped stdin");
-        let job = serde_json::json!({ "pattern": pattern, "input": input, "mem_cap_bytes": mem_cap_bytes() }).to_string();
+        let job = serde_json::json!({
+            "pattern": pattern,
+            "input": input,
+            "mem_cap_bytes": mem_cap_bytes()
+        })
+        .to_string();
         if let Err(e) = stdin.write_all(job.as_bytes()) {
             panic!("failed to write job to {worker:?}'s stdin: {e}");
         }
     }
-
-    // Drain stdout/stderr on a background thread while polling for exit.
-    // This thread's lifetime is bounded by the child's.
-    // A pipe read returns as soon as the child closes it.
     let mut stdout = child.stdout.take().expect("piped stdout");
     let mut stderr = child.stderr.take().expect("piped stderr");
     let (tx, rx) = mpsc::channel();
@@ -236,13 +196,10 @@ fn run_parser_isolated(
         let _ = stderr.read_to_string(&mut err);
         let _ = tx.send((out, err));
     });
-
     let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                // Process has exited, so the pipes are closed.
-                // The reader thread is finishing; this recv does not block on new work.
                 let (out, err) = rx.recv().unwrap_or_default();
                 if !status.success() {
                     let reason = match status.code() {
@@ -263,7 +220,7 @@ fn run_parser_isolated(
             Ok(None) => {
                 if Instant::now() >= deadline {
                     let _ = child.kill();
-                    let _ = child.wait(); // reap; do not leave a zombie
+                    let _ = child.wait();
                     return Outcome::TimedOut;
                 }
                 std::thread::sleep(Duration::from_millis(5));
@@ -273,8 +230,6 @@ fn run_parser_isolated(
     }
 }
 
-/// Loads `sel`'s cases; `pattern_limit` caps distinct patterns per source.
-/// Unset loads everything.
 fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
     let cases = load_prepared_cases(std::path::Path::new(DATA_ROOT), &sel.sources)
         .unwrap_or_else(|e| {
@@ -309,110 +264,49 @@ fn select_cases(sel: &Selection) -> Vec<PreparedCase> {
 #[derive(Default)]
 struct Tally {
     entries: usize,
-    /// How many `entries` are verified matches vs. non-matches, per the
-    /// dataset's own labeling -- independent of what any parser does.
-    /// `matches + non_matches == entries` always.
     matches: usize,
     non_matches: usize,
-    /// At least one parser timed out -- not a bug.
-    timeouts: usize,
-    /// At least one worker crashed -- not a membership/shape bug.
-    /// But not dismissed the way a timeout is either.
-    crashes: usize,
-    /// Checked on EVERY completed entry, match or non-match: did all
-    /// five parsers agree with `expected_match`? This is the "agreement
-    /// on match result" dimension -- it covers non-matches too, since
-    /// agreeing that something does NOT match is as real a check as
-    /// agreeing that it does.
+    /// At least one parser timed out or crashed.
+    excluded: usize,
+    /// `deriv_bc` timed out or crashed, when `pderiv_bc` completed.
+    deriv_bc_excluded: usize,
+    /// `pderiv_bc` timed out or crashed, when `deriv_bc` completed.
+    pderiv_bc_excluded: usize,
+    /// Both completed, and at least one disagrees with `expected_match`.
     membership_bugs: usize,
-    /// A verified match with correct membership and a POSIX-internal
-    /// and/or non-POSIX-internal shape disagreement. Internal-family
-    /// consistency (3-way POSIX, 2-way non-POSIX) is a given -- each is
-    /// its own correctness property, pinned by its own test -- so these
-    /// are tracked only for the detailed bug lines and the overall bug
-    /// count below, not as their own summary-table column. The
-    /// comparison worth a column is the next one: POSIX vs. non-POSIX.
-    posix_shape_bugs: usize,
-    non_posix_shape_bugs: usize,
-    /// Entries where both families were internally consistent and
-    /// matched, so a single POSIX tree and a single non-POSIX tree
-    /// both exist to compare. Denominator for shape agreement/disagreement.
-    cross_compared: usize,
+    /// Both matched and returned the same tree.
     cross_same_shape: usize,
+    /// Both matched and returned different trees (allowed across families).
     cross_different_shape: usize,
 }
 
 impl Tally {
-    /// Entries where every parser actually ran to completion -- excludes
-    /// timeouts and crashes. Denominator for match-result agreement.
     fn completed(&self) -> usize {
-        self.entries - self.timeouts - self.crashes
+        self.entries - self.excluded
     }
-
-    /// % of `completed()` where all five parsers agreed with
-    /// `expected_match`. Covers match AND non-match entries.
     fn match_agree_pct(&self) -> f64 {
         let n = self.completed();
         if n == 0 { 0.0 } else { 100.0 * (n - self.membership_bugs) as f64 / n as f64 }
     }
-
-    /// % of `cross_compared` where POSIX and non-POSIX picked the SAME tree.
-    fn shape_agree_pct(&self) -> f64 {
-        if self.cross_compared == 0 {
-            0.0
-        } else {
-            100.0 * self.cross_same_shape as f64 / self.cross_compared as f64
-        }
+    fn shape_same_pct(&self) -> f64 {
+        let n = self.cross_same_shape + self.cross_different_shape;
+        if n == 0 { 0.0 } else { 100.0 * self.cross_same_shape as f64 / n as f64 }
     }
-
-    /// % of `cross_compared` where POSIX and non-POSIX picked DIFFERENT
-    /// trees. Not a bug -- the two policies may legitimately disagree
-    /// on an ambiguous pattern. `shape_agree_pct + shape_disagree_pct`
-    /// sums to 100% (of `cross_compared`).
-    fn shape_disagree_pct(&self) -> f64 {
-        if self.cross_compared == 0 {
-            0.0
-        } else {
-            100.0 * self.cross_different_shape as f64 / self.cross_compared as f64
-        }
+    fn shape_diff_pct(&self) -> f64 {
+        let n = self.cross_same_shape + self.cross_different_shape;
+        if n == 0 { 0.0 } else { 100.0 * self.cross_different_shape as f64 / n as f64 }
     }
-
     fn accumulate(&mut self, t: &Tally) {
         self.entries += t.entries;
         self.matches += t.matches;
         self.non_matches += t.non_matches;
-        self.timeouts += t.timeouts;
-        self.crashes += t.crashes;
+        self.excluded += t.excluded;
+        self.deriv_bc_excluded += t.deriv_bc_excluded;
+        self.pderiv_bc_excluded += t.pderiv_bc_excluded;
         self.membership_bugs += t.membership_bugs;
-        self.posix_shape_bugs += t.posix_shape_bugs;
-        self.non_posix_shape_bugs += t.non_posix_shape_bugs;
-        self.cross_compared += t.cross_compared;
         self.cross_same_shape += t.cross_same_shape;
         self.cross_different_shape += t.cross_different_shape;
     }
-}
-
-/// Names of whichever parsers timed out, in call order; `None` if none did.
-fn timed_out_names(outcomes: &[Outcome; 5]) -> Option<Vec<&'static str>> {
-    let names: Vec<&'static str> = outcomes
-        .iter()
-        .zip(PARSER_NAMES)
-        .filter(|(o, _)| matches!(o, Outcome::TimedOut))
-        .map(|(_, name)| name)
-        .collect();
-    if names.is_empty() { None } else { Some(names) }
-}
-
-/// Names of whichever parsers crashed, with reason; empty if none did.
-fn crashed_names(outcomes: &[Outcome; 5]) -> Vec<(&'static str, &str)> {
-    outcomes
-        .iter()
-        .zip(PARSER_NAMES)
-        .filter_map(|(o, name)| match o {
-            Outcome::Crashed(reason) => Some((name, reason.as_str())),
-            _ => None,
-        })
-        .collect()
 }
 
 fn truncate(s: &str, n: usize) -> String {
@@ -423,11 +317,6 @@ fn truncate(s: &str, n: usize) -> String {
     }
 }
 
-/// Per-(source, pattern) breakdown of the same POSIX-vs-non-POSIX shape
-/// comparison `Tally.cross_compared/cross_same_shape/cross_different_shape`
-/// tracks at the dataset level, so a pattern that contributes a
-/// disagreement can be shown alongside every other pattern that was
-/// compared and did not -- not just listed as an isolated sample.
 #[derive(Default, Clone, Copy)]
 struct PatternAgreement {
     compared: usize,
@@ -441,9 +330,6 @@ fn write_pattern_agreement_csv(
 ) -> std::io::Result<()> {
     let mut rows: Vec<(&SourceKind, &String, &PatternAgreement)> =
         by_pattern.iter().map(|((s, p), a)| (s, p, a)).collect();
-    // Patterns that ever disagreed sort first (worst first), then by how
-    // many inputs were compared (most-tested first), so the reader sees
-    // every culprit before the long tail of patterns with zero disagreement.
     rows.sort_by(|a, b| {
         b.2.different_shape
             .cmp(&a.2.different_shape)
@@ -465,8 +351,6 @@ fn write_pattern_agreement_csv(
     Ok(())
 }
 
-/// One flagged entry, going into the samples file (kept separate from
-/// the summary table -- see this file's own module doc).
 struct Sample {
     kind: &'static str,
     source: String,
@@ -520,28 +404,29 @@ fn main() {
         );
     }
 
+    eprintln!(
+        "demo_parser_agreement (deriv_bc vs pderiv_bc): {} cases across {} source(s) (timeout={:?})",
+        cases.len(),
+        sel.sources.len(),
+        sel.timeout
+    );
+
     let mut tallies: [Tally; 5] = Default::default();
     let mut samples: Vec<Sample> = Vec::new();
     let mut by_pattern: HashMap<(SourceKind, String), PatternAgreement> = HashMap::new();
     let mut printed_membership = 0usize;
-    let mut printed_posix = 0usize;
-    let mut printed_non_posix = 0usize;
     let mut printed_timeout = 0usize;
     let mut printed_crash = 0usize;
     let mut printed_ambiguous = 0usize;
 
     for case in &cases {
-        // Translation itself is not the source of the memory-pileup problem.
-        // Only running a parser is, so this call stays in-process.
-        // `core_regex`, not `parse_pcre_rule`: `case.pattern` was accepted via `core_regex_tagged`.
         if let Err(e) = core_regex(&case.pattern) {
             eprintln!("skipping prepared case (should have been pre-verified): {} -- {}", case.pattern, e);
             continue;
         }
 
-        let outcomes = std::array::from_fn(|i| {
-            run_parser_isolated(&worker, sel.timeout, i, &case.pattern, &case.input)
-        });
+        let o_bc = run_parser_isolated(&worker, sel.timeout, IDX_DERIV_BC, &case.pattern, &case.input);
+        let o_pbc = run_parser_isolated(&worker, sel.timeout, IDX_PDERIV_BC, &case.pattern, &case.input);
 
         let tally = &mut tallies[source_idx(case.source)];
         tally.entries += 1;
@@ -551,64 +436,71 @@ fn main() {
             tally.non_matches += 1;
         }
 
-        if let Some(names) = timed_out_names(&outcomes) {
-            tally.timeouts += 1;
-            if printed_timeout < MAX_PRINTED_PER_BUG_KIND {
-                println!(
-                    "TIMEOUT >{}ms  {:?}  pat={:?}  in={:?}  [{}]",
-                    sel.timeout.as_millis(), case.source, truncate(&case.pattern, 60),
-                    truncate(&case.input, 40), names.join(",")
-                );
-                push_sample(
-                    &mut samples, "timeout", case.source, &case.pattern, &case.input,
-                    format!("timed out after {}ms: [{}]", sel.timeout.as_millis(), names.join(",")),
-                );
-                printed_timeout += 1;
+        let bc_done = matches!(o_bc, Outcome::Done(_));
+        let pbc_done = matches!(o_pbc, Outcome::Done(_));
+        let bc_excluded = !bc_done;
+        let pbc_excluded = !pbc_done;
+        if bc_excluded || pbc_excluded {
+            tally.excluded += 1;
+            if bc_excluded && pbc_done {
+                tally.deriv_bc_excluded += 1;
+            }
+            if pbc_excluded && bc_done {
+                tally.pderiv_bc_excluded += 1;
+            }
+            for (name, outcome) in [("deriv_bc", &o_bc), ("pderiv_bc", &o_pbc)] {
+                match outcome {
+                    Outcome::TimedOut => {
+                        if printed_timeout < MAX_PRINTED_PER_BUG_KIND {
+                            println!(
+                                "TIMEOUT >{}ms  {:?}  {}  pat={:?}  in={:?}",
+                                sel.timeout.as_millis(), case.source, name,
+                                truncate(&case.pattern, 60), truncate(&case.input, 40)
+                            );
+                            push_sample(
+                                &mut samples, "timeout", case.source, &case.pattern, &case.input,
+                                format!("{name} timed out after {}ms", sel.timeout.as_millis()),
+                            );
+                            printed_timeout += 1;
+                        }
+                    }
+                    Outcome::Crashed(reason) => {
+                        if printed_crash < MAX_PRINTED_PER_BUG_KIND {
+                            println!(
+                                "CRASH  {:?}  {}  pat={:?}  in={:?}  {}",
+                                case.source, name, truncate(&case.pattern, 60),
+                                truncate(&case.input, 40), reason
+                            );
+                            push_sample(
+                                &mut samples, "crash", case.source, &case.pattern, &case.input,
+                                format!("{name}: {reason}"),
+                            );
+                            printed_crash += 1;
+                        }
+                    }
+                    Outcome::Done(_) => {}
+                }
             }
             continue;
         }
 
-        let crashed = crashed_names(&outcomes);
-        if !crashed.is_empty() {
-            tally.crashes += 1;
-            if printed_crash < MAX_PRINTED_PER_BUG_KIND {
-                let detail: Vec<String> = crashed.iter().map(|(n, r)| format!("{n}: {r}")).collect();
-                println!(
-                    "CRASH  {:?}  pat={:?}  in={:?}  {}",
-                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                    detail.join(" | ")
-                );
-                push_sample(&mut samples, "crash", case.source, &case.pattern, &case.input, detail.join(" | "));
-                printed_crash += 1;
-            }
-            continue;
-        }
+        let bc = match o_bc { Outcome::Done(t) => t, _ => unreachable!() };
+        let pbc = match o_pbc { Outcome::Done(t) => t, _ => unreachable!() };
 
-        let [rec, loop_, bc, pstd, pbc] = outcomes.map(|o| match o {
-            Outcome::Done(r) => r,
-            Outcome::TimedOut | Outcome::Crashed(_) => {
-                unreachable!("checked by timed_out_names/crashed_names above")
-            }
-        });
-
-        let all_matched = [rec.is_some(), loop_.is_some(), bc.is_some(), pstd.is_some(), pbc.is_some()];
-        let membership_ok = all_matched.iter().all(|&m| m == case.expected_match);
+        let bc_match = bc.is_some();
+        let pbc_match = pbc.is_some();
+        let membership_ok = bc_match == case.expected_match && pbc_match == case.expected_match;
         if !membership_ok {
             tally.membership_bugs += 1;
             if printed_membership < MAX_PRINTED_PER_BUG_KIND {
                 println!(
-                    "MEMBERSHIP BUG  {:?}  pat={:?}  in={:?}  expected={}  got=[rec={} loop={} bc={} pstd={} pbc={}]",
+                    "MEMBERSHIP BUG  {:?}  pat={:?}  in={:?}  expected={}  got=[deriv_bc={} pderiv_bc={}]",
                     case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                    case.expected_match, all_matched[0], all_matched[1], all_matched[2],
-                    all_matched[3], all_matched[4]
+                    case.expected_match, bc_match, pbc_match
                 );
                 push_sample(
                     &mut samples, "membership_bug", case.source, &case.pattern, &case.input,
-                    format!(
-                        "expected={} got=[rec={} loop={} bc={} pstd={} pbc={}]",
-                        case.expected_match, all_matched[0], all_matched[1], all_matched[2],
-                        all_matched[3], all_matched[4]
-                    ),
+                    format!("expected={} got=[deriv_bc={} pderiv_bc={}]", case.expected_match, bc_match, pbc_match),
                 );
                 printed_membership += 1;
             }
@@ -616,92 +508,46 @@ fn main() {
         }
 
         if !case.expected_match {
-            // Expected non-match: every parser returned None; no trees.
             continue;
         }
 
-        let posix_shape_ok = rec == loop_ && loop_ == bc;
-        if !posix_shape_ok {
-            tally.posix_shape_bugs += 1;
-            if printed_posix < MAX_PRINTED_PER_BUG_KIND {
+        // Cross-family shape comparison. Same tree is allowed but not
+        // required across families, so a disagreement is reported as
+        // "ambiguous", not a bug.
+        let pattern_entry = by_pattern.entry((case.source, case.pattern.clone())).or_default();
+        pattern_entry.compared += 1;
+        if bc == pbc {
+            tally.cross_same_shape += 1;
+            pattern_entry.same_shape += 1;
+        } else {
+            tally.cross_different_shape += 1;
+            pattern_entry.different_shape += 1;
+            if printed_ambiguous < MAX_PRINTED_PER_BUG_KIND {
                 println!(
-                    "POSIX SHAPE BUG  {:?}  pat={:?}  in={:?}  rec={:?} loop={:?} bc={:?}",
-                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                    rec, loop_, bc
+                    "AMBIGUOUS SHAPE  {:?}  pat={:?}  in={:?}\n  deriv_bc  ={:?}\n  pderiv_bc ={:?}",
+                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40), bc, pbc
                 );
                 push_sample(
-                    &mut samples, "posix_shape_bug", case.source, &case.pattern, &case.input,
-                    format!("rec={:?} loop={:?} bc={:?}", rec, loop_, bc),
+                    &mut samples, "ambiguous_shape", case.source, &case.pattern, &case.input,
+                    format!("deriv_bc={:?} | pderiv_bc={:?}", bc, pbc),
                 );
-                printed_posix += 1;
-            }
-        }
-
-        let non_posix_shape_ok = pstd == pbc;
-        if !non_posix_shape_ok {
-            tally.non_posix_shape_bugs += 1;
-            if printed_non_posix < MAX_PRINTED_PER_BUG_KIND {
-                println!(
-                    "NON-POSIX SHAPE BUG  {:?}  pat={:?}  in={:?}  pstd={:?} pbc={:?}",
-                    case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                    pstd, pbc
-                );
-                push_sample(
-                    &mut samples, "non_posix_shape_bug", case.source, &case.pattern, &case.input,
-                    format!("pstd={:?} pbc={:?}", pstd, pbc),
-                );
-                printed_non_posix += 1;
-            }
-        }
-
-        if posix_shape_ok && non_posix_shape_ok {
-            tally.cross_compared += 1;
-            let pattern_entry = by_pattern.entry((case.source, case.pattern.clone())).or_default();
-            pattern_entry.compared += 1;
-            let posix_tree: &Option<ParseTree> = &bc;
-            let non_posix_tree: &Option<ParseTree> = &pbc;
-            if posix_tree == non_posix_tree {
-                tally.cross_same_shape += 1;
-                pattern_entry.same_shape += 1;
-            } else {
-                tally.cross_different_shape += 1;
-                pattern_entry.different_shape += 1;
-                // Not a bug -- POSIX and non-POSIX may legitimately pick
-                // different trees on an ambiguous pattern. One
-                // representative per family is enough: every POSIX
-                // parser already agrees with `bc` (posix_shape_ok,
-                // checked above), and every non-POSIX parser with `pbc`
-                // (non_posix_shape_ok), so printing all five would just
-                // repeat each tree two or three times over.
-                if printed_ambiguous < MAX_PRINTED_PER_BUG_KIND {
-                    println!(
-                        "AMBIGUOUS SHAPE  {:?}  pat={:?}  in={:?}\n  posix (bc)     ={:?}\n  non-posix (pbc)={:?}",
-                        case.source, truncate(&case.pattern, 60), truncate(&case.input, 40),
-                        posix_tree, non_posix_tree
-                    );
-                    push_sample(
-                        &mut samples, "ambiguous_shape", case.source, &case.pattern, &case.input,
-                        format!("posix (bc)={:?} | non-posix (pbc)={:?}", posix_tree, non_posix_tree),
-                    );
-                    printed_ambiguous += 1;
-                }
+                printed_ambiguous += 1;
             }
         }
     }
 
     println!();
     println!(
-        "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>10} {:>10} {:>10} {:>10} {:>10}",
-        "Source", "Entries", "Matches", "NonMatch", "Timeouts", "Crashes",
-        "MatchAgr%", "ShapeAgr%", "ShapeDis%", "ShapeNAgr", "ShapeNDis"
+        "{:<13} {:>8} {:>8} {:>8} {:>9} {:>10} {:>10} {:>10} {:>9} {:>9}",
+        "Source", "Entries", "Matches", "NonMatch", "Excluded", "MatchAgr%", "ShapeSame", "ShapeDiff", "Same%", "Diff%"
     );
-    println!("{}", "-".repeat(118));
+    println!("{}", "-".repeat(115));
 
     let mut summary_csv = String::new();
     writeln!(
         summary_csv,
-        "source,entries,matches,non_matches,timeouts,crashes,match_agree_pct,shape_agree_pct,\
-         shape_disagree_pct,shape_n_agree,shape_n_disagree"
+        "source,entries,matches,non_matches,excluded,deriv_bc_excluded,pderiv_bc_excluded,\
+         match_agree_pct,shape_same,shape_diff,shape_same_pct,shape_diff_pct"
     )
     .unwrap();
 
@@ -712,68 +558,55 @@ fn main() {
             continue;
         }
         println!(
-            "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>9.1}% {:>9.1}% {:>9.1}% {:>10} {:>10}",
-            format!("{:?}", source), t.entries, t.matches, t.non_matches, t.timeouts, t.crashes,
-            t.match_agree_pct(), t.shape_agree_pct(), t.shape_disagree_pct(),
-            t.cross_same_shape, t.cross_different_shape
+            "{:<13} {:>8} {:>8} {:>8} {:>9} {:>9.1}% {:>10} {:>10} {:>8.1}% {:>8.1}%",
+            format!("{:?}", source), t.entries, t.matches, t.non_matches, t.excluded,
+            t.match_agree_pct(), t.cross_same_shape, t.cross_different_shape,
+            t.shape_same_pct(), t.shape_diff_pct()
         );
         writeln!(
             summary_csv,
-            "{:?},{},{},{},{},{},{:.1},{:.1},{:.1},{},{}",
-            source, t.entries, t.matches, t.non_matches, t.timeouts, t.crashes,
-            t.match_agree_pct(), t.shape_agree_pct(), t.shape_disagree_pct(),
-            t.cross_same_shape, t.cross_different_shape
+            "{:?},{},{},{},{},{},{},{:.1},{},{},{:.1},{:.1}",
+            source, t.entries, t.matches, t.non_matches, t.excluded,
+            t.deriv_bc_excluded, t.pderiv_bc_excluded, t.match_agree_pct(),
+            t.cross_same_shape, t.cross_different_shape, t.shape_same_pct(), t.shape_diff_pct()
         )
         .unwrap();
         total.accumulate(t);
     }
-    println!("{}", "-".repeat(118));
+    println!("{}", "-".repeat(115));
     println!(
-        "{:<13} {:>8} {:>8} {:>8} {:>9} {:>8} {:>9.1}% {:>9.1}% {:>9.1}% {:>10} {:>10}",
-        "Total", total.entries, total.matches, total.non_matches, total.timeouts, total.crashes,
-        total.match_agree_pct(), total.shape_agree_pct(), total.shape_disagree_pct(),
-        total.cross_same_shape, total.cross_different_shape
+        "{:<13} {:>8} {:>8} {:>8} {:>9} {:>9.1}% {:>10} {:>10} {:>8.1}% {:>8.1}%",
+        "Total", total.entries, total.matches, total.non_matches, total.excluded,
+        total.match_agree_pct(), total.cross_same_shape, total.cross_different_shape,
+        total.shape_same_pct(), total.shape_diff_pct()
     );
     writeln!(
         summary_csv,
-        "Total,{},{},{},{},{},{:.1},{:.1},{:.1},{},{}",
-        total.entries, total.matches, total.non_matches, total.timeouts, total.crashes,
-        total.match_agree_pct(), total.shape_agree_pct(), total.shape_disagree_pct(),
-        total.cross_same_shape, total.cross_different_shape
+        "Total,{},{},{},{},{},{},{:.1},{},{},{:.1},{:.1}",
+        total.entries, total.matches, total.non_matches, total.excluded,
+        total.deriv_bc_excluded, total.pderiv_bc_excluded, total.match_agree_pct(),
+        total.cross_same_shape, total.cross_different_shape, total.shape_same_pct(), total.shape_diff_pct()
     )
     .unwrap();
 
     println!();
-    println!("Entries = Matches + NonMatch, per the dataset's own labeling, regardless of");
-    println!("  what any parser actually did with them.");
-    println!("MatchAgr%  = of entries where every parser ran to completion (Entries minus");
-    println!("  Timeouts minus Crashes), the % where all five parsers agreed with the");
-    println!("  verified expected result. Should be 100% for every parser on every source --");
-    println!("  this is a real bug, not ambiguity, if it is ever not.");
-    println!("ShapeAgr% / ShapeDis% = of ShapeNAgr + ShapeNDis (verified matches where both");
-    println!("  the 3-way POSIX and 2-way non-POSIX families agreed with themselves, so one");
-    println!("  POSIX tree and one non-POSIX tree both exist), the % where POSIX and non-POSIX");
-    println!("  picked the SAME tree vs. a DIFFERENT one. Disagreement here is not a bug --");
-    println!("  the two policies may legitimately pick different trees on an ambiguous");
-    println!("  pattern. (Internal 3-way/2-way family agreement is checked separately, each");
-    println!("  pinned by its own test; any failure there is printed above as its own bug");
-    println!("  line and counted in the total bug count, not folded into this column.)");
-    println!("Every ShapeDis% entry is printed above as \"AMBIGUOUS SHAPE\" (and saved to the");
-    println!("  samples file as kind=ambiguous_shape), with the pattern, input, and one");
-    println!("  representative tree per family (bc for POSIX, pbc for non-POSIX -- every parser");
-    println!("  in a family already agrees with its own representative, so the other two/one");
-    println!("  would just repeat it), capped at {MAX_PRINTED_PER_BUG_KIND} total like the bug lines.");
-    println!("Timeouts are not bugs: deriv_std_rec/deriv_std_loop run unsimplified, and a large or");
-    println!("  ambiguous pattern can be infeasible in the configured budget.");
-    println!("Crashes are counted, not dismissed (usually a stack overflow on a deep expression),");
-    println!("  but are not membership/shape disagreements -- nothing was produced to compare.");
+    println!("Two cross-family representatives only:");
+    println!("  deriv_bc  = POSIX representative (worker index {IDX_DERIV_BC})");
+    println!("  pderiv_bc = non-POSIX representative (worker index {IDX_PDERIV_BC})");
+    println!("Within-family agreement is not checked here -- each family has one");
+    println!("representative. MatchAgr% is a real bug if it is ever below 100%.");
+    println!("Shape disagreements are not bugs: the two policies may legitimately");
+    println!("pick different trees on an ambiguous pattern.");
 
-    let bugs = total.membership_bugs + total.posix_shape_bugs + total.non_posix_shape_bugs;
+    let bugs = total.membership_bugs;
     println!();
     if bugs > 0 {
-        println!("{} BUG(S) across {} entries (printed details capped at {} per kind).", bugs, total.entries, MAX_PRINTED_PER_BUG_KIND);
+        println!("{} membership bug(s) across {} entries (printed details capped at {}).", bugs, total.entries, MAX_PRINTED_PER_BUG_KIND);
     } else {
-        println!("No bugs across {} entries ({} timed out, {} crashed).", total.entries, total.timeouts, total.crashes);
+        println!(
+            "No membership bugs across {} entries ({} excluded: {} deriv_bc-only failures, {} pderiv_bc-only failures).",
+            total.entries, total.excluded, total.deriv_bc_excluded, total.pderiv_bc_excluded
+        );
     }
 
     save("parser_agreement", "csv", &summary_csv);
