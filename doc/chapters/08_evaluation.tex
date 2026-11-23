@@ -301,18 +301,23 @@ The same method is used to find the two translation caps
 Parse agreement is evaluated on entries $(r,w)$
 extended with an expected match result
 $e \in \{\mathit{true},\mathit{false}\}$, giving $(r,w,e)$.
-\emph{Membership} is checked against the expected result $e$,
-with any disagreement indicating a bug.
-All five candidates agree on membership for every completed entry
-and produce identical parse trees within each family.
-These agreements are therefore not reported separately.
-Instead, parse trees are compared across families
-when $e = \mathit{true}$ and both parsers return a tree.
-Since their parser's disambiguation policies differ,
-distinct trees indicate ambiguity rather than a bug.
-The comparison therefore uses one representative per family:
-\texttt{deriv\_bc} for POSIX and
-\texttt{pderiv\_bc} for non-POSIX.
+Within a family, the parsers are alternative implementations of the
+same disambiguation policy and agree with each other by construction;
+the comparison therefore uses one representative per family,
+\texttt{deriv\_bc} for POSIX and \texttt{pderiv\_bc} for non-POSIX,
+to check the one place the two policies can legitimately diverge.
+\emph{Membership} is \texttt{deriv\_bc} and \texttt{pderiv\_bc} each
+returning a tree exactly when $e = \mathit{true}$.
+The two disagreeing with \emph{each other} on membership would
+indicate a bug, since whether a string matches at all does not
+depend on which disambiguation policy selects its parse tree.
+Both agreeing with each other but against $e$ instead points at the
+entry's expected label, not at either parser; this case is reported
+separately below rather than folded into either outcome.
+\emph{Shape} is compared only once membership is settled, i.e.\ when
+$e = \mathit{true}$ and both return a tree: since their disambiguation
+policies differ, distinct trees there indicate ambiguity rather than
+a bug.
 \begin{table}[ht]
 \centering
 \small
@@ -3058,15 +3063,16 @@ expected matches where both candidates completed and agreed on
 membership, yielding one POSIX and one non-POSIX tree to compare.
 Shape counts use \emph{Compared}, not \emph{Entries}, since
 those also contain non-matching entries and, on the synthetic set,
-a small number of membership disagreements
-(discussed below).}
+a small number of entries where both candidates agree with each
+other but not with the expected label (discussed below).}
 \label{tab:agreement}
 \end{table}
 
 Table~\ref{tab:agreement}
-shows two membership exceptions, both in the synthetic set's category
-C; every other completed entry agrees with the expected result
-across both candidates.
+shows nine entries, all in the synthetic set's category C, where
+\texttt{deriv\_bc} and \texttt{pderiv\_bc} agree with each other but
+not with the entry's expected label; every other completed entry
+agrees with the expected result for both candidates.
 No S2ELab entries timed out or crashed.
 The synthetic set's 28 timeouts and zero crashes are expected outcomes
 of its deliberately difficult inputs.
@@ -3082,23 +3088,23 @@ deliberately creating ambiguity between possible decompositions.
 Categories E and F contribute ten and five disagreements, respectively.
 All other categories show none.
 
-Category C also has nine membership disagreements, all on its
-bounded-repetition patterns (\texttt{(.*x*)\{1,10\}},
-\texttt{(.\{0,5\}a)\{1,10\}}, \texttt{([a-z]\{1,3\})\{1,10\}}) at large
-input lengths: \texttt{deriv\_bc} and \texttt{pderiv\_bc} agree with
-each other on every one of these nine entries, but both disagree with
-the entry's expected label.
+All nine are on category C's bounded-repetition patterns
+(\texttt{(.*x*)\{1,10\}}, \texttt{(.\{0,5\}a)\{1,10\}},
+\texttt{([a-z]\{1,3\})\{1,10\}}) at large input lengths.
 A bound of $\{1,10\}$ repetitions, each consuming at most a handful of
 characters, caps how much input the pattern can cover; several of the
 flagged ``should match'' entries exceed that cap, and the flagged
 ``should not match'' entries are covered anyway because an
 unconstrained \texttt{.*} can match the whole remaining input in a
 single iteration.
-Since the two independently implemented candidates agree with each
-other against the label in every case, this looks like a labeling
-issue in the dataset's generated large-$n$ inputs for category C
-rather than a parser bug, though it is reported here as an open
-discrepancy rather than a resolved one.
+\texttt{deriv\_bc} and \texttt{pderiv\_bc} -- two independently
+implemented candidates with different disambiguation policies --
+agree with each other on every one of these nine entries, against the
+label in every case: agreement between two independent
+implementations is what rules out a parser bug here, and points
+instead at a labeling issue in the dataset's generated large-$n$
+inputs for category C. It is reported here as an open discrepancy
+rather than a resolved one.
 
 \begin{table}[H]
 \centering
@@ -3124,9 +3130,10 @@ L & 189 &  0 & 93 & 100.0\% (93) &  0.0\% (0) \\
 \caption{Parse agreement by category over the synthetic set.
 \emph{Pattern} gives one representative row per category;
 Table~\ref{tab:patho-categories} describes each category's
-mechanism. Membership is omitted here except for category C, which
-has nine disagreements discussed in the text; every other completed
-entry returned the expected result for both candidates. Category L
+mechanism. Membership is omitted here except for category C, whose
+nine entries disagreeing with the expected label are discussed in
+the text; every other completed entry returned the expected result
+for both candidates. Category L
 excludes E51 (Table~\ref{tab:stack-depth}), whose match example
 is deliberately a non-match and cannot be checked for membership.
 Its count is therefore six below the 195 test cases in
@@ -3466,8 +3473,9 @@ mechanisms remain untested.
 contains expected matches where both candidates completed
 and agreed with the expected label. It excludes
 0 of 5\,869 S2ELab matches and 20 of 443 synthetic matches
-(about 4.5\%, 15 to timeouts and 5 to the category-C
-membership disagreements above), so exclusion is no longer the
+(about 4.5\%, 15 to timeouts and 5 to the category-C entries
+that disagree with the expected label, discussed above), so
+exclusion is no longer the
 large share of either dataset it once was. What remains of it
 on the synthetic set is concentrated in four categories --
 F, I, J, and K lose entries to timeouts (12, 4, 2, and 10
