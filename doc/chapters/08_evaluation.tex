@@ -1325,35 +1325,30 @@ whereas \texttt{deriv\_bc} reconstructs complete parse trees.
 
 Figures~\ref{fig:patho-fig7a}
 and~\ref{fig:patho-fig7bc} show the measured
-wall times and their ratios to the fastest parser
+wall times and ratios to the fastest parser
 at each sampled input length.
-A ratio of $1.0$ identifies the fastest candidate,
-while larger values indicate its relative slowdown.
+A ratio of $1.0$ denotes the fastest candidate,
+with larger values indicating its relative slowdown.
 All three parsers exhibit approximately linear
-growth over the tested ranges, although their
-relative performance differs between the two inputs.
+growth, although their relative performance
+differs between the inputs.
 On P60, \texttt{pderiv\_std} is fastest at every
 sampled length, with the other two parsers
 up to approximately 42\% slower.
-However, neither \texttt{deriv\_bc} nor
-\texttt{pderiv\_bc} consistently takes second place,
-as their relative ordering varies across the sweep.
-On P61, the fastest parser changes repeatedly:
+Neither \texttt{deriv\_bc} nor \texttt{pderiv\_bc}
+consistently takes second place.
+On P61, the lead changes repeatedly:
 \texttt{deriv\_bc} and \texttt{pderiv\_std}
 each lead at five sampled lengths,
-while \texttt{pderiv\_bc} leads once.
-All three remain within approximately 34\%
-of the fastest at each point, indicating
-closely matched performance despite these changes.
-
+and \texttt{pderiv\_bc} at one.
+Nevertheless, all three remain within
+approximately 34\% of the fastest at each point.
 All three complete both sweeps through the
 largest tested value
 (Table~\ref{tab:patho-crash-thresholds}).
-Thus, while the two inputs produce different
-performance rankings, none of the three parsers
-shows a clear scaling disadvantage within
-the measured ranges.
-
+Thus, despite differing performance rankings,
+none shows a clear scaling disadvantage
+within the measured ranges.
 
 %
 %
@@ -1487,38 +1482,52 @@ the three is fastest at $n$.}
 %
 %
 
+
 Tables~\ref{tab:patho-p60-all-parsers}
 and~\ref{tab:patho-p61-all-parsers}
-provide selected timings, including
-\texttt{deriv\_std}, which crashes at
-$n=20\,000$ on P60 and $n=100$ on P61.
-At the largest sampled value,
-\texttt{pderiv\_std} leads on P60
-(28.36\,s), followed by \texttt{deriv\_bc}
-(32.47\,s) and \texttt{pderiv\_bc} (33.21\,s).
+report selected timings.
+\texttt{deriv\_std} crashes at $n=20\,000$
+on P60 and $n=100$ on P61.
+At $n=10\,000\,000$, \texttt{pderiv\_std}
+leads on P60 (28.36\,s), followed by
+\texttt{deriv\_bc} (32.47\,s) and
+\texttt{pderiv\_bc} (33.21\,s).
 On P61, \texttt{deriv\_bc} narrowly leads
-(51.49\,s), followed by \texttt{pderiv\_std}
+(51.49\,s), ahead of \texttt{pderiv\_std}
 (52.26\,s) and \texttt{pderiv\_bc} (54.26\,s).
+
 The phase breakdowns in
 Tables~\ref{tab:patho-phases-p60}
-and~\ref{tab:patho-phases-p61} reveal differences
-in reconstruction and setup costs.
-At $n=10\,000\,000$, reconstruction takes
-2.39 and 3.30\,s for \texttt{deriv\_bc},
-compared with 4.59 and 9.28\,s for
-\texttt{pderiv\_std}, which applies composed
-injection closures, and 5.34 and 8.55\,s for
-\texttt{pderiv\_bc}, which decodes accumulated bits.
-Notably, \texttt{pderiv\_bc}'s setup rises
-from 3.01\,ms on P60 to 2\,051.81\,ms on P61.
+and~\ref{tab:patho-phases-p61}
+show reconstruction times of 2.39 and 3.30\,s
+for \texttt{deriv\_bc}, compared with
+4.59 and 9.28\,s for \texttt{pderiv\_std}
+and 5.34 and 8.55\,s for \texttt{pderiv\_bc}.
+Although both bit-coded parsers use \texttt{decode},
+their reconstruction workloads differ.
+For \texttt{deriv\_bc}, \texttt{mk\_eps\_bc}
+flattens a relatively uniform annotation structure
+built incrementally through \texttt{fuse}.
+In contrast, \texttt{pderiv\_bc} must flatten
+a history of nested \texttt{flatten\_alt}
+annotations accumulated along the surviving path.
+\texttt{pderiv\_std} instead reconstructs
+through \texttt{Inj::apply}, evaluating a chain
+of deferred injection closures.
 
-Unlike \texttt{deriv\_bc}, which assigns branch bits
-once during initial \texttt{internalize},
-\texttt{pderiv\_bc} assigns them during derivation
-through \texttt{flatten\_alt}, when splitting
-alternations into separate states.
-The accumulated cost is included in setup,
-which is why this value is much higher on P61.
+Teardown is also more expensive for both
+\texttt{pderiv} variants, particularly on P61.
+There, their parse trees contain twice as many
+Star iterations, selecting individual
+\texttt{a} and \texttt{b} branches rather than
+the \texttt{ab} iterations produced by
+\texttt{deriv\_bc}.
+\texttt{pderiv\_bc}'s reported setup
+rises from 3.01\,ms on P60 to 2\,051.81\,ms
+on P61, reflecting the accumulated cost of
+\texttt{flatten\_alt} during derivation
+rather than initial pattern preparation.
+
 
 %
 
@@ -1612,9 +1621,9 @@ and \texttt{pderiv\_bc} all three still have data.}
 %
 %
 
-The different input structures also affect
-the residual sequences and bit annotations.
-To illustrate this, the following traces
+The different input structures affect
+the residual sequences and bit annotations,
+shown by the following traces to
 compare the first derivative steps of both
 inputs for \texttt{deriv\_bc} and
 \texttt{pderiv\_bc}:
@@ -1627,6 +1636,7 @@ inputs for \texttt{deriv\_bc} and
 \mathit{ri}_4 \xrightarrow{\ \mathtt{a}\ } & [0,0,0,0,0,0,0,0,0]@X & \mathit{ri}_4 \xrightarrow{\ \mathtt{b}\ } & [0,1,0,1]@X
 \end{array}
 \]
+
 Tracing \texttt{pderiv\_bc} with $B$ for the
 pattern \texttt{a|b|ab} and states $S_0 = \{B^{*}\}$,
 $S_1 = \{B^{*}, \mathtt{b}\cdot B^{*}\}$:
@@ -1640,93 +1650,146 @@ S_1 \xrightarrow{\ \mathtt{a}\ } & S_1\ (\text{2 tagged}) & S_0 \xrightarrow{\ \
 \]
 
 \clearpage
-These two derivations show two things.
-For \texttt{deriv\_bc}, \texttt{internalize} tags the pattern as
-$[0](a \mathbin{|} b) \oplus [1](a \cdot b)$ under the Star:
-the outer alternation tags the branch ($[0]$ for \texttt{a|b}),
-the inner alternation within \texttt{a|b} tags the literal
-($[0]a \oplus [1]b$), 
-and the Star tags whether it continues ($[0]$) or stops ($[1]$). 
-Bits reach the root only when the nullable-Seq rule 
-$\mathsf{B}_{\mathrm{seq}}^{\,n}$ (Equation~\eqref{eq:bderiv}) fires: 
-once \texttt{a|b} is nullable,
-\texttt{mkEpsBC} extracts its completed path 
-and fuses it onto the Star's continuation $X$. 
-Matching \texttt{a} makes \texttt{a|b} nullable after exactly one character, 
-so the rule fires on every \texttt{a}, extracting all three tags at once.
-Matching \texttt{b} instead resolves directly.
-The inner \texttt{b} branch becomes $\varepsilon$ while \texttt{a} dies.
-This is costing only the outer $[0]$ and inner $[1]$ ($2$ bits), 
-without restarting the Star. 
-The nullable-Seq rule only fires 
-when \texttt{a|b} is \emph{already} nullable going in, 
-which happens only right after a \emph{previous} \texttt{a}. 
-On \texttt{ab}-repeated input every \texttt{a} is preceded 
-by a \texttt{b}, which resets this, so the rule never fires: 
-only the cheap $2$-bit \texttt{b}
-step commits anything, once every two characters.
-Since \texttt{fuse} and \texttt{simp} thread 
-through that growing bit-list every step, 
-\texttt{deriv\_bc}'s cost grows roughly three times 
-as fast per character on P60 as on P61. 
+These reveal distinct costs
+associated with repeated and changing residual structures.
+For \texttt{deriv\_bc}, \texttt{internalize}
+annotates the pattern as
+$[0](a \mathbin{|} b) \oplus [1](a \cdot b)$
+under the Star.
+The outer alternation identifies the branch
+($[0]$ for \texttt{a|b}), the inner alternation
+identifies the literal ($[0]a \oplus [1]b$),
+and the Star records whether repetition continues
+($[0]$) or terminates ($[1]$).
 
-For the partial-derivative pair,
-the \texttt{pderiv\_bc} derivation above
-tags both residuals in $S_1$ on every \texttt{a},
-but only one residual on \texttt{ab}-repeated input
-whenever it collapses to $S_0$.
-At the largest sampled lengths, \texttt{pderiv\_std} is nonetheless
-marginally faster than \texttt{pderiv\_bc} on both rows
-($28{,}364.22$\,ms against $33{,}212.89$\,ms on P60;
-$52{,}259.70$\,ms against $54{,}264.21$\,ms on P61,
-Tables~\ref{tab:patho-p60-all-parsers} and~\ref{tab:patho-p61-all-parsers}),
-so bit-coding gives \texttt{pderiv\_bc} no measured speed advantage
-over \texttt{pderiv\_std} at this scale, even though it tags fewer
-total residuals here than \texttt{pderiv\_std} wraps in closures.
-Which representation costs less per tagged residual is not resolved
-by wall time alone; Section~\ref{sec:eval-cost-partial-derivatives}
-returns to this comparison across all four representative rows.
+Two operations contribute differently to
+the cost of each derivative step.
+The cheaper operation applies when
+\texttt{a|b} is already nullable.
+The nullable-Seq rule
+$\mathsf{B}_{\mathrm{seq}}^{\,n}$
+(Equation~\eqref{eq:bderiv})
+extracts the completed path through
+\texttt{mkEpsBC} and attaches it to
+the Star continuation $X$ through \texttt{fuse}.
+This processes a fixed three-bit annotation.
+The more expensive operation derives the
+bare Star body, constructing a new \texttt{Seq}
+node from its alternatives instead of
+reusing the existing residual structure.
+
+On P60, this structural expansion occurs
+only for the first \texttt{a}.
+Thereafter, \texttt{a|b} is already nullable
+at the start of each step, so subsequent
+derivatives follow the same residual structure:
+the \texttt{b} branch vanishes,
+the \texttt{a} branch resolves directly,
+and \texttt{fuse} extends the annotations
+without rebuilding the Star body.
+P60 therefore reaches a steady state after
+its initial derivative.
+
+On P61, each \texttt{a}
+follows a \texttt{b} that leaves
+\texttt{a|b} non-nullable.
+Consequently, every \texttt{a} requires
+the structural expansion performed only
+once on P60.
+The following \texttt{b} resolves the
+corresponding branch and commits its
+two-bit annotation, returning the residual
+to a state that requires expansion again
+on the next \texttt{a}.
+So P61 repeatedly alternates between
+expansion and collapse.
+
+The main difference is therefore the frequency
+of structural reconstruction, rather than
+the length of the accumulated bit annotations.
+While P60 has the expensive expansion only
+once, P61 repeats it on every other character.
+This explains the higher measured derivation
+cost of \texttt{deriv\_bc} on P61
+(Tables~\ref{tab:patho-phases-p60}
+and~\ref{tab:patho-phases-p61}),
+despite its shorter accumulated bit lists.
+
+The \texttt{pderiv\_bc} traces show a
+related distinction.
+On P60, the state set reaches $S_1$
+after the first character and remains there.
+Each subsequent \texttt{a} produces the
+same two-residual structure, with one
+continuation discarded as empty.
+On P61, however, the state set alternates
+between $S_0$ and $S_1$.
+Each \texttt{a} expands $S_0$ into $S_1$,
+while each \texttt{b} collapses it again.
+Unlike P60's elimination of an empty residual,
+this collapse produces two independently
+derived residuals with the same structure.
+The \texttt{nub2} operation must identify
+and remove the duplicate, introducing
+additional deduplication work on P61.
+Despite these differences,
+\texttt{pderiv\_std} remains faster than
+\texttt{pderiv\_bc} at the largest sampled
+lengths of both rows:
+28.36\,s versus 33.21\,s on P60,
+and 52.26\,s versus 54.26\,s on P61
+(Tables~\ref{tab:patho-p60-all-parsers}
+and~\ref{tab:patho-p61-all-parsers}).
+Thus, bit-coding provides no measured
+speed advantage for the partial-derivative
+implementation on these inputs.
+The relative cost of bit annotations
+and injection closures cannot be determined
+from wall time alone;
 
 %
 %
 %
 
-\textbf{P01 and P09.} Figures~\ref{fig:patho-p01} and~\ref{fig:patho-p09}
-plot \texttt{(a+)+} and \texttt{(a|aa)+}, 
-category A and B's ambiguous Kleene-star pair: 
-P01 nests a star directly inside a plus, 
-while P09 leaves the quantifier flat 
-and instead lets \texttt{a} and \texttt{aa} overlap, 
-so the same substring can be consumed more than one way.
-So both patterns are different routes to the same kind of ambiguity.
-\texttt{deriv\_std} crashes earliest on both, at $n=50$ on P01 and
-$n=100$ on P09 (\texttt{deriv\_std\_rec} coincides, Section~\ref{sec:eval-criteria-timing}),
-later than either but still far earlier than the E-family rows above.
-\texttt{deriv\_bc} times out on P01, at $n=200\,000$, but not on P09,
-where it joins both partial-derivative variants in completing the full
-ten-million-character sweep.
-Tables~\ref{tab:patho-p01-all-parsers} and~\ref{tab:patho-p09-all-parsers} 
-give the wall time behind both figures,
-and P01's missing \texttt{deriv\_bc} entries past $n=1\,000$ are that timeout,
-not a gap in measurement.
-On P01, \texttt{deriv\_bc} is briefly the fastest of the three at
-$n=15$ and $n=20$, but loses ground rapidly from there: by $n=100$ it
-already trails the fastest by about 30\%, and its gap widens to
-roughly $95\times$ at $n=30\,000$ and $156\times$ at $n=50\,000$, the
-last point it reaches before timing out, since its own cost grows far
-faster than either partial-derivative variant's as it nears that
-timeout. Over the same range, \texttt{pderiv\_bc} and
-\texttt{pderiv\_std} themselves trade the lead repeatedly but stay
-within about 20\% of each other throughout
-(Table~\ref{tab:patho-p01-all-parsers}).
-On P09, where \texttt{deriv\_bc} completes the whole sweep instead of
-nearing a timeout, it never leads: it trails the faster of the other
-two by roughly $1.4\times$ to $2.4\times$ across the whole sweep.
-\texttt{pderiv\_std} is fastest from $n=15$ on, with
-\texttt{pderiv\_bc} narrowly ahead only at the two smallest lengths
-($n=5$ and $n=10$); from $n=15$ on, \texttt{pderiv\_bc} stays within
-about 19\% of \texttt{pderiv\_std}
-(Table~\ref{tab:patho-p09-all-parsers}).
+
+\paragraph{P01 and P09}
+Both rows use repeated \texttt{a} inputs but
+introduce ambiguity through different constructions.
+P01, \texttt{(a+)+}, nests quantified repetitions,
+allowing multiple divisions into outer iterations.
+P09, \texttt{(a|aa)+}, instead uses overlapping
+alternatives under a single repetition.
+Both admit multiple decompositions,
+but differ in how these occur during derivation.
+
+Figures~\ref{fig:patho-p01}
+and~\ref{fig:patho-p09} show the measured
+wall times and ratios to the fastest parser
+at each sampled input length.
+Their behaviour differs substantially.
+On P01, \texttt{deriv\_bc} briefly leads
+at $n=15$ and $n=20$, but its cost grows
+much faster than that of the \texttt{pderiv} variants.
+By $n=1\,000$, it is nearly three times slower,
+and at $n=50\,000$ its ratio reaches
+approximately $156\times$.
+It then times out at $n=200\,000$,
+while both \texttt{pderiv} variants complete
+the sweep through $n=10\,000\,000$.
+
+On P09, \texttt{deriv\_bc} instead maintains
+approximately linear scaling and completes
+the entire sweep.
+It remains roughly $1.4$--$2.4\times$ slower
+than the fastest \texttt{pderiv} variant,
+without the widening gap observed on P01.
+Thus, although both patterns introduce ambiguity,
+nested repetition causes a pronounced
+scaling disadvantage for \texttt{deriv\_bc}.
+
+%
+%
+%
 
 \begin{figure}[H]
 \centering
@@ -1782,12 +1845,11 @@ about 19\% of \texttt{pderiv\_std}
 \end{tikzpicture}
 \caption{Wall time on P01, \texttt{(a+)+} against \texttt{a} repeated,
 every swept $n$ on a log-log axis. The lower panel plots each
-parser's time as a ratio to whichever of the three is fastest at
-that $n$, log-scaled since \texttt{deriv\_bc}'s own ratio spans two
-orders of magnitude as it nears its timeout; \texttt{deriv\_bc} has
-no data past $n=50\,000$ (Table~\ref{tab:patho-crash-thresholds}).}
+parser's time as a ratio to whichever of the three is fastest at $n$.}
 \label{fig:patho-p01}
 \end{figure}
+
+%
 
 \begin{figure}[H]
 \centering
@@ -1845,41 +1907,50 @@ no data past $n=50\,000$ (Table~\ref{tab:patho-crash-thresholds}).}
 \end{tikzpicture}
 \caption{Wall time on P09, \texttt{(a|aa)+} against \texttt{a} repeated,
 every swept $n$ on a log-log axis. The lower panel plots each
-parser's time as a ratio to whichever of the three is fastest at
-that $n$.}
+parser's time as a ratio to whichever of the three is fastest at $n$.}
 \label{fig:patho-p09}
 \end{figure}
 
-The difference is what each pattern's ambiguity costs per character. 
-P01 nests a \texttt{+} inside another, 
-so each additional \texttt{a} multiplies the ways the outer repetition 
-could split into iterations,
-making each derivative step near-exponential. 
-\texttt{deriv\_bc} keeps all live splits in one expression
-and compares every pair per character,
-so its cost grows with $n$ faster than either partial-derivative
-variant's, and its ratio to the fastest of the three climbs from
-near parity to roughly $156\times$ before timeout.
-The gap is already visible in Table~\ref{tab:patho-p01-all-parsers},
-where \texttt{deriv\_bc}'s $n=1\,000$ time of 7.840\,ms
-is close to three times either partial-derivative variant's,
-and only widens from there.
-P09's ambiguity is shallower.
-Category B's shared-prefix alternatives
-under one flat quantifier leave only a couple of live readings at each position,
-not a count tied to iterations passed.
-Pairwise cleanup is therefore bounded per character,
-holding \texttt{deriv\_bc}'s ratio to the fastest of the three in
-roughly the $1.9$--$2.2\times$ band from $n=100$ to ten
-million characters,
-and Table~\ref{tab:patho-p09-all-parsers} shows this directly:
-from that point on, \texttt{deriv\_bc} takes roughly twice
-\texttt{pderiv\_std}'s time and roughly 1.8 times \texttt{pderiv\_bc}'s.
-Between the two partial-derivative variants,
-\texttt{pderiv\_std} is faster on both patterns at the largest swept $n$,
-though the margin is narrow on both:
-on P09, $25\,388.12$\,ms against \texttt{pderiv\_bc}'s $28\,030.32$\,ms,
-and on P01, $20\,848.01$\,ms against $21\,771.78$\,ms.
+%
+%
+%
+
+
+Tables~\ref{tab:patho-p01-all-parsers}
+and~\ref{tab:patho-p09-all-parsers}
+provide selected wall times.
+At their largest completed input length,
+the \texttt{pderiv} variants remain closely matched.
+On P01 at $n=10\,000\,000$,
+\texttt{pderiv\_std} takes 20.85\,s
+against 21.77\,s for \texttt{pderiv\_bc}.
+On P09, they take 25.39 and 28.03\,s,
+respectively, while \texttt{deriv\_bc}
+requires 50.27\,s.
+The phase breakdowns in
+Tables~\ref{tab:patho-phases-p01}
+and~\ref{tab:patho-phases-p09}
+help explain these differences.
+On P01 at $n=50\,000$, the last completed
+value for \texttt{deriv\_bc}, derivation
+accounts for 15.82\,s of its 15.83\,s total.
+Its reconstruction takes only 6.02\,ms,
+compared with 8.85 and 9.04\,ms for
+the \texttt{pderiv} variants.
+The large slowdown therefore arises during
+derivation, not parse-tree reconstruction.
+On P09 at $n=10\,000\,000$,
+\texttt{deriv\_bc} spends 48.38\,s
+deriving, against 21.97 and 24.75\,s
+for the \texttt{pderiv} variants.
+However, its reconstruction is faster
+(1.74\,s versus 3.29 and 3.15\,s).
+The advantage in reconstruction is therefore
+insufficient to offset its higher derivation cost.
+
+%
+%
+%
 
 \begin{table}[H]
 \centering
@@ -1903,26 +1974,7 @@ repeated. \texttt{deriv\_std} crashes from $n=50$ on,
 \label{tab:patho-p01-all-parsers}
 \end{table}
 
-\begin{table}[H]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l rrrrr}
-\hline
-Parser & Setup & Derive & Reconstruct & Teardown & Total \\
-\hline
-\texttt{deriv\_bc}        & 0.00 & 15\,819.54 & 6.02 & 0.18 & 15\,825.74 \\
-\texttt{pderiv\_std}      & 0.00 &     92.22 & 8.85 & 0.20 &    101.27 \\
-\texttt{pderiv\_bc}       & 0.00 &    102.82 & 9.04 & 0.19 &    112.05 \\
-\hline
-\end{tabular*}
-\caption{Four-phase timing breakdown (ms) on P01 at $n=50\,000$, the
-largest point at which \texttt{deriv\_bc} itself still has data before
-timing out (Table~\ref{tab:patho-crash-thresholds}); both
-partial-derivative parsers reach far beyond this point.
-\texttt{deriv\_std} fails long before this point and is omitted.}
-\label{tab:patho-phases-p01}
-\end{table}
+%
 
 \begin{table}[H]
 \centering
@@ -1945,6 +1997,31 @@ repeated. \texttt{deriv\_std} crashes from $n=100$ on
 \label{tab:patho-p09-all-parsers}
 \end{table}
 
+%
+%
+%
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l rrrrr}
+\hline
+Parser & Setup & Derive & Reconstruct & Teardown & Total \\
+\hline
+\texttt{deriv\_bc}        & 0.00 & 15\,819.54 & 6.02 & 0.18 & 15\,825.74 \\
+\texttt{pderiv\_std}      & 0.00 &     92.22 & 8.85 & 0.20 &    101.27 \\
+\texttt{pderiv\_bc}       & 0.00 &    102.82 & 9.04 & 0.19 &    112.05 \\
+\hline
+\end{tabular*}
+\caption{Four-phase timing breakdown (ms) on P01 at $n=50\,000$, the
+largest point at which \texttt{deriv\_bc} itself still has data before
+timing out.}
+\label{tab:patho-phases-p01}
+\end{table}
+
+%
+
 \begin{table}[H]
 \centering
 \small
@@ -1959,43 +2036,88 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \hline
 \end{tabular*}
 \caption{Four-phase timing breakdown (ms) on P09 at $n=10\,000\,000$,
-the largest point at which \texttt{deriv\_bc}, \texttt{pderiv\_std},
-and \texttt{pderiv\_bc} all three still have data. \texttt{deriv\_std}
-fails long before this point and is omitted.}
+the largest point at which all three still have data.}
 \label{tab:patho-phases-p09}
 \end{table}
 
+
+The contrasting scaling behaviour may be explained
+by how the two forms of ambiguity affect residuals.
+In P01, nested repetitions permit increasingly
+many ways to divide the consumed prefix into
+iterations.
+For \texttt{deriv\_bc}, these alternatives
+remain represented within a single expression
+that is repeatedly derived and simplified.
+The growing expression may therefore require
+increasing work per character, consistent with
+the strongly superlinear timing curve.
+
+P09 instead introduces ambiguity through
+the overlapping alternatives \texttt{a} and
+\texttt{aa} under a single repetition.
+The possible interpretations remain local
+to adjacent input positions, rather than
+introducing additional repetition boundaries
+through multiple nesting levels.
+This is consistent with the more stable
+per-character cost of \texttt{deriv\_bc}
+and its nearly constant slowdown relative
+to the \texttt{pderiv} variants.
+
+Both \texttt{pderiv} variants handle these
+patterns without failures and remain close
+in performance throughout the sweeps.
+Their residual sets allow alternative
+continuations to be processed separately
+and structurally identical states to be
+deduplicated.
+This may limit the cost of nested ambiguity
+compared with repeatedly simplifying
+a combined derivative expression.
+The results therefore suggest that the
+structure of ambiguity, rather than its
+presence alone, strongly influences
+the cost of derivative-based parsing.
+
 %
 %
 %
 
-\textbf{E37 and E38.} The rows above sweep input length $n$.
-An \texttt{E}-row instead sweeps the pattern itself,
-isolating how all five parsers' four phases
+\clearpage
+
+\paragraph{E37 and E38}
+Unlike the preceding input-length sweeps,
+E37 and E38 vary pattern size while keeping
+input length fixed at $n=20$.
+Both belong to category J (large pattern, short input)
+and use $p$-way alternations to examine how
+the five parsers' timing phases
 (Section~\ref{sec:eval-criteria-timing})
-scale with pattern size rather than input length,
-on the matching side only.
+scale with pattern size on matching inputs.
 Both are drawn from category J (``large pattern, short input''),
 whose mechanism is the per-node cost of a very large pattern.
 Alternation was chosen to grow a pattern's node count by a
 single parameter $p$ while leaving the input length fixed at $n=20$.
-Figure~\ref{fig:patho-e37} plots E37's full sweep,
-a $p$-way alternation of distinct four-letter words;
-Table~\ref{tab:patho-phases-e37} breaks down its widest point into phases.
-Figure~\ref{fig:patho-e38} and Table~\ref{tab:patho-phases-e38}
-do the same for E38,
-a $p$-way alternation of distinct numbered placeholder words.
-Both sweep the same range,
-$p \in \{100, 500, 1\,000, 2\,000, 5\,000, 10\,000\}$,
-with the  \emph{node cap}
-(Section~\ref{sec:eval-criteria-translation})
-raised from 20\,000 to 200\,000 for this test.
-The cap was sized for the real corpus, but within
-a $p$-way alternation it is too small once $p$ gets this large.
+E37 consists of distinct four-letter alternatives
+(Figure~\ref{fig:patho-e37},
+Table~\ref{tab:patho-phases-e37}),
+while E38 uses numbered placeholder words
+(Figure~\ref{fig:patho-e38},
+Table~\ref{tab:patho-phases-e38}).
+Both sweep $p \in \{100, 500, 1\,000,
+2\,000, 5\,000, 10\,000\}$.
+The node cap was raised from 20\,000 to
+200\,000 (Section~\ref{sec:eval-criteria-translation})
+to accommodate these large patterns.
 At $p = 10\,000$, E38's seven-character words each translate to 13 nodes
 (seven literals chained by six concatenations), and joining all
 $10\,000$ of them adds $9\,999$ more nodes for the alternation itself:
 $10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
+
+%
+%
+%
 
 \begin{figure}[H]
 \centering
@@ -2055,59 +2177,17 @@ $10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on E37, a $p$-way alternation of distinct
-four-letter words at fixed input length $n=20$, across the full
-swept width on a log-log axis. The lower panel plots each parser's
-time as a ratio to whichever of the four is fastest at that $p$,
-log-scaled since \texttt{deriv\_std}'s own ratio spans about
-one order of magnitude; \texttt{pderiv\_bc} is fastest throughout.}
+four-letter words (\texttt{(?:aaaa|aaab|}\dots\texttt{)}),
+with input \texttt{"aaaa"} matching the first Alt,
+at fixed input length $n=20$, across the full swept
+width on a log-log axis.
+The lower panel plots each parser's time as a ratio
+to the fastest of the four at each $p$.}
 \label{fig:patho-e37}
 \end{figure}
 
-\begin{table}[H]
-\centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l rrrrr}
-\hline
-Parser & Setup & Derive & Reconstruct & Teardown & Total \\
-\hline
-\texttt{deriv\_std} &  0.00 & 23.63 & 161.73 & 0.14 & 185.59 \\
-\texttt{deriv\_bc}        & 10.45 & 27.36 &   1.80 & 0.12 &  39.73 \\
-\texttt{pderiv\_std}      &  5.16 & 20.16 &   0.70 & 0.10 &  26.12 \\
-\texttt{pderiv\_bc}       &  5.51 & 10.88 &   1.03 & 0.10 &  17.54 \\
-\hline
-\end{tabular*}
-\caption{E37: four-phase timing breakdown (ms) at the widest swept
-Alt width, $p=10\,000$, at fixed input length $n=20$
-(\texttt{(?:aaaa|aaab|}\dots \texttt{)}, $p$ distinct four-letter
-alternatives; input \texttt{"aaaa"}, matching the first Alt).
-\emph{Setup} is always $0$ for \texttt{deriv\_std} by
-construction (Section~\ref{sec:eval-criteria-timing}); the four
-phases sum to \emph{Total}. \texttt{deriv\_std\_rec} tracks
-\texttt{deriv\_std} closely at this point and is omitted
-(Section~\ref{sec:eval-criteria-timing}).}
-\label{tab:patho-phases-e37}
-\end{table}
+%
 
-\texttt{Setup} grows only mildly with $p$ and stays well under the
-corresponding \texttt{Derive} figure throughout, for both bit-coded
-parsers; \texttt{pderiv\_bc}'s own setup is consistently cheaper than
-\texttt{deriv\_bc}'s, whose \texttt{internalize} construction does more
-work per node than a plain tree clone plus \texttt{flatten\_alt}'s own
-tagging pass.
-\texttt{Reconstruct} stays under $2$\,ms for every parser but
-\texttt{deriv\_std}, whose backward injection pass over
-an $O(p)$-long derivation sequence grows to $161.73$\,ms by
-$p=10\,000$ -- the single largest contributor to its own
-\texttt{Total} at that point.
-\texttt{Derive} dominates \texttt{Total} for the three
-non-recursive bit-coded/partial-derivative parsers, and at $p=10\,000$
-the ratio of \texttt{deriv\_bc}'s \texttt{Derive} to \texttt{pderiv\_bc}'s
-is about $2.5\times$: both parsers' branch deduplication is $O(p)$
-(\texttt{deriv\_bc}'s own \texttt{dedup\_first}, discussed below,
-hashes each branch's shape once, the same way \texttt{pderiv\_bc}'s
-\texttt{nub2} hashes each residual), so the gap between them reflects
-a difference in constant factor, not in growth rate.
 
 \begin{figure}[H]
 \centering
@@ -2167,17 +2247,45 @@ a difference in constant factor, not in growth rate.
 \end{axis}
 \end{tikzpicture}
 \caption{Wall time on E38, a $p$-way alternation of distinct
-numbered words at fixed input length $n=20$, across the full swept
-width on a log-log axis. The lower panel plots each parser's time
-as a ratio to whichever of the four is fastest at that $p$, same
-log scale and convention as Figure~\ref{fig:patho-e37};
-\texttt{pderiv\_bc} is fastest throughout here too.}
+numbered words (\texttt{(?:w000001|w000002|}\dots\texttt{)}),
+with input \texttt{"w000001"} matching the first Alt
+at fixed length $n=20$.
+The upper panel uses log-log axes; the lower shows
+each parser's time relative to the fastest at each $p$.}
 \label{fig:patho-e38}
 \end{figure}
 
+%
+%
+%
+
 \begin{table}[H]
 \centering
-\scriptsize
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l rrrrr}
+\hline
+Parser & Setup & Derive & Reconstruct & Teardown & Total \\
+\hline
+\texttt{deriv\_std} &  0.00 & 23.63 & 161.73 & 0.14 & 185.59 \\
+\texttt{deriv\_bc}        & 10.45 & 27.36 &   1.80 & 0.12 &  39.73 \\
+\texttt{pderiv\_std}      &  5.16 & 20.16 &   0.70 & 0.10 &  26.12 \\
+\texttt{pderiv\_bc}       &  5.51 & 10.88 &   1.03 & 0.10 &  17.54 \\
+\hline
+\end{tabular*}
+\caption{E37: four-phase timing breakdown (ms) at widest swept
+Alt width, $p=10\,000$, fixed input length $n=20$
+(\texttt{(?:aaaa|aaab|}\dots \texttt{)}, $p$ distinct four-letter
+alternatives; input \texttt{"aaaa"}, matching first Alt).}
+\label{tab:patho-phases-e37}
+\end{table}
+
+%
+
+
+\begin{table}[H]
+\centering
+\small
 \setlength{\tabcolsep}{3pt}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l rrrrr}
 \hline
@@ -2189,15 +2297,37 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \texttt{pderiv\_bc}       &  8.75 & 37.87 &   1.11 & 0.14 &  47.87 \\
 \hline
 \end{tabular*}
-\caption{E38: four-phase timing breakdown (ms) at the widest swept
-Alt width, $p=10\,000$, same fixed input length $n=20$ as
-Table~\ref{tab:patho-phases-e37}, on a $p$-way alternation of distinct
-numbered words (\texttt{w000001}, \dots, \texttt{w0000}$p$). The
-matching input is a single word, matching the first Alt.
-\texttt{deriv\_std\_rec} again tracks \texttt{deriv\_std}
-closely at this point and is omitted.}
+\caption{E38: four-phase timing breakdown (ms) at widest swept
+Alt width, $p=10\,000$, fixed input length $n=20$
+(\texttt{(?:w000001|w000002|}\dots \texttt{)},
+$p$ distinct numbered-word alternatives;
+input \texttt{"w000001"}.}
 \label{tab:patho-phases-e38}
 \end{table}
+
+%
+%
+%
+
+\texttt{Setup} grows only mildly with $p$ and stays well under the
+corresponding \texttt{Derive} figure throughout, for both bit-coded
+parsers; \texttt{pderiv\_bc}'s own setup is consistently cheaper than
+\texttt{deriv\_bc}'s, whose \texttt{internalize} construction does more
+work per node than a plain tree clone plus \texttt{flatten\_alt}'s own
+tagging pass.
+\texttt{Reconstruct} stays under $2$\,ms for every parser but
+\texttt{deriv\_std}, whose backward injection pass over
+an $O(p)$-long derivation sequence grows to $161.73$\,ms by
+$p=10\,000$ -- the single largest contributor to its own
+\texttt{Total} at that point.
+\texttt{Derive} dominates \texttt{Total} for the three
+non-recursive bit-coded/partial-derivative parsers, and at $p=10\,000$
+the ratio of \texttt{deriv\_bc}'s \texttt{Derive} to \texttt{pderiv\_bc}'s
+is about $2.5\times$: both parsers' branch deduplication is $O(p)$
+(\texttt{deriv\_bc}'s own \texttt{dedup\_first}, discussed below,
+hashes each branch's shape once, the same way \texttt{pderiv\_bc}'s
+\texttt{nub2} hashes each residual), so the gap between them reflects
+a difference in constant factor, not in growth rate.
 
 \texttt{Setup} and \texttt{Derive} are both higher here than on E37 for
 the bit-coded pair, consistent with E38's longer words, and
