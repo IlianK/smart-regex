@@ -1,5 +1,7 @@
+
 \documentclass[11pt,a4paper,oneside]{extreport}
 
+\usepackage{pdfpages}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsthm}
@@ -20,14 +22,26 @@
 \usepackage{lmodern}
 \usepackage{tabularx}
 \usepackage{mdframed}
-\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage[
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+]{hyperref}
 \usepackage{titlesec}
 \usepackage{pgfplots}
 \usetikzlibrary{calc,positioning}
 
+\newcommand{\safeat}{\hspace{0pt}@\hspace{0pt}}
+
 \pgfplotsset{compat=1.18}
+
 \numberwithin{equation}{chapter}
-\titleformat{\chapter}[hang]{\normalfont\huge\bfseries}{\thechapter}{0.6em}{}
+
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries}
+  {\thechapter}{0.6em}{}
+
 \raggedbottom
 
 \lstdefinestyle{code}{
@@ -39,7 +53,8 @@
 }
 \lstset{style=code}
 
-\title{Smarter Regular Expression Matching\\[0.3em]\Large From Theory to Tools}
+\title{Smarter Regular Expression Matching\\[0.3em]
+  \Large From Theory to Tools}
 \author{Ilian Kohl}
 \date{
   25.11.2026\\[0.5em]
@@ -47,24 +62,64 @@
   M.Sc. Computer Science
 }
 
+\newcommand{\blankpage}{%
+  \clearpage
+  \thispagestyle{empty}%
+  \null
+  \clearpage
+}
+
+\newcounter{savedpage}
+
 \begin{document}
+\pagenumbering{roman}
 
-\maketitle
+% Title page (no visible page number)
+\includepdf[
+  pages=-,
+  pagecommand={\thispagestyle{empty}}
+]{chapters/title.pdf}
+\blankpage
 
+% Declaration of authorship
+\include{chapters/00_declaration}
+\blankpage
+
+% Abstract
 \include{chapters/00_abstract}
 
-\include{chapters/00_declaration}
+% Blank page after abstract
+\blankpage
 
+% Table of contents
 \tableofcontents
+
+\clearpage
+
+% Preserve the physical page count.
+\setcounter{savedpage}{\value{page}}
+\pagenumbering{arabic}
+\setcounter{page}{\value{savedpage}}
 
 \include{chapters/01_introduction}
 \include{chapters/02_regular_expressions}
+
+\blankpage
 \include{chapters/03_derivatives}
+
 \include{chapters/04_matching_vs_parsing}
+
+\blankpage
 \include{chapters/05_derivative_parser}
+
+\blankpage
 \include{chapters/06_partial_derivative_parser}
 \include{chapters/07_frontend}
+
+\blankpage
 \include{chapters/08_evaluation}
+
+\blankpage
 \include{chapters/09_related_work_conclusion}
 
 \bibliographystyle{plainnat}
