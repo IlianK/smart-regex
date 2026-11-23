@@ -2041,44 +2041,40 @@ the largest point at which all three still have data.}
 \end{table}
 
 
-The contrasting scaling behaviour may be explained
-by how the two forms of ambiguity affect residuals.
-In P01, nested repetitions permit increasingly
-many ways to divide the consumed prefix into
-iterations.
-For \texttt{deriv\_bc}, these alternatives
-remain represented within a single expression
-that is repeatedly derived and simplified.
-The growing expression may therefore require
-increasing work per character, consistent with
-the strongly superlinear timing curve.
+The contrasting scaling traces to one operation in \texttt{deriv\_bc}'s
+derivative rule for \texttt{Seq}: whenever its left operand is already
+nullable, the rule calls \texttt{mk\_eps\_bc}
+(Figure~\ref{fig:mkepsbc-rust}) to extract that operand's accumulated
+bits, then \texttt{fuse}s (Figure~\ref{fig:fuse-rust},
+Section~\ref{sec:fuse}) the result onto the right -- costing time
+proportional to the left operand's bit-list length, not a fixed
+amount per character. On P01, \texttt{(a+)+} desugars to
+\texttt{Seq(a+, (a+)*)}, and once the inner \texttt{a+} matches one
+\texttt{a} it stays nullable for the rest of the input, so this rule
+fires every remaining character; the list \texttt{mk\_eps\_bc}
+materializes grows by one bit per character -- 1 bit at $n=2$, 999 at
+$n=1\,000$, 19\,999 at $n=20\,000$, measured directly -- integrating
+to the quadratic-looking total in Figure~\ref{fig:patho-p01}:
+competitive with the \texttt{pderiv} pair through $n\approx 20$,
+nearly $3\times$ slower by $n=1\,000$, roughly $156\times$ by
+$n=50\,000$. \texttt{deriv\_bc}'s own expression stays a fixed eight
+\texttt{ARegex} nodes throughout; the cost grows in the bits those
+nodes carry, not the tree's shape.
 
-P09 instead introduces ambiguity through
-the overlapping alternatives \texttt{a} and
-\texttt{aa} under a single repetition.
-The possible interpretations remain local
-to adjacent input positions, rather than
-introducing additional repetition boundaries
-through multiple nesting levels.
-This is consistent with the more stable
-per-character cost of \texttt{deriv\_bc}
-and its nearly constant slowdown relative
-to the \texttt{pderiv} variants.
+On P09, \texttt{(a|aa)+} never settles into that state: the rule
+fires only in the first couple of characters, never again, so
+\texttt{deriv\_bc} never pays a growing cost here -- every
+character's work stays the same size regardless of input consumed so
+far, consistent with the flat per-character cost and the roughly
+constant $1.4$--$2.4\times$ slowdown relative to the \texttt{pderiv}
+pair throughout.
 
-Both \texttt{pderiv} variants handle these
-patterns without failures and remain close
-in performance throughout the sweeps.
-Their residual sets allow alternative
-continuations to be processed separately
-and structurally identical states to be
-deduplicated.
-This may limit the cost of nested ambiguity
-compared with repeatedly simplifying
-a combined derivative expression.
-The results therefore suggest that the
-structure of ambiguity, rather than its
-presence alone, strongly influences
-the cost of derivative-based parsing.
+Both \texttt{pderiv} variants handle both patterns without failures
+and stay close in performance. Neither assembles one combined
+expression: a partial-derivative frontier keeps one state per
+residual, deduplicated by hashing (\texttt{nub2}/\texttt{nub\_tree}).
+The cost depends not on ambiguity's presence but on whether it
+re-triggers a growing bit-list materialization.
 
 %
 %
@@ -2087,22 +2083,22 @@ the cost of derivative-based parsing.
 \clearpage
 
 \paragraph{E37 and E38}
-Unlike the preceding input-length sweeps,
-E37 and E38 vary pattern size while keeping
-input length fixed at $n=20$.
-Both belong to category J (large pattern, short input)
-and use $p$-way alternations to examine how
-the five parsers' timing phases
-(Section~\ref{sec:eval-criteria-timing})
-scale with pattern size on matching inputs.
-Both are drawn from category J (``large pattern, short input''),
-whose mechanism is the per-node cost of a very large pattern.
-Alternation was chosen to grow a pattern's node count by a
-single parameter $p$ while leaving the input length fixed at $n=20$.
-E37 consists of distinct four-letter alternatives
+Unlike the preceding input-length sweeps, E37 and E38 vary pattern
+size while the input stays a short, fixed literal -- the pattern's
+own first alternative, matched outright, rather than a string whose
+length tracks $n$ or $p$. Both are drawn from category J (``large
+pattern, short input''), whose mechanism is the per-node cost of a
+very large pattern, and use $p$-way alternations to examine how the
+five parsers' timing phases (Section~\ref{sec:eval-criteria-timing})
+scale with pattern size on matching inputs. Alternation was chosen to
+grow a pattern's node count by a single parameter $p$ while leaving
+the input unchanged.
+E37 consists of distinct four-letter alternatives, matched by the
+literal \texttt{"aaaa"}
 (Figure~\ref{fig:patho-e37},
 Table~\ref{tab:patho-phases-e37}),
-while E38 uses numbered placeholder words
+while E38 uses numbered placeholder words, matched by the literal
+\texttt{"w000001"}
 (Figure~\ref{fig:patho-e38},
 Table~\ref{tab:patho-phases-e38}).
 Both sweep $p \in \{100, 500, 1\,000,
@@ -2114,6 +2110,8 @@ At $p = 10\,000$, E38's seven-character words each translate to 13 nodes
 (seven literals chained by six concatenations), and joining all
 $10\,000$ of them adds $9\,999$ more nodes for the alternation itself:
 $10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
+
+\clearpage
 
 %
 %
@@ -2128,7 +2126,7 @@ $10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
   xmode=log, ymode=log,
   xlabel={Alternation width $p$},
   ylabel={Wall time (ms)},
-  title={E37: $p$-way Alt., distinct words, $n=20$},
+  title={E37: $p$-way Alt., distinct words, fixed input},
   title style={font=\small},
   label style={font=\small},
   tick label style={font=\scriptsize},
@@ -2179,7 +2177,7 @@ $10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
 \caption{Wall time on E37, a $p$-way alternation of distinct
 four-letter words (\texttt{(?:aaaa|aaab|}\dots\texttt{)}),
 with input \texttt{"aaaa"} matching the first Alt,
-at fixed input length $n=20$, across the full swept
+across the full swept
 width on a log-log axis.
 The lower panel plots each parser's time as a ratio
 to the fastest of the four at each $p$.}
@@ -2198,7 +2196,7 @@ to the fastest of the four at each $p$.}
   xmode=log, ymode=log,
   xlabel={Alternation width $p$},
   ylabel={Wall time (ms)},
-  title={E38: $p$-way Alt., numbered words, $n=20$},
+  title={E38: $p$-way Alt., numbered words, fixed input},
   title style={font=\small},
   label style={font=\small},
   tick label style={font=\scriptsize},
@@ -2248,12 +2246,69 @@ to the fastest of the four at each $p$.}
 \end{tikzpicture}
 \caption{Wall time on E38, a $p$-way alternation of distinct
 numbered words (\texttt{(?:w000001|w000002|}\dots\texttt{)}),
-with input \texttt{"w000001"} matching the first Alt
-at fixed length $n=20$.
+with input \texttt{"w000001"} matching the first Alt.
 The upper panel uses log-log axes; the lower shows
 each parser's time relative to the fastest at each $p$.}
 \label{fig:patho-e38}
 \end{figure}
+
+%
+%
+%
+
+Tables~\ref{tab:patho-e37-all-parsers} and~\ref{tab:patho-e38-all-parsers}
+give the same wall times as Figures~\ref{fig:patho-e37}
+and~\ref{fig:patho-e38} in numeric form, across the full swept
+width; all four parsers complete every point on both rows, so every
+cell is a direct comparison. The phase breakdowns in
+Tables~\ref{tab:patho-phases-e37} and~\ref{tab:patho-phases-e38}
+examine the widest point, $p=10\,000$, in more detail.
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrrr}
+\hline
+$p$ & \texttt{deriv\_std} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
+\hline
+100          &     0.341 &     0.474 &     0.283 &     0.246 \\
+500          &     2.340 &     2.344 &     1.206 &     1.097 \\
+1\,000       &     5.301 &     4.375 &     2.679 &     2.294 \\
+2\,000       &    12.287 &     7.488 &     5.018 &     4.474 \\
+5\,000       &    53.522 &    18.144 &    13.732 &    10.314 \\
+10\,000      &   185.589 &    39.732 &    26.117 &    17.535 \\
+\hline
+\end{tabular*}
+\caption{Wall time (ms) on E37, a $p$-way alternation of distinct
+four-letter words, across the full swept $p$. All four parsers
+complete every sweep value.}
+\label{tab:patho-e37-all-parsers}
+\end{table}
+
+%
+
+\begin{table}[H]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} r rrrr}
+\hline
+$p$ & \texttt{deriv\_std} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{pderiv\_bc} \\
+\hline
+100          &     1.183 &     0.984 &     0.795 &     0.638 \\
+500          &     5.126 &     5.450 &     3.336 &     2.667 \\
+1\,000       &    14.192 &     9.416 &     7.256 &     5.279 \\
+2\,000       &    25.699 &    18.853 &    12.335 &    10.377 \\
+5\,000       &    97.412 &    45.816 &    32.000 &    26.216 \\
+10\,000      &   332.002 &    94.461 &    57.281 &    47.865 \\
+\hline
+\end{tabular*}
+\caption{Wall time (ms) on E38, a $p$-way alternation of distinct
+numbered words, across the full swept $p$. All four parsers
+complete every sweep value.}
+\label{tab:patho-e38-all-parsers}
+\end{table}
 
 %
 %
@@ -2274,7 +2329,7 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \hline
 \end{tabular*}
 \caption{E37: four-phase timing breakdown (ms) at widest swept
-Alt width, $p=10\,000$, fixed input length $n=20$
+Alt width, $p=10\,000$
 (\texttt{(?:aaaa|aaab|}\dots \texttt{)}, $p$ distinct four-letter
 alternatives; input \texttt{"aaaa"}, matching first Alt).}
 \label{tab:patho-phases-e37}
@@ -2298,7 +2353,7 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \hline
 \end{tabular*}
 \caption{E38: four-phase timing breakdown (ms) at widest swept
-Alt width, $p=10\,000$, fixed input length $n=20$
+Alt width, $p=10\,000$
 (\texttt{(?:w000001|w000002|}\dots \texttt{)},
 $p$ distinct numbered-word alternatives;
 input \texttt{"w000001"}.}
