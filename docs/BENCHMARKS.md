@@ -1,6 +1,6 @@
 # Benchmarks
 
-Five `cargo bench` targets. Two datasets, two axes each (corpus and pathological against parser cost -- time and memory together in one pass -- and translate), plus one scoped comparison.
+Six `cargo bench` targets. Two datasets, two axes each (corpus and pathological against parser cost -- time and memory together in one pass -- and translate), plus two scoped comparisons.
 
 | Target | Dataset | Measures |
 |---|---|---|
@@ -9,19 +9,21 @@ Five `cargo bench` targets. Two datasets, two axes each (corpus and pathological
 | `bench_pathological` | pathological stress patterns | parser wall-clock time and heap allocation, together |
 | `bench_pathological_translate` | pathological stress patterns | translation time, memory, node count |
 | `bench_stack_depth` | pathological stress patterns (3 rows) | `deriv_std_rec` vs `deriv_std_loop` stack-depth limit |
+| `bench_translate_depth` | n/a (synthetic bound/nesting probes) | real crash point behind `MAX_BOUND` and `MAX_CORE_DEPTH` |
 
-None use Criterion. All five are plain reporting binaries (`harness = false`) that print a table and write a CSV under `reports/benches/`.
+None use Criterion. All six are plain reporting binaries (`harness = false`) that print a table and write a CSV under `reports/benches/`.
 
-`bench_corpus*` reads `data/processed/s2-elab/prepared.jsonl`. See [DATASET.md](DATASET.md) for how to build it. `bench_pathological*` and `bench_stack_depth` read `data/pathological/pathological_patterns.json` directly, no preparation step.
+`bench_corpus*` reads `data/processed/s2-elab/prepared.jsonl`. See [DATASET.md](DATASET.md) for how to build it. `bench_pathological*` and `bench_stack_depth` read `data/pathological/pathological_patterns.json` directly, no preparation step. `bench_translate_depth` reads neither dataset -- it generates its own synthetic bound/nesting probes.
 
-Three targets run every entry in its own subprocess so a pathological entry can be killed and its memory reclaimed: `bench_corpus` and `bench_pathological` share `bench_worker`; `bench_stack_depth` has its own:
+Four targets run every entry in its own subprocess so a pathological entry (or a crashing probe) can be killed and its memory reclaimed: `bench_corpus` and `bench_pathological` share `bench_worker`; `bench_stack_depth` and `bench_translate_depth` each have their own:
 
 ```bash
-cargo build --release --example bench_worker              # for bench_corpus and bench_pathological
-cargo build --release --example bench_stack_depth_worker  # for bench_stack_depth only
+cargo build --release --example bench_worker                    # for bench_corpus and bench_pathological
+cargo build --release --example bench_stack_depth_worker        # for bench_stack_depth only
+cargo build --release --example bench_translate_depth_worker    # for bench_translate_depth only
 ```
 
-Neither `*_translate` target needs a worker. Both measure `core_regex` only, which bounds itself via a depth and node cap before the expensive part runs.
+Neither `*_translate` target needs a worker. Both measure `core_regex` only, which bounds itself via a depth and node cap before the expensive part runs. (`bench_translate_depth` is a different thing despite the name overlap -- it finds the crash point those same caps protect against, not a translation-cost measurement, and it does need its own worker.)
 
 
 ## Configuration
@@ -49,6 +51,9 @@ Every target reads configuration from the environment. No flags, no CLI argument
 | `STACKDEPTH_ROW_IDS` | `bench_stack_depth` only | comma-separated row ids | `P01,P30,E51` |
 | `STACKDEPTH_TIMEOUT_MS` | `bench_stack_depth` only | positive integer (ms) | `15000` |
 | `STACKDEPTH_N_START` and `STACKDEPTH_N_CAP` | `bench_stack_depth` only | positive integers | `1` and `2000000` |
+| `DEPTH_TIMEOUT_MS` | `bench_translate_depth` only | positive integer (ms) | `10000` |
+| `DEPTH_N_START` and `DEPTH_N_CAP` | `bench_translate_depth` only | positive integers | `100` and `2000000` |
+| `DEPTH_STACK_KIB` | `bench_translate_depth` only | positive integer (KiB) | `8192` |
 
 Short notes on the more involved variables.
 
@@ -226,6 +231,21 @@ Default rows.
 
 `STACKDEPTH_TIMEOUT_MS` defaults to 15000 so this crash surfaces as `crashed`. `parse_recursive_helper` also rebuilds the whole remaining input on every recursive call, an O(n^2) cost. That is why 55,000 plain characters already takes ~5s.
 
+
+## bench_translate_depth
+
+```bash
+cargo build --release --example bench_translate_depth_worker   # build once
+cargo bench --bench bench_translate_depth
+```
+
+Finds the real stack-overflow crash point for the two recursive mechanisms behind `translate.rs`'s `MAX_BOUND` and `prepare.rs`'s `MAX_CORE_DEPTH` (see [DATASET.md](DATASET.md) under Pipeline), so those caps can be reported as a measured safety margin rather than an unexplained round number. Two mechanisms, `bound_unroll` and `syntactic_nesting`.
+
+`core_regex_tagged` (the only caller of `translate` outside tests) runs on whatever stack its caller gives it -- in practice the OS's plain default main-thread stack, not the 256 MiB custom worker stack the rest of this chapter's benches use. Each probe runs under an explicit `ulimit -s 8192` (8 MiB, a stock Linux default) via a `sh -c` wrapper, so the result holds regardless of the parent shell's own limit and stays comparable across machines.
+
+Same process-isolation and doubling-sweep shape as `bench_stack_depth`: N starts at `DEPTH_N_START` and doubles until the worker is killed by a signal (`outcome = crashed`), a probe exceeds `DEPTH_TIMEOUT_MS` (`outcome = timed_out`), or N exceeds `DEPTH_N_CAP` without either (`outcome = reached_sweep_cap`).
+
+Writes `reports/benches/bench_translate_depth.csv`, replacing any existing file.
 
 
 ## Quick reference

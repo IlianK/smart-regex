@@ -3,8 +3,9 @@
 //! cargo run --release --example demo_simp_branches
 //!
 //! Branch counts per derivative step for (a+(b+ab))*
-//! Shows why simp's r + r = r rule never fires on it:
-//! branches carry bits that survive simplification even when their shape is the same.
+//! Shows that simp's r + r = r rule now fires correctly on it:
+//! dedup compares branches modulo their bits, so same-shape branches
+//! collapse even though their bit annotations differ.
 //! Deterministic pinned by tests/test_thesis_figures.rs.
 //!
 //! Saves the table to reports/demos/simp_branches.csv (columns: step,

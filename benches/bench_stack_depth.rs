@@ -63,17 +63,16 @@
 //! stack-overflows (a real aborted process, not a timeout) at 60,000.
 //! That gap is the one difference this bench exists to show.
 //!
-//! E51's own timing is not what it looks like, though:
-//! `parse_recursive_helper` does `let rest: String = chars.collect()`
-//! on EVERY recursive call, reallocating the whole remaining suffix at
-//! every depth -- an O(n^2) cost from this implementation alone,
-//! regardless of pattern, which is why 55,000 plain characters already
-//! takes ~5s. `DEFAULT_TIMEOUT_MS` is raised accordingly (see below) so
-//! this row's real crash is observed as `crashed`, not masked behind a
-//! false `timed_out` from that unrelated inefficiency. That inefficiency
-//! is itself a separate, real finding -- worth fixing in
-//! `src/parsers/deriv_std/parse.rs` on its own merits, but out of scope
-//! for this bench, which only measures what exists today.
+//! E51's crash is cheap to reach now: `parse_recursive_helper` indexes
+//! a `&[char]` slice by position (`src/parsers/deriv_std/parse.rs`), no
+//! per-call reallocation, so there is no derivative-size-independent
+//! O(n^2) cost hiding behind it. Confirmed directly (release build):
+//! `deriv_std_rec` on E51 now crashes somewhere between N=32,768 and
+//! N=65,536, every surviving step still a flat ~0.005s.
+//! `DEFAULT_TIMEOUT_MS` below stays generous regardless -- not for
+//! E51, but because P01/P30 above are already this slow well before
+//! their own crash or timeout (confirmed: P30 alone takes ~5-6s by
+//! N=64).
 //!
 //! Each probe is its own `bench_stack_depth_worker` subprocess, the same
 //! process-isolation reasoning `bench_worker.rs`/`bench_corpus.rs`
@@ -116,10 +115,10 @@ use regex_engine::data::pathological::{self, PathologicalRow};
 
 const DEFAULT_JSON_PATH: &str = "data/pathological/pathological_patterns.json";
 const DEFAULT_ROW_IDS: &str = "P01,P30,E51";
-/// 2000ms would mask E51's real crash behind a false `timed_out`: its
-/// per-call cost is O(n^2) from `parse_recursive_helper`'s own
-/// `rest: String = chars.collect()` on every frame (see module doc),
-/// not from regex growth, so n=55,000 alone already takes ~5s.
+/// 2000ms would cut P30 off mid-sweep well before its own crash or a
+/// genuine timeout: confirmed directly, it alone already takes ~5-6s
+/// by N=64 (see module doc) from derivative-size growth, unrelated to
+/// stack depth.
 const DEFAULT_TIMEOUT_MS: u64 = 15_000;
 const DEFAULT_N_START: u32 = 1;
 const DEFAULT_N_CAP: u32 = 2_000_000;

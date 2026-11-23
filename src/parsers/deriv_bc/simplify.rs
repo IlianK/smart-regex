@@ -48,8 +48,9 @@ pub fn simp(ri: ARegex) -> ARegex {
 /// `Vec` in `push_branches` below) still get one via `(**r).clone()`,
 /// but that is always O(1): once `ARegex`'s own recursive fields are
 /// `Rc`, cloning a node only bumps its direct children's refcounts,
-/// never walks their subtrees (the same idiom pderiv_std's
-/// `pderiv_tree.rs` already uses for its own Rc-based Regex).
+/// never walks their subtrees (unlike the same `(**r).clone()` syntax
+/// in pderiv_std's `pderiv_tree.rs`, which clones a `Box`-based
+/// `Regex` and so does walk the whole subtree).
 fn simp_once(ri: &ARegex) -> ARegex {
     match ri {
         ARegex::Phi => ARegex::Phi,

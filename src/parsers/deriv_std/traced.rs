@@ -13,7 +13,7 @@ use crate::trace::{DerivStep, InjectStep, MkEpsResult, ParseTrace};
 
 // RECURSIVE PARSER - TRACED VARIANT
 
-/// Identical in behaviour to parse_recursive but also returns a ParseTrace.
+/// Identical in behaviour to parse_deriv_std_rec but also returns a ParseTrace.
 pub fn parse_recursive_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTrace) {
     let chars: Vec<char> = input.chars().collect();
 
@@ -123,7 +123,7 @@ fn parse_recursive_traced_helper(
 
 // LOOP PARSER - TRACED VARIANT
 
-/// Identical in behaviour to parse_loop but also returns a ParseTrace.
+/// Identical in behaviour to parse_deriv_std_loop but also returns a ParseTrace.
 pub fn parse_loop_traced(input: &str, r: &Regex) -> (Option<ParseTree>, ParseTrace) {
     let chars: Vec<char> = input.chars().collect();
     let n = chars.len();

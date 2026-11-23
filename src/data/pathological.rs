@@ -198,8 +198,11 @@ impl Generator {
 }
 
 /// One row from any of the three pattern arrays. `regex` is set for a
-/// concrete pattern; a `generated_patterns` row that needs expansion
-/// carries `pattern_template` + `generator` instead.
+/// concrete pattern; otherwise `pattern_template` is set, with a
+/// `generator` when the template itself needs per-row expansion (every
+/// `generated_patterns` row does), or without one when the template's
+/// own `{N}`/`{P}` tokens are enough by themselves (see `expand` below;
+/// `pathological_patterns` rows like P43 use this form directly).
 #[derive(Debug, Clone, Deserialize)]
 pub struct PathologicalRow {
     pub id: String,

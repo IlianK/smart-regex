@@ -1,7 +1,7 @@
 //! src/types/bits.rs
 //!
 //! Persistent, O(1)-amortized-prepend bit sequence for `ARegex`'s own
-//! per-node annotations. `fuse`/`combine` prepend a small prefix onto a
+//! per-node annotations. `fuse`/`fuse_bits` prepend a small prefix onto a
 //! node's existing bits at every derivative step; with a plain
 //! `Vec<bool>` that existing content gets copied every time, which is
 //! O(current length) per step and O(n^2) over n characters once a node

@@ -99,7 +99,7 @@ Writes `data/processed/s2-elab/prepared.jsonl`, replacing the file.
 
 1. `extract::extract_s2_elab` turns the raw JSON into `ExtractedRule` values, each carrying the pattern plus the author's own `matches` and `non_matches`.
 2. Dedup by raw pattern text against every rule already seen this run (`patterns_duplicate`, skipped).
-3. `prepare::core_regex_tagged` parses and translates with two size caps and one narrow anchor recovery. Rejected patterns stop here.
+3. `prepare::core_regex_tagged` parses and translates with two size caps (`MAX_CORE_DEPTH = 2,000` on estimated depth, fixed; a 20,000-node cap on the translated pattern, overridable via `CORE_REGEX_MAX_NODES`) and one narrow anchor recovery. Rejected patterns stop here.
 4. A small dedup helper with positive-wins resolves `matches` and `non_matches` into `(text, is_match)` pairs. Unchanged, uncapped, unsampled.
 5. `prepare::matches_bounded` re-checks each pair against the real `Regex`. A disagreement is dropped (`inputs_label_mismatch`).
 6. Each surviving pair becomes a `PreparedCase`, written as JSON lines tagged with its `MatchIntent`.
@@ -134,13 +134,13 @@ Only a top-level `^...$` wrap counts. A lone `^` or `$`, one nested in an `Or` b
 ---
 ## Pathological stress patterns
 
-`data/pathological/pathological_patterns.json` holds 113 hand-curated rows.
+`data/pathological/pathological_patterns.json` holds 112 hand-curated rows.
 
 | Section | Rows | Purpose |
 |---|---|---|
 | `pathological_patterns` | 61 | Main stress rows |
 | `baseline_and_edge_patterns` | 43 | Baseline and edge cases |
-| `generated_patterns` | 9 | Parameterised by `{N}` and `{P}` templates |
+| `generated_patterns` | 8 | Parameterised by `{N}` and `{P}` templates |
 
 Read directly by `bench_pathological`, `bench_pathological_translate`, and row `E51` only by `bench_stack_depth`. Never read by `run_pipeline`. Loader and template expansion in `src/data/pathological.rs`.
 
@@ -154,7 +154,7 @@ cargo run --release --example pathological_stats
 
 Writes `reports/data/pathological_stats.csv` (one row per category) and `reports/data/pathological_rows.csv` (one row per pattern).
 
-Current totals are 113 patterns and 913 test cases under the default sweep. Category `L` alone (33 baseline and edge patterns) accounts for 195 cases.
+Current totals are 112 patterns and 891 test cases under the default sweep. Category `L` alone (33 baseline and edge patterns) accounts for 195 cases.
 
 ### Categories
 

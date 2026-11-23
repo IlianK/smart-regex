@@ -2,7 +2,9 @@
 //!
 //! Level 3 - Debug diagnostics. Full trace: derivation, nullability, mkEps, inject
 //!
-//! Output goes to REGEX_DIAG_REPORT file if set, otherwise stdout.
+//! Output goes to `config.report_path` if set -- the CLI's
+//! `--diag-report` populates it (see `src/cli/parser.rs`) -- otherwise
+//! stdout.
 
 mod deriv_std;
 mod deriv_bc;

@@ -5,6 +5,7 @@
 //! Standard success:
 //!   Regex:  a*
 //!   Input:  "aaa"
+//!   Policy: POSIX
 //!   Match:  true
 //!   Tree:   [a, a, a]
 //!   Time:   0.08ms

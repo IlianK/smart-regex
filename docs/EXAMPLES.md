@@ -13,8 +13,10 @@ Runnable programs under `examples/`, invoked with `cargo run --example <name>`.
 | **Dataset pipeline** | `dataset_prepare`, `dataset_stats` | Extract, verify, and report on the raw corpus |
 | **Parser agreement** | `demo_parser_agreement`, `demo_parser_agreement_pathological`, `demo_parser_agreement_worker` | Cross-parser agreement on parse tree shape, over the prepared S2ELab dataset and the pathological dataset |
 | **Thesis figures** | `demo_simp_branches`, `demo_growth_deriv`, `demo_growth_pderiv`, `demo_growth_eval` | Node growth figures |
+| **Bound usage evidence** | `demo_bound_usage` | Real-world `{m,n}` bound sizes in S2ELab, as evidence for `MAX_BOUND`'s value |
+| **Benchmark post-processing** | `demo_peak_offenders` | Top-N worst entries per parser from an existing `..._entries.csv`, by any metric column |
 
-Stack-overflow sweeps live in `benches/bench_stack_depth.rs`. See that file's module doc.
+Stack-overflow sweeps live in `benches/bench_stack_depth.rs` and `benches/bench_translate_depth.rs`. See [BENCHMARKS.md](BENCHMARKS.md) and those files' module docs.
 
 
 ## Matching demo
@@ -98,6 +100,15 @@ Writes `reports/demos/translate_sizes.csv`.
 A pattern is either translated as-is (`Direct`), has its redundant top-level `^...$` stripped first (`Explicit full-match`), or rejected outright. See [DATASET.md](DATASET.md) for what each tier means and how `dataset_stats` reports rejection causes over the real corpus.
 
 
+### Bound usage evidence
+
+```bash
+cargo run --release --example demo_bound_usage
+```
+
+Walks every S2ELab pattern's `ExtPat`, collects every `Bound(_, lo, hi)` node found anywhere in it (not just top-level), and reports the distribution of each bound's largest repeat count -- real-world evidence for why `MAX_BOUND` (`src/frontend/translate.rs`) is set where it is. Prints to stdout only, writes no file.
+
+
 ## Node Growth demos
 
 Each demo writes one or more CSV files under `reports/demos/`, replacing any previous run. Example filenames below.
@@ -152,3 +163,19 @@ Saves `reports/demos/parser_agreement_pathological.csv` (summary) and `reports/d
 
 Timeouts are expected here. The pathological dataset exists to find each parser's real limit.
 
+
+## Peak offenders
+
+```bash
+cargo run --release --example demo_peak_offenders -- <entries_csv> <metric_column> [top_n, default 5]
+
+# e.g., both reading the same merged entries CSV for different columns:
+cargo run --release --example demo_peak_offenders -- \
+  reports/benches/bench_corpus_C1_entries.csv micros 5
+cargo run --release --example demo_peak_offenders -- \
+  reports/benches/bench_corpus_C1_entries.csv peak_bytes 5
+```
+
+For any `..._entries.csv` written by `bench_corpus` or `bench_pathological` (see [BENCHMARKS.md](BENCHMARKS.md)), finds the top-N entries per parser by a chosen metric column -- "which pattern+input caused parser X's worst case" -- instead of grepping/sorting the entries file by hand. Reads the CSV generically by column name (only `parser` and the chosen metric column are required), so it works unchanged on both corpus and pathological entries CSVs despite their different schemas. Rows with no numeric value in that column (timed out, crashed, not applicable) are excluded from ranking, not treated as zero.
+
+Writes `reports/demos/peak_offenders_<csv-basename>_<metric>.csv`, same columns as the input plus a leading `rank` (1 = worst), rows grouped by parser in the input's own first-seen order.
