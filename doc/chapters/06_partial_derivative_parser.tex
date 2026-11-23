@@ -1219,12 +1219,11 @@ leaving tree construction to \texttt{decode}
 \subsection{Parser}
 \label{sec:pderiv-bc-parser}
 
-The parser runs the same single pass 
-as the standard partial-derivative parser 
-(Equation~\eqref{eq:pderiv-std-driver}), 
-advancing the whole state set at once 
-and handing the final state set directly to $\mathit{select}_b$, 
-with bit-sequences in place of injections:
+The parser follows the standard partial-derivative pass
+(Equation~\eqref{eq:pderiv-std-driver}),
+advancing the entire state set and passing the result
+directly to $\mathit{select}_b$, with bit-sequences
+replacing injections:
 \begin{equation}\label{eq:pderiv-bc-driver}
 \begin{aligned}
 T_0 &= \{(r, [\,])\}, \\
@@ -1232,41 +1231,39 @@ T_i &= \mathit{step}_b(T_{i-1}, x_i) \quad (1 \leq i \leq n), \\
 \mathit{result} &= \mathit{decode}_r(\mathit{select}_b(T_n)),
 \end{aligned}
 \end{equation}
-where $\mathit{step}_b$ applies \texttt{pderiv\_bc} to each pair 
+$\mathit{step}_b$ applies \texttt{pderiv\_bc} to each pair 
 and $\mathit{select}_b$ returns $bs \mathbin{+\!\!+} \mathit{mkEpsBC}(r')$
 for the first pair $(r', bs)$ in $T_n$ whose residual is nullable.
 
 %
 
-As with the standard driver, no backward pass over the input is needed,
-but the two parsers differ in what their one remaining reconstruction
-step costs.
-\texttt{select}'s $\mathit{inj}$ applies a chain of closures built up
-one per character consumed, so its cost tracks how many derivative
-steps produced it.
-\texttt{decode} instead walks $r_0$'s own structure once, consuming
-bits only at the choice points (\texttt{Alt} and \texttt{Star}) that
-produced them, so its cost tracks the size of the resulting parse tree
-rather than the length of the derivation that built the bits.
+As with the standard driver, no backward pass is needed,
+but reconstruction costs differ.
+\texttt{select}'s $\mathit{inj}$ applies a chain of closures
+built during derivation, so its cost depends on the number
+of derivative steps.
+In contrast, \texttt{decode} traverses $r_0$ once,
+consuming bits at \texttt{Alt} and \texttt{Star} choices,
+so its cost depends on the resulting parse-tree size
+rather than the derivation length.
 
 \paragraph{In Rust.}
-Figure~\ref{fig:pderiv-bc-parser-rust} implements~\eqref{eq:pderiv-bc-driver}.
-The loop is identical to the standard variant,
+Figure~\ref{fig:pderiv-bc-parser-rust} implements
+Equation~\eqref{eq:pderiv-bc-driver}.
+The loop mirrors \texttt{parse\_pderiv\_std}
+(Figure~\ref{fig:pderiv-std-parser-rust}),
 replacing \texttt{Inj} with \texttt{AppendBits}.
-As in \texttt{parse\_pderiv\_std} (Figure~\ref{fig:pderiv-std-parser-rust}),
-it overwrites \texttt{frontier} in place each iteration, so no earlier
-state set survives once the next one exists, and an empty state set
-early-returns \texttt{None} for the same reason: no pair can consume
-the next character, so the whole input is rejected.
-Once the loop finishes, \texttt{select\_bits} returns the final bits by
-appending \texttt{mk\_eps\_bits} to the first accepting pair's bits, an
-\texttt{Option<Vec<bool>{}>} mirroring \texttt{select}'s own
-\texttt{Option<ParseTree>}, and \texttt{decode} reads those bits
-against $r$.
-The parser therefore pays for state set maintenance exactly once per
-character and for reconstruction exactly once at the end, the same
-shape as the standard partial-derivative parser, just with a smaller
-and more uniform payload travelling through the loop.
+Each iteration replaces \texttt{frontier}, discarding
+previous states, and returns \texttt{None} if it becomes
+empty, since no state can consume the remaining input.
+After the loop, \texttt{select\_bits} appends
+\texttt{mk\_eps\_bits} to the first accepting pair's bits,
+returning an \texttt{Option<Vec<bool>{}>}.
+Finally, \texttt{decode} reconstructs the parse tree
+from these bits and $r$.
+Thus, state sets are updated per character,
+while reconstruction occurs only once at the end,
+as in the standard parser, but with a more compact payload.
 
 \begin{figure}[H]
 \small
