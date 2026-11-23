@@ -535,7 +535,7 @@
     {
       "id": "P24",
       "category": "C",
-      "regex": "(.*x*){1,10}",
+      "regex": "(.*x+){1,10}",
       "match_input": {
         "repeat": "x",
         "count": "{N}"
@@ -545,7 +545,8 @@
         "count": "{N}",
         "suffix": "y"
       },
-      "stress_axis": "polynomial (unrolled)"
+      "stress_axis": "polynomial (unrolled)",
+      "notes": "FIXED vs proposal: the body's own star made (.*x*){1,10} equivalent to .* alone (one iteration's .* can already absorb the whole input, x* then matching empty), so nomatch_input -- ending in y, not x -- always matched too, regardless of count. Changed the body to x+ so every iteration must end in at least one literal x, which nomatch_input's trailing y genuinely cannot satisfy; match_input is unaffected."
     },
     {
       "id": "P25",
@@ -974,7 +975,9 @@
         "count": "{N}",
         "suffix": "b"
       },
-      "stress_axis": "polynomial (unrolled)"
+      "stress_axis": "polynomial (unrolled)",
+      "suggested_n": [10, 30, 50, 60],
+      "notes": "FIXED vs proposal: unlike this category's other rows, the body's filler is bounded (.{0,5}), not .*, so each of the {1,10} iterations covers at most 6 characters -- a hard cap of 60 for any matching input. Category C's blanket n sweep (up to 1000) made match_input unmatchable past that cap, so this row overrides suggested_n to stay within it; nomatch_input (ending in b, which no iteration's trailing a can satisfy) was never affected."
     },
     {
       "id": "P53",
@@ -989,7 +992,9 @@
         "count": "{N}",
         "suffix": "1"
       },
-      "stress_axis": "polynomial (unrolled)"
+      "stress_axis": "polynomial (unrolled)",
+      "suggested_n": [10, 20, 25, 30],
+      "notes": "FIXED vs proposal: each of the {1,10} iterations covers at most 3 characters here, a hard cap of 30 for any matching input -- lower than P52's, since there is no filler at all. Overrides suggested_n for the same reason as P52's own note."
     },
     {
       "id": "P54",
