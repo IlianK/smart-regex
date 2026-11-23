@@ -298,26 +298,27 @@ The same method is used to find the two translation caps
 \subsection{Parse Agreement}
 \label{sec:eval-criteria-agreement}
 
-Parse agreement is evaluated on entries $(r,w)$
-extended with an expected match result
-$e \in \{\mathit{true},\mathit{false}\}$, giving $(r,w,e)$.
-Within a family, the parsers are alternative implementations of the
-same disambiguation policy and agree with each other by construction;
-the comparison therefore uses one representative per family,
-\texttt{deriv\_bc} for POSIX and \texttt{pderiv\_bc} for non-POSIX,
-to check the one place the two policies can legitimately diverge.
-\emph{Membership} is \texttt{deriv\_bc} and \texttt{pderiv\_bc} each
-returning a tree exactly when $e = \mathit{true}$.
-The two disagreeing with \emph{each other} on membership would
-indicate a bug, since whether a string matches at all does not
-depend on which disambiguation policy selects its parse tree.
-Both agreeing with each other but against $e$ instead points at the
-entry's expected label, not at either parser; this case is reported
-separately below rather than folded into either outcome.
-\emph{Shape} is compared only once membership is settled, i.e.\ when
-$e = \mathit{true}$ and both return a tree: since their disambiguation
-policies differ, distinct trees there indicate ambiguity rather than
-a bug.
+Parse agreement is evaluated on entries
+$(r,w,e)$, where $e \in
+\{\mathit{true},\mathit{false}\}$ denotes
+the expected match result.
+Since implementations within each family
+follow the same disambiguation policy,
+one representative is compared per family:
+\texttt{deriv\_bc} for POSIX and
+\texttt{pderiv\_bc} for non-POSIX.
+\emph{Membership} is correct when both parsers
+return a tree exactly if $e=\mathit{true}$.
+A membership disagreement between the parsers
+indicates an implementation error, since
+disambiguation does not affect acceptance.
+\emph{Shape} is compared only when
+$e=\mathit{true}$ and both parsers return
+a tree.
+Since their disambiguation policies differ,
+distinct parse trees may reflect legitimate
+ambiguity rather than an implementation error.
+
 \begin{table}[ht]
 \centering
 \small
@@ -1595,9 +1596,7 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \texttt{pderiv\_bc}       &     3.01 & 27\,664.54 & 5\,335.62 &   207.97 & 33\,211.14 \\
 \hline
 \end{tabular*}
-\caption{Four-phase timing breakdown (ms) on P60 at $n=10\,000\,000$,
-the largest point at which \texttt{deriv\_bc}, \texttt{pderiv\_std},
-and \texttt{pderiv\_bc} all three still have data.}
+\caption{Four-phase timing breakdown (ms) on P60 at $n=10\,000\,000$.}
 \label{tab:patho-phases-p60}
 \end{table}
 
@@ -1616,9 +1615,7 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \texttt{pderiv\_bc}       & 2\,051.81 & 43\,076.73 & 8\,546.36 &   585.63 & 54\,260.53 \\
 \hline
 \end{tabular*}
-\caption{Four-phase timing breakdown (ms) on P61 at $n=10\,000\,000$,
-the largest point at which \texttt{deriv\_bc}, \texttt{pderiv\_std},
-and \texttt{pderiv\_bc} all three still have data.}
+\caption{Four-phase timing breakdown (ms) on P61 at $n=10\,000\,000$.}
 \label{tab:patho-phases-p61}
 \end{table}
 
@@ -1750,7 +1747,7 @@ speed advantage for the partial-derivative
 implementation on these inputs.
 The relative cost of bit annotations
 and injection closures cannot be determined
-from wall time alone;
+from wall time alone.
 
 %
 %
@@ -1950,8 +1947,6 @@ deriving, against 21.97 and 24.75\,s
 for the \texttt{pderiv} variants.
 However, its reconstruction is faster
 (1.74\,s versus 3.29 and 3.15\,s).
-The advantage in reconstruction is therefore
-insufficient to offset its higher derivation cost.
 
 %
 %
@@ -1973,9 +1968,7 @@ $n$ & \texttt{deriv\_std} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{
 \hline
 \end{tabular*}
 \caption{Wall time (ms) on P01, \texttt{(a+)+} against \texttt{a}
-repeated. \texttt{deriv\_std} crashes from $n=50$ on,
-\texttt{deriv\_bc} times out from $n=200\,000$ on
-(Table~\ref{tab:patho-crash-thresholds}).}
+repeated.}
 \label{tab:patho-p01-all-parsers}
 \end{table}
 
@@ -1997,8 +1990,7 @@ $n$ & \texttt{deriv\_std} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{
 \hline
 \end{tabular*}
 \caption{Wall time (ms) on P09, \texttt{(a|aa)+} against \texttt{a}
-repeated. \texttt{deriv\_std} crashes from $n=100$ on
-(Table~\ref{tab:patho-crash-thresholds}).}
+repeated.}
 \label{tab:patho-p09-all-parsers}
 \end{table}
 
@@ -2019,9 +2011,7 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \texttt{pderiv\_bc}       & 0.00 &    102.82 & 9.04 & 0.19 &    112.05 \\
 \hline
 \end{tabular*}
-\caption{Four-phase timing breakdown (ms) on P01 at $n=50\,000$, the
-largest point at which \texttt{deriv\_bc} itself still has data before
-timing out.}
+\caption{Four-phase timing breakdown (ms) on P01 at $n=50\,000$.}
 \label{tab:patho-phases-p01}
 \end{table}
 
@@ -2040,70 +2030,96 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \texttt{pderiv\_bc}       &  2.12 & 24\,752.73 & 3\,151.40 & 122.97 & 28\,029.22 \\
 \hline
 \end{tabular*}
-\caption{Four-phase timing breakdown (ms) on P09 at $n=10\,000\,000$,
-the largest point at which all three still have data.}
+\caption{Four-phase timing breakdown (ms) on P09 at $n=10\,000\,000$.}
 \label{tab:patho-phases-p09}
 \end{table}
 
 
-The contrasting scaling traces to one operation in \texttt{deriv\_bc}'s
-derivative rule for \texttt{Seq}: whenever its left operand is already
-nullable, the rule calls \texttt{mk\_eps\_bc}
-(Figure~\ref{fig:mkepsbc-rust}) to extract that operand's accumulated
-bits, then \texttt{fuse}s (Figure~\ref{fig:fuse-rust},
-Section~\ref{sec:fuse}) the result onto the right -- costing time
-proportional to the left operand's bit-list length, not a fixed
-amount per character. On P01, \texttt{(a+)+} desugars to
-\texttt{Seq(a+, (a+)*)}, and once the inner \texttt{a+} matches one
-\texttt{a} it stays nullable for the rest of the input, so this rule
-fires every remaining character; the list \texttt{mk\_eps\_bc}
-materializes grows by one bit per character -- 1 bit at $n=2$, 999 at
-$n=1\,000$, 19\,999 at $n=20\,000$, measured directly -- integrating
-to the quadratic-looking total in Figure~\ref{fig:patho-p01}:
-competitive with the \texttt{pderiv} pair through $n\approx 20$,
-nearly $3\times$ slower by $n=1\,000$, roughly $156\times$ by
-$n=50\,000$. \texttt{deriv\_bc}'s own expression stays a fixed eight
-\texttt{ARegex} nodes throughout; the cost grows in the bits those
-nodes carry, not the tree's shape.
+The contrasting scaling behaviour can be traced
+to the derivative rule for \texttt{Seq} in
+\texttt{deriv\_bc}.
+Whenever the left operand is already nullable,
+the rule invokes \texttt{mk\_eps\_bc}
+(Figure~\ref{fig:mkepsbc-rust}) to extract its
+accumulated bits, then attaches them to the
+right operand through \texttt{fuse}
+(Figure~\ref{fig:fuse-rust},
+Section~\ref{sec:fuse}).
+The cost of this operation depends on the
+length of the left operand's bit list,
+rather than being constant per character.
 
-On P09, \texttt{(a|aa)+} never settles into that state: the rule
-fires only in the first couple of characters, never again, so
-\texttt{deriv\_bc} never pays a growing cost here -- every
-character's work stays the same size regardless of input consumed so
-far, consistent with the flat per-character cost and the roughly
-constant $1.4$--$2.4\times$ slowdown relative to the \texttt{pderiv}
-pair throughout.
+On P01, \texttt{(a+)+} desugars to
+\texttt{Seq(a+, (a+)*)}.
+After matching the first \texttt{a},
+the inner \texttt{a+} remains nullable,
+causing the rule to fire on every subsequent
+character.
+Meanwhile, the bit list materialized by
+\texttt{mk\_eps\_bc} grows by one bit per step:
+direct measurements show 1 bit at $n=2$,
+999 at $n=1\,000$, and 19\,999 at $n=20\,000$.
+Repeatedly processing this growing list
+produces the approximately quadratic scaling
+observed in Figure~\ref{fig:patho-p01}.
+While \texttt{deriv\_bc} remains competitive
+with the \texttt{pderiv} variants up to
+approximately $n=20$, it is nearly
+$3\times$ slower at $n=1\,000$ and
+roughly $156\times$ slower at $n=50\,000$.
+Notably, its residual expression remains
+fixed at eight \texttt{ARegex} nodes:
+the increasing cost arises from the
+annotations carried by these nodes,
+not from growth in the expression tree itself.
 
-Both \texttt{pderiv} variants handle both patterns without failures
-and stay close in performance. Neither assembles one combined
-expression: a partial-derivative frontier keeps one state per
-residual, deduplicated by hashing (\texttt{nub2}/\texttt{nub\_tree}).
-The cost depends not on ambiguity's presence but on whether it
-re-triggers a growing bit-list materialization.
+P09, \texttt{(a|aa)+}, behaves differently.
+Here, the nullable-Seq rule fires only
+during the first few derivative steps
+and does not recur as the input grows.
+Consequently, \texttt{deriv\_bc} avoids
+repeated materialization of an increasingly
+long bit list, maintaining approximately
+constant work per character.
+This is consistent with its near-linear
+scaling and relatively stable
+$1.4$--$2.4\times$ slowdown against
+the faster \texttt{pderiv} variant.
+Both \texttt{pderiv} variants complete
+the full sweeps and remain close in performance.
+Rather than maintaining a single combined
+expression, they track separate residuals
+in a partial-derivative frontier,
+deduplicated through hashing
+(\texttt{nub2}/\texttt{nub\_tree}).
+The different scaling behaviour is thus
+largely explained by whether derivation
+repeatedly materializes a growing bit list,
+as on P01, or avoids this overhead, as on P09.
+
 
 %
 %
 %
 
 \clearpage
-
 \paragraph{E37 and E38}
-Unlike the preceding input-length sweeps, E37 and E38 vary pattern
-size while the input stays a short, fixed literal -- the pattern's
-own first alternative, matched outright, rather than a string whose
-length tracks $n$ or $p$. Both are drawn from category J (``large
-pattern, short input''), whose mechanism is the per-node cost of a
-very large pattern, and use $p$-way alternations to examine how the
-five parsers' timing phases (Section~\ref{sec:eval-criteria-timing})
-scale with pattern size on matching inputs. Alternation was chosen to
-grow a pattern's node count by a single parameter $p$ while leaving
-the input unchanged.
-E37 consists of distinct four-letter alternatives, matched by the
-literal \texttt{"aaaa"}
+Unlike the preceding input-length sweeps, E37 and E38
+vary pattern size while keeping the input fixed
+to the short literal matching the first alternative.
+Both belong to category J (``large pattern, short input'')
+and use $p$-way alternations to examine how
+the five parsers' timing phases
+(Section~\ref{sec:eval-criteria-timing})
+scale with pattern size on matching inputs.
+Alternation allows the node count to grow with
+a single parameter $p$, independently of input length.
+E37 uses distinct four-letter alternatives,
+matched by \texttt{"aaaa"}
 (Figure~\ref{fig:patho-e37},
 Table~\ref{tab:patho-phases-e37}),
-while E38 uses numbered placeholder words, matched by the literal
-\texttt{"w000001"}
+while E38 uses numbered placeholder words,
+matched by \texttt{"w000001"}
 (Figure~\ref{fig:patho-e38},
 Table~\ref{tab:patho-phases-e38}).
 Both sweep $p \in \{100, 500, 1\,000,
@@ -2114,9 +2130,7 @@ to accommodate these large patterns.
 At $p = 10\,000$, E38's seven-character words each translate to 13 nodes
 (seven literals chained by six concatenations), and joining all
 $10\,000$ of them adds $9\,999$ more nodes for the alternation itself:
-$10\,000 \times 13 + 9\,999 = 139\,999$ nodes in total.
-
-\clearpage
+$10\,000 \times 13 + 9\,999 = 139\,999$ nodes total.
 
 %
 %
@@ -2249,9 +2263,11 @@ to the fastest of the four at each $p$.}
   coordinates {(100,1.246) (500,1.251) (1000,1.375) (2000,1.189) (5000,1.221) (10000,1.197)};
 \end{axis}
 \end{tikzpicture}
-\caption{Wall time on E38, a $p$-way alternation of distinct
-numbered words (\texttt{(?:w000001|w000002|}\dots\texttt{)}),
-with input \texttt{"w000001"} matching the first Alt.
+\caption{Wall time on E38, a $p$-way alternation
+of distinct numbered words, beginning with
+\texttt{(?:w000001|w000002|}\dots\texttt{)},
+with fixed input \texttt{"w000001"} matching
+the first alternative.
 The upper panel uses log-log axes; the lower shows
 each parser's time relative to the fastest at each $p$.}
 \label{fig:patho-e38}
@@ -2261,13 +2277,17 @@ each parser's time relative to the fastest at each $p$.}
 %
 %
 
-Tables~\ref{tab:patho-e37-all-parsers} and~\ref{tab:patho-e38-all-parsers}
-give the same wall times as Figures~\ref{fig:patho-e37}
-and~\ref{fig:patho-e38} in numeric form, across the full swept
-width; all four parsers complete every point on both rows, so every
-cell is a direct comparison. The phase breakdowns in
-Tables~\ref{tab:patho-phases-e37} and~\ref{tab:patho-phases-e38}
-examine the widest point, $p=10\,000$, in more detail.
+Tables~\ref{tab:patho-e37-all-parsers}
+and~\ref{tab:patho-e38-all-parsers}
+provide the numerical wall times corresponding
+to Figures~\ref{fig:patho-e37}
+and~\ref{fig:patho-e38} across the full sweep.
+All four parsers complete every point,
+allowing direct comparisons throughout.
+Tables~\ref{tab:patho-phases-e37}
+and~\ref{tab:patho-phases-e38}
+detail the phase breakdowns at the widest
+alternation, $p=10\,000$.
 
 \begin{table}[H]
 \centering
@@ -2286,8 +2306,7 @@ $p$ & \texttt{deriv\_std} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{
 \hline
 \end{tabular*}
 \caption{Wall time (ms) on E37, a $p$-way alternation of distinct
-four-letter words, across the full swept $p$. All four parsers
-complete every sweep value.}
+four-letter words, across swept $p$.}
 \label{tab:patho-e37-all-parsers}
 \end{table}
 
@@ -2310,8 +2329,7 @@ $p$ & \texttt{deriv\_std} & \texttt{deriv\_bc} & \texttt{pderiv\_std} & \texttt{
 \hline
 \end{tabular*}
 \caption{Wall time (ms) on E38, a $p$-way alternation of distinct
-numbered words, across the full swept $p$. All four parsers
-complete every sweep value.}
+numbered words, across swept $p$.}
 \label{tab:patho-e38-all-parsers}
 \end{table}
 
@@ -2334,9 +2352,7 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \hline
 \end{tabular*}
 \caption{E37: four-phase timing breakdown (ms) at widest swept
-Alt width, $p=10\,000$
-(\texttt{(?:aaaa|aaab|}\dots \texttt{)}, $p$ distinct four-letter
-alternatives; input \texttt{"aaaa"}, matching first Alt).}
+Alt width, $p=10\,000$.}
 \label{tab:patho-phases-e37}
 \end{table}
 
@@ -2358,10 +2374,7 @@ Parser & Setup & Derive & Reconstruct & Teardown & Total \\
 \hline
 \end{tabular*}
 \caption{E38: four-phase timing breakdown (ms) at widest swept
-Alt width, $p=10\,000$
-(\texttt{(?:w000001|w000002|}\dots \texttt{)},
-$p$ distinct numbered-word alternatives;
-input \texttt{"w000001"}.}
+Alt width, $p=10\,000$.}
 \label{tab:patho-phases-e38}
 \end{table}
 
@@ -2369,131 +2382,172 @@ input \texttt{"w000001"}.}
 %
 %
 
-\texttt{Setup} grows only mildly with $p$ and stays well under the
-corresponding \texttt{Derive} figure throughout, for both bit-coded
-parsers; \texttt{pderiv\_bc}'s own setup is consistently cheaper than
-\texttt{deriv\_bc}'s, whose \texttt{internalize} construction does more
-work per node than a plain tree clone plus \texttt{flatten\_alt}'s own
-tagging pass.
-\texttt{Reconstruct} stays under $2$\,ms for every parser but
-\texttt{deriv\_std}, whose backward injection pass over
-an $O(p)$-long derivation sequence grows to $161.73$\,ms by
-$p=10\,000$ -- the single largest contributor to its own
-\texttt{Total} at that point.
-\texttt{Derive} dominates \texttt{Total} for the three
-non-recursive bit-coded/partial-derivative parsers, and at $p=10\,000$
-the ratio of \texttt{deriv\_bc}'s \texttt{Derive} to \texttt{pderiv\_bc}'s
-is about $2.5\times$: both parsers' branch deduplication is $O(p)$
-(\texttt{deriv\_bc}'s own \texttt{dedup\_first}, discussed below,
-hashes each branch's shape once, the same way \texttt{pderiv\_bc}'s
-\texttt{nub2} hashes each residual), so the gap between them reflects
-a difference in constant factor, not in growth rate.
 
-\texttt{Setup} and \texttt{Derive} are both higher here than on E37 for
-the bit-coded pair, consistent with E38's longer words, and
-\texttt{Reconstruct} again stays under $2$\,ms for every parser but
-\texttt{deriv\_std}, whose own backward pass reaches
-$258.29$\,ms. The ratio of \texttt{deriv\_bc}'s \texttt{Derive} to
-\texttt{pderiv\_bc}'s is wider here than on E37, at about $2.1\times$.
-\texttt{Setup} remains cheaper for \texttt{pderiv\_bc} than
-\texttt{deriv\_bc}, as on E37.
-On \texttt{Total}, the partial-derivative pair is cheapest,
-consistent with being fastest almost everywhere
-in the dataset (Section~\ref{sec:eval-timing-pathological}).
-\texttt{deriv\_bc} finishes fastest of the three non-standard parsers
-at this point ($94.46$\,ms against $332.00$\,ms for
-\texttt{deriv\_std}).
+On E37, \texttt{Setup} grows modestly with $p$.
+It is consistently cheaper for
+\texttt{pderiv\_bc} than for \texttt{deriv\_bc},
+whose \texttt{internalize} performs more work
+per node than cloning the expression and
+assigning annotations through \texttt{flatten\_alt}.
+\texttt{Reconstruct} remains below 2\,ms
+for all parsers except \texttt{deriv\_std},
+whose backward injection reaches 161.73\,ms
+at $p=10\,000$, dominating its total time.
+
+For the other three parsers, \texttt{Derive}
+dominates the total.
+At $p=10\,000$, \texttt{deriv\_bc}'s
+derivation takes approximately $2.5\times$
+that of \texttt{pderiv\_bc}.
+Both use hash-based deduplication:
+\texttt{deriv\_bc}'s \texttt{dedup\_first}
+hashes branch structures, while
+\texttt{pderiv\_bc}'s \texttt{nub2}
+hashes residuals.
+Both operations scale linearly with the
+number of candidates, so their timing
+difference is consistent with differing
+per-candidate costs rather than growth rates.
+
+On E38, \texttt{Setup} and \texttt{Derive}
+are higher for both bit-coded parsers,
+consistent with its longer alternatives.
+\texttt{pderiv\_bc} again has lower setup
+cost than \texttt{deriv\_bc}, while their
+derivation-time ratio is approximately
+$2.1\times$ at $p=10\,000$.
+Reconstruction remains below 2\,ms
+except for \texttt{deriv\_std},
+whose backward pass reaches 258.29\,ms.
+The partial-derivative variants achieve
+the lowest total times, followed by
+\texttt{deriv\_bc} at 94.46\,ms and
+\texttt{deriv\_std} at 332.00\,ms.
 
 %
 %
 %
 
-\textbf{Convergence.}
-At $p=10\,000$, \texttt{deriv\_bc} is roughly $3.5\times$
-faster than \texttt{deriv\_std}
+At $p=10\,000$, \texttt{deriv\_bc} is approximately
+$3.5\times$ faster than \texttt{deriv\_std}
 (Table~\ref{tab:patho-phases-e38}).
-Unlike \texttt{deriv\_std}, which never attempts to simplify the alternation
-and so never pays for an attempt that could not have succeeded
-(every one of the $p$ alternatives is genuinely distinct by construction),
-\texttt{deriv\_bc} does attempt to, but now hashes each branch's shape
-once rather than comparing every pair,
-so the attempt itself no longer dominates its per-character cost at this scale.
-The partial-derivative pair is cheapest at this point, between
-roughly $1.6\times$ and $2.0\times$ faster than \texttt{deriv\_bc},
-since neither ever holds the $p$ alternatives
-as one combined expression to flatten and simplify in the first place --
-a narrower gap than on \texttt{deriv\_std}, now that \texttt{deriv\_bc}'s
-own deduplication is $O(p)$ rather than $O(p^2)$.
-\texttt{deriv\_bc} still pays more on E38 than on E37 at every $p$.
-\texttt{hash\_shape} (Figure~\ref{fig:hash-shape-ch5-rust},
-Chapter~\ref{sec:derivative-parser}) walks a word's
-whole chain of \texttt{Seq} nodes to hash it, one recursive call per
-character, so its cost tracks word length regardless of whether that
-word shares a prefix with any other.
-E38's numbered words are longer than E37's fixed four-letter ones,
-so hashing each one costs more.
+Unlike \texttt{deriv\_std}, which keeps the
+alternation without attempting simplification,
+\texttt{deriv\_bc} attempts to deduplicate its branches.
+Since all $p$ alternatives are distinct by construction,
+no branches can be removed.
+However, hash-based deduplication avoids comparing
+every pair, keeping this otherwise unproductive
+simplification step from dominating the runtime.
 
-\texttt{dedup\_first} (Figure~\ref{fig:dedup-first-ch5-rust},
-Section~\ref{sec:simp}) hashes each of the $p$ branches once
-with \texttt{hash\_shape}, which
-mirrors \texttt{same\_shape}'s own recursion arm for arm, so two
-branches of the same shape always land in the same bucket; a hash
-collision between differently shaped branches costs one extra,
-correctly negative, \texttt{same\_shape} call within that bucket,
-never a wrong merge, since bucket membership is only ever a pre-filter
-for the real equality test. For $p$ genuinely distinct words, each
-one's own characters make its hash distinct from the others, so
-buckets stay singletons and \texttt{same\_shape} is almost never
-called at all; the cost is $O(p)$ hashing, not an $O(p^2)$ comparison
-paid for zero branches removed.
-This implements the \texttt{nub} call 
+For \texttt{deriv\_bc}, \texttt{dedup\_first}
+(Figure~\ref{fig:dedup-first-ch5-rust})
+hashes each branch using \texttt{hash\_shape}
+(Figure~\ref{fig:hash-shape-ch5-rust},
+Chapter~\ref{sec:derivative-parser}).
+The hash follows the same structural recursion
+as \texttt{same\_shape} (Section~\ref{sec:simp-impl}),
+but ignores bit-code history.
+Branches with equal shapes therefore receive
+equal hashes, while possible hash collisions
+are resolved through \texttt{same\_shape}.
+Hashing serves only as a prefilter, so
+differently shaped branches are never merged
+solely because their hashes coincide.
+
+For $p$ distinct alternatives, hash-based
+deduplication avoids potentially quadratic
+pairwise comparisons, requiring expected
+$O(p)$ time for fixed-length words.
+However, the cost of hashing each branch
+still depends on its size:
+\texttt{hash\_shape} recursively traverses
+each word's \texttt{Seq} chain.
+E38's seven-character alternatives therefore
+require more hashing work than E37's
+four-letter words, contributing to the higher
+\texttt{deriv\_bc} timings across the sweep.
+
+This implements the \texttt{nub} operation
 in the choice case of
-\citet[sect.~3, Fig.~6]{sulzmannlu2014}'s simplification.
+\citet[sect.~3, Fig.~6]{sulzmannlu2014}:
 \[
-simp\ (bs@{\oplus}(ri : rsi)) = bs@{\oplus}\bigl(\mathit{nub}\
-(\mathit{filter}\ (\neg\,\mathit{isPhi})\ ((simp\ ri) : \mathit{map}\
-simp\ rsi))\bigr),
+simp\ (bs@{\oplus}(ri : rsi)) =
+bs@{\oplus}\bigl(
+\mathit{nub}\
+(\mathit{filter}\ (\neg\,\mathit{isPhi})\
+((simp\ ri) : \mathit{map}\ simp\ rsi))
+\bigr).
 \]
-Haskell's own \texttt{nub} is quadratic, 
-since with only an \texttt{Eq} instance 
-it keeps the first occurrence of each element 
-by comparing it against every element already kept;
-\texttt{dedup\_first} avoids that cost by hashing first and only
-falling back to a pairwise check within one bucket.
-\texttt{same\_shape} is the same equality test \texttt{nub} would use, 
-made insensitive to bit-code history, 
-so identical branches merge regardless of parse path.
+Haskell's standard \texttt{nub} uses equality
+comparisons against previously retained elements,
+giving quadratic worst-case complexity.
+In contrast, \texttt{dedup\_first} first groups
+branches by structural hash and performs equality
+checks only within matching buckets.
+This preserves the intended deduplication semantics
+while reducing comparisons between distinct branches.
 
-The partial-derivative pair deduplicates via a related but distinct
-mechanism: \texttt{nub2} and \texttt{nub\_tree} are also hash-based
-and $O(p)$, but hash the whole residual directly rather than a
-structural shape, differing only in what carries along with each one
-(a bit vector in \texttt{pderiv\_bc}, an injection closure in
-\texttt{pderiv\_std}). Since the mechanism is otherwise the same,
-only \texttt{pderiv\_bc}'s is shown, alongside \texttt{step\_frontier}
-which calls it (Figure~\ref{fig:step-frontier-bc-rust},
-Section~\ref{sec:pderiv-bc-state-set-impl}).
+The partial-derivative variants use a related
+hash-based approach through \texttt{nub2}
+and \texttt{nub\_tree}.
+Unlike \texttt{dedup\_first}, which compares
+branch shapes within a combined expression,
+these functions deduplicate residual states directly.
+The variants differ in their associated
+reconstruction data: \texttt{pderiv\_bc}
+carries bit annotations, whereas
+\texttt{pderiv\_std} carries injection closures.
+Their deduplication mechanisms are otherwise
+similar, so Figure~\ref{fig:step-frontier-bc-rust}
+(Section~\ref{sec:pderiv-bc-state-set-impl})
+shows only \texttt{pderiv\_bc}'s
+\texttt{step\_frontier} and its use of \texttt{nub2}.
 
-Before the alternation splits into separate residuals, the first call
-must flatten the whole $p$-deep nested \texttt{Alt} into its $p$ leaves
-(Section~\ref{sec:pderiv-bc-impl}), each tagged with its own bit prefix,
-and deduplicate them once via \texttt{nub2}. Measured directly, nearly
-all of \texttt{pderiv\_bc}'s cost on a wide alternation sits in this
-first call. \texttt{step\_frontier}'s loop then calls \texttt{pderiv\_bc}
-and \texttt{nub2} once per character, linear in the live residuals, and
-E38's longer shared prefix repeats this cost more often than E37.
-\texttt{deriv\_std} pays neither cost, making no cross-branch or
-per-residual comparison at all.
+Initially, \texttt{pderiv\_bc} must flatten
+the nested $p$-way alternation into separate
+residuals, assigning branch-bit prefixes
+and removing duplicates through \texttt{nub2}
+(Section~\ref{sec:pderiv-bc-impl}).
+Direct measurements place most of its processing
+cost for these wide alternations in this first step.
+Subsequent calls to \texttt{step\_frontier}
+derive the active residuals and deduplicate
+the resulting frontier.
+E38's longer alternatives require additional
+processing before the matching branch is resolved,
+further increasing derivation cost relative to E37.
 
-\texttt{deriv\_bc} deduplicates its own branches the same way in
-spirit, keyed on shape (Figure~\ref{fig:hash-shape-ch5-rust}) rather than
-on the whole residual the way \texttt{nub2} and \texttt{nub\_tree} do,
-since a combined annotated expression has branches to flatten and
-deduplicate in the first place, where a partial-derivative frontier
-already keeps one state per surviving residual.
-Either way the dedup itself is $O(p)$, not $O(p^2)$, without changing
-what it computes: a hash collision only ever costs one extra,
-correctly negative, \texttt{same\_shape} call, never a wrong merge.
+The partial-derivative variants are faster still,
+by approximately $1.6$--$2.0\times$ relative to
+\texttt{deriv\_bc} (Table~\ref{tab:patho-phases-e38}).
+Both sides deduplicate in $O(p)$, so this remaining
+gap is not about that complexity class but about
+how often the work runs.
+\texttt{deriv\_bc} holds the $p$ alternatives as
+branches of one combined expression: \texttt{simp}
+(Section~\ref{sec:simp}) re-applies \texttt{simp\_once}
+to a fixpoint, calling \texttt{same\_shape} to compare
+the result against the input and looping again
+whenever they differ.
+Measured directly on a wide alternation, every
+derivative step takes exactly two \texttt{simp\_once}
+passes, never one -- the first flattens, simplifies,
+and deduplicates the $p$ branches; the second
+re-walks and re-hashes what is left, and
+\texttt{same\_shape} confirms the result is already
+stable.
+The \texttt{pderiv} variants instead keep one state
+per surviving residual: \texttt{step\_frontier} has
+no equivalent loop, deriving each residual once and
+calling \texttt{nub2} once per character, with no
+\texttt{same\_shape} check against a prior state.
+What separates the two families is therefore not the
+deduplication algorithm, which is $O(p)$ on both sides,
+but how it is embedded -- hashing that runs twice per
+character to fold one combined expression back to a
+fixpoint, against hashing that runs once to fold a
+frontier of independent residuals.
 
 %
 %
@@ -2528,49 +2582,60 @@ Parser & Total allocated & Avg/entry & Max live peak \\
 \texttt{pderiv\_bc}       &   5.19 GB &  0.45 MB &     3.8 MB \\
 \hline
 \end{tabular*}
-\caption{Heap allocation over the default scope of 463 patterns and
-11\,395 entries. \emph{Total allocated} counts all allocations,
-including freed memory, and measures allocator pressure.
-\emph{Avg/entry} divides this total by the number of entries each
-parser completes, accounting for differences in completed work.
-\emph{Max live peak} is the highest live-byte count within a single
-call and measures peak memory footprint. Total and peak differ
-because total includes freed memory. Crashed entries are excluded
-from all three (Table~\ref{tab:corpus-timing}); no entry times out.
-\texttt{deriv\_std\_rec} is omitted (Section~\ref{sec:eval-criteria-timing});
-its figures track \texttt{deriv\_std}'s closely (206.71\,GB,
-19.09\,MB, 9\,281.8\,MB).}
+\caption{Heap allocation across 463 patterns and
+11\,395 entries in the default scope.
+\emph{Total allocated} includes freed memory
+and reflects allocator pressure;
+\emph{Avg/entry} divides this total by
+the number of completed entries.
+\emph{Max live peak} records the highest
+live-byte count within a single call,
+reflecting peak memory footprint.
+18 crashed entries are excluded.}
 \label{tab:memory}
 \end{table}
 
-Table~\ref{tab:memory} shows the largest difference in peak allocation,
-and it is dominated by a handful of entries: \texttt{deriv\_std}'s
-$18$ excluded crashes aside, its $60$-second timeout lets it complete
-entries that need gigabytes of live state, which neither \texttt{deriv\_bc}
-nor the partial-derivative pair ever approaches. Both \emph{Total
-allocated} and \emph{Avg/entry} inherit this same skew, so the factor
-between \texttt{deriv\_std}'s peak ($9\,282.2$\,MB) and
-\texttt{deriv\_bc}'s ($4.9$\,MB) reflects a few very large entries,
-not the typical case. \texttt{deriv\_bc} and the partial-derivative
-pair complete the identical $11\,395$ entries, so their own comparison
-is population-stable: \texttt{deriv\_bc}'s peak remains far below
-\texttt{deriv\_std}'s, consistent with the standard construction
-keeping its derivation sequence for the backward pass while
-\texttt{deriv\_bc} stores a flat bit vector.
+Table~\ref{tab:memory} reveals substantial
+differences in heap allocation.
+\texttt{deriv\_std} reaches a maximum live peak
+of 9\,282.2\,MB, compared with just 4.9\,MB
+for \texttt{deriv\_bc}.
+This extreme value is driven by a small number
+of memory-intensive entries rather than
+representing typical behaviour.
+The 18 crashed entries are excluded, but
+\texttt{deriv\_std} still completes cases
+requiring several gigabytes of live memory.
+Its total allocation (206.86\,GB) and
+average per completed entry (19.10\,MB)
+are likewise substantially higher.
+This is consistent with \texttt{deriv\_std}
+retaining intermediate derivatives for
+backward reconstruction, whereas
+\texttt{deriv\_bc} uses bit annotations.
 
-The partial-derivative pair shows a different result on the real corpus,
-again population-stable.
-\texttt{pderiv\_std} has the lower peak (2.5 against 3.8\,MB) but the
-higher total (5.68 against 5.19\,GB) -- total allocation is the one
-figure in this table where \texttt{pderiv\_std} is not the cheaper of
-the two.
-The corpus patterns and input lengths are generally less demanding,
-so the residual sets remain small
-and the overhead of bit-tracking outweighs its benefits.
-The growth advantage of bit-tracking
-is expected to become more relevant on larger or more complex inputs,
-where the amount of intermediate structure may grow enough
-for its allocation savings to outweigh the added overhead.
+Unlike \texttt{deriv\_std}, the other three
+parsers complete all 11\,395 entries,
+allowing comparisons over identical workloads.
+Among them, the partial-derivative variants
+have the lowest total allocations:
+5.68\,GB for \texttt{pderiv\_std} and
+5.19\,GB for \texttt{pderiv\_bc},
+compared with 18.63\,GB for \texttt{deriv\_bc}.
+The two partial-derivative variants show
+a further distinction.
+\texttt{pderiv\_std} has the lower maximum
+live peak (2.5 versus 3.8\,MB),
+but \texttt{pderiv\_bc} allocates less
+memory overall (5.19 versus 5.68\,GB)
+and per completed entry (0.45 versus 0.49\,MB).
+Thus, lower cumulative allocation does not
+necessarily imply a lower peak footprint.
+The results show a modest allocation advantage
+for bit-coding in the partial-derivative family,
+although its effect on peak memory is
+workload-dependent.
+
 
 %
 %
