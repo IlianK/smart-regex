@@ -111,7 +111,7 @@ impl TestCase {
         let non_posix_agree = pstd == pbc;
 
         // Informational only: no non-POSIX `expected` tree exists by design --
-        // non-POSIX's own correctness is checked in `examples/parser_agreement.rs`.
+        // non-POSIX's own correctness is checked in `examples/demo_parser_agreement.rs`.
         let non_posix_vs_posix = if pstd == self.expected { "agree" } else { "disagree" };
 
         let matched = [rec.is_some(), loop_.is_some(), bc.is_some(), pstd.is_some(), pbc.is_some()];

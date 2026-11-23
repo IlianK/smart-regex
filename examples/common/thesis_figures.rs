@@ -85,7 +85,7 @@ pub fn series_plain_unsimplified(r: &Regex, input: &str) -> Vec<usize> {
 }
 
 // -------------------------------
-// Branch counts: why simp's dedup never fires
+// Branch counts: why simp's dedup now collapses correctly
 // -------------------------------
 
 /// Top-level alternation branches of `ri`.
@@ -174,15 +174,12 @@ pub fn series_frontier(r: &Regex, input: &str) -> Vec<(usize, usize)> {
 
 /// `series_frontier`'s standard (non-bit-coded) counterpart.
 ///
-/// The two are not the same construction.
-/// `pderiv_bc` builds each successor with `smart_seq` (drops a redundant
-/// leading `Eps ·`).
-/// `pderiv_tree` uses the plain, unconditional `Regex::seq`, so a
-/// standard residual can carry a few extra `Eps ·` nodes.
-/// Both sides dedup the frontier (`nub_tree` / `nub2`) before the next
-/// step, so strand *counts* are directly comparable.
-/// Per-residual *node* size is not, without accounting for that
-/// `Eps ·` difference.
+/// Both sides now build residuals the same way: `pderiv_tree_residuals`
+/// (used here) and `pderiv_bc` each collapse through `smart_seq`, so
+/// neither carries an extra `Eps ·` node the other already dropped.
+/// Both also dedup the frontier (`nub_tree` / `nub2`) before the next
+/// step. Strand *counts* and per-residual *node* size are therefore
+/// both directly comparable between the two.
 pub fn series_frontier_std(r: &Regex, input: &str) -> Vec<(usize, usize)> {
     let mut frontier: Vec<Regex> = vec![r.clone()];
     let mut out = vec![(1usize, 1usize)];
@@ -327,7 +324,7 @@ pub fn save(name: &str, ext: &str, body: &str) {
 }
 
 /// CSV-quotes a field: wraps in `"..."`, doubling any embedded `"`.
-/// Same helper as `benches/bench_translate.rs`'s own `csv_quote`
+/// Same helper as `benches/bench_corpus_translate.rs`'s own `csv_quote`
 /// (duplicated there rather than shared, per this codebase's
 /// examples/benches split) -- needed here for the same reason: a real
 /// pattern or a `Debug`-rendered `Regex`/error message routinely
