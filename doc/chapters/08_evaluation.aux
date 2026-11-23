@@ -185,30 +185,34 @@
 \newlabel{tab:translate-caps}{{8.43}{81}{Crash points of the two mechanisms on the default 8\,MiB stack, alongside the enforced caps}{table.caption.107}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {8.4.5}Parse Agreement}{82}{subsection.8.4.5}\protected@file@percent }
 \newlabel{sec:eval-agreement}{{8.4.5}{82}{Parse Agreement}{subsection.8.4.5}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.44}{\ignorespaces Parse agreement over both datasets. \emph  {Compared} counts expected matches where both candidates completed and agreed on membership, yielding one POSIX and one non-POSIX tree to compare. Shape counts use \emph  {Compared}, not \emph  {Entries}, since those also contain non-matching entries and, on the synthetic set, a small number of entries where both candidates agree with each other but not with the expected label (discussed below).}}{82}{table.caption.108}\protected@file@percent }
-\newlabel{tab:agreement}{{8.44}{82}{Parse agreement over both datasets. \emph {Compared} counts expected matches where both candidates completed and agreed on membership, yielding one POSIX and one non-POSIX tree to compare. Shape counts use \emph {Compared}, not \emph {Entries}, since those also contain non-matching entries and, on the synthetic set, a small number of entries where both candidates agree with each other but not with the expected label (discussed below)}{table.caption.108}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.45}{\ignorespaces Parse agreement by category over the synthetic set. \emph  {Pattern} gives one representative row per category; Table~\ref {tab:patho-categories} describes each category's mechanism. Membership is omitted here except for category C, whose nine entries disagreeing with the expected label are discussed in the text; every other completed entry returned the expected result for both candidates. Category L excludes E51 (Table~\ref {tab:stack-depth}), whose match example is deliberately a non-match and cannot be checked for membership. Its count is therefore six below the 195 test cases in Table~\ref {tab:patho-categories}.}}{82}{table.caption.109}\protected@file@percent }
-\newlabel{tab:agreement-patho-categories}{{8.45}{82}{Parse agreement by category over the synthetic set. \emph {Pattern} gives one representative row per category; Table~\ref {tab:patho-categories} describes each category's mechanism. Membership is omitted here except for category C, whose nine entries disagreeing with the expected label are discussed in the text; every other completed entry returned the expected result for both candidates. Category L excludes E51 (Table~\ref {tab:stack-depth}), whose match example is deliberately a non-match and cannot be checked for membership. Its count is therefore six below the 195 test cases in Table~\ref {tab:patho-categories}}{table.caption.109}{}}
-\@writefile{toc}{\contentsline {paragraph}{Example: S2ELab pattern.}{83}{table.caption.109}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {8.8}{\ignorespaces The two parse trees for the loosely-formatted-number pattern on \texttt  {"9000"}: the POSIX tree produced by \texttt  {deriv\_std}, \texttt  {deriv\_bc}, against the non-POSIX tree produced by \texttt  {pderiv\_std} and \texttt  {pderiv\_bc}.}}{83}{figure.caption.110}\protected@file@percent }
-\newlabel{fig:agreement-s2elab-trees}{{8.8}{83}{The two parse trees for the loosely-formatted-number pattern on \texttt {"9000"}: the POSIX tree produced by \texttt {deriv\_std}, \texttt {deriv\_bc}, against the non-POSIX tree produced by \texttt {pderiv\_std} and \texttt {pderiv\_bc}}{figure.caption.110}{}}
-\@writefile{toc}{\contentsline {paragraph}{Example: Synthetic pattern.}{83}{figure.caption.110}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {8.9}{\ignorespaces The two parse trees for \texttt  {(a|aa)+} on \texttt  {"aa"}.}}{83}{figure.caption.111}\protected@file@percent }
-\newlabel{fig:agreement-synthetic-trees}{{8.9}{83}{The two parse trees for \texttt {(a|aa)+} on \texttt {"aa"}}{figure.caption.111}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8.5}Findings}{85}{section.8.5}\protected@file@percent }
-\newlabel{sec:eval-discussion}{{8.5}{85}{Findings}{section.8.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.1}Cost of the standard construction}{85}{subsection.8.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.2}Cost of bit-coding}{85}{subsection.8.5.2}\protected@file@percent }
-\newlabel{sec:eval-cost-bit-coding}{{8.5.2}{85}{Cost of bit-coding}{subsection.8.5.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.3}Cost of partial derivatives}{85}{subsection.8.5.3}\protected@file@percent }
-\newlabel{sec:eval-cost-partial-derivatives}{{8.5.3}{85}{Cost of partial derivatives}{subsection.8.5.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.4}Threats to validity}{86}{subsection.8.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Synthetic set}{86}{subsection.8.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Agreement subset}{86}{subsection.8.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Instrumentation}{86}{subsection.8.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Measurement model}{86}{subsection.8.5.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8.44}{\ignorespaces Parse agreement over both datasets. \emph  {Match agr.} refers to agreeing with each other on match and non-match decisions; \emph  {Matches} counts entries expected to match, excluding non-matching entries. \emph  {Shape agr.} counts matches yielding the same parse-tree shape; \emph  {Shape dis.} counts differing shapes.}}{82}{table.caption.108}\protected@file@percent }
+\newlabel{tab:agreement}{{8.44}{82}{Parse agreement over both datasets. \emph {Match agr.} refers to agreeing with each other on match and non-match decisions; \emph {Matches} counts entries expected to match, excluding non-matching entries. \emph {Shape agr.} counts matches yielding the same parse-tree shape; \emph {Shape dis.} counts differing shapes}{table.caption.108}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.45}{\ignorespaces Parse-tree shape agreement by synthetic category (Table~\ref {tab:patho-categories}).}}{82}{table.caption.109}\protected@file@percent }
+\newlabel{tab:agreement-patho-categories}{{8.45}{82}{Parse-tree shape agreement by synthetic category (Table~\ref {tab:patho-categories})}{table.caption.109}{}}
+\@writefile{toc}{\contentsline {paragraph}{Example: Synthetic pattern.}{82}{table.caption.109}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8.8}{\ignorespaces The POSIX parse tree for \texttt  {(a|aa)+} on \texttt  {"aa"}, produced by \texttt  {deriv\_std} and \texttt  {deriv\_bc}.}}{82}{figure.caption.110}\protected@file@percent }
+\newlabel{fig:agreement-synthetic-tree-posix}{{8.8}{82}{The POSIX parse tree for \texttt {(a|aa)+} on \texttt {"aa"}, produced by \texttt {deriv\_std} and \texttt {deriv\_bc}}{figure.caption.110}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8.9}{\ignorespaces The non-POSIX parse tree for the same pattern and input.}}{82}{figure.caption.111}\protected@file@percent }
+\newlabel{fig:agreement-synthetic-tree-nonposix}{{8.9}{82}{The non-POSIX parse tree for the same pattern and input}{figure.caption.111}{}}
+\@writefile{toc}{\contentsline {paragraph}{Example: S2ELab pattern.}{83}{figure.caption.111}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8.10}{\ignorespaces The POSIX parse tree for the loosely-formatted-number pattern on \texttt  {"9000"}, produced by \texttt  {deriv\_std} and \texttt  {deriv\_bc}.}}{83}{figure.caption.112}\protected@file@percent }
+\newlabel{fig:agreement-s2elab-tree-posix}{{8.10}{83}{The POSIX parse tree for the loosely-formatted-number pattern on \texttt {"9000"}, produced by \texttt {deriv\_std} and \texttt {deriv\_bc}}{figure.caption.112}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {8.11}{\ignorespaces The non-POSIX parse tree for the same pattern and input.}}{83}{figure.caption.113}\protected@file@percent }
+\newlabel{fig:agreement-s2elab-tree-nonposix}{{8.11}{83}{The non-POSIX parse tree for the same pattern and input}{figure.caption.113}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8.5}Findings}{84}{section.8.5}\protected@file@percent }
+\newlabel{sec:eval-discussion}{{8.5}{84}{Findings}{section.8.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.1}Cost of the standard construction}{84}{subsection.8.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.2}Cost of bit-coding}{84}{subsection.8.5.2}\protected@file@percent }
+\newlabel{sec:eval-cost-bit-coding}{{8.5.2}{84}{Cost of bit-coding}{subsection.8.5.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.3}Cost of partial derivatives}{84}{subsection.8.5.3}\protected@file@percent }
+\newlabel{sec:eval-cost-partial-derivatives}{{8.5.3}{84}{Cost of partial derivatives}{subsection.8.5.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.4}Threats to validity}{85}{subsection.8.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Synthetic set}{85}{subsection.8.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Agreement subset}{85}{subsection.8.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Instrumentation}{85}{subsection.8.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Measurement model}{85}{subsection.8.5.4}\protected@file@percent }
 \@setckpt{chapters/08_evaluation}{
-\setcounter{page}{87}
+\setcounter{page}{86}
 \setcounter{equation}{0}
 \setcounter{enumi}{0}
 \setcounter{enumii}{0}
@@ -223,7 +227,7 @@
 \setcounter{subsubsection}{0}
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
-\setcounter{figure}{9}
+\setcounter{figure}{11}
 \setcounter{table}{45}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
