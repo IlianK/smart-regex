@@ -18,9 +18,28 @@ use std::rc::Rc;
 enum Node {
     Nil,
     Prepend(Rc<[bool]>, Rc<Node>),
+    /// A single bit prepended onto `rest` with one allocation (the
+    /// `Node` itself), vs `Prepend`'s `Vec` + slice-copy + `Rc<[bool]>`
+    /// for the general case. Matters because `flatten_alt`'s `Alt`
+    /// tagging and `Star`'s per-step marker pay this every character,
+    /// for every live `Alt`/`Star` level.
+    PrependOne(bool, Rc<Node>),
     /// `left` followed by `right`, both already-lazy chains grafted
     /// together in O(1): see `Bits::prepend_bits`.
     Chain(Rc<Node>, Rc<Node>),
+}
+
+thread_local! {
+    /// The one shared empty chain: every `Bits::empty()` call --
+    /// directly, or via `AppendBits::empty()`/`prepend_one` composing
+    /// with it -- clones this `Rc` instead of allocating a fresh
+    /// `Node::Nil`, on what is otherwise a per-character hot path for
+    /// any pattern with a live `Alt` or `Star`.
+    static EMPTY_NODE: Rc<Node> = Rc::new(Node::Nil);
+}
+
+fn empty_rc() -> Rc<Node> {
+    EMPTY_NODE.with(|n| n.clone())
 }
 
 /// Rust's derived drop glue for this enum would recurse through a
@@ -37,23 +56,25 @@ impl Drop for Node {
         let mut stack: Vec<Rc<Node>> = Vec::new();
         match self {
             Node::Nil => return,
-            Node::Prepend(_, rest) => stack.push(std::mem::replace(rest, Rc::new(Node::Nil))),
+            Node::Prepend(_, rest) => stack.push(std::mem::replace(rest, empty_rc())),
+            Node::PrependOne(_, rest) => stack.push(std::mem::replace(rest, empty_rc())),
             Node::Chain(l, r) => {
-                stack.push(std::mem::replace(l, Rc::new(Node::Nil)));
-                stack.push(std::mem::replace(r, Rc::new(Node::Nil)));
+                stack.push(std::mem::replace(l, empty_rc()));
+                stack.push(std::mem::replace(r, empty_rc()));
             }
         }
         while let Some(rc) = stack.pop() {
             if let Ok(mut owned) = Rc::try_unwrap(rc) {
                 match &mut owned {
                     Node::Nil => {}
-                    Node::Prepend(_, rest) => stack.push(std::mem::replace(rest, Rc::new(Node::Nil))),
+                    Node::Prepend(_, rest) => stack.push(std::mem::replace(rest, empty_rc())),
+                    Node::PrependOne(_, rest) => stack.push(std::mem::replace(rest, empty_rc())),
                     Node::Chain(l, r) => {
-                        stack.push(std::mem::replace(l, Rc::new(Node::Nil)));
-                        stack.push(std::mem::replace(r, Rc::new(Node::Nil)));
+                        stack.push(std::mem::replace(l, empty_rc()));
+                        stack.push(std::mem::replace(r, empty_rc()));
                     }
                 }
-                // `owned` drops here, trivially -- its children are now fresh Nils.
+                // `owned` drops here, trivially -- its children are now shared Nils.
             }
             // else: still shared elsewhere; leave it for its other owner.
         }
@@ -73,7 +94,7 @@ impl std::fmt::Debug for Bits {
 
 impl Bits {
     pub fn empty() -> Self {
-        Bits(Rc::new(Node::Nil))
+        Bits(empty_rc())
     }
 
     pub fn is_empty(&self) -> bool {
@@ -81,12 +102,21 @@ impl Bits {
     }
 
     /// `prefix ++ self`, O(prefix.len()) regardless of how long `self`
-    /// already is -- the existing chain is shared, not copied.
+    /// already is -- the existing chain is shared, not copied. When
+    /// `prefix` is a single bit, `prepend_one` does the same thing
+    /// without the `Rc<[bool]>` slice-copy this general form always
+    /// pays for.
     pub fn prepend(&self, prefix: &[bool]) -> Bits {
         if prefix.is_empty() {
             return self.clone();
         }
         Bits(Rc::new(Node::Prepend(Rc::from(prefix), self.0.clone())))
+    }
+
+    /// `[bit] ++ self`, O(1) with exactly one allocation -- see
+    /// `Node::PrependOne`.
+    pub fn prepend_one(&self, bit: bool) -> Bits {
+        Bits(Rc::new(Node::PrependOne(bit, self.0.clone())))
     }
 
     /// `prefix ++ self`, O(1) regardless of how long `prefix` or `self`
@@ -121,6 +151,10 @@ impl Bits {
                 Node::Nil => {}
                 Node::Prepend(seg, rest) => {
                     out.extend_from_slice(seg);
+                    stack.push(rest.clone());
+                }
+                Node::PrependOne(bit, rest) => {
+                    out.push(*bit);
                     stack.push(rest.clone());
                 }
                 Node::Chain(l, r) => {
@@ -175,7 +209,9 @@ impl AppendBits {
     }
 
     /// `self ++ suffix`, O(suffix.len()) regardless of how long `self`
-    /// already is.
+    /// already is. When `suffix` is a single bit, `append_one` does the
+    /// same thing without the `Vec` collection and reversal this
+    /// general form always pays for.
     pub fn append(&self, suffix: &[bool]) -> AppendBits {
         if suffix.is_empty() {
             return self.clone();
@@ -185,12 +221,56 @@ impl AppendBits {
         AppendBits(self.0.prepend(&rev_suffix))
     }
 
+    /// `self ++ [bit]`, O(1) with exactly one allocation -- the
+    /// single-bit specialization of `append`. This is `flatten_alt`'s
+    /// own per-level `Alt` tagging: one bit appended per level, every
+    /// character, for any pattern that keeps an `Alt` live in its
+    /// current residual.
+    pub fn append_one(&self, bit: bool) -> AppendBits {
+        AppendBits(self.0.prepend_one(bit))
+    }
+
+    /// `[bit] ++ self`, O(1) with exactly two allocations (one for the
+    /// single-bit chain, one to graft it onto `self`) -- the
+    /// single-bit specialization of
+    /// `AppendBits::from(vec![bit]).append_bits(self)`, which pays for
+    /// a `Vec` and a slice-copying `Prepend` to represent that same
+    /// one bit. This is `Star`'s own per-step marker: one fresh `false`
+    /// prepended onto whatever bits its body's own derivative already
+    /// carries, every character, for any pattern that keeps a `Star`
+    /// live in its current residual.
+    pub fn prepend_one(&self, bit: bool) -> AppendBits {
+        let tiny = Bits::empty().prepend_one(bit);
+        AppendBits(tiny.prepend_bits(&self.0))
+    }
+
     /// Materializes the full bit sequence. O(total length); call once,
     /// not on every intermediate step.
     pub fn to_vec(&self) -> Vec<bool> {
         let mut v = self.0.to_vec();
         v.reverse();
         v
+    }
+
+    /// `self ++ suffix`, O(1) regardless of how long either side already
+    /// is -- grafts the two existing chains together instead of
+    /// flattening either one first. The `AppendBits` analogue of
+    /// `Bits::prepend_bits`; use this (not `suffix.to_vec()` fed into
+    /// `append`) whenever `suffix` is itself another `AppendBits` that
+    /// may already carry its own accumulated history, e.g. one strand's
+    /// own per-step delta out of a wide alternation (see
+    /// `pderiv_bc::flatten_alt`, which builds exactly such per-leaf
+    /// prefixes in O(1) each instead of the O(leaf depth) a `Vec<bool>`
+    /// clone-at-every-leaf would cost, O(p^2) total over a p-leaf
+    /// right-nested chain).
+    pub fn append_bits(&self, suffix: &AppendBits) -> AppendBits {
+        if suffix.is_empty() {
+            return self.clone();
+        }
+        if self.is_empty() {
+            return suffix.clone();
+        }
+        AppendBits(self.0.prepend_bits(&suffix.0))
     }
 }
 
@@ -339,6 +419,47 @@ mod tests {
     }
 
     #[test]
+    fn append_bits_chain_builds_in_order() {
+        let base: AppendBits = vec![true, false].into();
+        let suffix: AppendBits = vec![false, true].into();
+        assert_eq!(base.append_bits(&suffix).to_vec(), vec![true, false, false, true]);
+    }
+
+    #[test]
+    fn append_bits_chain_empty_suffix_is_identity() {
+        let base: AppendBits = vec![true].into();
+        assert_eq!(base.append_bits(&AppendBits::empty()).to_vec(), vec![true]);
+    }
+
+    #[test]
+    fn append_bits_chain_empty_self_is_suffix() {
+        let suffix: AppendBits = vec![true, false].into();
+        assert_eq!(AppendBits::empty().append_bits(&suffix).to_vec(), vec![true, false]);
+    }
+
+    #[test]
+    fn append_bits_chain_does_not_mutate_either_input() {
+        let base: AppendBits = vec![true].into();
+        let suffix: AppendBits = vec![false].into();
+        let combined = base.append_bits(&suffix);
+        assert_eq!(base.to_vec(), vec![true]);
+        assert_eq!(suffix.to_vec(), vec![false]);
+        assert_eq!(combined.to_vec(), vec![true, false]);
+    }
+
+    #[test]
+    fn append_bits_chain_matches_vec_extend_semantics() {
+        let mut v: Vec<bool> = Vec::new();
+        let mut b = AppendBits::empty();
+        for i in 0..2000 {
+            let chunk: AppendBits = vec![i % 2 == 0, i % 3 == 0].into();
+            v.extend_from_slice(&chunk.to_vec());
+            b = b.append_bits(&chunk);
+        }
+        assert_eq!(b.to_vec(), v);
+    }
+
+    #[test]
     fn append_bits_matches_vec_extend_semantics() {
         let mut v: Vec<bool> = Vec::new();
         let mut b = AppendBits::empty();
@@ -365,5 +486,195 @@ mod tests {
         }
         assert_eq!(a.to_vec().len(), 3_000_000);
         drop(a);
+    }
+
+    // --- prepend_one / append_one: differential tests against the
+    // general (slice-based) paths they specialize. Each one asserts
+    // byte-for-byte equal `to_vec()` output, not just "looks right" --
+    // these exist specifically so the cheap paths can never silently
+    // drift in value from what they replace.
+
+    #[test]
+    fn bits_prepend_one_matches_prepend_single_slice() {
+        let base: Bits = vec![true, false, true].into();
+        for bit in [false, true] {
+            assert_eq!(base.prepend_one(bit).to_vec(), base.prepend(&[bit]).to_vec());
+        }
+    }
+
+    #[test]
+    fn bits_prepend_one_matches_prepend_from_empty() {
+        for bit in [false, true] {
+            assert_eq!(
+                Bits::empty().prepend_one(bit).to_vec(),
+                Bits::empty().prepend(&[bit]).to_vec()
+            );
+        }
+    }
+
+    #[test]
+    fn bits_prepend_one_chain_matches_vec_push_front_semantics() {
+        let mut v: Vec<bool> = Vec::new();
+        let mut b = Bits::empty();
+        for i in 0..5000 {
+            let bit = i % 3 == 0;
+            v.insert(0, bit);
+            b = b.prepend_one(bit);
+        }
+        assert_eq!(b.to_vec(), v);
+    }
+
+    #[test]
+    fn append_one_matches_append_single_slice() {
+        let base: AppendBits = vec![true, false, true].into();
+        for bit in [false, true] {
+            assert_eq!(base.append_one(bit).to_vec(), base.append(&[bit]).to_vec());
+        }
+    }
+
+    #[test]
+    fn append_one_matches_append_from_empty() {
+        for bit in [false, true] {
+            assert_eq!(
+                AppendBits::empty().append_one(bit).to_vec(),
+                AppendBits::empty().append(&[bit]).to_vec()
+            );
+        }
+    }
+
+    #[test]
+    fn append_one_chain_matches_vec_push_semantics() {
+        let mut v: Vec<bool> = Vec::new();
+        let mut b = AppendBits::empty();
+        for i in 0..5000 {
+            let bit = i % 3 == 0;
+            v.push(bit);
+            b = b.append_one(bit);
+        }
+        assert_eq!(b.to_vec(), v);
+    }
+
+    /// `flatten_alt`'s own access pattern: branch on every level, not
+    /// just a single straight-line chain -- `append_one` must stay
+    /// correct (and independent per branch) when the same prefix
+    /// handle is extended two different ways from the same point, same
+    /// as `Bits::prepend`/`append` already are (see
+    /// `prepend_does_not_mutate_the_original`).
+    #[test]
+    fn append_one_does_not_mutate_the_original_and_branches_independently() {
+        let base: AppendBits = vec![true].into();
+        let left = base.append_one(false);
+        let right = base.append_one(true);
+        assert_eq!(base.to_vec(), vec![true]);
+        assert_eq!(left.to_vec(), vec![true, false]);
+        assert_eq!(right.to_vec(), vec![true, true]);
+    }
+
+    #[test]
+    fn prepend_one_matches_from_vec_append_bits_single_bit() {
+        let bs: AppendBits = vec![true, false, true].into();
+        for bit in [false, true] {
+            let expected = AppendBits::from(vec![bit]).append_bits(&bs);
+            assert_eq!(bs.prepend_one(bit).to_vec(), expected.to_vec());
+        }
+    }
+
+    #[test]
+    fn prepend_one_matches_from_vec_append_bits_onto_empty() {
+        for bit in [false, true] {
+            let expected = AppendBits::from(vec![bit]).append_bits(&AppendBits::empty());
+            assert_eq!(AppendBits::empty().prepend_one(bit).to_vec(), expected.to_vec());
+            assert_eq!(AppendBits::empty().prepend_one(bit).to_vec(), vec![bit]);
+        }
+    }
+
+    #[test]
+    fn prepend_one_chain_matches_star_iteration_semantics() {
+        // Mirrors pderiv_bc's own Star arm: prepend_one(false) applied
+        // repeatedly onto a growing tail, as repeated Star iterations would.
+        let mut v: Vec<bool> = Vec::new();
+        let mut b = AppendBits::empty();
+        for _ in 0..5000 {
+            v.insert(0, false);
+            b = b.prepend_one(false);
+        }
+        assert_eq!(b.to_vec(), v);
+    }
+
+    #[test]
+    fn prepend_one_does_not_mutate_the_original() {
+        let base: AppendBits = vec![true].into();
+        let extended = base.prepend_one(false);
+        assert_eq!(base.to_vec(), vec![true]);
+        assert_eq!(extended.to_vec(), vec![false, true]);
+    }
+
+    #[test]
+    fn millions_prepend_one_and_append_one_drop_without_stack_overflow() {
+        let mut b = Bits::empty();
+        for _ in 0..3_000_000 {
+            b = b.prepend_one(true);
+        }
+        assert_eq!(b.to_vec().len(), 3_000_000);
+        drop(b);
+
+        let mut a = AppendBits::empty();
+        for _ in 0..3_000_000 {
+            a = a.append_one(true);
+        }
+        assert_eq!(a.to_vec().len(), 3_000_000);
+        drop(a);
+
+        let mut p = AppendBits::empty();
+        for _ in 0..3_000_000 {
+            p = p.prepend_one(true);
+        }
+        assert_eq!(p.to_vec().len(), 3_000_000);
+        drop(p);
+    }
+
+    /// Simulates `flatten_alt`'s real shape: a binary tree of
+    /// `append_one` calls (not a straight chain), built and dropped
+    /// many times over, the way one call per character over a long
+    /// input would. Mainly a drop/leak-shape regression guard; value
+    /// correctness at depth is already covered by the chain tests above.
+    #[test]
+    fn many_small_binary_append_one_trees_build_and_drop_correctly() {
+        fn flatten(depth: u32, prefix: AppendBits, out: &mut Vec<Vec<bool>>) {
+            if depth == 0 {
+                out.push(prefix.to_vec());
+                return;
+            }
+            flatten(depth - 1, prefix.append_one(false), out);
+            flatten(depth - 1, prefix.append_one(true), out);
+        }
+        for _ in 0..10_000 {
+            let mut out = Vec::new();
+            flatten(4, AppendBits::empty(), &mut out);
+            assert_eq!(out.len(), 16);
+            assert!(out.contains(&vec![false, false, false, false]));
+            assert!(out.contains(&vec![true, true, true, true]));
+        }
+    }
+
+    #[test]
+    fn empty_node_sharing_keeps_independent_values_independent() {
+        // Bits::empty()/AppendBits::empty() now share one underlying
+        // Rc<Node::Nil>; confirm that sharing the sentinel never leaks
+        // into sharing content -- two chains built from separately
+        // obtained "empty" handles must stay unrelated to each other.
+        let e1 = Bits::empty();
+        let e2 = Bits::empty();
+        let b1 = e1.prepend_one(true);
+        let b2 = e2.prepend_one(false);
+        assert_eq!(b1.to_vec(), vec![true]);
+        assert_eq!(b2.to_vec(), vec![false]);
+        assert_eq!(e1.to_vec(), Vec::<bool>::new());
+        assert_eq!(e2.to_vec(), Vec::<bool>::new());
+        drop(e1);
+        drop(e2);
+        // Nothing else should have been affected by dropping these handles.
+        assert_eq!(b1.to_vec(), vec![true]);
+        assert_eq!(b2.to_vec(), vec![false]);
     }
 }

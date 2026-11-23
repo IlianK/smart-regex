@@ -3,7 +3,7 @@
 //! Cost of frontend translation (`core_regex`: PCRE string -> `Regex`)
 //! over the real corpus, grouped by distinct pattern.
 //!
-//! Other benches in this family (`bench_corpus_time`, `bench_corpus_memory`)
+//! Other benches in this family (`bench_corpus`)
 //! measure the *parser* call per *entry* (pattern+input), translation
 //! excluded. Translation cost depends only on the pattern, so timing it
 //! per entry would re-measure the same pattern once per input. This file
@@ -36,7 +36,7 @@
 //!     source, fully rendered. Always overwritten, never labelled.
 //!
 //! `BENCH_SOURCE`, `BENCH_PATTERN_LIMIT`, `BENCH_MATCH_INTENT`,
-//! `BENCH_RUN_LABEL` as in `bench_corpus_time.rs` (CSVs only). No
+//! `BENCH_RUN_LABEL` as in `bench_corpus.rs` (CSVs only). No
 //! `BENCH_ENTRY_TIMEOUT_MS`: nothing to bound.
 //!
 //! cargo bench --bench bench_corpus_translate
@@ -106,7 +106,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
 static GLOBAL: CountingAllocator = CountingAllocator;
 
 // -------------------------------
-// Selection (mirrors bench_corpus_time.rs/bench_corpus_memory.rs)
+// Selection (mirrors bench_corpus.rs)
 // -------------------------------
 
 struct BenchSelection {
@@ -689,7 +689,7 @@ fn main() {
         by_source.push((label, per_pattern));
 
         // Re-written after every source, not just once at the end: see
-        // the identical comment in bench_corpus_time.rs's main(). The
+        // the identical comment in bench_pathological.rs's main(). The
         // overview CSV doesn't need this -- `append_summary_row` above
         // already wrote (and flushed) that source's row the moment it
         // finished, durable before this point regardless.

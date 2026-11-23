@@ -2,6 +2,19 @@
 //!
 //! Annotated regular expressions (bit-code annotated)
 //! Bit convention: false = 0 (Left / start-of-star), true = 1 (Right / end-of-star)
+//!
+//! Recursive fields are `Rc<ARegex>`, not `Box<ARegex>`: `deriv_bc` and
+//! `simp` clone whole subexpressions routinely (e.g. `smart_seq`-style
+//! collapses, `fuse_bits` rewrapping), and a plain `Box`-based `Clone`
+//! walks the entire subtree being cloned. `Rc::clone` is O(1)
+//! regardless of subtree size -- the same reasoning `AppendBits`/`Inj`
+//! (src/types/bits.rs, src/parsers/pderiv_std/inject.rs) already apply
+//! to bit/injection *histories*, just applied to the expression tree
+//! itself. Nothing reads or writes through a `&mut ARegex` anywhere in
+//! this codebase (confirmed), so there is no in-place-mutation use
+//! this loses.
+
+use std::rc::Rc;
 
 use super::Bits;
 
@@ -14,24 +27,24 @@ pub enum ARegex {
     /// bs @ l
     Lit(Bits, char),
     /// bs @ (ri₁ ⊕ ri₂)
-    Alt(Bits, Box<ARegex>, Box<ARegex>),
+    Alt(Bits, Rc<ARegex>, Rc<ARegex>),
     /// bs @ (ri₁ ri₂)
-    Seq(Bits, Box<ARegex>, Box<ARegex>),
+    Seq(Bits, Rc<ARegex>, Rc<ARegex>),
     /// bs @ ri*
-    Star(Bits, Box<ARegex>),
+    Star(Bits, Rc<ARegex>),
 }
 
 impl ARegex {
     pub fn eps() -> Self { ARegex::Eps(Bits::empty()) }
     pub fn lit(c: char) -> Self { ARegex::Lit(Bits::empty(), c) }
     pub fn alt(r1: ARegex, r2: ARegex) -> Self {
-        ARegex::Alt(Bits::empty(), Box::new(r1), Box::new(r2))
+        ARegex::Alt(Bits::empty(), Rc::new(r1), Rc::new(r2))
     }
     pub fn seq(r1: ARegex, r2: ARegex) -> Self {
-        ARegex::Seq(Bits::empty(), Box::new(r1), Box::new(r2))
+        ARegex::Seq(Bits::empty(), Rc::new(r1), Rc::new(r2))
     }
     pub fn star(r: ARegex) -> Self {
-        ARegex::Star(Bits::empty(), Box::new(r))
+        ARegex::Star(Bits::empty(), Rc::new(r))
     }
 }
 

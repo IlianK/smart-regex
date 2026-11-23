@@ -5,7 +5,8 @@
 //! plain Regex + external per-strand bits, GREEDY.
 
 use std::collections::HashSet;
-use crate::types::Regex;
+use std::time::Instant;
+use crate::types::{AppendBits, Regex};
 use crate::regex::nullable::nullable;
 use crate::regex::simplify::smart_seq;
 
@@ -60,61 +61,51 @@ pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
 /// Flattens a chain of nested `Alt`s into its leaves, pairing each leaf
 /// with the bit prefix its position in the chain assigns (`false` for
 /// a left branch, `true` for a right, accumulated down the spine in
-/// encounter order -- which for a plain `Vec<bool>` is also append
-/// order, so push-before-recurse already builds it correctly).
+/// encounter order). Flattening once and deduping the whole list after
+/// (rather than once per nesting level) keeps this O(p), not O(p^2),
+/// for a p-wide alternation.
 ///
-/// Recursing through `pderiv_bc`'s own `Alt` arm one nesting level at a
-/// time and calling `nub2` at every level was semantically fine
-/// (`nub2`'s "keep first occurrence" composes correctly regardless of
-/// whether it's applied once on the flattened list or once per level
-/// on a list that grows by one element per level) but cost O(p)
-/// redundant dedup passes for a p-wide alternation -- O(p^2) clones at
-/// minimum, confirmed empirically closer to O(p^2.5-3) once allocation
-/// overhead is included, almost entirely inside the single call that
-/// processes the first character of a p-wide pattern, before the
-/// frontier has even split into separate residuals. Flattening first
-/// and deduping exactly once after gives the identical result (same
-/// residuals, same bits, same leftmost-priority winner on a tie) for a
-/// fraction of the cost.
-fn flatten_alt<'a>(r: &'a Regex, prefix: &mut Vec<bool>, out: &mut Vec<(&'a Regex, Vec<bool>)>) {
+/// `prefix` is an `AppendBits`, not a `Vec<bool>`: its `append_one`/
+/// `clone` are O(1) amortized regardless of chain length, where a
+/// `Vec<bool>`'s O(depth) clone at each of a p-leaf chain's leaves
+/// would cost O(p^2) total. This runs fresh on every character for any
+/// `Alt` still live in the current residual -- not once per pattern the
+/// way `internalize` tags a whole alternation up front for `deriv_bc`
+/// -- so `append_one`'s one allocation per call (vs. `append(&[bit])`'s
+/// `Vec` collection plus slice copy) is what keeps a narrow alternation
+/// inside a loop cheap over a long input.
+fn flatten_alt<'a>(r: &'a Regex, prefix: &AppendBits, out: &mut Vec<(&'a Regex, AppendBits)>) {
     match r {
         Regex::Alt(r1, r2) => {
-            prefix.push(false);
-            flatten_alt(r1, prefix, out);
-            prefix.pop();
-            prefix.push(true);
-            flatten_alt(r2, prefix, out);
-            prefix.pop();
+            flatten_alt(r1, &prefix.append_one(false), out);
+            flatten_alt(r2, &prefix.append_one(true), out);
         }
         other => out.push((other, prefix.clone())),
     }
 }
 
 /// Bit-coded partial derivative (pDerivBC): one `(residual, bits)` pair per surviving strand.
-pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
+pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
     match r {
         Regex::Eps => Vec::new(),
         Regex::Phi => Vec::new(),
 
         Regex::Lit(y) => {
             if *y == x {
-                vec![(Regex::Eps, Vec::new())]
+                vec![(Regex::Eps, AppendBits::empty())]
             } else {
                 Vec::new()
             }
         }
 
         Regex::Alt(_, _) => {
-            let mut leaves: Vec<(&Regex, Vec<bool>)> = Vec::new();
-            let mut prefix = Vec::new();
-            flatten_alt(r, &mut prefix, &mut leaves);
+            let mut leaves: Vec<(&Regex, AppendBits)> = Vec::new();
+            flatten_alt(r, &AppendBits::empty(), &mut leaves);
 
-            let mut out: Vec<(Regex, Vec<bool>)> = Vec::new();
+            let mut out: Vec<(Regex, AppendBits)> = Vec::new();
             for (leaf, leaf_prefix) in leaves {
                 for (r_, bs) in pderiv_bc(leaf, x) {
-                    let mut b = leaf_prefix.clone();
-                    b.extend(bs);
-                    out.push((r_, b));
+                    out.push((r_, leaf_prefix.append_bits(&bs)));
                 }
             }
             nub2(out)
@@ -133,17 +124,15 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
                 // Regex shape here (unlike ARegex), so the collapse needs
                 // no companion bit adjustment -- bs rides along unchanged,
                 // same as the non-nullable branch below.
-                let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
+                let mut out: Vec<(Regex, AppendBits)> = pderiv_bc(r1, x)
                     .into_iter()
                     .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
                     .collect();
 
                 // Strand 2: r1 matched empty, jump straight into r2.
-                let eps_bits = mk_eps_bits(r1);
+                let eps_bits = AppendBits::from(mk_eps_bits(r1));
                 out.extend(pderiv_bc(r2, x).into_iter().map(|(r2_, bs)| {
-                    let mut b = eps_bits.clone();
-                    b.extend(bs);
-                    (r2_, b)
+                    (r2_, eps_bits.append_bits(&bs))
                 }));
 
                 nub2(out)
@@ -156,11 +145,86 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
         }
 
         Regex::Star(r1) => {
-            let out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
+            let out: Vec<(Regex, AppendBits)> = pderiv_bc(r1, x)
                 .into_iter()
-                .map(|(r1_, mut bs)| {
-                    let mut b = vec![false];
-                    b.append(&mut bs);
+                .map(|(r1_, bs)| {
+                    let b = bs.prepend_one(false);
+                    (smart_seq(r1_, &Regex::star(*r1.clone())), b)
+                })
+                .collect();
+            nub2(out)
+        }
+    }
+}
+
+/// Same partial derivative, plus the accumulated time spent tagging
+/// `Alt` branches via `flatten_alt` -- the same bit-prefix assignment
+/// `internalize` does once, upfront, for the whole tree, for
+/// `deriv_bc`. Here it happens fresh on every character instead, for
+/// whatever `Alt` nodes survive in the current residual; without this
+/// separate `tag_us` accumulator that cost would be indistinguishable
+/// from the rest of `derive_us`. Threaded through recursion the same
+/// way `deriv_std_rec_timed`'s accumulators are; the plain `pderiv_bc`
+/// above pays no cost for this.
+///
+/// `Star`'s own tagging just below (`bs.prepend_one(false)`) is
+/// deliberately NOT counted into `tag_us`, matching `deriv_bc`: its
+/// `internalize` doesn't tag `Star` either, so that cost stays folded
+/// into "derive" time on both sides, consistently.
+pub fn pderiv_bc_timed(r: &Regex, x: char, tag_us: &mut u64) -> Vec<(Regex, AppendBits)> {
+    match r {
+        Regex::Eps => Vec::new(),
+        Regex::Phi => Vec::new(),
+
+        Regex::Lit(y) => {
+            if *y == x {
+                vec![(Regex::Eps, AppendBits::empty())]
+            } else {
+                Vec::new()
+            }
+        }
+
+        Regex::Alt(_, _) => {
+            let t = Instant::now();
+            let mut leaves: Vec<(&Regex, AppendBits)> = Vec::new();
+            flatten_alt(r, &AppendBits::empty(), &mut leaves);
+            *tag_us += t.elapsed().as_micros() as u64;
+
+            let mut out: Vec<(Regex, AppendBits)> = Vec::new();
+            for (leaf, leaf_prefix) in leaves {
+                for (r_, bs) in pderiv_bc_timed(leaf, x, tag_us) {
+                    out.push((r_, leaf_prefix.append_bits(&bs)));
+                }
+            }
+            nub2(out)
+        }
+
+        Regex::Seq(r1, r2) => {
+            if nullable(r1) {
+                let mut out: Vec<(Regex, AppendBits)> = pderiv_bc_timed(r1, x, tag_us)
+                    .into_iter()
+                    .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
+                    .collect();
+
+                let eps_bits = AppendBits::from(mk_eps_bits(r1));
+                out.extend(pderiv_bc_timed(r2, x, tag_us).into_iter().map(|(r2_, bs)| {
+                    (r2_, eps_bits.append_bits(&bs))
+                }));
+
+                nub2(out)
+            } else {
+                pderiv_bc_timed(r1, x, tag_us)
+                    .into_iter()
+                    .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
+                    .collect()
+            }
+        }
+
+        Regex::Star(r1) => {
+            let out: Vec<(Regex, AppendBits)> = pderiv_bc_timed(r1, x, tag_us)
+                .into_iter()
+                .map(|(r1_, bs)| {
+                    let b = bs.prepend_one(false);
                     (smart_seq(r1_, &Regex::star(*r1.clone())), b)
                 })
                 .collect();
@@ -177,6 +241,14 @@ mod tests {
     use super::*;
     use crate::types::Regex;
 
+    /// Materializes `pderiv_bc`'s `AppendBits` results back to plain
+    /// `Vec<bool>` so every expected-value literal below can stay
+    /// exactly as written against the reference rules, unchanged by the
+    /// O(1)-amortized representation `pderiv_bc` now returns internally.
+    fn materialize(pairs: Vec<(Regex, AppendBits)>) -> Vec<(Regex, Vec<bool>)> {
+        pairs.into_iter().map(|(r, b)| (r, b.to_vec())).collect()
+    }
+
     fn set(pairs: &[(Regex, Vec<bool>)]) -> HashSet<(Regex, Vec<bool>)> {
         pairs.iter().cloned().collect()
     }
@@ -188,28 +260,28 @@ mod tests {
     // pderiv_bc(Phi/Eps, _) = []
     #[test]
     fn pderiv_bc_phi_empty() {
-        assert_eq!(pderiv_bc(&Regex::Phi, 'a'), vec![]);
+        assert_eq!(materialize(pderiv_bc(&Regex::Phi, 'a')), vec![]);
     }
     #[test]
     fn pderiv_bc_eps_empty() {
-        assert_eq!(pderiv_bc(&Regex::Eps, 'a'), vec![]);
+        assert_eq!(materialize(pderiv_bc(&Regex::Eps, 'a')), vec![]);
     }
 
     // pderiv_bc(Lit(c), c) = [(Eps, [])]
     #[test]
     fn pderiv_bc_lit_match() {
-        assert_eq!(pderiv_bc(&Regex::lit('a'), 'a'), vec![(Regex::Eps, vec![])]);
+        assert_eq!(materialize(pderiv_bc(&Regex::lit('a'), 'a')), vec![(Regex::Eps, vec![])]);
     }
     #[test]
     fn pderiv_bc_lit_no_match() {
-        assert_eq!(pderiv_bc(&Regex::lit('a'), 'b'), vec![]);
+        assert_eq!(materialize(pderiv_bc(&Regex::lit('a'), 'b')), vec![]);
     }
 
     // pderiv_bc(a + ab, 'a') = [(Eps,[false]), (b,[true])]  (worked example, ch.3-style)
     #[test]
     fn pderiv_bc_alt_bits_tag_branch() {
         let r = Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b')));
-        let d = pderiv_bc(&r, 'a');
+        let d = materialize(pderiv_bc(&r, 'a'));
         assert_eq!(
             as_set(d),
             set(&[(Regex::Eps, vec![false]), (Regex::lit('b'), vec![true])])
@@ -220,7 +292,7 @@ mod tests {
     #[test]
     fn pderiv_bc_seq_non_nullable_no_extra_bits() {
         let r = Regex::seq(Regex::lit('a'), Regex::lit('b'));
-        let d = pderiv_bc(&r, 'a');
+        let d = materialize(pderiv_bc(&r, 'a'));
         assert_eq!(d, vec![(Regex::lit('b'), vec![])]);
     }
 
@@ -230,7 +302,7 @@ mod tests {
         // (eps + a) . b on 'a': strand 2 (jump to r2=b) dies since 'b' != 'a', only strand 1 survives
         let r1 = Regex::alt(Regex::Eps, Regex::lit('a'));
         let r = Regex::seq(r1, Regex::lit('b'));
-        let d = pderiv_bc(&r, 'a');
+        let d = materialize(pderiv_bc(&r, 'a'));
         // smart_seq collapses Seq(Eps, Lit('b')) to Lit('b') alone; bits unchanged.
         assert_eq!(d, vec![(Regex::lit('b'), vec![true])]);
     }
@@ -239,13 +311,13 @@ mod tests {
     #[test]
     fn pderiv_bc_star_tags_iteration() {
         let r = Regex::star(Regex::lit('a'));
-        let d = pderiv_bc(&r, 'a');
+        let d = materialize(pderiv_bc(&r, 'a'));
         assert_eq!(d, vec![(Regex::star(Regex::lit('a')), vec![false])]);
     }
     #[test]
     fn pderiv_bc_star_wrong_char_empty() {
         let r = Regex::star(Regex::lit('a'));
-        assert_eq!(pderiv_bc(&r, 'b'), vec![]);
+        assert_eq!(materialize(pderiv_bc(&r, 'b')), vec![]);
     }
 
     // nub2 keeps the first occurrence, dropping a later duplicate's bits
@@ -253,7 +325,7 @@ mod tests {
     fn pderiv_bc_alt_dedups_identical_residuals_keeping_first() {
         // (a + a) on 'a': both branches produce Eps; left [false] must win
         let r = Regex::alt(Regex::lit('a'), Regex::lit('a'));
-        let d = pderiv_bc(&r, 'a');
+        let d = materialize(pderiv_bc(&r, 'a'));
         assert_eq!(d, vec![(Regex::Eps, vec![false])]);
     }
 
@@ -264,7 +336,7 @@ mod tests {
     #[test]
     fn nested_alt_three_leaves_prefix_matches_hand_trace_and_dedups_leftmost() {
         let r = Regex::alt(Regex::lit('a'), Regex::alt(Regex::lit('a'), Regex::lit('b')));
-        let d = pderiv_bc(&r, 'a');
+        let d = materialize(pderiv_bc(&r, 'a'));
         assert_eq!(d, vec![(Regex::Eps, vec![false])]);
     }
 
@@ -286,10 +358,10 @@ mod tests {
         // Only one leaf ever matches the single character being
         // derived by, so each case isolates that leaf's own prefix
         // directly in the (sole) surviving strand's bits.
-        assert_eq!(pderiv_bc(&r, 'a'), vec![(Regex::Eps, vec![false])]);
-        assert_eq!(pderiv_bc(&r, 'b'), vec![(Regex::Eps, vec![true, false])]);
-        assert_eq!(pderiv_bc(&r, 'c'), vec![(Regex::Eps, vec![true, true, false])]);
-        assert_eq!(pderiv_bc(&r, 'd'), vec![(Regex::Eps, vec![true, true, true])]);
+        assert_eq!(materialize(pderiv_bc(&r, 'a')), vec![(Regex::Eps, vec![false])]);
+        assert_eq!(materialize(pderiv_bc(&r, 'b')), vec![(Regex::Eps, vec![true, false])]);
+        assert_eq!(materialize(pderiv_bc(&r, 'c')), vec![(Regex::Eps, vec![true, true, false])]);
+        assert_eq!(materialize(pderiv_bc(&r, 'd')), vec![(Regex::Eps, vec![true, true, true])]);
     }
 
     // mk_eps_bits mirrors mk_eps_bc's structure exactly, on plain Regex
@@ -329,5 +401,49 @@ mod tests {
     #[should_panic(expected = "mk_eps_bits called on Lit")]
     fn mk_eps_bits_lit_panics() {
         mk_eps_bits(&Regex::lit('a'));
+    }
+
+    // pderiv_bc_timed must compute exactly the same residuals/bits as
+    // plain pderiv_bc -- tag_us is purely an added side channel, never
+    // a change to what's returned -- across both a flat and a nested
+    // alternation, since flatten_alt (the only thing tag_us measures)
+    // behaves differently at each depth.
+    #[test]
+    fn timed_matches_untimed_on_flat_alt() {
+        let r = Regex::alt(Regex::lit('a'), Regex::seq(Regex::lit('a'), Regex::lit('b')));
+        for x in ['a', 'b'] {
+            let mut tag_us = 0u64;
+            assert_eq!(
+                as_set(materialize(pderiv_bc(&r, x))),
+                as_set(materialize(pderiv_bc_timed(&r, x, &mut tag_us))),
+            );
+        }
+    }
+
+    #[test]
+    fn timed_matches_untimed_on_nested_alt() {
+        let r = Regex::alt(
+            Regex::lit('a'),
+            Regex::alt(Regex::lit('b'), Regex::alt(Regex::lit('c'), Regex::lit('d'))),
+        );
+        for x in ['a', 'b', 'c', 'd'] {
+            let mut tag_us = 0u64;
+            assert_eq!(
+                as_set(materialize(pderiv_bc(&r, x))),
+                as_set(materialize(pderiv_bc_timed(&r, x, &mut tag_us))),
+            );
+        }
+    }
+
+    // Star/Seq/Lit/Eps/Phi never reach the Alt arm, so a pattern built
+    // only from those must leave tag_us at exactly 0, not just small --
+    // the Alt arm is the only code that ever increments it.
+    #[test]
+    fn tag_us_stays_zero_without_any_alt() {
+        let r = Regex::seq(Regex::star(Regex::lit('a')), Regex::lit('b'));
+        let mut tag_us = 0u64;
+        let _ = pderiv_bc_timed(&r, 'a', &mut tag_us);
+        let _ = pderiv_bc_timed(&r, 'b', &mut tag_us);
+        assert_eq!(tag_us, 0);
     }
 }

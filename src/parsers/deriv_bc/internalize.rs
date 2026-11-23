@@ -2,6 +2,8 @@
 //!
 //! internalize: Regex -> ARegex. fuse: prepend a bit-code prefix.
 
+use std::rc::Rc;
+
 use crate::types::{Regex, ARegex, Bits};
 
 
@@ -50,14 +52,14 @@ pub fn internalize(r: &Regex) -> ARegex {
         Regex::Alt(r1, r2) => {
             let ri1 = fuse(&[false], internalize(r1));
             let ri2 = fuse(&[true], internalize(r2));
-            ARegex::Alt(Bits::empty(), Box::new(ri1), Box::new(ri2))
+            ARegex::Alt(Bits::empty(), Rc::new(ri1), Rc::new(ri2))
         }
         Regex::Seq(r1, r2) => {
-            ARegex::Seq(Bits::empty(), Box::new(internalize(r1)), Box::new(internalize(r2)))
+            ARegex::Seq(Bits::empty(), Rc::new(internalize(r1)), Rc::new(internalize(r2)))
         }
         // internalize(Star(...)) = Star([], Lit([], 'a')) = []@(__)*
         Regex::Star(r1) => {
-            ARegex::Star(Bits::empty(), Box::new(internalize(r1)))
+            ARegex::Star(Bits::empty(), Rc::new(internalize(r1)))
         }
     }
 }
@@ -139,7 +141,7 @@ mod tests {
 
     #[test]
     fn fuse_prepends_to_star() {
-        let ri = ARegex::Star(vec![true].into(), Box::new(ARegex::lit('a')));
+        let ri = ARegex::Star(vec![true].into(), Rc::new(ARegex::lit('a')));
         let result = fuse(&[false], ri);
         assert!(matches!(result, ARegex::Star(ref bs, _) if bs.to_vec() == vec![false, true]));
     }

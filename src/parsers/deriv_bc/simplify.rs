@@ -3,6 +3,10 @@
 //! Simplification for ARegex: 
 //! Phi propagation, eps-elision, Alt flattening/dedup.
 
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::rc::Rc;
+
 use crate::types::{ARegex, Bits};
 use crate::parsers::deriv_bc::nullable::is_phi;
 use crate::parsers::deriv_bc::internalize::fuse_bits;
@@ -26,7 +30,7 @@ use crate::parsers::deriv_bc::internalize::fuse_bits;
 pub fn simp(ri: ARegex) -> ARegex {
     let mut cur = ri;
     loop {
-        let next = simp_once(cur.clone());
+        let next = simp_once(&cur);
         if same_shape(&next, &cur) {
             return next;
         }
@@ -34,15 +38,27 @@ pub fn simp(ri: ARegex) -> ARegex {
     }
 }
 
-fn simp_once(ri: ARegex) -> ARegex {
+/// Takes `&ARegex`, not `ARegex`: every recursive call here only needs
+/// to *read* a child to simplify it, matching `deriv_bc`'s own
+/// by-reference convention (see that function's doc comment) for the
+/// same reason -- `simp_once(r1)` with `r1: &Rc<ARegex>` coerces to
+/// `&ARegex` for free, instead of needing a clone just to get
+/// something to recurse on. The couple of places that do need an
+/// owned `ARegex` (to feed into `fuse_bits`, or into the output
+/// `Vec` in `push_branches` below) still get one via `(**r).clone()`,
+/// but that is always O(1): once `ARegex`'s own recursive fields are
+/// `Rc`, cloning a node only bumps its direct children's refcounts,
+/// never walks their subtrees (the same idiom pderiv_std's
+/// `pderiv_tree.rs` already uses for its own Rc-based Regex).
+fn simp_once(ri: &ARegex) -> ARegex {
     match ri {
         ARegex::Phi => ARegex::Phi,
-        ARegex::Eps(_) => ri,
-        ARegex::Lit(_, _) => ri,
+        ARegex::Eps(bs) => ARegex::Eps(bs.clone()),
+        ARegex::Lit(bs, c) => ARegex::Lit(bs.clone(), *c),
 
         ARegex::Seq(bs, r1, r2) => {
-            let r1s = simp_once(*r1);
-            let r2s = simp_once(*r2);
+            let r1s = simp_once(r1);
+            let r2s = simp_once(r2);
 
             if is_phi(&r1s) || is_phi(&r2s) {
                 return ARegex::Phi;
@@ -55,7 +71,7 @@ fn simp_once(ri: ARegex) -> ARegex {
                 // be a Star's whole accumulated iteration history by
                 // this point, and to_vec()-ing it on every character
                 // is exactly the O(n^2) cost `Bits` exists to avoid.
-                return fuse_bits(&bs, fuse_bits(&bs2, r2s));
+                return fuse_bits(bs, fuse_bits(&bs2, r2s));
             }
 
             // Symmetric case: `Seq(x, Eps)` collapses to `x`, matching the
@@ -67,17 +83,17 @@ fn simp_once(ri: ARegex) -> ARegex {
             // after -- wrong order whenever r2's bits are non-empty.
             if let ARegex::Eps(bs2) = &r2s {
                 if bs2.is_empty() {
-                    return fuse_bits(&bs, r1s);
+                    return fuse_bits(bs, r1s);
                 }
             }
 
-            ARegex::Seq(bs, Box::new(r1s), Box::new(r2s))
+            ARegex::Seq(bs.clone(), Rc::new(r1s), Rc::new(r2s))
         }
 
         ARegex::Alt(bs, r1, r2) => {
-            let branches_raw = collect_alt_branches(*r1, *r2);
+            let branches_raw = collect_alt_branches(r1, r2);
             let branches_simped: Vec<ARegex> = branches_raw
-                .into_iter()
+                .iter()
                 .map(simp_once)
                 .collect();
 
@@ -90,41 +106,41 @@ fn simp_once(ri: ARegex) -> ARegex {
 
             match branches.len() {
                 0 => ARegex::Phi,
-                1 => fuse_bits(&bs, branches.remove(0)),
+                1 => fuse_bits(bs, branches.remove(0)),
                 _ => {
                     let folded = fold_alt(branches);
-                    fuse_bits(&bs, folded)
+                    fuse_bits(bs, folded)
                 }
             }
         }
 
         ARegex::Star(bs, r) => {
-            ARegex::Star(bs, Box::new(simp_once(*r)))
+            ARegex::Star(bs.clone(), Rc::new(simp_once(r)))
         }
     }
 }
 
-fn collect_alt_branches(r1: ARegex, r2: ARegex) -> Vec<ARegex> {
+fn collect_alt_branches(r1: &ARegex, r2: &ARegex) -> Vec<ARegex> {
     let mut out = Vec::new();
     push_branches(r1, &mut out);
     push_branches(r2, &mut out);
     out
 }
 
-fn push_branches(ri: ARegex, out: &mut Vec<ARegex>) {
+fn push_branches(ri: &ARegex, out: &mut Vec<ARegex>) {
     match ri {
         ARegex::Alt(bs, r1, r2) => {
             if bs.is_empty() {
-                push_branches(*r1, out);
-                push_branches(*r2, out);
+                push_branches(r1, out);
+                push_branches(r2, out);
             } else {
-                let r1f = fuse_bits(&bs, *r1);
-                let r2f = fuse_bits(&bs, *r2);
-                push_branches(r1f, out);
-                push_branches(r2f, out);
+                let r1f = fuse_bits(bs, (**r1).clone());
+                let r2f = fuse_bits(bs, (**r2).clone());
+                push_branches(&r1f, out);
+                push_branches(&r2f, out);
             }
         }
-        other => out.push(other),
+        other => out.push((*other).clone()),
     }
 }
 
@@ -132,7 +148,7 @@ fn fold_alt(mut branches: Vec<ARegex>) -> ARegex {
     branches.reverse();
     let mut acc = branches.remove(0);
     for b in branches {
-        acc = ARegex::Alt(Bits::empty(), Box::new(b), Box::new(acc));
+        acc = ARegex::Alt(Bits::empty(), Rc::new(b), Rc::new(acc));
     }
     acc
 }
@@ -159,19 +175,69 @@ fn same_shape(a: &ARegex, b: &ARegex) -> bool {
     }
 }
 
-fn dedup_first(branches: &mut Vec<ARegex>) {
-    let mut i = 0;
-    while i < branches.len() {
-        let mut j = i + 1;
-        while j < branches.len() {
-            if same_shape(&branches[i], &branches[j]) {
-                branches.remove(j);
-            } else {
-                j += 1;
-            }
+/// Mirrors `same_shape`'s own match arms exactly, hashing a
+/// discriminant tag plus whatever each variant recurses into, always
+/// skipping the node's own `bs` -- so two branches with the same
+/// shape (per `same_shape`) always hash equal, though (as with any
+/// hash) two branches that hash equal aren't guaranteed to have the
+/// same shape, hence `dedup_first` below still confirms with
+/// `same_shape` before treating a hash match as a real duplicate.
+fn hash_shape<H: Hasher>(r: &ARegex, state: &mut H) {
+    match r {
+        ARegex::Phi => 0u8.hash(state),
+        ARegex::Eps(_) => 1u8.hash(state),
+        ARegex::Lit(_, c) => {
+            2u8.hash(state);
+            c.hash(state);
         }
-        i += 1;
+        ARegex::Alt(_, a, b) => {
+            3u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Seq(_, a, b) => {
+            4u8.hash(state);
+            hash_shape(a, state);
+            hash_shape(b, state);
+        }
+        ARegex::Star(_, a) => {
+            5u8.hash(state);
+            hash_shape(a, state);
+        }
     }
+}
+
+/// Keeps the first (lowest-original-index) branch of each
+/// shape-equivalence class, in original relative order, in O(p): one
+/// shape-hash per branch bucketed by hash, rather than comparing every
+/// branch to every other. Branches are only ever compared against already-kept
+/// bucket-mates, never against ones already dropped -- safe because
+/// `same_shape` is an equivalence relation (reflexive, symmetric,
+/// transitive, since it's structural equality on a tree minus one
+/// field), so anything that would have matched a dropped duplicate
+/// also matches whichever earlier branch that duplicate itself
+/// matched.
+fn dedup_first(branches: &mut Vec<ARegex>) {
+    let mut buckets: HashMap<u64, Vec<usize>> = HashMap::new();
+    let mut keep = vec![true; branches.len()];
+    for idx in 0..branches.len() {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        hash_shape(&branches[idx], &mut hasher);
+        let h = hasher.finish();
+
+        let bucket = buckets.entry(h).or_default();
+        if bucket.iter().any(|&prev| same_shape(&branches[prev], &branches[idx])) {
+            keep[idx] = false;
+        } else {
+            bucket.push(idx);
+        }
+    }
+    let mut idx = 0;
+    branches.retain(|_| {
+        let k = keep[idx];
+        idx += 1;
+        k
+    });
 }
 
 
@@ -179,6 +245,8 @@ fn dedup_first(branches: &mut Vec<ARegex>) {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::*;
     use crate::types::ARegex;
 
@@ -205,14 +273,14 @@ mod tests {
     // Seq where left is Phi → Phi
     #[test]
     fn simp_seq_phi_left_gives_phi() {
-        let ri = ARegex::Seq(vec![].into(), Box::new(ARegex::Phi), Box::new(ARegex::lit('a')));
+        let ri = ARegex::Seq(vec![].into(), Rc::new(ARegex::Phi), Rc::new(ARegex::lit('a')));
         assert_eq!(simp(ri), ARegex::Phi);
     }
 
     // Seq where right is Phi → Phi
     #[test]
     fn simp_seq_phi_right_gives_phi() {
-        let ri = ARegex::Seq(vec![].into(), Box::new(ARegex::lit('a')), Box::new(ARegex::Phi));
+        let ri = ARegex::Seq(vec![].into(), Rc::new(ARegex::lit('a')), Rc::new(ARegex::Phi));
         assert_eq!(simp(ri), ARegex::Phi);
     }
 
@@ -222,8 +290,8 @@ mod tests {
         // Seq([], Eps([false]), Lit([], 'a'))  →  Lit([false], 'a')
         let ri = ARegex::Seq(
             vec![].into(),
-            Box::new(ARegex::Eps(vec![false].into())),
-            Box::new(ARegex::Lit(vec![].into(), 'a')),
+            Rc::new(ARegex::Eps(vec![false].into())),
+            Rc::new(ARegex::Lit(vec![].into(), 'a')),
         );
         assert_eq!(simp(ri), ARegex::Lit(vec![false].into(), 'a'));
     }
@@ -233,8 +301,8 @@ mod tests {
     fn simp_seq_eps_right_with_empty_bits_collapses() {
         let ri = ARegex::Seq(
             vec![].into(),
-            Box::new(ARegex::lit('a')),
-            Box::new(ARegex::Eps(vec![].into())),
+            Rc::new(ARegex::lit('a')),
+            Rc::new(ARegex::Eps(vec![].into())),
         );
         assert_eq!(simp(ri), ARegex::Lit(vec![].into(), 'a'));
     }
@@ -242,7 +310,7 @@ mod tests {
     // Alt where all branches are Phi → Phi
     #[test]
     fn simp_alt_all_phi_gives_phi() {
-        let ri = ARegex::Alt(vec![].into(), Box::new(ARegex::Phi), Box::new(ARegex::Phi));
+        let ri = ARegex::Alt(vec![].into(), Rc::new(ARegex::Phi), Rc::new(ARegex::Phi));
         assert_eq!(simp(ri), ARegex::Phi);
     }
 
@@ -252,8 +320,8 @@ mod tests {
         // Alt([], Phi, Lit([], 'a'))  →  Lit([], 'a')   (outer bits are [] so no change)
         let ri = ARegex::Alt(
             vec![].into(),
-            Box::new(ARegex::Phi),
-            Box::new(ARegex::Lit(vec![].into(), 'a')),
+            Rc::new(ARegex::Phi),
+            Rc::new(ARegex::Lit(vec![].into(), 'a')),
         );
         assert_eq!(simp(ri), ARegex::Lit(vec![].into(), 'a'));
     }
@@ -264,8 +332,8 @@ mod tests {
         // Alt([true], Phi, Eps([]))  →  fuse([true], Eps([])) = Eps([true])
         let ri = ARegex::Alt(
             vec![true].into(),
-            Box::new(ARegex::Phi),
-            Box::new(ARegex::Eps(vec![].into())),
+            Rc::new(ARegex::Phi),
+            Rc::new(ARegex::Eps(vec![].into())),
         );
         assert_eq!(simp(ri), ARegex::Eps(vec![true].into()));
     }
@@ -276,8 +344,8 @@ mod tests {
         let branch = ARegex::Lit(vec![].into(), 'a');
         let ri = ARegex::Alt(
             vec![].into(),
-            Box::new(branch.clone()),
-            Box::new(branch.clone()),
+            Rc::new(branch.clone()),
+            Rc::new(branch.clone()),
         );
         // After dedup only one branch remains, so result is fuse([], branch) = branch
         assert_eq!(simp(ri), branch);
@@ -287,8 +355,8 @@ mod tests {
     #[test]
     fn simp_star_simplifies_inner() {
         // Star([], Seq([], Phi, Lit([], 'a')))  →  Star([], Phi)
-        let inner = ARegex::Seq(vec![].into(), Box::new(ARegex::Phi), Box::new(ARegex::lit('a')));
-        let ri = ARegex::Star(vec![].into(), Box::new(inner));
+        let inner = ARegex::Seq(vec![].into(), Rc::new(ARegex::Phi), Rc::new(ARegex::lit('a')));
+        let ri = ARegex::Star(vec![].into(), Rc::new(inner));
         let result = simp(ri);
         assert!(matches!(result, ARegex::Star(_, ref inner) if matches!(inner.as_ref(), ARegex::Phi)));
     }

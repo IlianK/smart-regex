@@ -185,7 +185,7 @@ fn render_pderiv_bc_expansion(r: &Regex, c: char, w: &mut ReportWriter) {
         w.line("      -> []");
     } else {
         for (r_, bits) in &results {
-            w.line(&format!("      -> ({:?}, {})", r_, bits_str(bits)));
+            w.line(&format!("      -> ({:?}, {})", r_, bits_str(&bits.to_vec())));
         }
     }
 }

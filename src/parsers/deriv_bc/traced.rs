@@ -25,7 +25,7 @@ pub fn parse_bitcoded_traced(input: &str, r: &Regex) -> (Option<ParseTree>, BitT
     // Forward pass
     for (idx, &c) in chars.iter().enumerate() {
         let before = ri.clone();
-        ri = simp(deriv_bc(ri, c));
+        ri = simp(deriv_bc(&ri, c));
         let is_nullable = nullable_bc(&ri);
 
         bit_steps.push(BitStep {

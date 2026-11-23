@@ -4,14 +4,18 @@
 \label{sec:partial-derivative-parser}
 
 This chapter presents the partial-derivative approach to parse-tree construction, 
-following \citep{sulzmannlu2012}. 
+following \citep[\S5, Figs.~10--11, pp.~85--86]{sulzmannlu2012}. 
 Unlike ordinary derivatives, partial derivatives produce a set of residual states,
 each pairing an expression with the reconstruction information 
 for one path through the original expression. 
-The parser maintains this set as an NFA state set 
-and selects the first accepting state in generation order. 
+The parser maintains this set as an NFA state set
+and selects the first accepting state in generation order.
+As in Chapter~\ref{sec:derivative-parser}, this state set is not a
+precompiled automaton: each step recomputes it from the current
+residuals and the next input character, rather than looking up a
+transition in an automaton built ahead of time.
 
-Since partial derivatives lose the original expression's structure, 
+Since partial derivatives lose the original expression's structure,
 this favours leftmost alternatives over the longest match, 
 resulting in non-POSIX parse trees.
 As in Chapter~\ref{sec:derivative-parser}, two variants are considered. 
@@ -202,7 +206,7 @@ This injection is $\mathit{inj}$ from Equation~\eqref{eq:inj},
 already used by the standard derivative parser (Chapter~\ref{sec:derivative-parser})
 to wrap alternatives and build concatenation and star trees.
 Unlike for the standard derivative parser, 
-the pattern partial derivatives of \citet{sulzmannlu2012}
+the pattern partial derivatives of \citet[Fig.~11, p.~86]{sulzmannlu2012}
 provide no corresponding rules for constructing injections.
 
 The pattern partial derivatives of \citet[Fig.~11]{sulzmannlu2012}
@@ -311,19 +315,25 @@ would leave the injection expecting a $\mathit{Pair}$ that is no longer there.
 \texttt{pderiv\_tree}
 avoids this by branching on whether the residual collapsed to \texttt{Regex::Eps}
 (Figure~\ref{fig:pderiv-tree-seqstar-rust}):
-in \texttt{Seq}, the closure then returns
+In \texttt{Seq}, the closure then returns
 $\mathit{Pair}(\mathit{inj}_1(\mathit{Empty}), v)$
 or destructures $\mathit{Pair}(v_1, v_2)$ into $\mathit{Pair}(\mathit{inj}_1(v_1), v_2)$,
 as Equation~\eqref{eq:pderiv-tree} specifies;
-in \texttt{Star}, which extends a $\mathit{Star}$ list,
+In \texttt{Star}, which extends a $\mathit{Star}$ list,
 it pushes $\mathit{inj}_1(\mathit{Empty})$ directly
 or destructures the wrapping $\mathit{Pair}$ first;
-in \texttt{Alt}, since the $\mathsf{P}_{+}$ rule only derives two alternatives
-and not a longer chain,
-\texttt{pderiv\_tree} instead flattens a chain $r_1 + \cdots + r_p$
-into its leaves before deriving them.
-This preserves left-to-right order just as deriving one $+$ at a time would.
-All three arms then call \texttt{nub\_tree} directly on their own output.
+For \texttt{Alt}, \texttt{pderiv\_tree} flattens
+chains $r_1 + \cdots + r_p$ before derivation,
+since the $\mathsf{P}_{+}$ rule handles only
+two alternatives at a time.
+This preserves their left-to-right order.
+\texttt{Alt} and \texttt{Star} always apply
+\texttt{nub\_tree}, whereas \texttt{Seq}
+does so only when $r_1$ is nullable,
+as only then can derivatives continuing
+through $r_1$ and those entering $r_2$
+produce duplicate residuals.
+
 
 \begin{figure}[H]
 \small
@@ -427,7 +437,7 @@ Representing that composition as nested closures
 would recurse one stack frame per character, 
 both when applied and when destroyed. 
 Therefore the implementation stores the steps 
-as a cons-list and applies them iteratively instead (Figure~\ref{fig:inj-rust}).
+as a linked list and applies them iteratively instead (Figure~\ref{fig:inj-rust}).
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -450,7 +460,7 @@ impl Inj {
     }
 }
 \end{verbatim}
-\caption{\texttt{Inj}: a persistent cons-list of \texttt{InjStep}s.
+\caption{\texttt{Inj}: a persistent linked-list of \texttt{InjStep}s.
 \texttt{then} prepends one step in $O(1)$; \texttt{apply} walks the list
 iteratively, so neither construction nor application recurses per step.}
 \label{fig:inj-rust}
@@ -888,13 +898,22 @@ deriving them, rather than recursing through nested binary
 \texttt{flatten\_alt} (Figure~\ref{fig:pderiv-bc-flatten-rust}) walks
 the chain once, giving each leaf the bit prefix its position assigns:
 \texttt{false} for a left branch and \texttt{true} for a right,
-accumulated down the spine in encounter order. This is the bit-list
-counterpart of the $\mathit{Left}$/$\mathit{Right}$-wrapped closure
-\texttt{pderiv\_tree}'s own flattening builds for the same leaf.
-Deriving each leaf and extending its prefix with the result's own
-bits, then calling \texttt{nub2} once on the combined list, gives the
-same leftmost-priority result a per-level recursion would, for a
-single dedup pass instead of $p - 1$.
+accumulated down the spine in encounter order. Each prefix is an
+\texttt{AppendBits} chain rather than a flat list: extending it one
+level down grafts a single new bit onto the existing chain instead of
+copying everything accumulated so far, and the clone taken at each
+leaf shares that chain rather than duplicating it.
+\texttt{append\_one} is the operation behind that graft: the
+single-bit case of \texttt{AppendBits}'s general \texttt{append},
+built so that extending the prefix by exactly one bit costs one
+allocation rather than the collection a multi-bit suffix would need.
+This is the persistent-chain counterpart of the $\mathit{Left}$/$\mathit{Right}$-wrapped
+closure \texttt{pderiv\_tree}'s own flattening builds for the same leaf.
+Deriving each leaf and grafting its own derivative's bits onto that
+leaf's prefix, another $O(1)$ operation rather than a copy, then
+calling \texttt{nub2} once on the combined list, gives the same
+leftmost-priority result a per-level recursion would, for a single
+dedup pass instead of $p - 1$.
 
 The \texttt{Seq} arm's two branches are each written out in full,
 rather than factoring out the shared recurse-into-$r_1$ step
@@ -908,6 +927,10 @@ exactly as Equation~\eqref{eq:pderiv-bc} specifies.
 The star case prepends a leading $0$ marking that this
 transition continues an iteration, the counterpart of the single
 terminating $1$ that $\mathit{mkEpsBC}$'s star rule emits.
+\texttt{prepend\_one} is \texttt{append\_one}'s counterpart for the
+opposite end, grafting one bit onto the front of an existing
+\texttt{AppendBits} chain rather than its back, for the same
+one-allocation cost.
 
 Both \texttt{Seq} and \texttt{Star} call \texttt{smart\_seq},
 since $r_1$'s derivative can be $\varepsilon$
@@ -919,49 +942,22 @@ residual: collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
 \begin{figure}[H]
 \small
 \begin{verbatim}
-fn flatten_alt<'a>(r: &'a Regex, prefix: &mut Vec<bool>,
-                    out: &mut Vec<(&'a Regex, Vec<bool>)>) {
-    match r {
-        Regex::Alt(r1, r2) => {
-            prefix.push(false);
-            flatten_alt(r1, prefix, out);
-            prefix.pop();
-            prefix.push(true);
-            flatten_alt(r2, prefix, out);
-            prefix.pop();
-        }
-        other => out.push((other, prefix.clone())),
-    }
-}
-\end{verbatim}
-\caption{\texttt{flatten\_alt}: flattens a chain of nested \texttt{Alt}s
-into its leaves, pairing each with the bit prefix its position in the
-chain assigns.}
-\label{fig:pderiv-bc-flatten-rust}
-\end{figure}
-
-\begin{figure}[H]
-\small
-\begin{verbatim}
-pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
+pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, AppendBits)> {
     match r {
         Regex::Phi | Regex::Eps => vec![],
 
         Regex::Lit(y) => {
-            if *y == x { vec![(Regex::Eps, vec![])] } else { vec![] }
+            if *y == x { vec![(Regex::Eps, AppendBits::empty())] } else { vec![] }
         }
 
         Regex::Alt(_, _) => {
-            let mut leaves: Vec<(&Regex, Vec<bool>)> = Vec::new();
-            let mut prefix = Vec::new();
-            flatten_alt(r, &mut prefix, &mut leaves);
+            let mut leaves: Vec<(&Regex, AppendBits)> = Vec::new();
+            flatten_alt(r, &AppendBits::empty(), &mut leaves);
 
-            let mut out: Vec<(Regex, Vec<bool>)> = Vec::new();
+            let mut out: Vec<(Regex, AppendBits)> = Vec::new();
             for (leaf, leaf_prefix) in leaves {
                 for (r_, bs) in pderiv_bc(leaf, x) {
-                    let mut b = leaf_prefix.clone();
-                    b.extend(bs);
-                    out.push((r_, b));
+                    out.push((r_, leaf_prefix.append_bits(&bs)));
                 }
             }
             nub2(out)
@@ -969,15 +965,14 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
 
         Regex::Seq(r1, r2) => {
             if nullable(r1) {
-                let mut out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
+                let mut out: Vec<(Regex, AppendBits)> = pderiv_bc(r1, x)
                     .into_iter()
                     .map(|(r1_, bs)| (smart_seq(r1_, r2), bs))
                     .collect();
 
-                let eps_bits = mk_eps_bits(r1);
+                let eps_bits = AppendBits::from(mk_eps_bits(r1));
                 out.extend(pderiv_bc(r2, x).into_iter().map(|(r2_, bs)| {
-                    let mut b = eps_bits.clone(); b.extend(bs);
-                    (r2_, b)
+                    (r2_, eps_bits.append_bits(&bs))
                 }));
                 nub2(out)
             } else {
@@ -989,10 +984,10 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
         }
 
         Regex::Star(r1) => {
-            let out: Vec<(Regex, Vec<bool>)> = pderiv_bc(r1, x)
+            let out: Vec<(Regex, AppendBits)> = pderiv_bc(r1, x)
                 .into_iter()
-                .map(|(r1_, mut bs)| {
-                    let mut b = vec![false]; b.append(&mut bs);
+                .map(|(r1_, bs)| {
+                    let b = bs.prepend_one(false);
                     (smart_seq(r1_, &Regex::star(*r1.clone())), b)
                 })
                 .collect();
@@ -1003,6 +998,26 @@ pub fn pderiv_bc(r: &Regex, x: char) -> Vec<(Regex, Vec<bool>)> {
 \end{verbatim}
 \caption{\texttt{pderiv\_bc}: one bit-coded partial-derivative transition.}
 \label{fig:pderiv-bc-rust}
+\end{figure}
+
+\begin{figure}[H]
+\small
+\begin{verbatim}
+fn flatten_alt<'a>(r: &'a Regex, prefix: &AppendBits,
+                    out: &mut Vec<(&'a Regex, AppendBits)>) {
+    match r {
+        Regex::Alt(r1, r2) => {
+            flatten_alt(r1, &prefix.append_one(false), out);
+            flatten_alt(r2, &prefix.append_one(true), out);
+        }
+        other => out.push((other, prefix.clone())),
+    }
+}
+\end{verbatim}
+\caption{\texttt{flatten\_alt}: flattens a chain of nested \texttt{Alt}s
+into its leaves, pairing each with the bit prefix its position in the
+chain assigns.}
+\label{fig:pderiv-bc-flatten-rust}
 \end{figure}
 
 
@@ -1032,22 +1047,23 @@ parse tree.
 \end{aligned}
 \end{equation}
 
-The alternation rule reproduces the left preference of $\mathit{mkEps}$,
-emitting $0$ when the left branch is nullable and $1$
-otherwise. The star rule emits a single terminating $1$, since a
-star matching the empty word uses zero iterations. Where $\mathit{mkEps}$ builds a parse-tree node per case
-(Chapter~\ref{sec:derivative-parser}), $\mathit{mkEpsBC}$ only concatenates
-bit-lists: $\mathit{Alt}$ and $r^{*}$ contribute the same leading bit their
-$\mathit{pderivBC}$ counterparts do (Equation~\eqref{eq:pderiv-bc}), and
-$r_1 r_2$ needs no case split, since $r_1 \cdot r_2$ is nullable only when
-both $r_1, r_2$ are.
+The alternation rule preserves $\mathit{mkEps}$'s left preference,
+emitting $0$ if the left branch is nullable and $1$ otherwise.
+The star rule emits a terminating $1$ for zero iterations.
+Unlike $\mathit{mkEps}$, which constructs parse-tree nodes
+(Chapter~\ref{sec:derivative-parser}),
+$\mathit{mkEpsBC}$ only concatenates bit-lists.
+$\mathit{Alt}$ and $r^{*}$ contribute the same leading bits
+as in $\mathit{pderivBC}$ (Equation~\eqref{eq:pderiv-bc}),
+while $r_1 r_2$ needs no case split, since both operands
+must be nullable.
 
 %
 
 \paragraph{In Rust.}
 \label{sec:mk-eps-bits-impl}
 
-Figure~\ref{fig:mk-eps-bits-rust} implements~\eqref{eq:pderiv-mkepsbc} directly.
+Figure~\ref{fig:mk-eps-bits-rust} implements Equation~\eqref{eq:pderiv-mkepsbc} directly.
 
 \begin{figure}[H]
 \small
@@ -1094,7 +1110,6 @@ applies $\mathit{mkEps}$ to its injection.
 %
 %
 
-\clearpage
 \subsection{State Sets and Selection}
 \label{sec:pderiv-bc-state-set}
 
@@ -1132,23 +1147,42 @@ The full sequence is materialized, and reversed back into the right
 order, only once, inside \texttt{decode}'s single call at the end of the
 parse (Section~\ref{sec:pderiv-bc-parser}), never on an intermediate step.
 Figure~\ref{fig:step-frontier-bc-rust} shows the resulting
-\texttt{step\_frontier}.
+\texttt{step\_frontier}, together with \texttt{nub2}, the
+deduplication it calls once every character: both hash-based and
+$O(p)$ like \texttt{dedup\_first} (Section~\ref{sec:simp}), but
+hashing the whole residual \texttt{Regex} directly via a
+\texttt{HashSet} rather than a structural shape, since here there is
+no leading bit-sequence to skip over.
 \begin{figure}[H]
 \small
 \begin{verbatim}
-pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char) 
+pub(super) fn step_frontier(frontier: &[(Regex, AppendBits)], x: char)
     -> Vec<(Regex, AppendBits)> {
     let mut out = Vec::new();
     for (r, bits) in frontier {
         for (r_next, extra) in pderiv_bc(r, x) {
-            out.push((r_next, bits.append(&extra)));
+            out.push((r_next, bits.append_bits(&extra)));
         }
     }
     nub2(out)
 }
+
+pub(super) fn nub2<B>(pairs: Vec<(Regex, B)>) -> Vec<(Regex, B)> {
+    let mut seen: HashSet<Regex> = HashSet::with_capacity(pairs.len());
+    let mut out = Vec::with_capacity(pairs.len());
+    for (r, bs) in pairs {
+        if seen.insert(r.clone()) {
+            out.push((r, bs));
+        }
+    }
+    out
+}
 \end{verbatim}
 \caption{\texttt{step\_frontier} (bit-coded): counterpart of
-Figure~\ref{fig:step-frontier-rust}, \texttt{nub2} for \texttt{nub\_tree}.}
+Figure~\ref{fig:step-frontier-rust}. Each residual steps through
+\texttt{pderiv\_bc}, then results are deduplicated once via
+\texttt{nub2}, keyed on the residual itself, implementing
+\citet{sulzmannlu2012} Def.~8.}
 \label{fig:step-frontier-bc-rust}
 \end{figure}
 
@@ -1191,12 +1225,11 @@ leaving tree construction to \texttt{decode}
 \subsection{Parser}
 \label{sec:pderiv-bc-parser}
 
-The parser runs the same single pass 
-as the standard partial-derivative parser 
-(Equation~\eqref{eq:pderiv-std-driver}), 
-advancing the whole state set at once 
-and handing the final state set directly to $\mathit{select}_b$, 
-with bit-sequences in place of injections:
+The parser follows the standard partial-derivative pass
+(Equation~\eqref{eq:pderiv-std-driver}),
+advancing the entire state set and passing the result
+directly to $\mathit{select}_b$, with bit-sequences
+replacing injections:
 \begin{equation}\label{eq:pderiv-bc-driver}
 \begin{aligned}
 T_0 &= \{(r, [\,])\}, \\
@@ -1204,41 +1237,39 @@ T_i &= \mathit{step}_b(T_{i-1}, x_i) \quad (1 \leq i \leq n), \\
 \mathit{result} &= \mathit{decode}_r(\mathit{select}_b(T_n)),
 \end{aligned}
 \end{equation}
-where $\mathit{step}_b$ applies \texttt{pderiv\_bc} to each pair 
+$\mathit{step}_b$ applies \texttt{pderiv\_bc} to each pair 
 and $\mathit{select}_b$ returns $bs \mathbin{+\!\!+} \mathit{mkEpsBC}(r')$
 for the first pair $(r', bs)$ in $T_n$ whose residual is nullable.
 
 %
 
-As with the standard driver, no backward pass over the input is needed,
-but the two parsers differ in what their one remaining reconstruction
-step costs.
-\texttt{select}'s $\mathit{inj}$ applies a chain of closures built up
-one per character consumed, so its cost tracks how many derivative
-steps produced it.
-\texttt{decode} instead walks $r_0$'s own structure once, consuming
-bits only at the choice points (\texttt{Alt} and \texttt{Star}) that
-produced them, so its cost tracks the size of the resulting parse tree
-rather than the length of the derivation that built the bits.
+As with the standard driver, no backward pass is needed,
+but reconstruction costs differ.
+\texttt{select}'s $\mathit{inj}$ applies a chain of closures
+built during derivation, so its cost depends on the number
+of derivative steps.
+In contrast, \texttt{decode} traverses $r_0$ once,
+consuming bits at \texttt{Alt} and \texttt{Star} choices,
+so its cost depends on the resulting parse-tree size
+rather than the derivation length.
 
 \paragraph{In Rust.}
-Figure~\ref{fig:pderiv-bc-parser-rust} implements~\eqref{eq:pderiv-bc-driver}.
-The loop is identical to the standard variant,
+Figure~\ref{fig:pderiv-bc-parser-rust} implements
+Equation~\eqref{eq:pderiv-bc-driver}.
+The loop mirrors \texttt{parse\_pderiv\_std}
+(Figure~\ref{fig:pderiv-std-parser-rust}),
 replacing \texttt{Inj} with \texttt{AppendBits}.
-As in \texttt{parse\_pderiv\_std} (Figure~\ref{fig:pderiv-std-parser-rust}),
-it overwrites \texttt{frontier} in place each iteration, so no earlier
-state set survives once the next one exists, and an empty state set
-early-returns \texttt{None} for the same reason: no pair can consume
-the next character, so the whole input is rejected.
-Once the loop finishes, \texttt{select\_bits} returns the final bits by
-appending \texttt{mk\_eps\_bits} to the first accepting pair's bits, an
-\texttt{Option<Vec<bool>{}>} mirroring \texttt{select}'s own
-\texttt{Option<ParseTree>}, and \texttt{decode} reads those bits
-against $r$.
-The parser therefore pays for state set maintenance exactly once per
-character and for reconstruction exactly once at the end, the same
-shape as the standard partial-derivative parser, just with a smaller
-and more uniform payload travelling through the loop.
+Each iteration replaces \texttt{frontier}, discarding
+previous states, and returns \texttt{None} if it becomes
+empty, since no state can consume the remaining input.
+After the loop, \texttt{select\_bits} appends
+\texttt{mk\_eps\_bits} to the first accepting pair's bits,
+returning an \texttt{Option<Vec<bool>{}>}.
+Finally, \texttt{decode} reconstructs the parse tree
+from these bits and $r$.
+Thus, state sets are updated per character,
+while reconstruction occurs only once at the end,
+as in the standard parser, but with a more compact payload.
 
 \begin{figure}[H]
 \small

@@ -1,77 +1,93 @@
 \chapter{Related Work and Conclusion}
 \label{sec:related}
 
-\citet[p.~1]{sulzmannlu2014} observed that many POSIX regular
-expression implementations were incorrect, 
-and proposed a method based on
-Brzozowski's derivatives~\citep{brzozowski1964} 
-that constructs a full parse tree 
-under the longest-leftmost disambiguation policy~\citep[Fig.~3]{sulzmannlu2014}.
-In separate work, they investigated submatching, 
-an area in which existing approaches predominantly rely on greedy disambiguation. 
-This is closely tied to the structure of the regular expression, 
-which translates efficiently into a nondeterministic finite automaton (NFA).
-Examples include \citet{frischcardelli2004}'s general parsing approach
-and Laurikari's tagged NFAs~\citep{laurikari2000}, 
-which attach submatch information to automaton transitions, 
-as in Kuklewicz's \texttt{regex-tdfa}~\citep{kuklewicz_tdfa}. 
-It is also one of three tools \citet[p.~14]{sulzmannlu2014}
-benchmark against in their paper, 
-not with their general construction but with a second, 
-adapted implementation that keeps only the last match of each Kleene star.
-However, applying these NFA-based approaches to POSIX semantics
-requires additional bookkeeping to select the longest-leftmost result,
-as observed by \citet[p.~89]{sulzmannlu2012}.
-Instead, their submatching approach pairs each residual
-with a variable-binding environment rather than a parse tree,
-using Antimirov's partial derivatives~\citep{antimirov1996}
-but defining no rules for full parse-tree construction.
-This work instead threads the injection rules from their POSIX
-paper~\citep[Fig.~3]{sulzmannlu2014} 
-through those same partial-derivative rules, 
-producing the non-POSIX counterpart 
-to the full-parse-tree construction.
+
+\citet[p.~1]{sulzmannlu2014} observed that many POSIX
+regular expression implementations were incorrect
+and proposed a method based on Brzozowski's
+derivatives~\citep{brzozowski1964} that constructs
+full parse trees under longest-leftmost
+disambiguation~\citep[Fig.~3]{sulzmannlu2014}.
+In separate work, they investigated submatching,
+where existing approaches predominantly use greedy
+disambiguation and exploit the efficient translation
+of regular expressions into nondeterministic finite
+automata (NFAs).
+Examples include \citet{frischcardelli2004}'s
+general parsing approach and Laurikari's tagged
+NFAs~\citep{laurikari2000}, which attach submatch
+information to transitions, as implemented in
+Kuklewicz's \texttt{regex-tdfa}~\citep{kuklewicz_tdfa}.
+Sulzmann and Lu benchmarked this tool against DERIV, 
+their own derivative-based implementation adapted to keep only the last
+match of each Kleene star~\citep[p.~14]{sulzmannlu2014}.
+However, NFA-based approaches require additional
+bookkeeping to enforce POSIX longest-leftmost
+semantics~\citep[p.~89]{sulzmannlu2012}.
+Their alternative submatching approach uses
+Antimirov's partial derivatives~\citep{antimirov1996},
+pairing residuals with variable-binding environments
+rather than parse trees, without defining rules
+for full parse-tree construction.
+This work instead extends the injection rules
+from their POSIX construction
+\citep[Fig.~3]{sulzmannlu2014}
+to partial derivatives, yielding a non-POSIX
+counterpart that constructs full parse trees.
 
 The original papers focused on the functional formulation
 of the algorithms using Haskell.
-In this work all four parser variants were implemented in Rust 
-and their performance and memory consumption empirically evaluated 
-on the S2ELab corpus~\citep{s2elab-regexeval-dataset} 
+In this work all four parser variants were implemented in Rust
+and their performance and memory consumption empirically evaluated
+on the S2ELab corpus~\citep{s2elab-regexeval-dataset}
 and a synthetic stress-test dataset.
-Across the datasets, the implementations had the following performance ordering, 
-from the slowest to the fastest parser:
-\texttt{deriv\_std\_rec}, \texttt{deriv\_std\_loop},
-\texttt{deriv\_bc}, \texttt{pderiv\_std}, and
-\texttt{pderiv\_bc}. 
-In particular, \texttt{deriv\_bc} was four to five times faster 
-than the standard derivative parser 
-while using roughly two orders of magnitude less peak memory.
-Partial derivatives proved more efficient on realistic inputs,
-whereas bit-coding substantially benefited the full-derivative parser 
-but made little difference for partial derivatives.
-Relative performance still depends on the input, 
-particularly the residual set's growth, 
-so neither family was uniformly superior.
+Across the evaluations, the general timing order,
+from slowest to fastest, was
+\texttt{deriv\_std}, \texttt{deriv\_bc},
+\texttt{pderiv\_std}, and \texttt{pderiv\_bc}.
+Cumulative memory allocation generally followed
+the same order, from highest to lowest,
+while peak live memory was typically highest
+for \texttt{deriv\_std}, followed by
+\texttt{deriv\_bc}, \texttt{pderiv\_bc},
+and \texttt{pderiv\_std}.
+Bit-coding substantially improved the performance
+and memory efficiency of standard derivatives,
+but offered only modest benefits for partial derivatives.
+However, the synthetic stress categories showed
+workload-dependent reversals in both timing
+and memory usage, so no parser was uniformly superior.
 
-For future work, three directions follow from these results. 
-First, \texttt{deriv\_bc} still trails the partial-derivative variants
-on several large-scale patterns, 
-partly because it repeatedly re-simplifies one shared expression 
-representing every live alternative, 
-whereas partial derivatives already keep each alternative as an independent residual.
-Sulzmann and Lu also report memory problems in their
-bit-coded implementation and propose computing the POSIX path
-separately before constructing the parse tree with a
-space-efficient tree builder~\citep[p.~14]{sulzmannlu2014}.
-Second, the surface syntax could be extended to include further
-constructs or implement operations currently rejected by the frontend, 
-such as anchors, bounded lookaround, and backreferences.
-Lu's partial-derivative implementation~\citep{lu_regex_pderiv} 
-provides a useful reference for such extensions.
-Additionally, the current trace instrumentation could be developed
-into a proper diagnostic tool identifying which subexpressions are
-responsible for a match or timeout. 
-Pairing it with a submatching extension 
-could also be used to report which substring each subexpression matched, 
-helping to localise remaining performance problems 
-or explain why a given input failed to match.
+Four directions remain for future work.
+First, \texttt{deriv\_bc} still trails the
+partial-derivative variants on some large patterns.
+Although hash-based deduplication has reduced
+the simplification cost from quadratic to
+expected linear time in alternation width,
+repeatedly simplifying a combined residual
+remains a potential source of overhead.
+Sulzmann and Lu propose separating POSIX-path
+computation from parse-tree construction using
+a space-efficient tree builder
+\citep[p.~14]{sulzmannlu2014}.
+Whether this further improves memory usage
+remains to be investigated.
+Second, extending the supported surface syntax
+is an important direction.
+The frontend currently rejects constructs
+such as anchors, bounded lookaround, and
+backreferences, limiting the range of regular
+expressions the parsers can handle.
+Implementing these features would broaden
+their practical applicability, with
+Lu's partial-derivative implementation
+\citep{lu_regex_pderiv} providing a
+possible reference.
+Third, trace instrumentation could be extended
+into a diagnostic tool that identifies
+subexpressions responsible for costly matches
+or timeouts.
+Combined with submatching, it could also
+report the substrings matched by individual
+subexpressions, helping explain failures
+and locate performance bottlenecks.

@@ -106,7 +106,7 @@ shows the parse-tree type, with one variant for each constructor:
 \begin{figure}[H]
 \small
 \begin{verbatim}
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseTree {
     Empty,                                 // ()
     Char(char),                            // l

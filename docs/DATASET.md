@@ -90,7 +90,7 @@ cargo run --release --example dataset_prepare -- data/raw/s2-elab/RegexEval.json
 
 Writes `data/processed/s2-elab/prepared.jsonl`, replacing the file.
 
-**No balancing.** Matches and non-matches are not truncated to equal counts, either within a pattern or across patterns. A pattern with 50 given examples keeps all 50, however uneven its own match/non-match split, and however few examples another pattern has. Fewer than one of each (match and non-match) still makes a pattern unusable, since there is nothing to benchmark otherwise. `bench_corpus_time.rs` avoids the cross-pattern weighting this would otherwise cause with macro-averaging instead (see that file's module doc), rather than trimming the corpus to the thinnest pattern.
+**No balancing.** Matches and non-matches are not truncated to equal counts, either within a pattern or across patterns. A pattern with 50 given examples keeps all 50, however uneven its own match/non-match split, and however few examples another pattern has. Fewer than one of each (match and non-match) still makes a pattern unusable, since there is nothing to benchmark otherwise. `bench_corpus.rs` avoids the cross-pattern weighting this would otherwise cause with macro-averaging instead (see that file's module doc), rather than trimming the corpus to the thinnest pattern.
 
 **Accounting notes.** A rule byte-identical to an earlier one's raw pattern text is skipped before translation (`patterns_duplicate`). The summary numbers append to `reports/data/dataset_prepare.csv`, one row per run. Re-runs accumulate. Archive or clear the file first when comparing across a schema change.
 
@@ -142,7 +142,7 @@ Only a top-level `^...$` wrap counts. A lone `^` or `$`, one nested in an `Or` b
 | `baseline_and_edge_patterns` | 43 | Baseline and edge cases |
 | `generated_patterns` | 9 | Parameterised by `{N}` and `{P}` templates |
 
-Read directly by `bench_pathological_time`, `bench_pathological_memory`, `bench_pathological_translate`, and row `E51` only by `bench_stack_depth`. Never read by `run_pipeline`. Loader and template expansion in `src/data/pathological.rs`.
+Read directly by `bench_pathological`, `bench_pathological_translate`, and row `E51` only by `bench_stack_depth`. Never read by `run_pipeline`. Loader and template expansion in `src/data/pathological.rs`.
 
 **Scope.** Pathological here means derivative-state explosion, polynomial blow-up, or compile blow-up under this engine family. Not catastrophic backtracking. Every row is full-string-match only. Anchors, `\b`, `\B`, backreferences, lookaround, and POSIX classes hard-reject at parse or translate time, so no row contains one.
 

@@ -2,8 +2,7 @@
 //!
 //! cargo build --release --example bench_worker
 //!
-//! Shared worker for `bench_corpus_time`, `bench_corpus_memory`,
-//! `bench_pathological_time`, and `bench_pathological_memory`.
+//! Shared worker for `bench_corpus` and `bench_pathological`.
 //! Runs one (parser, pattern, input) job and exits.
 //! Reports elapsed time and allocation stats for that call.
 //!
@@ -25,8 +24,7 @@
 //! Rust's allocator-failure handler abort the process by signal, which
 //! looks exactly like any other crash to the caller -- no special case
 //! needed. Omitted (the default -- every existing caller), this process
-//! behaves exactly as before: unbounded. See `bench_deriv_std_blowup_worker.rs`,
-//! where this originated, for the fuller rationale.
+//! is unbounded.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::io::{Read, Write};
@@ -34,7 +32,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use regex_engine::data::prepare::core_regex;
-use regex_engine::parsers::{ALL, BcTiming, parse_bitcoded_recursive_timed, parse_pderiv_bc_timed};
+use regex_engine::parsers::{
+    ALL, parse_bitcoded_recursive_timed, parse_pderiv_bc_timed, parse_pderiv_std_timed,
+    parse_deriv_std_rec_timed, parse_deriv_std_loop_timed,
+};
 
 // Safe here because this process measures exactly one job then exits.
 struct CountingAllocator;
@@ -106,12 +107,16 @@ struct JobResult {
     micros: u64,
     total_bytes: usize,
     peak_bytes: usize,
-    // Breakdown of `micros` for the bit-coded parsers (deriv_bc,
-    // pderiv_bc) only; for the other three, encode_micros and
-    // decode_micros are 0 and derive_micros equals the full `micros`.
-    encode_micros: u64,
+    // Breakdown of `micros` into the four `PhaseTiming` phases; see
+    // `PhaseTiming`'s own doc comment in src/parsers/mod.rs for what
+    // each phase means per parser. teardown_micros is filled in here,
+    // not by any parser function, since none of them controls what
+    // its caller does with the tree it hands back: measured once,
+    // right after the match, before `start.elapsed()` is read.
+    setup_micros: u64,
     derive_micros: u64,
-    decode_micros: u64,
+    reconstruct_micros: u64,
+    teardown_micros: u64,
 }
 
 // Deep recursion on deriv_std_rec needs more than the default stack.
@@ -173,21 +178,26 @@ fn main() {
         .stack_size(WORKER_STACK_BYTES)
         .spawn(move || {
             let start = Instant::now();
-            let timing = match parser_idx {
-                2 => parse_bitcoded_recursive_timed(&input, &regex).1,
-                3 => parse_pderiv_bc_timed(&input, &regex).1,
-                _ => {
-                    let parser = ALL[parser_idx].parser();
-                    let _ = parser(&input, &regex);
-                    BcTiming { encode_us: 0, derive_us: 0, decode_us: 0 }
-                }
+            let (tree, mut timing) = match parser_idx {
+                0 => parse_deriv_std_rec_timed(&input, &regex),
+                1 => parse_deriv_std_loop_timed(&input, &regex),
+                2 => parse_bitcoded_recursive_timed(&input, &regex),
+                3 => parse_pderiv_bc_timed(&input, &regex),
+                4 => parse_pderiv_std_timed(&input, &regex),
+                _ => unreachable!("parser_idx {parser_idx} out of range 0..=4; validated at startup"),
             };
+            // None of the five functions above controls what its own
+            // caller does with the tree it returns, so none of them
+            // can time this drop itself -- it has to happen here,
+            // explicitly, timed, before `start.elapsed()` is read, so
+            // `teardown_us` captures it instead of leaving it as part
+            // of this thread's unmeasured tail.
+            let t = Instant::now();
+            drop(tree);
+            timing.teardown_us += t.elapsed().as_micros() as u64;
             // u64 clamp in principle, no-op in practice.
             let total = u64::try_from(start.elapsed().as_micros()).unwrap_or(u64::MAX);
-            match parser_idx {
-                2 | 3 => (total, timing),
-                _ => (total, BcTiming { encode_us: 0, derive_us: total, decode_us: 0 }),
-            }
+            (total, timing)
         })
         .expect("spawning the worker's parser-call thread");
 
@@ -205,9 +215,10 @@ fn main() {
         micros,
         total_bytes,
         peak_bytes,
-        encode_micros: timing.encode_us,
+        setup_micros: timing.setup_us,
         derive_micros: timing.derive_us,
-        decode_micros: timing.decode_us,
+        reconstruct_micros: timing.reconstruct_us,
+        teardown_micros: timing.teardown_us,
     };
     println!("{}", serde_json::to_string(&result).expect("serializing the result"));
     // Explicit flush: println! is buffered.

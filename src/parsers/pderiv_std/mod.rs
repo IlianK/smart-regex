@@ -7,7 +7,7 @@ pub(crate) mod pderiv_tree;
 pub mod parse;
 pub mod traced;
 
-pub use parse::parse_pderiv_std;
+pub use parse::{parse_pderiv_std, parse_pderiv_std_timed};
 pub use traced::parse_pderiv_std_traced;
 pub use pderiv_tree::pderiv_tree_residuals;
 pub(crate) use pderiv_tree::pderiv_tree;

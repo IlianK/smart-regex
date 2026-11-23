@@ -37,6 +37,8 @@ pub fn mk_eps_bc(ri: &ARegex) -> Vec<bool> {
 // Tests for mk_eps_bc
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::*;
     use crate::types::ARegex;
 
@@ -51,14 +53,14 @@ mod tests {
 
     #[test]
     fn mk_eps_bc_star_appends_true() {
-        let ri = ARegex::Star(vec![].into(), Box::new(ARegex::lit('a')));
+        let ri = ARegex::Star(vec![].into(), Rc::new(ARegex::lit('a')));
         let result: Vec<bool> = mk_eps_bc(&ri);
         assert_eq!(result, vec![true]);
     }
 
     #[test]
     fn mk_eps_bc_star_with_prefix_bits() {
-        let ri = ARegex::Star(vec![false, false].into(), Box::new(ARegex::lit('a')));
+        let ri = ARegex::Star(vec![false, false].into(), Rc::new(ARegex::lit('a')));
         let result: Vec<bool> = mk_eps_bc(&ri);
         assert_eq!(result, vec![false, false, true]);
     }
@@ -68,8 +70,8 @@ mod tests {
         // Seq([], Eps([false]), Eps([true])) → [] ++ [false] ++ [true] = [false, true]
         let ri = ARegex::Seq(
             vec![].into(),
-            Box::new(ARegex::Eps(vec![false].into())),
-            Box::new(ARegex::Eps(vec![true].into())),
+            Rc::new(ARegex::Eps(vec![false].into())),
+            Rc::new(ARegex::Eps(vec![true].into())),
         );
         let result: Vec<bool> = mk_eps_bc(&ri);
         assert_eq!(result, vec![false, true]);
@@ -80,8 +82,8 @@ mod tests {
         // Seq([true], Eps([]), Star([], _)) → [true] ++ [] ++ [true] = [true, true]
         let ri = ARegex::Seq(
             vec![true].into(),
-            Box::new(ARegex::Eps(vec![].into())),
-            Box::new(ARegex::Star(vec![].into(), Box::new(ARegex::lit('x')))),
+            Rc::new(ARegex::Eps(vec![].into())),
+            Rc::new(ARegex::Star(vec![].into(), Rc::new(ARegex::lit('x')))),
         );
         let result: Vec<bool> = mk_eps_bc(&ri);
         assert_eq!(result, vec![true, true]);
@@ -92,8 +94,8 @@ mod tests {
         // Alt([], Eps([false]), Lit([true],'a')) → [] ++ [false] = [false]
         let ri = ARegex::Alt(
             vec![].into(),
-            Box::new(ARegex::Eps(vec![false].into())),
-            Box::new(ARegex::Lit(vec![true].into(), 'a')),
+            Rc::new(ARegex::Eps(vec![false].into())),
+            Rc::new(ARegex::Lit(vec![true].into(), 'a')),
         );
         let result: Vec<bool> = mk_eps_bc(&ri);
         assert_eq!(result, vec![false]);
@@ -104,8 +106,8 @@ mod tests {
         // Alt([], Lit([false],'a'), Eps([true])) → [] ++ [true] = [true]
         let ri = ARegex::Alt(
             vec![].into(),
-            Box::new(ARegex::Lit(vec![false].into(), 'a')),
-            Box::new(ARegex::Eps(vec![true].into())),
+            Rc::new(ARegex::Lit(vec![false].into(), 'a')),
+            Rc::new(ARegex::Eps(vec![true].into())),
         );
         let result: Vec<bool> = mk_eps_bc(&ri);
         assert_eq!(result, vec![true]);
@@ -116,8 +118,8 @@ mod tests {
         // Alt([false], Eps([]), Star([],_)) → [false] ++ [] = [false]
         let ri = ARegex::Alt(
             vec![false].into(),
-            Box::new(ARegex::Eps(vec![].into())),
-            Box::new(ARegex::Star(vec![].into(), Box::new(ARegex::lit('a')))),
+            Rc::new(ARegex::Eps(vec![].into())),
+            Rc::new(ARegex::Star(vec![].into(), Rc::new(ARegex::lit('a')))),
         );
         let result: Vec<bool> = mk_eps_bc(&ri);
         assert_eq!(result, vec![false]);

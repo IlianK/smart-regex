@@ -4,18 +4,16 @@
 //! over the hand-curated stress-pattern dataset
 //! (`data/pathological/pathological_patterns.json`), grouped by
 //! category (A-L) -- the translation-only counterpart to
-//! `bench_pathological_time.rs`/`bench_pathological_memory.rs`, the
-//! same relationship `bench_corpus_translate.rs` has to
-//! `bench_corpus_time.rs`/`bench_corpus_memory.rs`.
+//! `bench_pathological.rs`, the same relationship
+//! `bench_corpus_translate.rs` has to `bench_corpus.rs`.
 //!
 //! Why this exists: categories **C**, **D**, **J**, and **K** are
 //! explicitly built around compile/translate blow-up --
 //! `{m,n}`-bound unrolling (`repeat_exact`/`optional_extra` in
 //! `src/frontend/translate.rs`) for C/D, large alternation/group trees
-//! for J/K -- as their `stress_axis`. `bench_pathological_time.rs` and
-//! `bench_pathological_memory.rs` both measure the parser call on an
-//! already-translated `Regex` (same baseline-after-translate design as
-//! `bench_corpus_time.rs`/`bench_corpus_memory.rs`), so translation
+//! for J/K -- as their `stress_axis`. `bench_pathological.rs` measures
+//! the parser call on an already-translated `Regex` (same
+//! baseline-after-translate design as `bench_corpus.rs`), so translation
 //! cost itself -- the actual axis those four categories exist to
 //! stress -- was not measured anywhere. This file closes that gap.
 //!
@@ -30,10 +28,10 @@
 //!
 //! Row selection, sweep, and loading reuse
 //! `regex_engine::data::pathological::{load, expand}` and this file's
-//! own copies of `bench_pathological_time.rs`'s section/category
+//! own copies of `bench_pathological.rs`'s section/category
 //! selection helpers (duplicated, not shared, per this codebase's
 //! existing convention of not sharing code between bench binaries).
-//! One difference from the other two `bench_pathological_*` targets:
+//! One difference from `bench_pathological.rs`:
 //! this file sweeps whichever of `PATHO_P`/`PATHO_N` actually moves a
 //! given row's own pattern text, which depends on how that row is
 //! built: `pattern_template` resolved through a row's `generator` at
@@ -62,7 +60,7 @@
 //! for its own aggregate CSV, so a run scoped to one category and a
 //! run covering every category both add their row(s) to the same
 //! growing file. `run_label` and `pattern_limit` columns record each
-//! row's own invocation, since the filename no longer can.
+//! row's own invocation, since the shared filename can't.
 //!
 //! Also writes `reports/benches/bench_pathological_translate{label}_patterns.csv`
 //! (one row per distinct row/`p`/`n` entry that translated
@@ -163,7 +161,7 @@ unsafe impl GlobalAlloc for CountingAllocator {
 static GLOBAL: CountingAllocator = CountingAllocator;
 
 // -------------------------------
-// Selection -- mirrors bench_pathological_time.rs's own row-selection
+// Selection -- mirrors bench_pathological.rs's own row-selection
 // helpers exactly (section/category/limit); its n/p sweep resolution
 // is reimplemented in build_entries below, since which knob applies
 // depends on how a row builds its pattern (see module doc).
@@ -206,7 +204,7 @@ fn pattern_limit() -> usize {
         .unwrap_or(PATTERN_LIMIT)
 }
 
-/// Optional filename suffix, same role as in `bench_pathological_time.rs`.
+/// Optional filename suffix, same role as in `bench_pathological.rs`.
 /// Only affects nothing here directly -- the aggregate CSV ignores it,
 /// same as `bench_corpus_translate.rs`'s own aggregate CSV -- kept for
 /// parity with the other `PATHO_*`-reading targets' env surface.

@@ -1,6 +1,6 @@
 //! benches/bench_stack_depth.rs
 //!
-//! Replaces `examples/demo_crash.rs` (removed). Compares the one pair in
+//! Compares the one pair in
 //! this engine where the same algorithm has two implementations whose
 //! *stack* behaviour differs: `deriv_std_rec` (native recursion, one
 //! stack frame per input character -- see `parse_recursive_helper` in
@@ -32,8 +32,8 @@
 //!     budget -- milder than P01 (polynomial vs. P01's near-exponential
 //!     growth, matching this category's documented `stress_axis`), but
 //!     still a derivative-SIZE wall reached at double-digit N, long
-//!     before `deriv_std_rec`'s native recursion (which survived well
-//!     past 10,000 characters of plain `a*` in the old demo) would ever
+//!     before `deriv_std_rec`'s native recursion -- which can survive
+//!     well past 10,000 characters on a plain `a*` input -- would ever
 //!     be the bottleneck.
 //!
 //! Consequence, confirmed by the two findings above: for BOTH rows, the
@@ -76,16 +76,15 @@
 //! for this bench, which only measures what exists today.
 //!
 //! Each probe is its own `bench_stack_depth_worker` subprocess, the same
-//! process-isolation reasoning `bench_worker.rs`/`bench_corpus_time.rs`
+//! process-isolation reasoning `bench_worker.rs`/`bench_corpus.rs`
 //! already use: a crashed PROCESS is cleanly detected (killed by a
 //! signal) and its memory reclaimed; a crashed THREAD is not. Unlike
 //! `bench_worker.rs`, the worker here deliberately does NOT run on a
 //! custom large-stack thread -- see that file's own module doc for why.
 //!
 //! Sweep: for each (row, parser), N starts at `STACKDEPTH_N_START` and
-//! doubles ("sweep N upward" -- not a binary search like the old demo,
-//! since a binary search needs an upper bound in hand first, which is
-//! exactly what is not known up front here) until the worker is killed
+//! doubles -- not a binary search, since that needs an upper bound in
+//! hand first, which isn't known up front here -- until the worker is killed
 //! by a signal (`outcome = crashed`), a probe exceeds the per-probe time
 //! cap (`outcome = timed_out`), or N exceeds `STACKDEPTH_N_CAP` without
 //! either (`outcome = reached_sweep_cap`). The last N that completed
@@ -101,7 +100,7 @@
 //!
 //! Writes `reports/benches/bench_stack_depth.csv`, replacing any
 //! existing file -- the same "latest run, not a log" convention as
-//! `bench_pathological_time.rs`.
+//! `bench_pathological.rs`.
 //!
 //! Build the worker first, then run:
 //!   cargo build --release --example bench_stack_depth_worker
@@ -165,7 +164,7 @@ fn n_cap() -> u32 {
 }
 
 // -------------------------------
-// Isolated probe -- same shape as bench_pathological_time.rs's
+// Isolated probe -- same shape as bench_pathological.rs's
 // run_entry_isolated, duplicated rather than shared per this codebase's
 // convention (see that file's own module doc).
 // -------------------------------

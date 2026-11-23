@@ -140,7 +140,7 @@ cargo build --release --example demo_parser_agreement_worker
 cargo run   --release --example demo_parser_agreement_pathological
 ```
 
-Narrowing uses the same `PATHO_*` env vars as `bench_pathological_time`. A large-n sweep needs a correspondingly larger `AGREEMENT_TIMEOUT_MS` (default 2000ms).
+Narrowing uses the same `PATHO_*` env vars as `bench_pathological`. A large-n sweep needs a correspondingly larger `AGREEMENT_TIMEOUT_MS` (default 2000ms).
 
 ```bash
 PATHO_CATEGORY=L cargo run --release --example demo_parser_agreement_pathological
