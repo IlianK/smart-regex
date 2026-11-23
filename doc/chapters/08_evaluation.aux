@@ -141,58 +141,70 @@
 \newlabel{sec:eval-memory}{{8.4.3}{76}{Memory}{subsection.8.4.3}{}}
 \@writefile{toc}{\contentsline {subsubsection}{S2ELab}{76}{subsection.8.4.3}\protected@file@percent }
 \newlabel{sec:eval-memory-s2elab}{{8.4.3}{76}{S2ELab}{subsection.8.4.3}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.34}{\ignorespaces Heap allocation across 463 patterns and 11\,395 entries in the default scope. \emph  {Total allocated} includes freed memory and reflects allocator pressure; \emph  {Avg/entry} divides this total by the number of completed entries. \emph  {Max live peak} records the highest live-byte count within a single call, reflecting peak memory footprint. 18 crashed entries are excluded.}}{76}{table.caption.98}\protected@file@percent }
-\newlabel{tab:memory}{{8.34}{76}{Heap allocation across 463 patterns and 11\,395 entries in the default scope. \emph {Total allocated} includes freed memory and reflects allocator pressure; \emph {Avg/entry} divides this total by the number of completed entries. \emph {Max live peak} records the highest live-byte count within a single call, reflecting peak memory footprint. 18 crashed entries are excluded}{table.caption.98}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.34}{\ignorespaces Heap allocation across 463 patterns and 11\,395 entries, excluding 18 crashes.}}{76}{table.caption.98}\protected@file@percent }
+\newlabel{tab:memory}{{8.34}{76}{Heap allocation across 463 patterns and 11\,395 entries, excluding 18 crashes}{table.caption.98}{}}
 \@writefile{toc}{\contentsline {subsubsection}{Synthetic Stress Set}{76}{table.caption.98}\protected@file@percent }
 \newlabel{sec:eval-memory-pathological}{{8.4.3}{76}{Synthetic Stress Set}{table.caption.98}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.35}{\ignorespaces Peak live MB over the full swept entry set per category: The highest live-byte (Section~\ref {sec:eval-criteria-memory}) reached by any entry of that category, timed-out and crashed entries excluded.}}{76}{table.caption.99}\protected@file@percent }
-\newlabel{tab:patho-memory-baseline}{{8.35}{76}{Peak live MB over the full swept entry set per category: The highest live-byte (Section~\ref {sec:eval-criteria-memory}) reached by any entry of that category, timed-out and crashed entries excluded}{table.caption.99}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Representative Patterns}{77}{table.caption.99}\protected@file@percent }
-\newlabel{sec:eval-memory-representative}{{8.4.3}{77}{Representative Patterns}{table.caption.99}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.36}{\ignorespaces Peak live memory across the two E-family representative rows, against the largest swept input length each parser completed. Peak is the highest live-byte count reached during a single call.}}{77}{table.caption.100}\protected@file@percent }
-\newlabel{tab:patho-memory-e}{{8.36}{77}{Peak live memory across the two E-family representative rows, against the largest swept input length each parser completed. Peak is the highest live-byte count reached during a single call}{table.caption.100}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.37}{\ignorespaces Peak live memory across the two nested-quantifier representative rows, against the largest swept input length each parser completed. \emph  {Max live peak} is the live high-water mark within a single call.}}{78}{table.caption.101}\protected@file@percent }
-\newlabel{tab:patho-memory-ab}{{8.37}{78}{Peak live memory across the two nested-quantifier representative rows, against the largest swept input length each parser completed. \emph {Max live peak} is the live high-water mark within a single call}{table.caption.101}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.38}{\ignorespaces E37 peak live memory (MB) across the full swept Alt width, same sweep as Table~\ref {tab:patho-phases-e37} and Figure~\ref {fig:patho-e37}. \texttt  {deriv\_std\_rec} is omitted (Section~\ref {sec:eval-criteria-timing}); its own peak tracks \texttt  {deriv\_std}'s closely at every point (31.11\,MB at $p=10\,000$).}}{79}{table.caption.102}\protected@file@percent }
-\newlabel{tab:patho-mem-e37}{{8.38}{79}{E37 peak live memory (MB) across the full swept Alt width, same sweep as Table~\ref {tab:patho-phases-e37} and Figure~\ref {fig:patho-e37}. \texttt {deriv\_std\_rec} is omitted (Section~\ref {sec:eval-criteria-timing}); its own peak tracks \texttt {deriv\_std}'s closely at every point (31.11\,MB at $p=10\,000$)}{table.caption.102}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.39}{\ignorespaces E38 peak live memory (MB) across the full swept Alt width, same width and columns as Table~\ref {tab:patho-mem-e37}. \texttt  {deriv\_std\_rec} is omitted; its own peak tracks \texttt  {deriv\_std}'s closely at every point (31.11\,MB at $p=10\,000$).}}{79}{table.caption.103}\protected@file@percent }
-\newlabel{tab:patho-mem-e38}{{8.39}{79}{E38 peak live memory (MB) across the full swept Alt width, same width and columns as Table~\ref {tab:patho-mem-e37}. \texttt {deriv\_std\_rec} is omitted; its own peak tracks \texttt {deriv\_std}'s closely at every point (31.11\,MB at $p=10\,000$)}{table.caption.103}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.35}{\ignorespaces Heap allocation per category over the synthetic set (Cat: I--L).}}{76}{table.caption.99}\protected@file@percent }
+\newlabel{tab:patho-memory-full-hl}{{8.35}{76}{Heap allocation per category over the synthetic set (Cat: I--L)}{table.caption.99}{}}
+\@writefile{toc}{\contentsline {paragraph}{Categories I, J, K, L}{77}{table.caption.99}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8.36}{\ignorespaces Heap allocation per category over the synthetic set (Cat: A--F and H).}}{77}{table.caption.100}\protected@file@percent }
+\newlabel{tab:patho-memory-full-af}{{8.36}{77}{Heap allocation per category over the synthetic set (Cat: A--F and H)}{table.caption.100}{}}
+\@writefile{toc}{\contentsline {paragraph}{Categories A, B, E}{78}{table.caption.100}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Category C}{78}{table.caption.100}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Category D}{78}{table.caption.100}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Category F}{78}{table.caption.100}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Category H}{78}{table.caption.100}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Overall}{78}{table.caption.100}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{Representative Patterns}{79}{table.caption.100}\protected@file@percent }
+\newlabel{sec:eval-memory-representative}{{8.4.3}{79}{Representative Patterns}{table.caption.100}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.37}{\ignorespaces Peak live heap allocation on P60 and P61 at each parser's largest completed input length. Values represent the maximum live-byte count within a single parsing call.}}{79}{table.caption.101}\protected@file@percent }
+\newlabel{tab:patho-memory-e}{{8.37}{79}{Peak live heap allocation on P60 and P61 at each parser's largest completed input length. Values represent the maximum live-byte count within a single parsing call}{table.caption.101}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.38}{\ignorespaces Peak live heap allocation on P01 and P09 at each parser's largest completed input length. Values represent the maximum live-byte count within a single parsing call.}}{79}{table.caption.102}\protected@file@percent }
+\newlabel{tab:patho-memory-ab}{{8.38}{79}{Peak live heap allocation on P01 and P09 at each parser's largest completed input length. Values represent the maximum live-byte count within a single parsing call}{table.caption.102}{}}
+\@writefile{toc}{\contentsline {paragraph}{P60 and P61}{79}{table.caption.102}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{P01 and P09}{79}{table.caption.102}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{E37 and E38}{80}{table.caption.102}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8.39}{\ignorespaces Peak live memory (MB) on E37, a $p$-way alternation of distinct four-letter words (\texttt  {(?:aaaa|aaab|}\dots  \texttt  {)}), with fixed input \texttt  {"aaaa"} matching the first alternative.}}{80}{table.caption.103}\protected@file@percent }
+\newlabel{tab:patho-mem-e37}{{8.39}{80}{Peak live memory (MB) on E37, a $p$-way alternation of distinct four-letter words (\texttt {(?:aaaa|aaab|}\dots \texttt {)}), with fixed input \texttt {"aaaa"} matching the first alternative}{table.caption.103}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.40}{\ignorespaces Peak live memory (MB) on E38, a $p$-way alternation of distinct numbered words (\texttt  {(?:w000001|w000002|}\dots  \texttt  {)}), with fixed input \texttt  {"w000001"} matching the first alternative.}}{80}{table.caption.104}\protected@file@percent }
+\newlabel{tab:patho-mem-e38}{{8.40}{80}{Peak live memory (MB) on E38, a $p$-way alternation of distinct numbered words (\texttt {(?:w000001|w000002|}\dots \texttt {)}), with fixed input \texttt {"w000001"} matching the first alternative}{table.caption.104}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {8.4.4}Translation}{81}{subsection.8.4.4}\protected@file@percent }
 \newlabel{sec:eval-translate}{{8.4.4}{81}{Translation}{subsection.8.4.4}{}}
 \@writefile{toc}{\contentsline {subsubsection}{S2ELab}{81}{subsection.8.4.4}\protected@file@percent }
 \newlabel{sec:eval-translate-s2elab}{{8.4.4}{81}{S2ELab}{subsection.8.4.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.40}{\ignorespaces Translation cost and output size over the 463 distinct patterns in the default scope.}}{81}{table.caption.104}\protected@file@percent }
-\newlabel{tab:translate-cost}{{8.40}{81}{Translation cost and output size over the 463 distinct patterns in the default scope}{table.caption.104}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Synthetic Stress Set}{81}{table.caption.104}\protected@file@percent }
-\newlabel{sec:eval-translate-pathological}{{8.4.4}{81}{Synthetic Stress Set}{table.caption.104}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.41}{\ignorespaces Translation cost over the synthetic set's baseline values.}}{81}{table.caption.105}\protected@file@percent }
-\newlabel{tab:translate-cost-patho}{{8.41}{81}{Translation cost over the synthetic set's baseline values}{table.caption.105}{}}
-\@writefile{toc}{\contentsline {subsubsection}{Translation Caps}{81}{table.caption.105}\protected@file@percent }
-\newlabel{sec:eval-translate-caps}{{8.4.4}{81}{Translation Caps}{table.caption.105}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.42}{\ignorespaces Crash points of the two mechanisms on the default 8\,MiB stack, alongside the enforced caps.}}{81}{table.caption.106}\protected@file@percent }
-\newlabel{tab:translate-caps}{{8.42}{81}{Crash points of the two mechanisms on the default 8\,MiB stack, alongside the enforced caps}{table.caption.106}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.41}{\ignorespaces Translation cost and output size over the 463 distinct patterns in the default scope.}}{81}{table.caption.105}\protected@file@percent }
+\newlabel{tab:translate-cost}{{8.41}{81}{Translation cost and output size over the 463 distinct patterns in the default scope}{table.caption.105}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Synthetic Stress Set}{81}{table.caption.105}\protected@file@percent }
+\newlabel{sec:eval-translate-pathological}{{8.4.4}{81}{Synthetic Stress Set}{table.caption.105}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.42}{\ignorespaces Translation cost over the synthetic set's categories.}}{81}{table.caption.106}\protected@file@percent }
+\newlabel{tab:translate-cost-patho}{{8.42}{81}{Translation cost over the synthetic set's categories}{table.caption.106}{}}
+\@writefile{toc}{\contentsline {subsubsection}{Translation Caps}{81}{table.caption.106}\protected@file@percent }
+\newlabel{sec:eval-translate-caps}{{8.4.4}{81}{Translation Caps}{table.caption.106}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.43}{\ignorespaces Crash points of the two mechanisms on the default 8\,MiB stack, alongside the enforced caps.}}{81}{table.caption.107}\protected@file@percent }
+\newlabel{tab:translate-caps}{{8.43}{81}{Crash points of the two mechanisms on the default 8\,MiB stack, alongside the enforced caps}{table.caption.107}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {8.4.5}Parse Agreement}{82}{subsection.8.4.5}\protected@file@percent }
 \newlabel{sec:eval-agreement}{{8.4.5}{82}{Parse Agreement}{subsection.8.4.5}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.43}{\ignorespaces Parse agreement over both datasets. \emph  {Compared} counts expected matches where both candidates completed and agreed on membership, yielding one POSIX and one non-POSIX tree to compare. Shape counts use \emph  {Compared}, not \emph  {Entries}, since those also contain non-matching entries and, on the synthetic set, a small number of entries where both candidates agree with each other but not with the expected label (discussed below).}}{82}{table.caption.107}\protected@file@percent }
-\newlabel{tab:agreement}{{8.43}{82}{Parse agreement over both datasets. \emph {Compared} counts expected matches where both candidates completed and agreed on membership, yielding one POSIX and one non-POSIX tree to compare. Shape counts use \emph {Compared}, not \emph {Entries}, since those also contain non-matching entries and, on the synthetic set, a small number of entries where both candidates agree with each other but not with the expected label (discussed below)}{table.caption.107}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {8.44}{\ignorespaces Parse agreement by category over the synthetic set. \emph  {Pattern} gives one representative row per category; Table~\ref {tab:patho-categories} describes each category's mechanism. Membership is omitted here except for category C, whose nine entries disagreeing with the expected label are discussed in the text; every other completed entry returned the expected result for both candidates. Category L excludes E51 (Table~\ref {tab:stack-depth}), whose match example is deliberately a non-match and cannot be checked for membership. Its count is therefore six below the 195 test cases in Table~\ref {tab:patho-categories}.}}{82}{table.caption.108}\protected@file@percent }
-\newlabel{tab:agreement-patho-categories}{{8.44}{82}{Parse agreement by category over the synthetic set. \emph {Pattern} gives one representative row per category; Table~\ref {tab:patho-categories} describes each category's mechanism. Membership is omitted here except for category C, whose nine entries disagreeing with the expected label are discussed in the text; every other completed entry returned the expected result for both candidates. Category L excludes E51 (Table~\ref {tab:stack-depth}), whose match example is deliberately a non-match and cannot be checked for membership. Its count is therefore six below the 195 test cases in Table~\ref {tab:patho-categories}}{table.caption.108}{}}
-\@writefile{toc}{\contentsline {paragraph}{Example: S2ELab pattern.}{83}{table.caption.108}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {8.8}{\ignorespaces The two parse trees for the loosely-formatted-number pattern on \texttt  {"9000"}: the POSIX tree produced by \texttt  {deriv\_std}, \texttt  {deriv\_bc}, against the non-POSIX tree produced by \texttt  {pderiv\_std} and \texttt  {pderiv\_bc}.}}{83}{figure.caption.109}\protected@file@percent }
-\newlabel{fig:agreement-s2elab-trees}{{8.8}{83}{The two parse trees for the loosely-formatted-number pattern on \texttt {"9000"}: the POSIX tree produced by \texttt {deriv\_std}, \texttt {deriv\_bc}, against the non-POSIX tree produced by \texttt {pderiv\_std} and \texttt {pderiv\_bc}}{figure.caption.109}{}}
-\@writefile{toc}{\contentsline {paragraph}{Example: Synthetic pattern.}{83}{figure.caption.109}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {8.9}{\ignorespaces The two parse trees for \texttt  {(a|aa)+} on \texttt  {"aa"}.}}{83}{figure.caption.110}\protected@file@percent }
-\newlabel{fig:agreement-synthetic-trees}{{8.9}{83}{The two parse trees for \texttt {(a|aa)+} on \texttt {"aa"}}{figure.caption.110}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {8.5}Findings}{84}{section.8.5}\protected@file@percent }
-\newlabel{sec:eval-discussion}{{8.5}{84}{Findings}{section.8.5}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.1}Cost of the standard construction}{84}{subsection.8.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.2}Cost of bit-coding}{84}{subsection.8.5.2}\protected@file@percent }
-\newlabel{sec:eval-cost-bit-coding}{{8.5.2}{84}{Cost of bit-coding}{subsection.8.5.2}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.3}Cost of partial derivatives}{84}{subsection.8.5.3}\protected@file@percent }
-\newlabel{sec:eval-cost-partial-derivatives}{{8.5.3}{84}{Cost of partial derivatives}{subsection.8.5.3}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.4}Threats to validity}{86}{subsection.8.5.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {8.44}{\ignorespaces Parse agreement over both datasets. \emph  {Compared} counts expected matches where both candidates completed and agreed on membership, yielding one POSIX and one non-POSIX tree to compare. Shape counts use \emph  {Compared}, not \emph  {Entries}, since those also contain non-matching entries and, on the synthetic set, a small number of entries where both candidates agree with each other but not with the expected label (discussed below).}}{82}{table.caption.108}\protected@file@percent }
+\newlabel{tab:agreement}{{8.44}{82}{Parse agreement over both datasets. \emph {Compared} counts expected matches where both candidates completed and agreed on membership, yielding one POSIX and one non-POSIX tree to compare. Shape counts use \emph {Compared}, not \emph {Entries}, since those also contain non-matching entries and, on the synthetic set, a small number of entries where both candidates agree with each other but not with the expected label (discussed below)}{table.caption.108}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8.45}{\ignorespaces Parse agreement by category over the synthetic set. \emph  {Pattern} gives one representative row per category; Table~\ref {tab:patho-categories} describes each category's mechanism. Membership is omitted here except for category C, whose nine entries disagreeing with the expected label are discussed in the text; every other completed entry returned the expected result for both candidates. Category L excludes E51 (Table~\ref {tab:stack-depth}), whose match example is deliberately a non-match and cannot be checked for membership. Its count is therefore six below the 195 test cases in Table~\ref {tab:patho-categories}.}}{82}{table.caption.109}\protected@file@percent }
+\newlabel{tab:agreement-patho-categories}{{8.45}{82}{Parse agreement by category over the synthetic set. \emph {Pattern} gives one representative row per category; Table~\ref {tab:patho-categories} describes each category's mechanism. Membership is omitted here except for category C, whose nine entries disagreeing with the expected label are discussed in the text; every other completed entry returned the expected result for both candidates. Category L excludes E51 (Table~\ref {tab:stack-depth}), whose match example is deliberately a non-match and cannot be checked for membership. Its count is therefore six below the 195 test cases in Table~\ref {tab:patho-categories}}{table.caption.109}{}}
+\@writefile{toc}{\contentsline {paragraph}{Example: S2ELab pattern.}{83}{table.caption.109}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8.8}{\ignorespaces The two parse trees for the loosely-formatted-number pattern on \texttt  {"9000"}: the POSIX tree produced by \texttt  {deriv\_std}, \texttt  {deriv\_bc}, against the non-POSIX tree produced by \texttt  {pderiv\_std} and \texttt  {pderiv\_bc}.}}{83}{figure.caption.110}\protected@file@percent }
+\newlabel{fig:agreement-s2elab-trees}{{8.8}{83}{The two parse trees for the loosely-formatted-number pattern on \texttt {"9000"}: the POSIX tree produced by \texttt {deriv\_std}, \texttt {deriv\_bc}, against the non-POSIX tree produced by \texttt {pderiv\_std} and \texttt {pderiv\_bc}}{figure.caption.110}{}}
+\@writefile{toc}{\contentsline {paragraph}{Example: Synthetic pattern.}{83}{figure.caption.110}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {8.9}{\ignorespaces The two parse trees for \texttt  {(a|aa)+} on \texttt  {"aa"}.}}{83}{figure.caption.111}\protected@file@percent }
+\newlabel{fig:agreement-synthetic-trees}{{8.9}{83}{The two parse trees for \texttt {(a|aa)+} on \texttt {"aa"}}{figure.caption.111}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {8.5}Findings}{85}{section.8.5}\protected@file@percent }
+\newlabel{sec:eval-discussion}{{8.5}{85}{Findings}{section.8.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.1}Cost of the standard construction}{85}{subsection.8.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.2}Cost of bit-coding}{85}{subsection.8.5.2}\protected@file@percent }
+\newlabel{sec:eval-cost-bit-coding}{{8.5.2}{85}{Cost of bit-coding}{subsection.8.5.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.3}Cost of partial derivatives}{85}{subsection.8.5.3}\protected@file@percent }
+\newlabel{sec:eval-cost-partial-derivatives}{{8.5.3}{85}{Cost of partial derivatives}{subsection.8.5.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {8.5.4}Threats to validity}{87}{subsection.8.5.4}\protected@file@percent }
 \@setckpt{chapters/08_evaluation}{
-\setcounter{page}{87}
+\setcounter{page}{88}
 \setcounter{equation}{0}
 \setcounter{enumi}{0}
 \setcounter{enumii}{0}
@@ -208,7 +220,7 @@
 \setcounter{paragraph}{0}
 \setcounter{subparagraph}{0}
 \setcounter{figure}{9}
-\setcounter{table}{44}
+\setcounter{table}{45}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
 \setcounter{continuedfloat}{0}
