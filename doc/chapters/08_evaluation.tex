@@ -3317,27 +3317,32 @@ both are reported together.
 Dataset & Entries & Timeouts & Crashes & Compared & Match agr. & Shape agr. & Shape dis. \\
 \hline
 S2ELab    & 11\,395 &   0 & 0 & 5\,869 & 100.0\% & 99.8\% (5\,855) & 0.2\% (14) \\
-Synthetic &    885 &  28 & 0 &   423 &  98.9\% & 84.6\% (358)   & 15.4\% (65) \\
+Synthetic &    885 &  28 & 0 &   423 & 100.0\% & 84.6\% (358)   & 15.4\% (65) \\
 \hline
 \end{tabular*}
-\caption{Parse agreement over both datasets. \emph{Compared} counts
-expected matches where both candidates completed and agreed on
-membership, yielding one POSIX and one non-POSIX tree to compare.
-Shape counts use \emph{Compared}, not \emph{Entries}, since
-those also contain non-matching entries and, on the synthetic set,
-a small number of entries where both candidates agree with each
-other but not with the expected label (discussed below).}
+\caption{Parse agreement over both datasets. \emph{Match agr.} is
+\texttt{deriv\_bc} and \texttt{pderiv\_bc} agreeing with each other on
+membership; \emph{Compared} counts expected matches where both
+additionally agree with the label, yielding one POSIX and one
+non-POSIX tree to compare. Shape counts use \emph{Compared}, not
+\emph{Entries}, since those also contain non-matching entries and, on
+the synthetic set, a small number of entries excluded for a reason
+other than membership disagreement (discussed below).}
 \label{tab:agreement}
 \end{table}
 
-Table~\ref{tab:agreement}
-shows nine entries, all in the synthetic set's category C, where
-\texttt{deriv\_bc} and \texttt{pderiv\_bc} agree with each other but
-not with the entry's expected label; every other completed entry
-agrees with the expected result for both candidates.
-No S2ELab entries timed out or crashed.
-The synthetic set's 28 timeouts and zero crashes are expected outcomes
-of its deliberately difficult inputs.
+\texttt{deriv\_bc} and \texttt{pderiv\_bc} never disagree with each
+other on membership in either dataset, so Table~\ref{tab:agreement}'s
+Match agr.\ is 100\% throughout: whether a string matches does not
+depend on which of the two selects its parse tree
+(Section~\ref{sec:eval-criteria-agreement}), and that holds up
+empirically. Nine entries, all in the synthetic set's category C, are
+a separate case: both candidates agree with each other there too, but
+against the entry's expected label, so they fall out of
+\emph{Compared} without counting as a membership disagreement between
+the parsers. No S2ELab entries timed out or crashed. The synthetic
+set's 28 timeouts and zero crashes are expected outcomes of its
+deliberately difficult inputs.
 
 On the real corpus there were 14 shape disagreements recorded,
 which are 0.2\% of compared matches.
@@ -3359,19 +3364,18 @@ flagged ``should match'' entries exceed that cap, and the flagged
 ``should not match'' entries are covered anyway because an
 unconstrained \texttt{.*} can match the whole remaining input in a
 single iteration.
-\texttt{deriv\_bc} and \texttt{pderiv\_bc} -- two independently
-implemented candidates with different disambiguation policies --
-agree with each other on every one of these nine entries, against the
-label in every case: agreement between two independent
-implementations is what rules out a parser bug here, and points
-instead at a labeling issue in the dataset's generated large-$n$
-inputs for category C. It is reported here as an open discrepancy
-rather than a resolved one.
+\texttt{deriv\_bc} and \texttt{pderiv\_bc} agree with each other on
+every one of these nine entries, against the label in every case.
+Since the two use different disambiguation policies, their agreement
+rules out a parser bug and points instead at a labeling issue in the
+dataset's generated large-$n$ inputs for category C, reported here as
+an open discrepancy rather than a resolved one.
 
 \begin{table}[H]
 \centering
 \small
 \setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.92}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} lrrrrr}
 \hline
 Category & Entries & Timeouts & Compared & Shape agr. & Shape dis. \\
@@ -3389,17 +3393,16 @@ K &  30 & 10 & 10 & 100.0\% (10) &  0.0\% (0) \\
 L & 189 &  0 & 93 & 100.0\% (93) &  0.0\% (0) \\
 \hline
 \end{tabular*}
+\renewcommand{\arraystretch}{1}
 \caption{Parse agreement by category over the synthetic set.
-\emph{Pattern} gives one representative row per category;
 Table~\ref{tab:patho-categories} describes each category's
 mechanism. Membership is omitted here except for category C, whose
 nine entries disagreeing with the expected label are discussed in
 the text; every other completed entry returned the expected result
-for both candidates. Category L
-excludes E51 (Table~\ref{tab:stack-depth}), whose match example
-is deliberately a non-match and cannot be checked for membership.
-Its count is therefore six below the 195 test cases in
-Table~\ref{tab:patho-categories}.}
+for both candidates. Category L excludes E51
+(Table~\ref{tab:stack-depth}), whose match example is deliberately a
+non-match and cannot be checked for membership, six below the 195
+test cases in Table~\ref{tab:patho-categories}.}
 \label{tab:agreement-patho-categories}
 \end{table}
 
@@ -3410,63 +3413,76 @@ Table~\ref{tab:patho-categories}.}
 %
 
 \clearpage
+{\setlength{\intextsep}{2pt plus 1pt minus 1pt}
 \paragraph{Example: S2ELab pattern.} The loosely-formatted-number pattern
 \begin{center}
 \texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}
 \end{center}
-with input \texttt{"9000"} is ambiguous, producing two trees
-that flatten to the same word,
-shown in Figure~\ref{fig:agreement-s2elab-trees}. 
-Every constructor name is
-as it appears in the parser output, with two abbreviations for space:
-\texttt{<9>} stands for \texttt{Right(Char('9'))} 
-and \texttt{<0>} for the nine-deep \texttt{Left} 
-injection the digit-class encoding produces around \texttt{Char('0')}.
+with input \texttt{"9000"} is ambiguous, producing two trees that
+flatten to the same word, shown in
+Figures~\ref{fig:agreement-s2elab-tree-posix}
+and~\ref{fig:agreement-s2elab-tree-nonposix}. Every constructor name
+appears as in the parser output; \texttt{<9>} abbreviates
+\texttt{Right(Char('9'))} and \texttt{<0>} the nine-deep \texttt{Left}
+injection around \texttt{Char('0')}.
 
-The trees differ in how they use the optional copies of the one-to-three-digit group. 
-The POSIX tree takes \texttt{Left(Empty)} for both, 
-so the group matches only \texttt{"9"}. 
-\texttt{([0-9]\{3\}[\, ,]?)\*} then matches \texttt{"000"} in one iteration. 
-
-The non-POSIX tree takes \texttt{Right(Pair(<0>, Right(Pair(<0>, Empty))))} for both, 
-so the group matches \texttt{"900"}. 
-The star is empty, and the trailing \texttt{[0-9]\*} matches the final \texttt{"0"}.
+The trees differ in how they use the one-to-three-digit group's
+optional copies. The POSIX tree takes \texttt{Left(Empty)} for both,
+so the group matches only \texttt{"9"}, and
+\texttt{([0-9]\{3\}[\, ,]?)\*} matches \texttt{"000"} in one iteration.
+The non-POSIX tree instead takes
+\texttt{Right(Pair(<0>, Right(Pair(<0>, Empty))))} for both, matching
+\texttt{"900"}; the star is empty, and the trailing \texttt{[0-9]\*}
+matches the final \texttt{"0"}.
 
 \begin{figure}[H]
 \centering
-\small
+\footnotesize
 \begin{verbatim}
-POSIX (deriv_bc):
 Pair(
  Pair(
   Pair(
-   Pair(Right(Empty),Left(Pair(Pair(Pair(Empty,<9>),Left(Empty)),Right(Empty)))),
+   Pair(
+    Right(Empty),
+    Left(Pair(Pair(Pair(Empty,<9>),Left(Empty)),Right(Empty)))
+   ),
    Star([Pair(Pair(Pair(Pair(Empty,<0>),<0>),<0>),Right(Empty))])
   ),
   Right(Empty)
  ),
  Star([])
 )
+\end{verbatim}
+\caption{The POSIX parse tree for the loosely-formatted-number pattern
+on \texttt{"9000"}, produced by \texttt{deriv\_std} and
+\texttt{deriv\_bc}.}
+\label{fig:agreement-s2elab-tree-posix}
+\end{figure}
 
-
-Non-POSIX (pderiv_bc):
+\begin{figure}[H]
+\centering
+\footnotesize
+\begin{verbatim}
 Pair(
  Pair(
   Pair(
-   Pair(Right(Empty),Left(Pair(Pair(Pair(Empty,<9>),Right(Pair(<0>, Right(Pair(<0>,Empty))))),Right(Empty)))),
+   Pair(
+    Right(Empty),
+    Left(Pair(
+      Pair(Pair(Empty,<9>), Right(Pair(<0>, Right(Pair(<0>,Empty))))),
+      Right(Empty)
+    ))
+   ),
    Star([])
   ),
   Right(Empty)
  ),
  Star([<0>])
 )
-
 \end{verbatim}
-\caption{The two parse trees for the loosely-formatted-number pattern on
-\texttt{"9000"}: 
-the POSIX tree produced by \texttt{deriv\_std}, \texttt{deriv\_bc},
-against the non-POSIX tree produced by \texttt{pderiv\_std} and \texttt{pderiv\_bc}.}
-\label{fig:agreement-s2elab-trees}
+\caption{The non-POSIX parse tree for the same pattern and input,
+produced by \texttt{pderiv\_std} and \texttt{pderiv\_bc}.}
+\label{fig:agreement-s2elab-tree-nonposix}
 \end{figure}
 
 %
@@ -3474,30 +3490,38 @@ against the non-POSIX tree produced by \texttt{pderiv\_std} and \texttt{pderiv\_
 \paragraph{Example: Synthetic pattern.}
 Row P09, the pattern \texttt{(a|aa)+} on input \texttt{"aa"} is ambiguous
 and here it appears at the smallest input that makes its ambiguity visible
-(Figure~\ref{fig:agreement-synthetic-trees}).
+(Figures~\ref{fig:agreement-synthetic-tree-posix}
+and~\ref{fig:agreement-synthetic-tree-nonposix}).
 
 \begin{figure}[H]
 \centering
 \small
 \begin{verbatim}
-POSIX (deriv_bc):
-  Pair(Right(Pair(Char('a'), Char('a'))), Star([]))
-
-
-Non-POSIX (pderiv_bc):
-  Pair(Left(Char('a')), Star([Left(Char('a'))]))
+Pair(Right(Pair(Char('a'), Char('a'))), Star([]))
 \end{verbatim}
-\caption{The two parse trees for \texttt{(a|aa)+} on \texttt{"aa"}.}
-\label{fig:agreement-synthetic-trees}
+\caption{The POSIX parse tree for \texttt{(a|aa)+} on \texttt{"aa"},
+produced by \texttt{deriv\_std} and \texttt{deriv\_bc}.}
+\label{fig:agreement-synthetic-tree-posix}
 \end{figure}
 
-The POSIX tree matches \texttt{"aa"} in a single iteration through the
-right branch of the alternation, the one that matches two characters
-at once; the trailing \texttt{Star} then has no further iterations.
-The non-POSIX tree uses two iterations, each matching one \texttt{"a"}
-through the left branch, with the second iteration living in the
-trailing \texttt{Star}. Both flatten to \texttt{"aa"}, so the
-disagreement is about parse structure rather than the matched word.
+\begin{figure}[H]
+\centering
+\small
+\begin{verbatim}
+Pair(Left(Char('a')), Star([Left(Char('a'))]))
+\end{verbatim}
+\caption{The non-POSIX parse tree for the same pattern and input,
+produced by \texttt{pderiv\_std} and \texttt{pderiv\_bc}.}
+\label{fig:agreement-synthetic-tree-nonposix}
+\end{figure}
+
+The POSIX tree matches \texttt{"aa"} in one iteration via the
+alternation's two-character branch, leaving the trailing \texttt{Star}
+empty. The non-POSIX tree instead uses two iterations via the
+one-character branch, the second inside the trailing \texttt{Star}.
+Both flatten to \texttt{"aa"}: the disagreement is structural, not
+about the matched word.
+}
 
 %
 %
