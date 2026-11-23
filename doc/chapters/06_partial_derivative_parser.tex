@@ -4,7 +4,7 @@
 \label{sec:partial-derivative-parser}
 
 This chapter presents the partial-derivative approach to parse-tree construction, 
-following \citep{sulzmannlu2012}. 
+following \citep[\S5, Figs.~10--11, pp.~85--86]{sulzmannlu2012}. 
 Unlike ordinary derivatives, partial derivatives produce a set of residual states,
 each pairing an expression with the reconstruction information 
 for one path through the original expression. 
@@ -206,7 +206,7 @@ This injection is $\mathit{inj}$ from Equation~\eqref{eq:inj},
 already used by the standard derivative parser (Chapter~\ref{sec:derivative-parser})
 to wrap alternatives and build concatenation and star trees.
 Unlike for the standard derivative parser, 
-the pattern partial derivatives of \citet{sulzmannlu2012}
+the pattern partial derivatives of \citet[Fig.~11, p.~86]{sulzmannlu2012}
 provide no corresponding rules for constructing injections.
 
 The pattern partial derivatives of \citet[Fig.~11]{sulzmannlu2012}
@@ -315,19 +315,25 @@ would leave the injection expecting a $\mathit{Pair}$ that is no longer there.
 \texttt{pderiv\_tree}
 avoids this by branching on whether the residual collapsed to \texttt{Regex::Eps}
 (Figure~\ref{fig:pderiv-tree-seqstar-rust}):
-in \texttt{Seq}, the closure then returns
+In \texttt{Seq}, the closure then returns
 $\mathit{Pair}(\mathit{inj}_1(\mathit{Empty}), v)$
 or destructures $\mathit{Pair}(v_1, v_2)$ into $\mathit{Pair}(\mathit{inj}_1(v_1), v_2)$,
 as Equation~\eqref{eq:pderiv-tree} specifies;
-in \texttt{Star}, which extends a $\mathit{Star}$ list,
+In \texttt{Star}, which extends a $\mathit{Star}$ list,
 it pushes $\mathit{inj}_1(\mathit{Empty})$ directly
 or destructures the wrapping $\mathit{Pair}$ first;
-in \texttt{Alt}, since the $\mathsf{P}_{+}$ rule only derives two alternatives
-and not a longer chain,
-\texttt{pderiv\_tree} instead flattens a chain $r_1 + \cdots + r_p$
-into its leaves before deriving them.
-This preserves left-to-right order just as deriving one $+$ at a time would.
-All three arms then call \texttt{nub\_tree} directly on their own output.
+For \texttt{Alt}, \texttt{pderiv\_tree} flattens
+chains $r_1 + \cdots + r_p$ before derivation,
+since the $\mathsf{P}_{+}$ rule handles only
+two alternatives at a time.
+This preserves their left-to-right order.
+\texttt{Alt} and \texttt{Star} always apply
+\texttt{nub\_tree}, whereas \texttt{Seq}
+does so only when $r_1$ is nullable,
+as only then can derivatives continuing
+through $r_1$ and those entering $r_2$
+produce duplicate residuals.
+
 
 \begin{figure}[H]
 \small
@@ -431,7 +437,7 @@ Representing that composition as nested closures
 would recurse one stack frame per character, 
 both when applied and when destroyed. 
 Therefore the implementation stores the steps 
-as a cons-list and applies them iteratively instead (Figure~\ref{fig:inj-rust}).
+as a linked list and applies them iteratively instead (Figure~\ref{fig:inj-rust}).
 \begin{figure}[H]
 \small
 \begin{verbatim}
@@ -454,7 +460,7 @@ impl Inj {
     }
 }
 \end{verbatim}
-\caption{\texttt{Inj}: a persistent cons-list of \texttt{InjStep}s.
+\caption{\texttt{Inj}: a persistent linked-list of \texttt{InjStep}s.
 \texttt{then} prepends one step in $O(1)$; \texttt{apply} walks the list
 iteratively, so neither construction nor application recurses per step.}
 \label{fig:inj-rust}

@@ -8,7 +8,7 @@ that a word may admit multiple valid parse trees for the same expression
 and that a parser must select one according to a \emph{disambiguation policy}.
 This Chapter shows how a parse tree can be recovered from the final derivative.
 
-Following \citep{sulzmannlu2014},
+Following \citep[\S3, pp.~6--13]{sulzmannlu2014},
 this chapter presents two derivative-based methods
 for constructing POSIX parse trees.
 The direct method performs a forward derivative pass
@@ -141,7 +141,7 @@ The alternation rule is where disambiguation occurs.
 If exactly one of $r_1$ and $r_2$ is nullable, 
 that branch is the only possible witness. 
 If both are, $(\mathsf{E}_{+}^{L})$ breaks the tie by preferring the left one,
-after POSIX's leftmost-longest policy~\citep{sulzmannlu2014}.
+after POSIX's leftmost-longest policy~\citep[Def.~1, rules A1/A2, p.~4]{sulzmannlu2014}.
 
 For the example, the final expression is
 $(\emptyset + (\emptyset b + \varepsilon))(b + \varepsilon) + (\varepsilon + \emptyset)$.
@@ -612,9 +612,9 @@ input, confirming that $\mathtt{ab} \in L(r_0)$.
 \section{The Bit-Coded Derivative-Based Parser}
 \label{sec:bitcoded-construction-formal}
 
-The direct construction of \citep{sulzmannlu2014} reconstructs the tree
+The direct construction of \citep[pp.~7--8]{sulzmannlu2014} reconstructs the tree
 only once the entire input has been consumed,
-since each injection step needs the preceding expression. 
+since each injection step needs the preceding expression.
 Their bit-coded optimization records 
 the reconstruction choices during a single pass instead.
 Their idea is, that each subexpression carries 

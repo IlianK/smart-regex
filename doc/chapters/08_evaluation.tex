@@ -2518,15 +2518,17 @@ similar, so Figure~\ref{fig:step-frontier-bc-rust}
 shows only \texttt{pderiv\_bc}'s
 \texttt{step\_frontier} and its use of \texttt{nub2}.
 
-Initially, \texttt{pderiv\_bc} must flatten
-the nested $p$-way alternation into separate
-residuals, assigning branch-bit prefixes
-and removing duplicates through \texttt{nub2}
-(Section~\ref{sec:pderiv-bc-impl}).
-This one-time flattening is the smaller of
-its two costs: at $p=10\,000$ it accounts for
-5.51\,ms of E37's 17.54\,ms total and 8.75\,ms
-of E38's 47.87\,ms
+On every character, \texttt{pderiv\_bc} must flatten whichever part of
+the nested $p$-way alternation is still live into separate residuals,
+assigning branch-bit prefixes and removing duplicates through
+\texttt{nub2} (Section~\ref{sec:pderiv-bc-impl}).
+Unlike \texttt{deriv\_bc}'s \texttt{internalize}, 
+which tags the whole alternation once, upfront.
+This repeated flattening, 
+accumulated across the parse and attributed to \texttt{setup\_us} for comparability, 
+is still the smaller of its two costs: 
+at $p=10\,000$ it accounts for 5.51\,ms of E37's 17.54\,ms total 
+and 8.75\,ms of E38's 47.87\,ms
 (Tables~\ref{tab:patho-phases-e37}
 and~\ref{tab:patho-phases-e38}).
 Most of the cost instead falls on the
@@ -3335,7 +3337,7 @@ both are reported together.
 Dataset & Entries & Timeouts & Crashes & Matches & Match agr. & Shape agr. & Shape dis. \\
 \hline
 S2ELab    & 11\,395 &   0 & 0 & 5\,869 & 100.0\% & 99.8\% (5\,855) & 0.2\% (14) \\
-Synthetic &    885 &  28 & 0 &   423 & 100.0\% & 84.6\% (358)   & 15.4\% (65) \\
+Synthetic &    885 &  28 & 0 &   428 & 100.0\% & 84.8\% (363)   & 15.2\% (65) \\
 \hline
 \end{tabular*}
 \caption{Parse agreement over both datasets. \emph{Match agr.} 
@@ -3353,11 +3355,6 @@ all parsers agree on membership across both datasets.
 Thus, Table~\ref{tab:agreement} reports 100\%
 match agreement throughout
 (Section~\ref{sec:eval-criteria-agreement}).
-Nine entries in synthetic category C are a
-separate case: both representatives agree with
-each other but disagree with the expected label,
-so these are excluded from \emph{Compared}
-without constituting inter-parser disagreements.
 No S2ELab entries time out or crash, while the
 synthetic set records 28 timeouts and no crashes,
 reflecting its deliberately demanding inputs.
@@ -3366,7 +3363,7 @@ On the S2ELab corpus, 14 parse-tree shape
 disagreements occur, representing 0.2\%
 of compared matches.
 The synthetic set shows 65 disagreements
-among 423 compared matches
+among 428 compared matches
 (Table~\ref{tab:agreement-patho-categories}).
 Most occur in category B (50), where
 quantified alternatives share prefixes,
@@ -3386,7 +3383,7 @@ Category & Entries & Timeouts & Matches & Shape agr. & Shape dis. \\
 \hline
 A & 160 &  0 & 80 & 100.0\% (80) &  0.0\% (0) \\
 B & 150 &  0 & 75 &  33.3\% (25) & 66.7\% (50) \\
-C &  56 &  0 & 23 & 100.0\% (23) &  0.0\% (0) \\
+C &  56 &  0 & 28 & 100.0\% (28) &  0.0\% (0) \\
 D &  40 &  0 & 20 & 100.0\% (20) &  0.0\% (0) \\
 E &  80 &  0 & 40 &  75.0\% (30) & 25.0\% (10) \\
 F &  70 & 12 & 29 &  82.8\% (24) & 17.2\% (5) \\
@@ -3416,6 +3413,8 @@ empty. The non-POSIX tree instead uses two iterations via the
 one-character branch, the second inside the trailing \texttt{Star}.
 Both flatten to \texttt{"aa"}.
 
+%
+
 \begin{figure}[H]
 \centering
 \small
@@ -3429,6 +3428,8 @@ Pair(
 \label{fig:agreement-synthetic-tree-posix}
 \end{figure}
 
+%
+
 \begin{figure}[H]
 \centering
 \small
@@ -3438,12 +3439,12 @@ Pair(
   Star([Left(Char('a'))])
 )
 \end{verbatim}
-\caption{The POSIX parse tree for \texttt{(a|aa)+} on \texttt{"aa"}.}
+\caption{The non-POSIX parse tree for \texttt{(a|aa)+} on \texttt{"aa"}.}
 \label{fig:agreement-synthetic-tree-nonposix}
 \end{figure}
 
-
-
+%
+%
 %
 
 \clearpage
@@ -3465,6 +3466,8 @@ remains empty, and the trailing star consumes
 These differences appear in the
 \texttt{Left}/\texttt{Right} injections
 and \texttt{Star} contents.
+
+%
 
 \begin{figure}[H]
 \centering
