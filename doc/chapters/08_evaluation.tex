@@ -515,7 +515,7 @@ unanchored, one-sided anchored, and nested-anchors.}
 \label{sec:eval-pathological}
 
 The synthetic set consists of 112 patterns generated
-with the assistance of Mistral AI and manually verified.
+with the assistance of \emph{Mistral AI} and manually verified.
 It is designed to stress the parsers and examine
 how their costs scale with input length and pattern size.
 All patterns are intended for full-string matching.
@@ -2518,12 +2518,13 @@ similar, so Figure~\ref{fig:step-frontier-bc-rust}
 shows only \texttt{pderiv\_bc}'s
 \texttt{step\_frontier} and its use of \texttt{nub2}.
 
-On every character, \texttt{pderiv\_bc} must flatten whichever part of
-the nested $p$-way alternation is still live into separate residuals,
-assigning branch-bit prefixes and removing duplicates through
-\texttt{nub2} (Section~\ref{sec:pderiv-bc-impl}).
-Unlike \texttt{deriv\_bc}'s \texttt{internalize}, 
-which tags the whole alternation once, upfront.
+On every character, \texttt{pderiv\_bc} must flatten whichever
+part of the nested $p$-way alternation is still live into
+separate residuals, assigning branch-bit prefixes and
+removing duplicates through \texttt{nub2}
+(Section~\ref{sec:pderiv-bc-impl}).
+In contrast, \texttt{deriv\_bc}'s \texttt{internalize}
+tags the whole alternation once, upfront.
 This repeated flattening, 
 accumulated across the parse and attributed to \texttt{setup\_us} for comparability, 
 is still the smaller of its two costs: 
