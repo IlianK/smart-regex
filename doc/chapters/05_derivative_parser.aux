@@ -4,137 +4,137 @@
 \citation{sulzmannlu2014}
 \citation{brzozowski1964}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {chapter}{\numberline {5}Derivative-Based Parser}{22}{chapter.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}Derivative-Based Parser}{29}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{sec:derivative-parser}{{5}{22}{Derivative-Based Parser}{chapter.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}The Standard Derivative-Based Parser}{22}{section.5.1}\protected@file@percent }
-\newlabel{sec:core-algorithm}{{5.1}{22}{The Standard Derivative-Based Parser}{section.5.1}{}}
-\newlabel{eq:deriv-std-example}{{5.1}{22}{The Standard Derivative-Based Parser}{equation.5.1}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces The direct construction uses two passes. The forward pass derives the input using \texttt  {deriv} (Figure~\ref {fig:deriv-rust}). The backward pass walks the derivation sequence in reverse, using $\mathit  {mkEps}$ (Figure~\ref {fig:mkeps-rust}) to build a parse tree for the empty word from the final nullable (Figure~\ref {fig:nullable-rust}) expression. Then $\mathit  {inj}$ (Figure~\ref {fig:inject-rust}) reinserts one consumed character at a time, moving through $w$ right to left. After injecting $b$, the tree is $(\mathit  {Right}((),b),\mathit  {Right}())$, with $()$ marking the position still to be filled. Injecting $a$ replaces that position by the subtree $\mathit  {Right}(a,b)$, giving the complete tree $(\mathit  {Right}(a,b),\mathit  {Right}())$. }}{22}{figure.caption.17}\protected@file@percent }
-\newlabel{fig:two-pass}{{5.1}{22}{The direct construction uses two passes. The forward pass derives the input using \texttt {deriv} (Figure~\ref {fig:deriv-rust}). The backward pass walks the derivation sequence in reverse, using $\mathit {mkEps}$ (Figure~\ref {fig:mkeps-rust}) to build a parse tree for the empty word from the final nullable (Figure~\ref {fig:nullable-rust}) expression. Then $\mathit {inj}$ (Figure~\ref {fig:inject-rust}) reinserts one consumed character at a time, moving through $w$ right to left. After injecting $b$, the tree is $(\mathit {Right}((),b),\mathit {Right}())$, with $()$ marking the position still to be filled. Injecting $a$ replaces that position by the subtree $\mathit {Right}(a,b)$, giving the complete tree $(\mathit {Right}(a,b),\mathit {Right}())$}{figure.caption.17}{}}
+\newlabel{sec:derivative-parser}{{5}{29}{Derivative-Based Parser}{chapter.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}The Standard Derivative-Based Parser}{29}{section.5.1}\protected@file@percent }
+\newlabel{sec:core-algorithm}{{5.1}{29}{The Standard Derivative-Based Parser}{section.5.1}{}}
+\newlabel{eq:deriv-std-example}{{5.1}{29}{The Standard Derivative-Based Parser}{equation.5.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces The direct construction uses two passes. The forward pass derives the input using \texttt  {deriv} (Figure~\ref {fig:deriv-rust}). The backward pass walks the derivation sequence in reverse, using $\mathit  {mkEps}$ (Figure~\ref {fig:mkeps-rust}) to build a parse tree for the empty word from the final nullable (Figure~\ref {fig:nullable-rust}) expression. Then $\mathit  {inj}$ (Figure~\ref {fig:inject-rust}) reinserts one consumed character at a time, moving through $w$ right to left. After injecting $b$, the tree is $(\mathit  {Right}((),b),\mathit  {Right}())$, with $()$ marking the position still to be filled. Injecting $a$ replaces that position by the subtree $\mathit  {Right}(a,b)$, giving the complete tree $(\mathit  {Right}(a,b),\mathit  {Right}())$. }}{29}{figure.caption.18}\protected@file@percent }
+\newlabel{fig:two-pass}{{5.1}{29}{The direct construction uses two passes. The forward pass derives the input using \texttt {deriv} (Figure~\ref {fig:deriv-rust}). The backward pass walks the derivation sequence in reverse, using $\mathit {mkEps}$ (Figure~\ref {fig:mkeps-rust}) to build a parse tree for the empty word from the final nullable (Figure~\ref {fig:nullable-rust}) expression. Then $\mathit {inj}$ (Figure~\ref {fig:inject-rust}) reinserts one consumed character at a time, moving through $w$ right to left. After injecting $b$, the tree is $(\mathit {Right}((),b),\mathit {Right}())$, with $()$ marking the position still to be filled. Injecting $a$ replaces that position by the subtree $\mathit {Right}(a,b)$, giving the complete tree $(\mathit {Right}(a,b),\mathit {Right}())$}{figure.caption.18}{}}
 \citation{sulzmannlu2014}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.1}Building the Empty-Word Tree}{23}{subsection.5.1.1}\protected@file@percent }
-\newlabel{sec:mkeps-theory}{{5.1.1}{23}{Building the Empty-Word Tree}{subsection.5.1.1}{}}
-\newlabel{eq:mkeps}{{5.2}{23}{Building the Empty-Word Tree}{equation.5.2}{}}
-\newlabel{eq:mkeps-simp}{{5.3}{23}{Building the Empty-Word Tree}{equation.5.3}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{23}{equation.5.3}\protected@file@percent }
-\newlabel{sec:mk-eps-impl}{{5.1.1}{23}{In Rust}{equation.5.3}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces \texttt  {mk\_eps}: construct a parse tree for the empty word.}}{23}{figure.caption.18}\protected@file@percent }
-\newlabel{fig:mkeps-rust}{{5.2}{23}{\texttt {mk\_eps}: construct a parse tree for the empty word}{figure.caption.18}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.2}Reinserting Characters via Injection}{24}{subsection.5.1.2}\protected@file@percent }
-\newlabel{sec:inj-theory}{{5.1.2}{24}{Reinserting Characters via Injection}{subsection.5.1.2}{}}
-\newlabel{eq:inj}{{5.4}{24}{Reinserting Characters via Injection}{equation.5.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{24}{equation.5.4}\protected@file@percent }
-\newlabel{sec:inject-impl}{{5.1.2}{24}{In Rust}{equation.5.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces \texttt  {inject}: Implementing Equation~\eqref  {eq:inj}. Reinserts a character into a parse tree.}}{25}{figure.caption.19}\protected@file@percent }
-\newlabel{fig:inject-rust}{{5.3}{25}{\texttt {inject}: Implementing Equation~\eqref {eq:inj}. Reinserts a character into a parse tree}{figure.caption.19}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.3}Parser}{25}{subsection.5.1.3}\protected@file@percent }
-\newlabel{sec:deriv-std-parser}{{5.1.3}{25}{Parser}{subsection.5.1.3}{}}
-\newlabel{eq:std-driver}{{5.5}{25}{Parser}{equation.5.5}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{25}{equation.5.5}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces \texttt  {parse\_deriv\_std\_loop}: the standard parser.}}{26}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:deriv-std-drivers-rust}{{5.4}{26}{\texttt {parse\_deriv\_std\_loop}: the standard parser}{figure.caption.20}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.4}Worked Example: Standard Derivative Parser}{26}{subsection.5.1.4}\protected@file@percent }
-\newlabel{sec:worked-example}{{5.1.4}{26}{Worked Example: Standard Derivative Parser}{subsection.5.1.4}{}}
-\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{26}{subsection.5.1.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{Backward pass: mkEps.}{26}{subsection.5.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.1}Building the Empty-Word Tree}{30}{subsection.5.1.1}\protected@file@percent }
+\newlabel{sec:mkeps-theory}{{5.1.1}{30}{Building the Empty-Word Tree}{subsection.5.1.1}{}}
+\newlabel{eq:mkeps}{{5.2}{30}{Building the Empty-Word Tree}{equation.5.2}{}}
+\newlabel{eq:mkeps-simp}{{5.3}{30}{Building the Empty-Word Tree}{equation.5.3}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{30}{equation.5.3}\protected@file@percent }
+\newlabel{sec:mk-eps-impl}{{5.1.1}{30}{In Rust}{equation.5.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces \texttt  {mk\_eps}: construct a parse tree for the empty word.}}{30}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:mkeps-rust}{{5.2}{30}{\texttt {mk\_eps}: construct a parse tree for the empty word}{figure.caption.19}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.2}Reinserting Characters via Injection}{31}{subsection.5.1.2}\protected@file@percent }
+\newlabel{sec:inj-theory}{{5.1.2}{31}{Reinserting Characters via Injection}{subsection.5.1.2}{}}
+\newlabel{eq:inj}{{5.4}{31}{Reinserting Characters via Injection}{equation.5.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{31}{equation.5.4}\protected@file@percent }
+\newlabel{sec:inject-impl}{{5.1.2}{31}{In Rust}{equation.5.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces \texttt  {inject}: Implementing Equation~\eqref  {eq:inj}. Reinserts a character into a parse tree.}}{32}{figure.caption.20}\protected@file@percent }
+\newlabel{fig:inject-rust}{{5.3}{32}{\texttt {inject}: Implementing Equation~\eqref {eq:inj}. Reinserts a character into a parse tree}{figure.caption.20}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.3}Parser}{32}{subsection.5.1.3}\protected@file@percent }
+\newlabel{sec:deriv-std-parser}{{5.1.3}{32}{Parser}{subsection.5.1.3}{}}
+\newlabel{eq:std-driver}{{5.5}{32}{Parser}{equation.5.5}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{32}{equation.5.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces \texttt  {parse\_deriv\_std\_loop}: the standard parser.}}{33}{figure.caption.21}\protected@file@percent }
+\newlabel{fig:deriv-std-drivers-rust}{{5.4}{33}{\texttt {parse\_deriv\_std\_loop}: the standard parser}{figure.caption.21}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.4}Worked Example: Standard Derivative Parser}{33}{subsection.5.1.4}\protected@file@percent }
+\newlabel{sec:worked-example}{{5.1.4}{33}{Worked Example: Standard Derivative Parser}{subsection.5.1.4}{}}
+\@writefile{toc}{\contentsline {paragraph}{Forward pass.}{33}{subsection.5.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Backward pass: mkEps.}{33}{subsection.5.1.4}\protected@file@percent }
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {paragraph}{Backward pass: Inj.}{27}{subsection.5.1.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.2}The Bit-Coded Derivative-Based Parser}{27}{section.5.2}\protected@file@percent }
-\newlabel{sec:bitcoded-construction-formal}{{5.2}{27}{The Bit-Coded Derivative-Based Parser}{section.5.2}{}}
-\newlabel{eq:bitcoded-overview-example}{{5.6}{27}{The Bit-Coded Derivative-Based Parser}{equation.5.6}{}}
-\citation{sulzmannlu2014}
-\citation{sulzmannlu2014}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces The bit-coded parser on the ambiguous example. $\mathit  {internalize}$ introduces the bits, derivative threads them forward, and $\mathit  {mkEpsBC}$ and $\mathit  {decode}_{r_0}$ extract and read them against $r_0$.}}{28}{figure.caption.21}\protected@file@percent }
-\newlabel{fig:single-pass}{{5.5}{28}{The bit-coded parser on the ambiguous example. $\mathit {internalize}$ introduces the bits, derivative threads them forward, and $\mathit {mkEpsBC}$ and $\mathit {decode}_{r_0}$ extract and read them against $r_0$}{figure.caption.21}{}}
-\@writefile{toc}{\contentsline {paragraph}{The bit-coded pipeline.}{28}{figure.caption.21}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.1}Annotated Expressions}{28}{subsection.5.2.1}\protected@file@percent }
-\newlabel{sec:annotated-expressions}{{5.2.1}{28}{Annotated Expressions}{subsection.5.2.1}{}}
-\newlabel{eq:aregex-grammar}{{5.7}{28}{Annotated Expressions}{equation.5.7}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{28}{equation.5.7}\protected@file@percent }
-\newlabel{sec:aregex-type}{{5.2.1}{28}{In Rust}{equation.5.7}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces The annotated-expression type extends \texttt  {Regex} with a leading bit-sequence, \texttt  {Bits}.}}{28}{figure.caption.22}\protected@file@percent }
-\newlabel{fig:aregex-enum}{{5.6}{28}{The annotated-expression type extends \texttt {Regex} with a leading bit-sequence, \texttt {Bits}}{figure.caption.22}{}}
-\citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.2}Fusing Bit-Lists}{29}{subsection.5.2.2}\protected@file@percent }
-\newlabel{sec:fuse}{{5.2.2}{29}{Fusing Bit-Lists}{subsection.5.2.2}{}}
-\newlabel{eq:fuse}{{5.8}{29}{Fusing Bit-Lists}{equation.5.8}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{29}{equation.5.8}\protected@file@percent }
-\newlabel{sec:fuse-impl}{{5.2.2}{29}{In Rust}{equation.5.8}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces \texttt  {fuse}: prepend a bit-list to the annotation of the top node.}}{29}{figure.caption.23}\protected@file@percent }
-\newlabel{fig:fuse-rust}{{5.7}{29}{\texttt {fuse}: prepend a bit-list to the annotation of the top node}{figure.caption.23}{}}
+\@writefile{toc}{\contentsline {paragraph}{Backward pass: Inj.}{34}{subsection.5.1.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.2}The Bit-Coded Derivative-Based Parser}{34}{section.5.2}\protected@file@percent }
+\newlabel{sec:bitcoded-construction-formal}{{5.2}{34}{The Bit-Coded Derivative-Based Parser}{section.5.2}{}}
+\newlabel{eq:bitcoded-overview-example}{{5.6}{34}{The Bit-Coded Derivative-Based Parser}{equation.5.6}{}}
 \citation{sulzmannlu2014}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.3}Internalizing Expressions}{30}{subsection.5.2.3}\protected@file@percent }
-\newlabel{sec:internalize}{{5.2.3}{30}{Internalizing Expressions}{subsection.5.2.3}{}}
-\newlabel{eq:internalize}{{5.9}{30}{Internalizing Expressions}{equation.5.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{30}{equation.5.9}\protected@file@percent }
-\newlabel{sec:internalize-impl}{{5.2.3}{30}{In Rust}{equation.5.9}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces \texttt  {internalize}: Implementation of the conversion of \texttt  {Regex} into an \texttt  {ARegex}.}}{30}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:internalize-rust}{{5.8}{30}{\texttt {internalize}: Implementation of the conversion of \texttt {Regex} into an \texttt {ARegex}}{figure.caption.24}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.4}Extracting Bits}{30}{subsection.5.2.4}\protected@file@percent }
-\newlabel{sec:mkepsbc-theory}{{5.2.4}{30}{Extracting Bits}{subsection.5.2.4}{}}
-\newlabel{eq:mkepsbc}{{5.10}{30}{Extracting Bits}{equation.5.10}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces The bit-coded parser on the ambiguous example. $\mathit  {internalize}$ introduces the bits, derivative threads them forward, and $\mathit  {mkEpsBC}$ and $\mathit  {decode}_{r_0}$ extract and read them against $r_0$.}}{35}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:single-pass}{{5.5}{35}{The bit-coded parser on the ambiguous example. $\mathit {internalize}$ introduces the bits, derivative threads them forward, and $\mathit {mkEpsBC}$ and $\mathit {decode}_{r_0}$ extract and read them against $r_0$}{figure.caption.22}{}}
+\@writefile{toc}{\contentsline {paragraph}{The bit-coded pipeline.}{35}{figure.caption.22}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.1}Annotated Expressions}{35}{subsection.5.2.1}\protected@file@percent }
+\newlabel{sec:annotated-expressions}{{5.2.1}{35}{Annotated Expressions}{subsection.5.2.1}{}}
+\newlabel{eq:aregex-grammar}{{5.7}{35}{Annotated Expressions}{equation.5.7}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{35}{equation.5.7}\protected@file@percent }
+\newlabel{sec:aregex-type}{{5.2.1}{35}{In Rust}{equation.5.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces The annotated-expression type extends \texttt  {Regex} with a leading bit-sequence, \texttt  {Bits}.}}{35}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:aregex-enum}{{5.6}{35}{The annotated-expression type extends \texttt {Regex} with a leading bit-sequence, \texttt {Bits}}{figure.caption.23}{}}
 \citation{sulzmannlu2014}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{31}{equation.5.10}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces \texttt  {mk\_eps\_bc} implements Equation~\eqref  {eq:mkepsbc}. \texttt  {Phi}, \texttt  {Lit} panic, since neither is nullable.}}{31}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:mkepsbc-rust}{{5.9}{31}{\texttt {mk\_eps\_bc} implements Equation~\eqref {eq:mkepsbc}. \texttt {Phi}, \texttt {Lit} panic, since neither is nullable}{figure.caption.25}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.5}Annotated Derivatives}{31}{subsection.5.2.5}\protected@file@percent }
-\newlabel{sec:deriv-bc-theory}{{5.2.5}{31}{Annotated Derivatives}{subsection.5.2.5}{}}
-\newlabel{eq:bderiv}{{5.11}{31}{Annotated Derivatives}{equation.5.11}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{32}{equation.5.11}\protected@file@percent }
-\newlabel{sec:deriv-bc-impl}{{5.2.5}{32}{In Rust}{equation.5.11}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Annotated derivative \texttt  {deriv\_bc}, implementing $\mathsf  {B}_{+}$, $\mathsf  {B}_{\mathrm  {seq}}/\mathsf  {B}_{\mathrm  {seq}}^{\,n}$, and $\mathsf  {B}_{*}$. The cases $\mathsf  {B}_{\emptyset }$, $\mathsf  {B}_{\varepsilon }$, and $\mathsf  {B}_{\mathrm  {lit}}$ are omitted from the figure.}}{32}{figure.caption.26}\protected@file@percent }
-\newlabel{fig:derivbc-rust}{{5.10}{32}{Annotated derivative \texttt {deriv\_bc}, implementing $\mathsf {B}_{+}$, $\mathsf {B}_{\mathrm {seq}}/\mathsf {B}_{\mathrm {seq}}^{\,n}$, and $\mathsf {B}_{*}$. The cases $\mathsf {B}_{\emptyset }$, $\mathsf {B}_{\varepsilon }$, and $\mathsf {B}_{\mathrm {lit}}$ are omitted from the figure}{figure.caption.26}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.2}Fusing Bit-Lists}{36}{subsection.5.2.2}\protected@file@percent }
+\newlabel{sec:fuse}{{5.2.2}{36}{Fusing Bit-Lists}{subsection.5.2.2}{}}
+\newlabel{eq:fuse}{{5.8}{36}{Fusing Bit-Lists}{equation.5.8}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{36}{equation.5.8}\protected@file@percent }
+\newlabel{sec:fuse-impl}{{5.2.2}{36}{In Rust}{equation.5.8}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces \texttt  {fuse}: prepend a bit-list to the annotation of the top node.}}{36}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:fuse-rust}{{5.7}{36}{\texttt {fuse}: prepend a bit-list to the annotation of the top node}{figure.caption.24}{}}
+\citation{sulzmannlu2014}
+\citation{sulzmannlu2014}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.3}Internalizing Expressions}{37}{subsection.5.2.3}\protected@file@percent }
+\newlabel{sec:internalize}{{5.2.3}{37}{Internalizing Expressions}{subsection.5.2.3}{}}
+\newlabel{eq:internalize}{{5.9}{37}{Internalizing Expressions}{equation.5.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{37}{equation.5.9}\protected@file@percent }
+\newlabel{sec:internalize-impl}{{5.2.3}{37}{In Rust}{equation.5.9}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.8}{\ignorespaces \texttt  {internalize}: Implementation of the conversion of \texttt  {Regex} into an \texttt  {ARegex}.}}{37}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:internalize-rust}{{5.8}{37}{\texttt {internalize}: Implementation of the conversion of \texttt {Regex} into an \texttt {ARegex}}{figure.caption.25}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.4}Extracting Bits}{37}{subsection.5.2.4}\protected@file@percent }
+\newlabel{sec:mkepsbc-theory}{{5.2.4}{37}{Extracting Bits}{subsection.5.2.4}{}}
+\newlabel{eq:mkepsbc}{{5.10}{37}{Extracting Bits}{equation.5.10}{}}
+\citation{sulzmannlu2014}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{38}{equation.5.10}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.9}{\ignorespaces \texttt  {mk\_eps\_bc} implements Equation~\eqref  {eq:mkepsbc}. \texttt  {Phi}, \texttt  {Lit} panic, since neither is nullable.}}{38}{figure.caption.26}\protected@file@percent }
+\newlabel{fig:mkepsbc-rust}{{5.9}{38}{\texttt {mk\_eps\_bc} implements Equation~\eqref {eq:mkepsbc}. \texttt {Phi}, \texttt {Lit} panic, since neither is nullable}{figure.caption.26}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.5}Annotated Derivatives}{38}{subsection.5.2.5}\protected@file@percent }
+\newlabel{sec:deriv-bc-theory}{{5.2.5}{38}{Annotated Derivatives}{subsection.5.2.5}{}}
+\newlabel{eq:bderiv}{{5.11}{38}{Annotated Derivatives}{equation.5.11}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{39}{equation.5.11}\protected@file@percent }
+\newlabel{sec:deriv-bc-impl}{{5.2.5}{39}{In Rust}{equation.5.11}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.10}{\ignorespaces Annotated derivative \texttt  {deriv\_bc}, implementing $\mathsf  {B}_{+}$, $\mathsf  {B}_{\mathrm  {seq}}/\mathsf  {B}_{\mathrm  {seq}}^{\,n}$, and $\mathsf  {B}_{*}$. The cases $\mathsf  {B}_{\emptyset }$, $\mathsf  {B}_{\varepsilon }$, and $\mathsf  {B}_{\mathrm  {lit}}$ are omitted from the figure.}}{39}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:derivbc-rust}{{5.10}{39}{Annotated derivative \texttt {deriv\_bc}, implementing $\mathsf {B}_{+}$, $\mathsf {B}_{\mathrm {seq}}/\mathsf {B}_{\mathrm {seq}}^{\,n}$, and $\mathsf {B}_{*}$. The cases $\mathsf {B}_{\emptyset }$, $\mathsf {B}_{\varepsilon }$, and $\mathsf {B}_{\mathrm {lit}}$ are omitted from the figure}{figure.caption.27}{}}
 \citation{sulzmannlu2014}
 \citation{sulzmannlu2014}
 \citation{sulzmannlu2012}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.6}Simplification}{33}{subsection.5.2.6}\protected@file@percent }
-\newlabel{sec:simp}{{5.2.6}{33}{Simplification}{subsection.5.2.6}{}}
-\newlabel{eq:simp-theory}{{5.12}{33}{Simplification}{equation.5.12}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{33}{equation.5.12}\protected@file@percent }
-\newlabel{sec:simp-impl}{{5.2.6}{33}{In Rust}{equation.5.12}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces \texttt  {simp}: Implementation of the fixpoint loop around \texttt  {simp\_once}.}}{33}{figure.caption.27}\protected@file@percent }
-\newlabel{fig:simp-loop-rust}{{5.11}{33}{\texttt {simp}: Implementation of the fixpoint loop around \texttt {simp\_once}}{figure.caption.27}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.12}{\ignorespaces \texttt  {dedup\_first}: keeps the first occurrence of each regex shape among \texttt  {branches}, bits aside. \texttt  {hash\_shape} (Figure~\ref {fig:hash-shape-ch5-rust}) computes that shape; both are discussed further, with their own complexity, in Section~\ref {sec:eval-cost-bit-coding}.}}{34}{figure.caption.28}\protected@file@percent }
-\newlabel{fig:dedup-first-ch5-rust}{{5.12}{34}{\texttt {dedup\_first}: keeps the first occurrence of each regex shape among \texttt {branches}, bits aside. \texttt {hash\_shape} (Figure~\ref {fig:hash-shape-ch5-rust}) computes that shape; both are discussed further, with their own complexity, in Section~\ref {sec:eval-cost-bit-coding}}{figure.caption.28}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.13}{\ignorespaces \texttt  {hash\_shape}: the structural hash \texttt  {dedup\_first} buckets branches by -- a discriminant tag per variant, plus whatever \texttt  {same\_shape} itself recurses into, always skipping the node's own bits, so two branches of the same shape always land in the same bucket.}}{34}{figure.caption.29}\protected@file@percent }
-\newlabel{fig:hash-shape-ch5-rust}{{5.13}{34}{\texttt {hash\_shape}: the structural hash \texttt {dedup\_first} buckets branches by -- a discriminant tag per variant, plus whatever \texttt {same\_shape} itself recurses into, always skipping the node's own bits, so two branches of the same shape always land in the same bucket}{figure.caption.29}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.14}{\ignorespaces \texttt  {simp\_once}: \texttt  {Seq}/\texttt  {Alt} simplification for annotated expressions. }}{35}{figure.caption.30}\protected@file@percent }
-\newlabel{fig:simp-rust}{{5.14}{35}{\texttt {simp\_once}: \texttt {Seq}/\texttt {Alt} simplification for annotated expressions}{figure.caption.30}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.15}{\ignorespaces \texttt  {collect\_alt\_branches} and \texttt  {push\_branches}: flattening nested \texttt  {Alt} chains into one list.}}{35}{figure.caption.31}\protected@file@percent }
-\newlabel{fig:collect-alt-branches-rust}{{5.15}{35}{\texttt {collect\_alt\_branches} and \texttt {push\_branches}: flattening nested \texttt {Alt} chains into one list}{figure.caption.31}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.6}Simplification}{40}{subsection.5.2.6}\protected@file@percent }
+\newlabel{sec:simp}{{5.2.6}{40}{Simplification}{subsection.5.2.6}{}}
+\newlabel{eq:simp-theory}{{5.12}{40}{Simplification}{equation.5.12}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{40}{equation.5.12}\protected@file@percent }
+\newlabel{sec:simp-impl}{{5.2.6}{40}{In Rust}{equation.5.12}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.11}{\ignorespaces \texttt  {simp}: Implementation of the fixpoint loop around \texttt  {simp\_once}.}}{40}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:simp-loop-rust}{{5.11}{40}{\texttt {simp}: Implementation of the fixpoint loop around \texttt {simp\_once}}{figure.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.12}{\ignorespaces \texttt  {dedup\_first}: keeps the first occurrence of each regex shape among \texttt  {branches}, bits aside. \texttt  {hash\_shape} (Figure~\ref {fig:hash-shape-ch5-rust}) computes that shape; both are discussed further, with their own complexity, in Section~\ref {sec:eval-cost-bit-coding}.}}{41}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:dedup-first-ch5-rust}{{5.12}{41}{\texttt {dedup\_first}: keeps the first occurrence of each regex shape among \texttt {branches}, bits aside. \texttt {hash\_shape} (Figure~\ref {fig:hash-shape-ch5-rust}) computes that shape; both are discussed further, with their own complexity, in Section~\ref {sec:eval-cost-bit-coding}}{figure.caption.29}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.13}{\ignorespaces \texttt  {hash\_shape}: the structural hash \texttt  {dedup\_first} buckets branches by -- a discriminant tag per variant, plus whatever \texttt  {same\_shape} itself recurses into, always skipping the node's own bits, so two branches of the same shape always land in the same bucket.}}{41}{figure.caption.30}\protected@file@percent }
+\newlabel{fig:hash-shape-ch5-rust}{{5.13}{41}{\texttt {hash\_shape}: the structural hash \texttt {dedup\_first} buckets branches by -- a discriminant tag per variant, plus whatever \texttt {same\_shape} itself recurses into, always skipping the node's own bits, so two branches of the same shape always land in the same bucket}{figure.caption.30}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.14}{\ignorespaces \texttt  {simp\_once}: \texttt  {Seq}/\texttt  {Alt} simplification for annotated expressions. }}{42}{figure.caption.31}\protected@file@percent }
+\newlabel{fig:simp-rust}{{5.14}{42}{\texttt {simp\_once}: \texttt {Seq}/\texttt {Alt} simplification for annotated expressions}{figure.caption.31}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.15}{\ignorespaces \texttt  {collect\_alt\_branches} and \texttt  {push\_branches}: flattening nested \texttt  {Alt} chains into one list.}}{42}{figure.caption.32}\protected@file@percent }
+\newlabel{fig:collect-alt-branches-rust}{{5.15}{42}{\texttt {collect\_alt\_branches} and \texttt {push\_branches}: flattening nested \texttt {Alt} chains into one list}{figure.caption.32}{}}
 \citation{sulzmannlu2014}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.16}{\ignorespaces \texttt  {fold\_alt}: rebuilds a flat, deduplicated branch list into a right-associated \texttt  {Alt}.}}{36}{figure.caption.32}\protected@file@percent }
-\newlabel{fig:fold-alt-rust}{{5.16}{36}{\texttt {fold\_alt}: rebuilds a flat, deduplicated branch list into a right-associated \texttt {Alt}}{figure.caption.32}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.7}Decoding Bits}{36}{subsection.5.2.7}\protected@file@percent }
-\newlabel{sec:decode}{{5.2.7}{36}{Decoding Bits}{subsection.5.2.7}{}}
-\newlabel{eq:decode}{{5.13}{36}{Decoding Bits}{equation.5.13}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{36}{equation.5.13}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.17}{\ignorespaces \texttt  {decode}: the public entry point, asserting that \texttt  {decode\_inner} consumed every bit.}}{36}{figure.caption.33}\protected@file@percent }
-\newlabel{fig:decode-rust}{{5.17}{36}{\texttt {decode}: the public entry point, asserting that \texttt {decode\_inner} consumed every bit}{figure.caption.33}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.18}{\ignorespaces \texttt  {decode\_inner}: the worker behind \texttt  {decode}, one arm per expression form.}}{37}{figure.caption.34}\protected@file@percent }
-\newlabel{fig:decode-inner-rust}{{5.18}{37}{\texttt {decode\_inner}: the worker behind \texttt {decode}, one arm per expression form}{figure.caption.34}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.8}Parser}{37}{subsection.5.2.8}\protected@file@percent }
-\newlabel{sec:deriv-bc-driver}{{5.2.8}{37}{Parser}{subsection.5.2.8}{}}
-\newlabel{eq:bitcoded-driver}{{5.14}{37}{Parser}{equation.5.14}{}}
-\@writefile{toc}{\contentsline {paragraph}{In Rust.}{38}{equation.5.14}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.19}{\ignorespaces \texttt  {parse\_bitcoded\_loop}: the bit-coded derivative parser loop.}}{38}{figure.caption.35}\protected@file@percent }
-\newlabel{fig:deriv-bc-loop-rust}{{5.19}{38}{\texttt {parse\_bitcoded\_loop}: the bit-coded derivative parser loop}{figure.caption.35}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.9}Worked Example: Bitcoded Derivative Parser}{38}{subsection.5.2.9}\protected@file@percent }
-\newlabel{sec:deriv-bc-worked}{{5.2.9}{38}{Worked Example: Bitcoded Derivative Parser}{subsection.5.2.9}{}}
-\@writefile{toc}{\contentsline {paragraph}{Internalize.}{38}{subsection.5.2.9}\protected@file@percent }
-\newlabel{eq:dpbc-internalize}{{5.15}{38}{Internalize}{equation.5.15}{}}
-\@writefile{toc}{\contentsline {paragraph}{Bit-Threaded Derivatives.}{38}{equation.5.15}\protected@file@percent }
-\newlabel{eq:dpbc-forward}{{5.16}{38}{Bit-Threaded Derivatives}{equation.5.16}{}}
-\@writefile{toc}{\contentsline {paragraph}{Extracting bits.}{38}{equation.5.16}\protected@file@percent }
-\newlabel{eq:dpbc-mkepsbc}{{5.17}{38}{Extracting bits}{equation.5.17}{}}
-\@writefile{toc}{\contentsline {paragraph}{Decoding bits.}{38}{equation.5.17}\protected@file@percent }
-\newlabel{eq:dpbc-decode}{{5.18}{38}{Decoding bits}{equation.5.18}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.16}{\ignorespaces \texttt  {fold\_alt}: rebuilds a flat, deduplicated branch list into a right-associated \texttt  {Alt}.}}{43}{figure.caption.33}\protected@file@percent }
+\newlabel{fig:fold-alt-rust}{{5.16}{43}{\texttt {fold\_alt}: rebuilds a flat, deduplicated branch list into a right-associated \texttt {Alt}}{figure.caption.33}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.7}Decoding Bits}{43}{subsection.5.2.7}\protected@file@percent }
+\newlabel{sec:decode}{{5.2.7}{43}{Decoding Bits}{subsection.5.2.7}{}}
+\newlabel{eq:decode}{{5.13}{43}{Decoding Bits}{equation.5.13}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{43}{equation.5.13}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.17}{\ignorespaces \texttt  {decode}: the public entry point, asserting that \texttt  {decode\_inner} consumed every bit.}}{43}{figure.caption.34}\protected@file@percent }
+\newlabel{fig:decode-rust}{{5.17}{43}{\texttt {decode}: the public entry point, asserting that \texttt {decode\_inner} consumed every bit}{figure.caption.34}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.18}{\ignorespaces \texttt  {decode\_inner}: the worker behind \texttt  {decode}, one arm per expression form.}}{44}{figure.caption.35}\protected@file@percent }
+\newlabel{fig:decode-inner-rust}{{5.18}{44}{\texttt {decode\_inner}: the worker behind \texttt {decode}, one arm per expression form}{figure.caption.35}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.8}Parser}{44}{subsection.5.2.8}\protected@file@percent }
+\newlabel{sec:deriv-bc-driver}{{5.2.8}{44}{Parser}{subsection.5.2.8}{}}
+\newlabel{eq:bitcoded-driver}{{5.14}{44}{Parser}{equation.5.14}{}}
+\@writefile{toc}{\contentsline {paragraph}{In Rust.}{45}{equation.5.14}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.19}{\ignorespaces \texttt  {parse\_bitcoded\_loop}: the bit-coded derivative parser loop.}}{45}{figure.caption.36}\protected@file@percent }
+\newlabel{fig:deriv-bc-loop-rust}{{5.19}{45}{\texttt {parse\_bitcoded\_loop}: the bit-coded derivative parser loop}{figure.caption.36}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2.9}Worked Example: Bitcoded Derivative Parser}{45}{subsection.5.2.9}\protected@file@percent }
+\newlabel{sec:deriv-bc-worked}{{5.2.9}{45}{Worked Example: Bitcoded Derivative Parser}{subsection.5.2.9}{}}
+\@writefile{toc}{\contentsline {paragraph}{Internalize.}{45}{subsection.5.2.9}\protected@file@percent }
+\newlabel{eq:dpbc-internalize}{{5.15}{45}{Internalize}{equation.5.15}{}}
+\@writefile{toc}{\contentsline {paragraph}{Bit-Threaded Derivatives.}{45}{equation.5.15}\protected@file@percent }
+\newlabel{eq:dpbc-forward}{{5.16}{45}{Bit-Threaded Derivatives}{equation.5.16}{}}
+\@writefile{toc}{\contentsline {paragraph}{Extracting bits.}{45}{equation.5.16}\protected@file@percent }
+\newlabel{eq:dpbc-mkepsbc}{{5.17}{45}{Extracting bits}{equation.5.17}{}}
+\@writefile{toc}{\contentsline {paragraph}{Decoding bits.}{45}{equation.5.17}\protected@file@percent }
+\newlabel{eq:dpbc-decode}{{5.18}{45}{Decoding bits}{equation.5.18}{}}
 \@setckpt{chapters/05_derivative_parser}{
-\setcounter{page}{39}
+\setcounter{page}{46}
 \setcounter{equation}{18}
 \setcounter{enumi}{0}
 \setcounter{enumii}{0}
@@ -151,6 +151,7 @@
 \setcounter{subparagraph}{0}
 \setcounter{figure}{19}
 \setcounter{table}{0}
+\setcounter{AM@survey}{0}
 \setcounter{parentequation}{0}
 \setcounter{caption@flags}{2}
 \setcounter{continuedfloat}{0}
@@ -165,6 +166,7 @@
 \setcounter{section@level}{0}
 \setcounter{Item}{0}
 \setcounter{Hfootnote}{0}
-\setcounter{bookmark@seq@number}{33}
+\setcounter{bookmark@seq@number}{34}
+\setcounter{savedpage}{9}
 \setcounter{lstlisting}{0}
 }
