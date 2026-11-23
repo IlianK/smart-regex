@@ -329,11 +329,9 @@ A membership disagreement between the parsers
 indicates an implementation error, since
 disambiguation does not affect acceptance.
 \emph{Shape} is compared only when
-$e=\mathit{true}$ and both parsers return
-a tree.
+$e=\mathit{true}$ and both parsers return a tree.
 Since their disambiguation policies differ,
-distinct parse trees may reflect legitimate
-ambiguity rather than an implementation error.
+distinct parse trees reflect legitimate ambiguity.
 
 \begin{table}[ht]
 \centering
@@ -3412,15 +3410,22 @@ Row P09, the pattern \texttt{(a|aa)+} on input \texttt{"aa"} is ambiguous
 and here it appears at the smallest input that makes its ambiguity visible
 (Figures~\ref{fig:agreement-synthetic-tree-posix}
 and~\ref{fig:agreement-synthetic-tree-nonposix}).
+The POSIX tree matches \texttt{"aa"} in one iteration via the
+alternation's two-character branch, leaving the trailing \texttt{Star}
+empty. The non-POSIX tree instead uses two iterations via the
+one-character branch, the second inside the trailing \texttt{Star}.
+Both flatten to \texttt{"aa"}.
 
 \begin{figure}[H]
 \centering
 \small
 \begin{verbatim}
-Pair(Right(Pair(Char('a'), Char('a'))), Star([]))
+Pair(
+  Right(Pair(Char('a'), 
+  Char('a'))), Star([])
+)
 \end{verbatim}
-\caption{The POSIX parse tree for \texttt{(a|aa)+} on \texttt{"aa"},
-produced by \texttt{deriv\_std} and \texttt{deriv\_bc}.}
+\caption{The POSIX parse tree for \texttt{(a|aa)+} on \texttt{"aa"}.}
 \label{fig:agreement-synthetic-tree-posix}
 \end{figure}
 
@@ -3428,34 +3433,38 @@ produced by \texttt{deriv\_std} and \texttt{deriv\_bc}.}
 \centering
 \small
 \begin{verbatim}
-Pair(Left(Char('a')), Star([Left(Char('a'))]))
+Pair(
+  Left(Char('a')), 
+  Star([Left(Char('a'))])
+)
 \end{verbatim}
-\caption{The non-POSIX parse tree for the same pattern and input.}
+\caption{The POSIX parse tree for \texttt{(a|aa)+} on \texttt{"aa"}.}
 \label{fig:agreement-synthetic-tree-nonposix}
 \end{figure}
 
-The POSIX tree matches \texttt{"aa"} in one iteration via the
-alternation's two-character branch, leaving the trailing \texttt{Star}
-empty. The non-POSIX tree instead uses two iterations via the
-one-character branch, the second inside the trailing \texttt{Star}.
-Both flatten to \texttt{"aa"}: the disagreement is structural, not
-about the matched word.
+
 
 %
 
 \clearpage
 \paragraph{Example: S2ELab pattern.} 
-Input \texttt{"9000"} on the loosely-formatted-number pattern
-\begin{center}
-\texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}
-\end{center}
-is ambiguous, producing two trees that
+The following entry is ambiguous, producing two trees that
 flatten to the same word, shown in
 Figures~\ref{fig:agreement-s2elab-tree-posix}
-and~\ref{fig:agreement-s2elab-tree-nonposix}. Every constructor name
-appears as in the parser output; \texttt{<9>} abbreviates
-\texttt{Right(Char('9'))} and \texttt{<0>} the nine-deep \texttt{Left}
-injection around \texttt{Char('0')}.
+and~\ref{fig:agreement-s2elab-tree-nonposix}.
+The trees assign the digits to different
+subexpressions.
+In the POSIX tree, the optional group consumes
+\texttt{"9"} and the repeated three-digit group
+consumes \texttt{"000"}, leaving the trailing
+\texttt{[0-9]*} empty.
+In the non-POSIX tree, the optional group
+consumes \texttt{"900"}, the repeated group
+remains empty, and the trailing star consumes
+\texttt{"0"}.
+These differences appear in the
+\texttt{Left}/\texttt{Right} injections
+and \texttt{Star} contents.
 
 \begin{figure}[H]
 \centering
@@ -3475,9 +3484,9 @@ Pair(
   Star([])
 )
 \end{verbatim}
-\caption{The POSIX parse tree for the loosely-formatted-number pattern
-on \texttt{"9000"}, produced by \texttt{deriv\_std} and
-\texttt{deriv\_bc}.}
+\caption{POSIX parse tree produced by \texttt{deriv\_bc}
+for input \texttt{"9000"} and the loosely-formatted-number pattern
+\texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}.}
 \label{fig:agreement-s2elab-tree-posix}
 \end{figure}
 
@@ -3504,29 +3513,53 @@ Pair(
   Star([<0>])
 )
 \end{verbatim}
-\caption{The non-POSIX parse tree for the same pattern and input.}
+\caption{Non-POSIX parse tree produced by \texttt{pderiv\_bc}
+for input \texttt{"9000"} and the loosely-formatted-number pattern
+\texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*[.]?[0-9]*\textdollar}.}
 \label{fig:agreement-s2elab-tree-nonposix}
 \end{figure}
 
+On S2ELab, all 14 shape disagreements occur
+in just five of 463 patterns
+(Table~\ref{tab:agreement-s2elab-patterns}),
+mainly with ambiguous domain splits
+or optional groups, where
+subexpressions consume the same input.
 
-The trees differ in how they distribute the digits
-among the optional one-to-three-digit group,
-the repeated three-digit group, and the trailing
-digit star.
-In the POSIX tree, the first group consumes only
-\texttt{"9"}, while the repeated group consumes
-\texttt{"000"} in one iteration.
-The trailing \texttt{[0-9]*} remains empty.
-In the non-POSIX tree, the first group instead
-consumes \texttt{"900"}, leaving the repeated
-group empty and the trailing \texttt{[0-9]*}
-to consume the final \texttt{"0"}.
-These choices appear as different
-\texttt{Left}/\texttt{Right} injections and
-\texttt{Star} contents.
-Thus, both trees represent the same matched
-input, but assign its characters to different
-subexpressions.
+\begin{table}[H]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{@{} l cr >{\raggedright\arraybackslash}X @{}}
+\hline
+Pattern & Compared & Disagree & Disagreeing inputs \\
+\hline
+{\texttt{\textasciicircum([\textbackslash w\textbackslash d\textbackslash
+-\textbackslash .]+)@\{1\}\ldots\textdollar}}
+    & 13 & 5 (38.5\%) & \texttt{foo@foo-foo.com.au},
+    \texttt{fds@gad-agd.com.us}, \texttt{foo@org-foo.org.au},
+    \texttt{gad@afd.ghe.au}, \texttt{gas@dfs-erw.org.au} \\
+{\texttt{\textasciicircum(((\textbackslash d\{1,3\})(,\textbackslash
+d\{3\})*)|(\textbackslash d+))(.\textbackslash d+)?\textdollar}}
+    & 13 & 4 (30.8\%) & \texttt{9999999}, \texttt{5765967},
+    \texttt{54654}, \texttt{6748} \\
+{\texttt{\textasciicircum\textbackslash d?\textbackslash d'(\textbackslash
+d|1[01])?.?(\textbackslash d|1[01])\&quot;\textdollar}}
+    & 13 & 3 (23.1\%) & \texttt{4'108\&quot;}, \texttt{94'110\&quot;},
+    \texttt{6'112\&quot;} \\
+{\texttt{\textasciicircum[-+]?([0-9]\{1,3\}[,]?)?([0-9]\{3\}[,]?)*
+[.]?[0-9]*\textdollar}}
+    & 13 & 1 (7.7\%) & \texttt{9000} \\
+{\texttt{\textasciicircum/\{1\}(((/\{1\}\textbackslash.\{1\})?
+[a-zA-Z0-9 ]+/?)+\ldots\textdollar}}
+    & 13 & 1 (7.7\%) & \texttt{/home/.BASH} \\
+\hline
+\end{tabularx}
+\caption{The five S2ELab patterns responsible for all 14 shape
+disagreements, and the specific inputs each occurs on. Report:
+\texttt{reports/demos/parser\_agreement\_samples.csv}.}
+\label{tab:agreement-s2elab-patterns}
+\end{table}
 
 %
 %
@@ -3707,61 +3740,86 @@ Section~\ref{sec:eval-agreement}.
 %
 %
 
-
 \subsection{Threats to validity}
 
 \paragraph{Synthetic set}
-The 112 pattern rows isolate specific complexity
-mechanisms at controlled scales rather than
-representing typical user patterns.
-Most categories vary one parameter at a time,
-leaving interactions between stress mechanisms
-largely untested.
+The S2ELab corpus (\citet{s2elab-regexeval-dataset},
+Section~\ref{sec:eval-s2elab}) was designed to evaluate whether
+a regex correctly implements a natural-language description,
+not to characterize engine performance: its patterns are
+human-authored regexes paired with labeled example inputs,
+not inputs designed to stress particular parsers.
+Using it as a measure of typical-case cost is therefore an
+assumption, and its patterns may not represent the inputs
+that stress these parsers most -- motivating the synthetic set.
+The synthetic set's 112 pattern rows isolate specific complexity
+mechanisms at controlled scales rather than representing typical
+user patterns. Most categories vary one parameter at a time,
+leaving interactions between stress mechanisms largely untested.
 
-\paragraph{Agreement subset}
-The \emph{Compared} subset includes expected matches
-for which both parsers complete and agree with
-the expected label.
-No S2ELab matches are excluded, but 20 of
-443 synthetic matches (4.5\%) are omitted:
-15 due to timeouts and five due to label
-disagreements in category C.
-The timeouts occur in categories F, I, J,
-and K, potentially biasing comparisons toward
-less demanding entries.
-In alternation-heavy categories, excluded cases
-may also be more ambiguous, although this
-does not necessarily apply to long-input cases.
+%
+
+\paragraph{Resource limits}
+The per-entry timeout and memory cap
+(Section~\ref{sec:eval-criteria-setup}) are not independent failure
+boundaries. For an entry whose memory usage grows with its cost,
+allowing more time does not necessarily permit completion --
+it may instead reach the $12\,\mathrm{GiB}$ cap and crash first.
+Increasing the timeout can therefore shift entries between
+outcomes rather than eliminate failures: some additional
+entries complete, while others that would have timed out crash
+instead. The recorded timeouts and crashes reflect this
+specific resource budget, not necessarily each parser's
+inherent limits. Retrying under a larger cap or longer timeout
+could establish how many failures resolve into completions
+rather than another failure mode.
+
+%
 
 \paragraph{Instrumentation}
-Timing and memory instrumentation may introduce
-measurement overhead and alter allocation or
-execution behavior.
-In particular, phase measurements and allocation
-tracking provide useful cost breakdowns but
-may not reproduce the exact costs of an
-uninstrumented parser.
-The four timing phases are also not directly
-comparable across parser families: they are
-positionally aligned but measure different work
-per implementation (Section~\ref{sec:eval-criteria-timing}),
-and \texttt{deriv\_std\_rec}'s interleaved phase
-instrumentation adds a small, parser-specific
-overhead absent from the other four.
-The results therefore characterize the measured
-implementations under the evaluation setup,
-rather than instrumentation-free performance.
+Separating execution phases cleanly is not equally possible
+for every parser. 
+\texttt{deriv\_bc}'s \texttt{internalize} is a
+one-time step before any character is consumed, so its
+\emph{setup} measurement reflects a separable phase.
+\texttt{pderiv\_bc} has no equivalent upfront step:
+\texttt{flatten\_alt} instead runs on every character for any
+\texttt{Alt} still present in the current residual, distributing
+its cost throughout derivation
+(Section~\ref{sec:eval-criteria-timing}).
+So the reported \emph{setup} is an accounting choice
+rather than a separately executed phase. 
+The accumulated \texttt{flatten\_alt} cost is reassigned 
+from \emph{derive} to keep the bit-coded parsers' phase tables comparable,
+so their \emph{setup} figures measure different
+behaviors: a one-time operation in \texttt{deriv\_bc}
+versus recurring work in \texttt{pderiv\_bc}.
+The results thus reflect this accounting choice,
+not a phase division applicable uniformly to every parser.
+
+%
 
 \paragraph{Measurement model}
-Memory measurements cover heap allocations,
-not total process memory, while timing depends
-on the hardware and execution environment.
-A recorded \emph{crash} indicates termination
-by a signal, not necessarily stack overflow
+Memory measurements cover heap allocations rather than total
+process memory, while timing depends on hardware and the
+execution environment. A recorded \emph{crash} indicates
+signal termination, not necessarily stack overflow
 (Section~\ref{sec:eval-criteria-setup}).
-The separate stack-depth probe provides
-direct evidence of recursive stack exhaustion,
-whereas crashes in the representative sweeps
-are consistent with retained-derivative
-memory growth but do not establish its
-precise failure mechanism.
+The separate stack-depth probe provides direct evidence
+of recursive stack exhaustion, whereas crashes in the
+representative sweeps are consistent with retained-derivative
+memory growth without establishing the precise failure mechanism.
+
+%
+
+\paragraph{Single-run measurement}
+Each entry is timed once, without warm-up or repetition
+(Section~\ref{sec:eval-criteria-timing}),
+to keep the evaluation feasible given the large
+benchmark set and potentially expensive stress cases.
+A reported time is therefore a single sample,
+not a distribution, and may be affected by
+scheduling jitter, cache state, or other transient
+system effects. Without repeated measurements,
+outliers cannot be reliably distinguished
+from genuine execution costs.
