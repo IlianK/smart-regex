@@ -4,8 +4,7 @@
 //! pipeline status (duplicate / rejected / accepted-anchored /
 //! accepted-unanchored) alongside its *raw* (pre-filtering) match and
 //! non-match counts and lengths, so the rejected and accepted subsets'
-//! input characteristics can be compared directly. Not part of the
-//! regular pipeline; written to answer one specific thesis question.
+//! input characteristics can be compared directly.
 //!
 //! cargo run --release --example dataset_skew_check -- data/raw/s2-elab/RegexEval.json
 
