@@ -164,6 +164,22 @@ basis for comparison.
     after the parser returns.
 \end{itemize}
 
+The four phases are positionally aligned across
+all five parsers but do not measure the same
+operation: \emph{reconstruct} is a genuine bit
+decode for \texttt{deriv\_bc}/\texttt{pderiv\_bc},
+but applies a composed injection-closure chain
+for \texttt{pderiv\_std} and performs backward
+injection directly for the \texttt{deriv\_std}'s,
+so a phase-by-phase comparison across families
+compares different work occupying the same slot.
+The instrumentation itself is also not perfectly
+uniform: \texttt{deriv\_std\_rec}'s \emph{derive}
+and \emph{reconstruct} interleave within one
+recursive descent rather than running as separate
+passes, adding a small per-character measurement
+overhead the other four parsers' phases do not carry.
+
 Four timing statistics are reported.
 Aggregation determines whether measurements are combined
 per pattern or across individual entries,
@@ -513,8 +529,8 @@ Rows with IDs beginning with \texttt{P} fix the pattern
 and increase $n$ to measure scaling with input length,
 while \texttt{E} rows fix the input and increase $p$
 to measure scaling with pattern size.
-Table~\ref{tab:sweep-samples} illustrates one row of each type
-at two sweep values, using their matching inputs.
+Table~\ref{tab:sweep-samples} illustrates one row of each type,
+using their matching inputs.
 
 \begin{table}[H]
 \centering
@@ -526,12 +542,12 @@ Row & Swept & Fixed & Description & Pattern & Input \\
 P01 & $n = 1000$ & --- & \texttt{a} repeated 1000x
     & \texttt{(a+)+}
     & $[\,\texttt{a}^{1000}\,]$ \\
-E36 & $p = 1000$ & $n = 20$ & 1000-way word Alt
-    & \texttt{(?:w000001|\ldots|w001000)+}
+E36 & $p = 500$ & $n = 20$ & 500-way word Alt
+    & \texttt{(?:w000001|\ldots|w000500)+}
     & $[\,\texttt{w000001}^{20}\,]$ \\
 \hline
 \end{tabular*}
-\caption{Two rows at two sweep values each. P01 fixes the pattern and
+\caption{One row of each type. P01 fixes the pattern and
 sweeps $n$, so the input grows. E36 sweeps $p$, so the
 alternation width grows while the input is fixed $n = 20$.}
 \label{tab:sweep-samples}
@@ -630,13 +646,13 @@ B & Overlapping alternation
 C & Bounded rep over star
     & \texttt{(.*a)\{1,10\}} & 7 & [100]
     & [10, 50, 200, 1\,000] & 56 \\
-D & Near-miss bounded repetition
+D & Anchored-failure style
     & \texttt{(a?)\{3\}a\{3\}} & 4 & [100]
     & [10, 20, 30, 50, 75] & 40 \\
 E & Prefix-overlap alternation
     & \texttt{(a|b|ab)*} & 8 & [100]
     & [10, 100, 1\,000, 5\,000, 50\,000] & 80 \\
-F & Star then failing literal
+F & Alternation-star + literal
     & \texttt{(a|b)*c} & 7 & [100]
     & [10, 100, 1\,000, 10\,000, 50\,000] & 70 \\
 H & Adjacent unbounded groups
@@ -874,7 +890,7 @@ while matches require full input consumption
 and parse-tree reconstruction.
 The gap is largest for \texttt{deriv\_std},
 which keeps intermediate derivatives for its backward pass,
-and smallest for the bit-coded parsers.
+and smallest for \texttt{deriv\_bc}.
 
 \begin{table}[H]
 \centering
@@ -1206,7 +1222,7 @@ E39 & Deeply nested groups
 \hline
 \end{tabular*}
 \caption{Category J's most expensive pattern structures
-at $p=500$, matching inputs, timing (ms)}
+at $p=500$, timing (ms)}
 \label{tab:patho-j-offenders}
 \end{table}
 
@@ -1521,9 +1537,9 @@ annotations accumulated along the surviving path.
 through \texttt{Inj::apply}, evaluating a chain
 of deferred injection closures.
 
-Teardown is also more expensive for both
-\texttt{pderiv} variants, particularly on P61.
-There, their parse trees contain twice as many
+Teardown is also markedly more expensive for
+both \texttt{pderiv} variants on P61, where
+their parse trees contain twice as many
 Star iterations, selecting individual
 \texttt{a} and \texttt{b} branches rather than
 the \texttt{ab} iterations produced by
@@ -2509,11 +2525,17 @@ the nested $p$-way alternation into separate
 residuals, assigning branch-bit prefixes
 and removing duplicates through \texttt{nub2}
 (Section~\ref{sec:pderiv-bc-impl}).
-Direct measurements place most of its processing
-cost for these wide alternations in this first step.
-Subsequent calls to \texttt{step\_frontier}
-derive the active residuals and deduplicate
-the resulting frontier.
+This one-time flattening is the smaller of
+its two costs: at $p=10\,000$ it accounts for
+5.51\,ms of E37's 17.54\,ms total and 8.75\,ms
+of E38's 47.87\,ms
+(Tables~\ref{tab:patho-phases-e37}
+and~\ref{tab:patho-phases-e38}).
+Most of the cost instead falls on the
+per-character \texttt{step\_frontier} calls
+that follow, which derive the active residuals
+and deduplicate the resulting frontier at
+every step.
 E38's longer alternatives require additional
 processing before the matching branch is resolved,
 further increasing derivation cost relative to E37.
@@ -2668,7 +2690,7 @@ Parser & Total allocated & Avg/entry & Max live peak \\
 \texttt{deriv\_std}  & 52\,285.1\,MB &   275.2\,MB & 4\,673.4\,MB \\
 \texttt{deriv\_bc}   &    964.5\,MB &     4.9\,MB &     2.2\,MB \\
 \texttt{pderiv\_std} &    353.2\,MB &     1.8\,MB &     2.8\,MB \\
-\texttt{pderiv\_bc}  &    477.7\,MB &     2.5\,MB &     3.1\,MB \\
+\texttt{pderiv\_bc}  &    477.7\,MB &     2.4\,MB &     3.1\,MB \\
 \hline
 \end{tabular*}
 \caption{Heap allocation per category over the synthetic set
@@ -2685,7 +2707,7 @@ while Table~\ref{tab:patho-memory-full-af}
 reports the seven complexity-mechanism categories.
 Both show total allocation,
 average per completed entry, and maximum live memory,
-with failed entries are excluded.
+with failed entries excluded.
 
 %
 
@@ -2712,7 +2734,8 @@ In K, combining large patterns with long inputs,
 has the lowest total and peak
 (2\,543.5 and 22.2\,MB).
 However, differing completion counts
-(12, 26, and 20 for each \texttt{pderiv} variant)
+(12 for \texttt{deriv\_std}, 26 for \texttt{deriv\_bc},
+and 20 for each \texttt{pderiv} variant)
 limit direct comparisons of cumulative allocation.
 
 %
@@ -2746,7 +2769,7 @@ Parser & Total allocated & Avg/entry & Max live peak \\
 \texttt{pderiv\_std} & 97\,108.7\,MB & 1\,734.1\,MB &     9.9\,MB \\
 \texttt{pderiv\_bc}  & 91\,695.5\,MB & 1\,637.4\,MB &    14.5\,MB \\
 \hline
-\multicolumn{4}{l}{\textit{D -- Near-miss bounded repetition}} \\
+\multicolumn{4}{l}{\textit{D -- Anchored-failure style}} \\
 \texttt{deriv\_std}  & 37\,158.1\,MB &   929.0\,MB & 8\,624.1\,MB \\
 \texttt{deriv\_bc}   &  4\,101.3\,MB &   102.5\,MB &     3.6\,MB \\
 \texttt{pderiv\_std} & 58\,747.9\,MB & 1\,468.7\,MB &    28.6\,MB \\
@@ -2758,7 +2781,7 @@ Parser & Total allocated & Avg/entry & Max live peak \\
 \texttt{pderiv\_std} &  5\,486.7\,MB &    68.6\,MB &    43.6\,MB \\
 \texttt{pderiv\_bc}  &  5\,429.9\,MB &    67.9\,MB &    32.5\,MB \\
 \hline
-\multicolumn{4}{l}{\textit{F -- Star then failing literal}} \\
+\multicolumn{4}{l}{\textit{F -- Alternation-star + literal}} \\
 \texttt{deriv\_std}  & 11\,881.4\,MB &   396.0\,MB & 1\,409.3\,MB \\
 \texttt{deriv\_bc}   & 107\,518.1\,MB & 1\,853.8\,MB &    42.0\,MB \\
 \texttt{pderiv\_std} & 18\,248.8\,MB &   260.7\,MB &    85.2\,MB \\
@@ -3126,7 +3149,7 @@ the first alternative.}
 
 On E38, the ordering changes:
 \texttt{deriv\_std} now has the highest
-peak throughout, approximately $1.6\times$
+peak throughout, roughly $1.6$--$1.7\times$
 that of \texttt{deriv\_bc}.
 The partial-derivative variants remain
 the most memory-efficient, with
@@ -3513,7 +3536,7 @@ subexpressions.
 \section{Findings}
 \label{sec:eval-discussion}
 
-\subsection{Cost of the standard construction}
+\subsection{\texttt{deriv\_std}}
 
 \texttt{deriv\_std}
 is most crash-prone and incurs the highest
@@ -3529,8 +3552,11 @@ such as E37 and E38, avoiding simplification
 overhead can be beneficial, since few
 redundant branches exist.
 The stack-depth probe further exposes
-the limitations of recursive derivation,
-making iteration preferable for long inputs
+the limitations of recursive derivation:
+\texttt{deriv\_std\_rec} survives far less
+input than its iterative counterpart before
+exhausting the stack, making iteration
+preferable for long inputs
 (Section~\ref{sec:eval-stack-depth}).
 
 %
@@ -3538,7 +3564,7 @@ making iteration preferable for long inputs
 %
 
 
-\subsection{Cost of bit-coding}
+\subsection{\texttt{deriv\_bc}}
 \label{sec:eval-cost-bit-coding}
 
 Within the standard-derivative family, bit-coding
@@ -3585,7 +3611,7 @@ cumulative allocation and live memory
 %
 
 
-\subsection{Cost of partial derivatives}
+\subsection{\texttt{pderiv\_std}}
 \label{sec:eval-cost-partial-derivatives}
 
 The partial-derivative parsers achieve the lowest
@@ -3597,16 +3623,6 @@ with standard derivatives.
 This advantage is particularly evident on wide
 alternations, where both partial-derivative
 variants outperform \texttt{deriv\_bc}.
-One possible explanation is the different
-handling of residual alternatives.
-\texttt{deriv\_bc} simplifies a combined
-expression, whereas \texttt{pderiv\_bc}
-deduplicates a frontier of residuals
-(Sections~\ref{sec:simp-impl}
-and~\ref{sec:pderiv-bc-impl}).
-Although both use structural hashing,
-their representations and simplification
-work differ.
 The comparable scaling observed on the
 alternation sweeps suggests that the measured
 advantage reflects lower per-alternative
@@ -3616,22 +3632,55 @@ The remaining performance gap on
 non-matching inputs further suggests
 that deduplication alone does not
 explain the difference.
-Within the partial-derivative family,
-bit-coding provides a modest advantage
-in corpus timing and cumulative allocation,
-but not in peak memory.
-This may partly reflect differences in
-reconstruction bookkeeping:
+
+On the representative stress patterns,
+\texttt{pderiv\_std} is the stronger of the
+two partial-derivative variants: it outperforms
+\texttt{pderiv\_bc} throughout the sweeps,
+reversing the modest corpus-side advantage
+\texttt{pderiv\_bc} holds instead
+(Section~\ref{sec:eval-cost-pderiv-bc}).
+Their peak-memory rankings also vary between
+the two workloads.
+This is consistent with the two variants'
+different reconstruction bookkeeping --
 \texttt{pderiv\_std} maintains injection
 closures, whereas \texttt{pderiv\_bc}
 records bit annotations
 (Sections~\ref{sec:pderiv-tree-impl}
-and~\ref{sec:pderiv-bc}).
-However, the representative stress patterns
-reverse the timing ranking, with
-\texttt{pderiv\_std} outperforming
-\texttt{pderiv\_bc} throughout.
-Their peak-memory rankings also vary.
+and~\ref{sec:pderiv-bc}) -- so bit-coding's
+benefit within the partial-derivative family
+is workload-dependent rather than uniform.
+
+%
+%
+%
+
+
+\subsection{\texttt{pderiv\_bc}}
+\label{sec:eval-cost-pderiv-bc}
+
+One possible explanation for \texttt{pderiv\_bc}'s
+own advantage over \texttt{deriv\_bc} on wide
+alternations is the different handling of residual
+alternatives: \texttt{deriv\_bc} simplifies a
+combined expression, whereas \texttt{pderiv\_bc}
+deduplicates a frontier of residuals
+(Sections~\ref{sec:simp-impl}
+and~\ref{sec:pderiv-bc-impl}).
+Although both use structural hashing,
+their representations and simplification
+work differ.
+Within the partial-derivative family,
+bit-coding in turn gives \texttt{pderiv\_bc}
+a modest advantage over \texttt{pderiv\_std}
+in corpus timing and cumulative allocation,
+but not in peak memory.
+However, this advantage does not generalize:
+the representative stress patterns reverse the
+timing ranking, with \texttt{pderiv\_std}
+outperforming \texttt{pderiv\_bc} throughout
+(Section~\ref{sec:eval-cost-partial-derivatives}).
 Thus, bit-coding does not provide
 a uniform advantage across workloads.
 The wide-alternation sweeps show
@@ -3692,6 +3741,13 @@ In particular, phase measurements and allocation
 tracking provide useful cost breakdowns but
 may not reproduce the exact costs of an
 uninstrumented parser.
+The four timing phases are also not directly
+comparable across parser families: they are
+positionally aligned but measure different work
+per implementation (Section~\ref{sec:eval-criteria-timing}),
+and \texttt{deriv\_std\_rec}'s interleaved phase
+instrumentation adds a small, parser-specific
+overhead absent from the other four.
 The results therefore characterize the measured
 implementations under the evaluation setup,
 rather than instrumentation-free performance.
