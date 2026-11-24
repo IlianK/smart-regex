@@ -1,6 +1,11 @@
 \chapter{Regular Expressions}
 \label{sec:regular-expressions}
 
+The core operators are standard.
+The definitions and notation in this chapter 
+follow Sulzmann's \emph{Programming Paradigms} 
+teaching material~\citep{sulzmann_slides}.
+
 %
 %
 %
@@ -17,13 +22,12 @@ r,s ::= x \mid \varepsilon \mid \emptyset
 \end{equation}
 
 In the grammar, $r$ and $s$ range over regular expressions, 
-while $x$ ranges over the alphabet $\Sigma$ and denotes an arbitrary symbol, 
+while $x$ ranges over $\Sigma$ and denotes an arbitrary symbol, 
 such as $a$, $b$, or $c$. 
 The constants $\varepsilon$ and $\emptyset$ represent the 
 \emph{empty-word} and \emph{empty-language} expressions. 
 The operators $+$, $\cdot$,
 and $^*$ denote alternation, concatenation, and Kleene star, respectively.
-
 Concatenation is written implicitly, so $rs$ denotes $r \cdot s$.
 Given this notation, we adopt the precedence and associativity conventions. 
 Unless parentheses are shown explicitly, Kleene star binds most tightly, 
@@ -47,13 +51,15 @@ r^{\{m,n\}} = \underbrace{r\cdot\ldots\cdot r}_{m\text{ times}}
 \underbrace{(r+\varepsilon)\cdot\ldots\cdot(r+\varepsilon)}_{n-m\text{ times}}.
 \]
 
-As shown by the examples above, 
-regular expression strings may need to be translated 
-into the six core constructs supported by the implementation 
-before being passed to the parsing algorithms.
-Such a translation is only possible 
-when the expression can be rewritten using these constructs 
-without changing the language it describes.
+Although these operators add no expressive power,
+they are widely used in practice.
+To process regular-expression strings containing such operators
+with the parsing algorithms,
+they first need to be translated into the six core
+constructs of Equation~\eqref{eq:regex-grammar}.
+Such a translation is possible only if the
+expression can be rewritten without changing
+the language it denotes.
 
 To make the syntax and its structure concrete, consider the
 regular expression $r_{01}$ over $\Sigma=\{0,1\}$:
@@ -118,7 +124,7 @@ L(r^*) &= \{\varepsilon\}
 \end{aligned}
 \end{equation}
 
-Each recursive call is applied to a strictly smaller subexpression, 
+Each recursive call is applied to a smaller subexpression, 
 so it terminates for every expression. 
 It is also \emph{compositional}, 
 in that $L(r+s)$ is determined by $L(r)$ and $L(s)$ alone 
@@ -163,11 +169,12 @@ A word $w$ \emph{matches} $r$ when $w \in L(r)$,
 so $01$, $001$, and $1101$ are examples of words belonging to $L(r_{01})$, 
 whereas $\varepsilon$, $0$, and $010$ do not.
 
-The question of whether a word belongs to the language of an expression
+The question of whether a word belongs 
+to the language denoted by a regular expression
 is known as the \emph{membership problem}.
-For a given expression \(r\),
+For a given expression $r$,
 derivative-based and partial-derivative-based algorithms
-can be used to determine if $w \in L(r)$.
+can be used to determine $w \in L(r)$.
 
 %
 %
@@ -183,10 +190,13 @@ with one variant per syntactic construct.
 This enum is used by all implemented parsers.
 
 \begin{figure}[ht]
+\small
 \begin{verbatim}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Regex {
-    Phi, Eps, Lit(char),            
+    Phi, 
+    Eps, 
+    Lit(char),            
     Seq(Box<Regex>, Box<Regex>),   
     Alt(Box<Regex>, Box<Regex>),   
     Star(Box<Regex>),               
@@ -209,34 +219,44 @@ operations needed by parsing: \texttt{Clone} for duplication,
 \label{fig:regex-enum}
 \end{figure}
 
-The type carries no precedence or associativity information, 
-since these are already determined by the syntax tree. 
-Rust requires recursive enum variants to use explicit indirection 
-because enum sizes must be known at compile time. 
-This is achieved with \texttt{Box<Regex>}. 
-A direct definition such as \texttt{Seq(Regex, Regex)} 
-would have infinite size, 
-whereas \texttt{Box} stores recursive values separately 
-and keeps the size finite~\citep{rust-book-box,rust-reference-recursive-types}.
-In Haskell, no such annotation is needed 
-because data values are heap-allocated by default 
-and indirection is implicit. 
-The alphabet $\Sigma$ is instantiated as the set of Rust \texttt{char} values.
+The type carries no precedence or associativity
+information, since the nesting of its variants
+already determines how operators are grouped,
+forming the syntax tree.
+Rust requires explicit indirection for recursive
+enum variants, as their size must be known at
+compile time.
+Without indirection, a variant such as
+\texttt{Seq(Regex, Regex)} would have infinite size.
+Using \texttt{Box<Regex>} instead stores each
+recursive value on the heap and keeps only
+a fixed-size pointer in the enum
+\citep{rust-book-box,rust-reference-recursive-types}.
+In Haskell, recursive algebraic data types
+require no explicit boxing, since indirection is implicit.
+The alphabet $\Sigma$ is represented by
+the set of Rust \texttt{char} values.
+Using these constructors, the regular expression
+from Equation~\eqref{eq:r01-tree} can be build
+as a syntax tree in Rust.
+Figure~\ref{fig:r01-rust} shows its construction.
+The outer \texttt{Seq} has
+\texttt{Seq(Star(Alt(0,1)), 0)} as its left child
+and \texttt{Lit('1')} as its right child.
+Here, \texttt{0} and \texttt{1} abbreviate
+\texttt{Lit('0')} and \texttt{Lit('1')}.
 
-With these constructors, 
-the syntax tree from Equation~\eqref{eq:r01-tree} can be built directly in Rust.
-Figure~\ref{fig:r01-rust} shows the corresponding construction.
-The outer \texttt{Seq} has \texttt{Seq(Star(Alt(0,1)), 0)} as its left child and
-\texttt{Lit('1')} as its right child. 
-Here, \texttt{0} and \texttt{1} abbreviate \texttt{Lit('0')} and \texttt{Lit('1')}.
 
 \begin{figure}[ht]
+\small
 \begin{verbatim}
 Regex::seq(
     Regex::seq(
         Regex::star(Regex::alt(Regex::lit('0'), Regex::lit('1'))),
-        Regex::lit('0')),
-    Regex::lit('1'))
+        Regex::lit('0')
+    ),
+    Regex::lit('1')
+)
 \end{verbatim}
 \caption{Construction of the syntax tree for $r_{01}$.}
 \label{fig:r01-rust}

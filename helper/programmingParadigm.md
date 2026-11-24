@@ -1,10 +1,5 @@
 Master Thesis: Smarter Regular Expression Matching - From Theory to Tools
 
-Theory Sources:
-- flops14-extended.pdf (paper explaining POSIX algorithm and notation -> BASIS FOR THESIS -> Goal is to implement this efficiently as described in section bit coded at later time)
-- greedy.pdf (paper explaining greedy algorithm)
-- https://sulzmann.github.io/ProgrammingParadigms/pp-regular-expressions.html#(1) (overview of: 1. Native, 2. Derivatives, 3. Partial Derivatives is mirrored  in README.md):
-
 
 Overview
 

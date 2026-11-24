@@ -6,7 +6,7 @@ a matcher that uses Brzozowski derivatives to decide $w \in L(r)$.
 Chapter~\ref{sec:matching-vs-parsing} showed 
 that a word may admit multiple valid parse trees for the same expression
 and that a parser must select one according to a \emph{disambiguation policy}.
-This Chapter shows how a parse tree can be recovered from the final derivative.
+This chapter shows how a parse tree can be recovered from the final derivative.
 
 Following \citep[\S3, pp.~6--13]{sulzmannlu2014},
 this chapter presents two derivative-based methods
@@ -20,7 +20,7 @@ avoiding a separate backward pass.
 Neither method precompiles a deterministic finite automaton (DFA).
 Brzozowski's construction shows that an expression's derivatives
 form a finite set up to similarity, so a DFA could in principle be
-built once from that set and reused across inputs~\citep{brzozowski1964}.
+built once from that set and reused across inputs.
 Both parsers instead take each derivative on demand, one character
 at a time, as the input is read, recomputing the relevant expression
 rather than looking up a transition in a table built ahead of time.
@@ -282,7 +282,7 @@ with $\mathit{mkEps}_{r_1}$ and recurses into $v_2$ $(\mathsf{I}_{+}^{R})$.
 \texttt{inject(r, l, v)} takes three arguments because $\mathit{inj}$ is
 indexed by both an expression and a character.
 It matches first on \texttt{r} and on \texttt{v} second, 
-following the order in which \eqref{eq:inj} indexes its rules. 
+following the order in which Equation~\eqref{eq:inj} indexes its rules. 
 This order matters because a tree tag is interpreted relative 
 to the expression that produced it. 
 Under an alternation, \texttt{Left} selects the left disjunct, 
@@ -290,7 +290,7 @@ while under a nullable concatenation it indicates
 that the derivative continued inside the left operand. 
 The \texttt{Lit} arm reconstructs a leaf after asserting 
 that the consumed character matches,
-and the \texttt{Star} arm inverts $(\mathsf{I}_{*})$ 
+and \texttt{Star} inverts $(\mathsf{I}_{*})$ 
 by reinserting the character into the current iteration 
 and appending it to the tail built so far.
 
@@ -586,7 +586,7 @@ where $\mathsf{I}_{\mathrm{lit}}$ reinserts $\mathtt{a}$:
 
 The implementation stores $r_0$, $r_1$, and $r_2$ in a vector,
 with one entry per input character and the initial expression.
-These expressions are retained for the backward pass, which
+These expressions are kept for the backward pass, which
 reconstructs the parse tree. Reinsertion returns
 $v_0 = (\mathit{Right}(a,b), \mathit{Right}())$.
 Flattening from Equation~\eqref{eq:flatten} gives:
@@ -736,8 +736,8 @@ so prepending costs only the new prefix and not the accumulated history,
 which keeps an $n$-character run $O(n)$ rather than $O(n^2)$.
 \texttt{Alt}, \texttt{Seq}, and \texttt{Star}'s own recursive fields are
 \texttt{Rc<ARegex>} for a similar reason: deriving or simplifying one
-operand often leaves another unchanged (Seq's right-hand side
-surviving alongside its own derivative, for instance), and sharing
+operand often leaves another unchanged (e.g. Seq's right-hand side
+surviving alongside its own derivative), and sharing
 that unchanged child costs one reference-count bump regardless of its
 size, rather than a copy of its whole subtree.
 \begin{figure}[H]
@@ -958,8 +958,7 @@ Where \texttt{mk\_eps} builds a parse tree,
 \texttt{mk\_eps\_bc} concatenates bit-lists 
 using \texttt{bs.to\_vec()} instead of borrowing or cloning.
 This materializes a node's \texttt{Bits} chain
-(Section~\ref{sec:aregex-type}) into a concrete \texttt{Vec<bool>},
-a step that \texttt{fuse} deliberately avoids on each derivative.
+(Section~\ref{sec:aregex-type}) into a concrete \texttt{Vec<bool>}.
 Like \texttt{mk\_eps}, its \texttt{Star} arm does not recurse into
 the child expression.
 A star matching the empty word always represents zero iterations,
@@ -1077,8 +1076,8 @@ so the bit stays on the outer constructor until the decoder reads it.
 The \texttt{Seq} arm reflects $\mathsf{B}_{\mathrm{seq}}$
 and $\mathsf{B}_{\mathrm{seq}}^{\,n}$.
 \texttt{deriv\_bc} only ever reads a child to derive it,
-so \texttt{r1} and \texttt{r2} need no clone just to recurse into;
-a clone is needed only where a child must also survive, unchanged,
+so \texttt{r1} and \texttt{r2} need no clone just to recurse into.
+A clone is needed only where a child must also survive, unchanged,
 in the result it builds alongside its own derivative.
 In the non-nullable case, \texttt{r1} must consume the character,
 so only its derivative is needed;
@@ -1089,7 +1088,7 @@ In the nullable case, both alternatives are possible.
 The bits of \texttt{r1}'s empty match are extracted
 by \texttt{mk\_eps\_bc} before \texttt{r1}'s own derivative
 is computed by \texttt{deriv\_bc}, so the same borrow of \texttt{r1}
-serves both calls in turn; neither needs its own clone.
+serves both calls in turn and neither needs its own clone.
 Those bits are then fused onto the derivative of \texttt{r2},
 so the choice made inside \texttt{r1} reaches the surviving branch.
 The left branch is wrapped in a fresh \texttt{Seq} with an empty bit-list,
@@ -1261,10 +1260,13 @@ simplifies a single expression rather than selecting
 among states. \texttt{same\_shape} identifies structurally
 identical branches that derive and decode identically,
 so removing duplicates does not change the selected parse tree.
+
+\clearpage
 During flattening, \texttt{push\_branches} fuses each
 \texttt{Alt} node's bits onto its children, preserving
-the encoded choices. This allows \texttt{dedup\_first}
-to compare all branches across nesting levels and retain
+the encoded choices. 
+This allows \texttt{dedup\_first}
+to compare all branches across nesting levels and keep
 only the first occurrence of each regex shape, by grouping them
 under a structural hash of their shape, bits aside, and confirming
 each apparent match with \texttt{same\_shape} only within its own
@@ -1491,7 +1493,7 @@ and the remaining bits, so the recursion continues at the correct position:
 \paragraph{In Rust.}
 Figure~\ref{fig:decode-rust} shows \texttt{decode}, 
 the public entry point. 
-It calls the worker \texttt{decode\_inner} 
+It calls \texttt{decode\_inner}, the worker,
 and asserts that no bits remain, enforcing the side condition 
 under which $\mathit{decode}_r$ is defined.
 \begin{figure}[H]
@@ -1609,7 +1611,7 @@ and decodes them against the original $r$:
   \begin{cases}
     \mathit{decode}_r(\mathit{mkEpsBC}(\mathit{ri}_n))
       & n(\mathit{ri}_n) \\
-    \text{no match} & \text{otherwise.}
+    \text{no match} & \text{otherwise}
   \end{cases}
 \end{alignedat}
 \end{equation}

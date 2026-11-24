@@ -4,15 +4,18 @@
 \label{sec:partial-derivative-parser}
 
 This chapter presents the partial-derivative approach to parse-tree construction, 
-following \citep[\S5, Figs.~10--11, pp.~85--86]{sulzmannlu2012}. 
+following \citep[\S5, Figs.~10--11, pp.~85--86]{sulzmannlu2012}
+and Sulzmann's \emph{Programming Paradigms} teaching material~\citep[p.8]{sulzmann_slides}.
 Unlike ordinary derivatives, partial derivatives produce a set of residual states,
-each pairing an expression with the reconstruction information 
-for one path through the original expression. 
+as shown in Chapter~\ref{sec:derivatives}.
+Each pairs an expression with the reconstruction information 
+for one path through the original expression.
 The parser maintains this set as an NFA state set
 and selects the first accepting state in generation order.
 As in Chapter~\ref{sec:derivative-parser}, this state set is not a
-precompiled automaton: each step recomputes it from the current
-residuals and the next input character, rather than looking up a
+precompiled automaton. 
+Each step recomputes it from the current
+residuals and next input character, instead of looking up a
 transition in an automaton built ahead of time.
 
 Since partial derivatives lose the original expression's structure,
@@ -33,13 +36,18 @@ Both produce the same parse tree.
 \label{sec:pderiv-std}
 
 Consider again $r_0 = (a + ab)(b + \varepsilon)$ with input $w = \mathtt{ab}$. 
-Whereas $\mathit{deriv}$ produces a single residual at each step, 
+Where $\mathit{deriv}$ produces keeps a single residual each step, 
 $\mathit{pderiv}$ produces a \emph{set} of states, 
 one per way the next character can be consumed.
-Each state pairs a residual with an injection 
-that reconstructs a parse tree of $r_0$ from one of that residual. 
-Unlike $\mathit{inj}$, this injection is attached 
-when the state is created rather than recovered from a stored sequence.
+Each state pairs a residual with an injection closure
+that reconstructs a parse tree of $r_0$ from that residual.
+This differs from $\mathit{inj}$ in the standard parser
+(Chapter~\ref{sec:derivative-parser}, 
+Equation~\eqref{eq:inj}) replays a stored sequence of 
+derivative steps backwards after parsing finishes. 
+Here, each state's closure is built incrementally and attached
+as the state itself is created, since merging can fold several
+parents into one residual with no trace of which produced it.
 Figure~\ref{fig:pderiv-std-overview} shows the process.
 
 \begin{figure}[ht]
@@ -281,10 +289,8 @@ If $\mathit{smartC}$ simplified $\varepsilon \cdot s$ to $s$,
 injection would no longer find the required $\mathit{Pair}$. 
 Equation~\eqref{eq:mkeps-simp} shows a similar loss of structure 
 in the standard derivative parser.
-However, simplification can still be used, when the injection for the
-simplified shape is rebuilt, similarly to the bit-coded parser that
-rebuilds its bits onto the surviving node with fuse, 
-as shown in Section~\ref{sec:fuse}.
+However, simplification can still be used when the injection
+for the simplified shape is rebuilt to match it.
 
 %
 
@@ -739,10 +745,10 @@ and builds no annotated \texttt{ARegex} type.
 A partial derivative already returns one residual per surviving strand, 
 so each strand's bits thread 
 alongside its plain \texttt{Regex} residual as a separate value 
-(\texttt{AppendBits}, Section~\ref{sec:pderiv-bc-state-set}) 
+(\texttt{AppendBits}) 
 rather than being embedded in the expression tree itself. 
-There is no $\mathit{fuse}$ step either: 
-$\mathit{fuse}$ exists to carry bits from a node 
+There is no $\mathit{fuse}$ step either,
+since $\mathit{fuse}$ exists to carry bits from a node 
 a shared annotated tree is about to lose onto the
 node that replaces it, and no such tree is ever built here.
 Transitioning $w = \mathtt{ab}$ from $r_0 = (a + ab)(b + \varepsilon)$ gives:
@@ -834,15 +840,15 @@ and the final step changes from applying an injection to calling $\mathit{decode
 \subsection{Bit-Coded Partial Derivatives}
 \label{sec:pderiv-bc-theory}
 
-The bit-coded partial derivative $\mathit{pderivBC}(r, x)$ 
-returns a list of $(\text{residual}, \text{bit-sequence})$ pairs. 
+The bit-coded partial derivative $\mathit{pderivBC}(r, x)$
+returns a list of $(r', bs)$ pairs.
 It follows the same case structure as Equations~\eqref{eq:pderiv-tree}, 
 with one difference:
 where the standard version builds an injection closure, 
-the bit-coded version prepends a fixed bit-sequence to the pair's existing bits.
-The bit conventions are inherited from Chapter~\ref{sec:bitcoded-construction-formal}. 
+the bit-coded version prepends a fixed bit-sequence to the pair's existing bits,
+reusing the conventions from Chapter~\ref{sec:bitcoded-construction-formal}. 
 Each alternation contributes a leading $0$ 
-for the left branch or a leading $1$ for the right branch. 
+for the left branch or $1$ for the right branch. 
 Each star iteration contributes a leading $0$, 
 and each star termination contributes a $1$. 
 Concatenation contributes no bits of its own.
@@ -936,7 +942,7 @@ Both \texttt{Seq} and \texttt{Star} call \texttt{smart\_seq},
 since $r_1$'s derivative can be $\varepsilon$
 regardless of whether $r_1$ itself is nullable.
 Unlike \texttt{pderiv\_tree} (Section~\ref{sec:pderiv-tree-impl}),
-no companion adjustment is needed, since the bits ride alongside the
+no injection rebuild is needed here, since the bits ride alongside the
 residual: collapsing $\varepsilon \cdot s$ to $s$ leaves \texttt{bs} untouched.
 
 \begin{figure}[H]
@@ -1186,6 +1192,7 @@ Figure~\ref{fig:step-frontier-rust}. Each residual steps through
 \label{fig:step-frontier-bc-rust}
 \end{figure}
 
+\clearpage
 Selection returns the first accepting pair's bits, extended with
 $\mathit{mkEpsBC}$ of its residual:
 \begin{figure}[H]
@@ -1208,7 +1215,7 @@ pub(super) fn select_bits(frontier: &[(Regex, AppendBits)])
 
 Like \texttt{select}, \texttt{select\_bits} walks the state set 
 in generation order and returns the first accepting pair, 
-so the same non-POSIX bias applies.
+so the same non-POSIX policy applies.
 Whichever branch committed earliest wins, with
 no preference for the pair whose underlying tree would be longest.
 The two selections differ only in what they hand back.
@@ -1216,7 +1223,7 @@ The two selections differ only in what they hand back.
 \texttt{select\_bits} appends \texttt{mk\_eps\_bits} 
 of the accepting residual and returns a flat bit vector, 
 leaving tree construction to \texttt{decode} 
-(Section~\ref{sec:pderiv-bc-parser}) rather than doing it here.
+(Section~\ref{sec:pderiv-bc-parser}).
 
 %
 %

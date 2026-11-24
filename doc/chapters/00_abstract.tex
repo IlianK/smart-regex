@@ -1,36 +1,44 @@
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-Brzozowski derivatives and Antimirov partial derivatives
-enable incremental regular-expression processing and
-provide a basis for reconstructing parse trees.
-Building on Sulzmann and Lu's work on POSIX parsing
-\citep{sulzmannlu2014} and non-POSIX submatching
-\citep{sulzmannlu2012}, this thesis investigates the
-implementation and performance of derivative-based
-regular-expression parsers.
+Regular-expression parsing extends matching by
+recovering the structure of a successful match.
+Brzozowski derivatives and Antimirov partial
+derivatives provide a foundation for this task.
+Building on \citet{sulzmannlu2014}'s extension 
+of Brzozowski derivatives to POSIX parse-tree construction 
+and \citet{sulzmannlu2012}'s application 
+of Antimirov partial derivatives to submatching,
+this thesis investigates the implementation
+of derivative-based regular-expression parsers
+in Rust and evaluates their performance.
 
-Four parsers are implemented in Rust: two using
-Brzozowski derivatives and two using Antimirov
-partial derivatives.
+Four parsers are implemented:
+two using Brzozowski derivatives and
+two using Antimirov partial derivatives.
 Each approach includes a standard variant using
-injection functions and an optimized bit-coded variant that
-records parsing decisions for later reconstruction.
-The derivative variants construct POSIX parse trees,
-while the partial-derivative variants construct
-full trees under non-POSIX disambiguation.
+injection functions for parse-tree reconstruction
+and a bit-coded variant that records parsing decisions 
+during derivation and later decodes them into a parse tree.
+The Brzozowski variants construct POSIX parse trees,
+whereas the partial-derivative variants use a
+different disambiguation strategy, resulting in non-POSIX parse trees.
 Execution time, memory usage, and translation cost
-are evaluated on a real corpus and a synthetic
-stress-test dataset.
+are evaluated on a real-world corpus and
+a synthetic stress-test dataset.
 
 The results show that partial-derivative parsers
-generally perform best, although rankings vary
-across workloads.
+generally perform best, although rankings vary across workloads.
+Some patterns cause the combined residual expression
+of the derivative parsers to grow substantially,
+while others increase the number of residual states 
+the partial derivative parsers have to maintain.
 Bit-coding improves the standard-derivative parser's
-execution time by approximately four to five times
-and reduces peak memory by roughly two orders
-of magnitude, but offers smaller and less consistent
-benefits for partial derivatives.
+execution time by a factor of roughly four to five
+and reduces peak memory by about two orders of magnitude.
+For partial derivatives, its benefits are smaller and less consistent, 
+improving timing and cumulative allocation but not peak memory.
 Overall, performance depends on the derivative
 construction, reconstruction representation,
 and characteristics of the input.
+

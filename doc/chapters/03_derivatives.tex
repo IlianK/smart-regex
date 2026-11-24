@@ -4,9 +4,9 @@
 This chapter introduces three algorithms for deciding \(w \in L(r)\),
 starting with a naive recursive matcher as a simple starting point,
 before introducing the two transformation-based approaches.
-Brzozowski derivatives transform the expression 
+\citet{brzozowski1964} derivatives transform the expression 
 into a single residual as input is consumed, 
-while Antimirov's partial derivatives represent a set of residuals.
+while \cite{antimirov1996}'s partial derivatives represent a set of residuals.
 
 %
 %
@@ -174,11 +174,11 @@ producing an expression that describes the language of the remaining suffix.
 \section{Brzozowski Derivatives}
 \label{sec:brzozowski-derivatives}
 
-A Brzozowski's derivative of $r$ with respect to a symbol $x$,
+A \citet{brzozowski1964} derivative of $r$ with respect to a symbol $x$,
 written $r \backslash x$, describes the remaining language
 after consuming the leading symbol $x$.
 The resulting expression is a \emph{residual}
-of $r$ with respect to $x$~\citep{brzozowski1964}.
+of $r$ with respect to $x$.
 For a word $w = x_1x_2\cdots x_n$, one derivative is taken per symbol:
 \begin{equation}\label{eq:der-23}
 \begin{gathered}
@@ -197,7 +197,7 @@ After all symbols have been consumed, the remaining input is $\varepsilon$.
 Thus, the resulting expression must accept $\varepsilon$ 
 for the original word to belong to $L(r)$. 
 This is the question of whether the expression is \emph{nullable}.
-Let $n(r)$ be true exactly when $\varepsilon \in L(r)$:
+Let $n(r)$ be true exactly when $\varepsilon \in L(r)$ \citep[p.5]{sulzmann_slides}:
 \begin{equation}\label{eq:nullability}
 \begin{aligned}
 n(\emptyset) &= \mathrm{false} &&(\mathsf{N}_{\emptyset}) &
@@ -229,7 +229,7 @@ The expression is passed by reference
 because \texttt{nullable} only inspects $r$ and does not modify or consume it. 
 The underscores in $\mathsf{N}_{\mathrm{lit}}$ and $\mathsf{N}_{*}$ 
 indicate that the corresponding operands are irrelevant,
-since literal is never nullable, regardless of its symbol, 
+since a literal is never nullable, regardless of its symbol, 
 and a Kleene-star expression is always nullable, regardless of its body. 
 The short-circuiting operators \texttt{||} and \texttt{\&\&}
 implement lazy evaluation by skipping the second operand 
@@ -263,7 +263,8 @@ $\mathsf{N}_{\mathrm{seq}}$ and $\mathsf{N}_{*}$.}
 \paragraph{Derivative Rules.}
 \label{par:derivative-rules}
 
-Equation~\eqref{eq:derivative} specifies the expression remaining after consuming $x$:
+Equation~\eqref{eq:derivative} specifies the expression remaining 
+after consuming $x$, matching \citet[Fig.~3]{sulzmannlu2014}:
 \begin{equation}\label{eq:derivative}
 \begin{aligned}
 \emptyset \backslash x &= \emptyset &&(\mathsf{D}_{\emptyset}) 
@@ -432,8 +433,8 @@ each derivation step is followed by simplification
 using identity functions that preserve the original language and eliminate 
 dead concatenations with $\emptyset$ ($\mathsf{S}_{1}$), 
 identity concatenations ($\mathsf{S}_{2}$),
-and redundant alternatives ($\mathsf{S}_{3}$).
-Each are holding symmetrically.
+and redundant alternatives ($\mathsf{S}_{3}$),
+including their symmetric cases \citep[p.5]{sulzmann_slides}.
 \begin{equation}\label{eq:simp-identities}
 \emptyset \cdot r = \emptyset \;(\mathsf{S}_{1})
 \qquad
@@ -513,7 +514,8 @@ to $\varepsilon$, since both denote $\{\varepsilon\}$.}
 \label{sec:derivative-matcher}
 
 The derivative matcher processes $w=x_1x_2\cdots x_n$ one symbol at a time, 
-starting with $r_0=r$ and deriving and simplifying each subsequent residual:
+starting with $r_0=r$ and deriving and simplifying each subsequent residual
+\citep[p.5]{sulzmann_slides}:
 \begin{equation}
 r_0=r,
 \qquad
@@ -725,8 +727,8 @@ Thus, the matcher accepts:
 As shown in Section~\ref{sec:brzozowski-derivatives}, 
 Brzozowski derivatives combine alternative residuals 
 into a single expression using $+$. 
-Antimirov's partial derivatives instead represent them as a set of expressions, 
-one for each strand of nondeterminism, written $pd(r,x)$~\citep{antimirov1996}.
+\citet{antimirov1996}'s partial derivatives instead represent them as a set of expressions, 
+one for each strand of nondeterminism, written $pd(r,x)$ \citep[p.6]{sulzmann_slides}:
 \begin{equation}\label{eq:pd}
 \begin{aligned}
 pd(\emptyset, x) &= \{\} &&(\mathsf{P}_{\emptyset}) \\
@@ -771,7 +773,7 @@ while $\mathsf{P}_{\mathrm{seq}}^{\,n}$ keeps them as separate set elements.
 
 \paragraph{The smart constructor.}
 The concatenation in $\mathsf{P}_{\mathrm{seq}}$ 
-uses an auxiliary constructor $\mathit{smartC}$. 
+uses an auxiliary constructor $\mathit{smartC}$ \citep[p.6]{sulzmann_slides}. 
 Since each element of $pd(r,x)$ is a separate residual 
 rather than a branch of a sum, 
 $\mathit{smartC}$ is applied to each independently. 
@@ -929,15 +931,18 @@ is bounded by $\|r\|+1$, where $\|r\|$ counts $r$'s literal (alphabet)
 occurrences rather than the AST node count used above, 
 \citep[Theorem~3.4, p.~309]{antimirov1996}. 
 This is a ceiling, not a guarantee that all $\|r\|+1$ are reached.
-For $(x{+}y)^{*}$, $\|r\| = 2$, so the ceiling is $3$, 
-yet only $(x{+}y)^{*}$ is reachable, 
-since deriving by either $\mathtt{x}$ or $\mathtt{y}$ returns it unchanged.
-
+For $(x{+}y)^{*}$, $\|r\| = 2$ (one occurrence each of $\mathtt{x}$ and
+$\mathtt{y}$), so the ceiling of $3$ counts the original expression plus
+one potential derivative per occurrence. But deriving by either
+$\mathtt{x}$ or $\mathtt{y}$ yields $\epsilon\cdot(x{+}y)^{*}$, which
+simplifies back to $(x{+}y)^{*}$ itself, so all three coincide, 
+and only one state is ever actually reachable.
 Ordinary derivatives are finite up to equivalence
-\citep[Theorem~4.3]{brzozowski1964}.
+\citep[Theorem~5.2]{brzozowski1964}.
 Each ordinary derivative corresponds to a sum
 of some subset of the $d_P$ reachable partial
-derivatives. Since there are at most
+derivatives \citep[Corollary~2.11, p.~306]{antimirov1996}. 
+Since there are at most
 $2^{d_P}-1$ nonempty subsets, the number
 of distinct ordinary derivatives up to
 equivalence satisfies $d_R \leq 2^{d_P}-1$.
@@ -946,7 +951,7 @@ equivalence satisfies $d_R \leq 2^{d_P}-1$.
 
 \paragraph{The matcher.}
 The implementation can be summarized by the sequence of state sets
-produced while consuming the input. 
+produced while consuming the input \citep[p.6]{sulzmann_slides}. 
 For $w=x_1x_2\cdots x_n$, the initial state set is $S_0=\{r\}$, 
 and each subsequent set is obtained by taking $pd$ of every residual
 in the previous set and unioning the results:
@@ -954,7 +959,7 @@ in the previous set and unioning the results:
 S_0=\{r\},
 \qquad
 S_i=\bigcup_{r'\in S_{i-1}} pd(r',x_i)
-\quad (1\leq i\leq n).
+\quad (1\leq i\leq n)
 \label{eq:pderiv-state-set}
 \end{equation}
 
@@ -968,7 +973,7 @@ the matcher accepts when some residual in $S_n$ is nullable:
 \[
 w\in L(r)
 \iff
-\exists r_n \in S_n.\ n(r_n)=\mathrm{true}.
+\exists r_n \in S_n.\ n(r_n)=\mathrm{true}
 \]
 
 $S_0\xrightarrow{x_1}S_1\xrightarrow{x_2}\cdots\xrightarrow{x_n}S_n$
@@ -992,9 +997,15 @@ reached by different paths.
 The early return when the set empties follows from construction.
 An empty set has no states to derive. 
 The final \texttt{any(nullable)} checks whether some residual is nullable.
-Where \texttt{match\_deriv} holds one growing \texttt{Regex},
-the matcher \texttt{match\_pderiv} 
-holds a set of small residuals that never need simplification.
+Where \texttt{match\_deriv} holds one growing \texttt{Regex}
+that needs algebraic simplification to stay small,
+\texttt{match\_pderiv} holds a set of small residuals
+kept small by the \texttt{HashSet}'s own deduplication alone.
+So no individual residual is algebraically simplified.
+Deduplication and algebraic simplification solve different problems:
+one discards residuals that are already identical,
+the other rewrites a single expression into a smaller equivalent one.
+\texttt{match\_pderiv} only ever needs the former.
 
 \begin{figure}[ht]
 \small

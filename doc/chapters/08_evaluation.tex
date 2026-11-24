@@ -761,16 +761,15 @@ In both cases, derivation becomes too expensive
 before the stack limit is reached.
 E51 isolates stack usage using the simple pattern
 \texttt{x} and inputs consisting entirely of \texttt{a}.
-The immediate mismatch keeps the residual fixed,
-making derivative computation cheap.
+The immediate mismatch keeps the
+residual fixed and derivation cheap.
 The recursive parser crashes at $n=32\,768$,
-confirming its stack-depth limitation.
-The iterative form avoids this limitation by storing
-intermediate derivatives on the heap,
-whose memory costs are examined separately.
-For subsequent evaluations, only
-\texttt{deriv\_std\_loop} is reported
-as \texttt{deriv\_std}, acting as the representative of both. 
+demonstrating its stack-depth limitation.
+This motivates iterative input processing in
+all other parser implementations.
+For subsequent evaluations,
+\texttt{deriv\_std\_loop} is reported as
+\texttt{deriv\_std}.
 
 %
 %
@@ -1094,7 +1093,7 @@ direct comparison of their means:
 Unrolling bounded repetitions produces chains whose
 remaining suffixes differ as the input is consumed.
 The \texttt{pderiv} variants deduplicate only
-structurally identical residuals, potentially retaining
+structurally identical residuals, potentially keeping
 many distinct states to process at each character.
 In contrast, \texttt{deriv\_bc} repeatedly simplifies
 a single residual expression.
@@ -1275,7 +1274,7 @@ and the first failure, where applicable.
 
 \texttt{deriv\_std} fails earliest in the four
 input-length sweeps, consistent with heap pressure
-from retaining intermediate derivatives for
+from keeping intermediate derivatives for
 backward reconstruction.
 The other parsers complete P60, P61, and P09
 through the largest tested input length.
@@ -2498,7 +2497,7 @@ bs@{\oplus}\bigl(
 \bigr).
 \]
 Haskell's standard \texttt{nub} uses equality
-comparisons against previously retained elements,
+comparisons against previously kept elements,
 giving quadratic worst-case complexity.
 In contrast, \texttt{dedup\_first} first groups
 branches by structural hash and performs equality
@@ -2629,7 +2628,7 @@ Its total allocation (206.86\,GB) and
 average per completed entry (19.10\,MB)
 are likewise substantially higher.
 This is consistent with \texttt{deriv\_std}
-retaining intermediate derivatives for
+keeping intermediate derivatives for
 backward reconstruction, whereas
 \texttt{deriv\_bc} uses bit annotations.
 Unlike \texttt{deriv\_std}, the other three
@@ -2910,7 +2909,7 @@ of 1\,871.0\,MB among those completed.
 \paragraph{Overall}
 \texttt{deriv\_std} reaches the highest
 live-memory peak in every category,
-consistent with retaining intermediate
+consistent with keeping intermediate
 derivatives for backward reconstruction.
 Its cumulative allocation is less consistently
 dominant because many entries are excluded
@@ -3037,7 +3036,7 @@ Nevertheless, its peak memory nearly doubles
 on P61, indicating that frontier size alone
 does not determine memory consumption.
 The differences must also involve the memory
-retained by the residuals, annotations,
+kept by the residuals, annotations,
 or reconstructed parse trees.
 
 %
@@ -3124,7 +3123,7 @@ consistently uses about 25--26\% more
 peak memory than \texttt{pderiv\_bc}.
 All four exhibit approximately linear
 growth across the sweep, suggesting that
-their retained structures grow proportionally
+their kept structures grow proportionally
 to the number of alternatives at this scale.
 
 \begin{table}[H]
@@ -3184,7 +3183,7 @@ receives a position-dependent bit prefix
 \texttt{pderiv\_std} constructs corresponding
 injection-closure chains
 (Section~\ref{sec:pderiv-tree-impl}).
-Without sharing, retaining independent
+Without sharing, keeping independent
 prefixes or closure chains could require
 $O(p^2)$ memory across $p$ alternatives.
 However, neither variant exhibits such
@@ -3586,7 +3585,7 @@ disagreements, and the specific inputs each occurs on. Report:
 is most crash-prone and incurs the highest
 time and memory costs on demanding entries,
 though not on typical small inputs.
-Its two-pass design retains intermediate
+Its two-pass design keeps intermediate
 derivatives for backward reconstruction,
 causing linear memory growth with $n$
 on \texttt{a*}, while the other variants
@@ -3687,12 +3686,13 @@ reversing the modest corpus-side advantage
 Their peak-memory rankings also vary between
 the two workloads.
 This is consistent with the two variants'
-different reconstruction bookkeeping --
+different reconstruction bookkeeping.
 \texttt{pderiv\_std} maintains injection
 closures, whereas \texttt{pderiv\_bc}
 records bit annotations
 (Sections~\ref{sec:pderiv-tree-impl}
-and~\ref{sec:pderiv-bc}) -- so bit-coding's
+and~\ref{sec:pderiv-bc}).
+So bit-coding's
 benefit within the partial-derivative family
 is workload-dependent rather than uniform.
 
@@ -3740,12 +3740,8 @@ offers clear benefits on the measured corpus
 and wide alternations, but its relative
 cost depends on the residual structure
 and reconstruction mechanism.
-Both partial-derivative variants produce
-non-POSIX trees. This reflects a different
-parsing policy rather than an implementation
-error and motivates comparing the two
-parser families separately in
-Section~\ref{sec:eval-agreement}.
+However, the partial-derivative variants
+produce non-POSIX trees. 
 
 %
 %
@@ -3770,20 +3766,42 @@ leaving interactions between stress mechanisms largely untested.
 
 %
 
+\paragraph{Measurement model}
+Memory measurements cover heap allocations rather than total
+process memory, while timing depends on hardware and the
+execution environment. A recorded \emph{crash} indicates
+signal termination, not necessarily stack overflow
+(Section~\ref{sec:eval-criteria-setup}).
+The separate stack-depth probe provides direct evidence
+of recursive stack exhaustion, whereas crashes in the
+representative sweeps are consistent with retained-derivative
+memory growth without establishing the precise failure mechanism.
+Each entry is timed once, without warm-up or repetition
+(Section~\ref{sec:eval-criteria-timing}),
+to keep the evaluation feasible given the large
+benchmark set and expensive stress cases.
+A reported time is therefore a single sample,
+not a distribution, and may be affected by
+scheduling jitter, cache state, or other transient
+system effects. Without repeated measurements,
+outliers cannot be reliably distinguished
+from genuine execution costs.
+
+%
+
 \paragraph{Resource limits}
 The per-entry timeout and memory cap
 (Section~\ref{sec:eval-criteria-setup}) are not independent failure
 boundaries. For an entry whose memory usage grows with its cost,
-allowing more time does not necessarily permit completion --
-it may instead reach the $12\,\mathrm{GiB}$ cap and crash first.
+allowing more time does not necessarily permit completion.
+It may instead reach the $12\,\mathrm{GiB}$ cap and crash first.
 Increasing the timeout can therefore shift entries between
 outcomes rather than eliminate failures: some additional
 entries complete, while others that would have timed out crash
 instead. The recorded timeouts and crashes reflect this
 specific resource budget, not necessarily each parser's
 inherent limits. Retrying under a larger cap or longer timeout
-could establish how many failures resolve into completions
-rather than another failure mode.
+could establish how many failures resolve.
 
 %
 
@@ -3801,36 +3819,11 @@ its cost throughout derivation
 So the reported \emph{setup} is an accounting choice
 rather than a separately executed phase. 
 The accumulated \texttt{flatten\_alt} cost is reassigned 
-from \emph{derive} to keep the bit-coded parsers' phase tables comparable,
+from \emph{derive} to keep the bit-coded parsers' phase tables somewhat comparable,
 so their \emph{setup} figures measure different
 behaviors: a one-time operation in \texttt{deriv\_bc}
 versus recurring work in \texttt{pderiv\_bc}.
 The results thus reflect this accounting choice,
 not a phase division applicable uniformly to every parser.
 
-%
 
-\paragraph{Measurement model}
-Memory measurements cover heap allocations rather than total
-process memory, while timing depends on hardware and the
-execution environment. A recorded \emph{crash} indicates
-signal termination, not necessarily stack overflow
-(Section~\ref{sec:eval-criteria-setup}).
-The separate stack-depth probe provides direct evidence
-of recursive stack exhaustion, whereas crashes in the
-representative sweeps are consistent with retained-derivative
-memory growth without establishing the precise failure mechanism.
-
-%
-
-\paragraph{Single-run measurement}
-Each entry is timed once, without warm-up or repetition
-(Section~\ref{sec:eval-criteria-timing}),
-to keep the evaluation feasible given the large
-benchmark set and potentially expensive stress cases.
-A reported time is therefore a single sample,
-not a distribution, and may be affected by
-scheduling jitter, cache state, or other transient
-system effects. Without repeated measurements,
-outliers cannot be reliably distinguished
-from genuine execution costs.

@@ -98,28 +98,27 @@ Seq(
 \label{sec:surface-syntax}
 
 The surface syntax includes several \emph{accepted constructs},
-summarised in Table~\ref{tab:surface-syntax}, 
+(Table~\ref{tab:surface-syntax}), 
 which can be translated into the six-constructor core \texttt{Regex} 
-without changing their meaning. 
+without changing the language they denote. 
 However, real-world patterns can be complex, 
 and some require special considerations during translation to preserve correctness. 
 Rather than trying to support these cases,
 some constructs are explicitly excluded 
-and classified as \emph{rejected constructs}, 
-as listed in Table~\ref{tab:surface-rejected}.
+and classified as \emph{rejected constructs} (Table~\ref{tab:surface-rejected}).
 Matching uses \emph{full-string matching}, 
 meaning that the entire input must match, with no search padding or substring search.
 Shorthand and negated classes are interpreted over a fixed
 \emph{98-character working alphabet}, 
 comprising the 95 printable ASCII characters (\verb|0x20|--\verb|0x7E|), 
 tab, newline, and carriage return. 
-Within this alphabet, \texttt{\textbackslash d} 
+Within this alphabet, character classes like \texttt{\textbackslash d} 
 expands to digits \texttt{0}--\texttt{9},
 \texttt{\textbackslash w} to letters, digits, and underscore, 
 and \texttt{\textbackslash s} to space, tab, newline, and carriage return. 
 Patterns may also include \emph{PCRE flags} in a \texttt{/PATTERN/FLAGS} wrapper, 
 such as \texttt{/abc/i}.
-These flags fall into three groups, summarised in Table~\ref{tab:flags}.
+These flags fall into three groups (Table~\ref{tab:flags}).
 \begin{table}[ht]
 \centering
 \small
@@ -138,9 +137,9 @@ Ignored & \texttt{R}, \texttt{A}, \texttt{E}
   & Buffer or normalisation selection \\
 \hline
 \end{tabular}
-\caption{PCRE flag groups. Honoured flags affect the pattern's
+\caption{PCRE flag groups. \emph{Honoured} flags affect the pattern's
 meaning and are handled by structural rewrites on \texttt{ExtPat}.
-Rejected flags are unsupported. Ignored flags do not affect the
+\emph{Rejected} flags are unsupported. \emph{Ignored} flags do not affect the
 denoted language.}
 \label{tab:flags}
 \end{table}
@@ -367,4 +366,4 @@ bounded repetitions with either bound above 1{,}000 are rejected.
 Dataset preparation also caps translated patterns at 20{,}000 \texttt{Regex} nodes
 and an estimated nesting depth of 2{,}000, 
 since nested bounds and character classes can compound in size. 
-These limits were found during evaluation.
+These limits were set during evaluation.
